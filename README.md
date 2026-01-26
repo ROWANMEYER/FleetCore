@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FleetCore
 
-## Getting Started
+FleetCore is a production-focused fleet operations system designed for
+daily route planning, load management, and operational reporting.
 
-First, run the development server:
+This project prioritizes:
+- Stability over cleverness
+- Predictability over premature optimization
+- Progressive disclosure in the UI
+- Explicit, intentional architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔒 CURRENT PROJECT STATUS: LOCKED BASELINE
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+As of **2026-01-23**, FleetCore is in a **locked, production-ready state**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This means:
+- The system is stable
+- The build passes
+- Core UI patterns are finalized
+- Architectural intent is documented
 
-## Learn More
+All work after this point is **feature-driven**, not cleanup-driven.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## ✅ VERIFIED BASELINE (LOCKED)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The following have been explicitly verified and are considered stable:
 
-## Deploy on Vercel
+- TypeScript strict mode enabled (0 errors)
+- Production build passes
+- Sheets table uses progressive disclosure:
+  - Collapsed summary rows
+  - Chevron-based expansion
+  - Full detail cards on demand
+- Status + Risk column is computed (not user-entered)
+- Backend queries are intentionally separated by use case
+- Legacy routes are supported but clearly marked
+- No dead code or unused mutations remain
+- Suspense boundaries are applied correctly and minimally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🧠 IMPORTANT RULE
+
+> Do not refactor core structure "just to clean it up".
+
+If something looks duplicated or complex, it is likely intentional.
+Refer to `ARCHITECTURE_LOCK.md` before making structural changes.
+
+---
+
+## 🚦 WHAT CHANGES ARE SAFE
+
+- Adding new features
+- Adding new routes or reports
+- Adding new status rules (explicitly)
+- Styling and layout refinements
+- Performance optimizations (with profiling)
+
+---
+
+## 🚫 WHAT REQUIRES EXPLICIT DECISION
+
+- Changing table structure
+- Merging or removing routes
+- Merging backend queries
+- Changing Status + Risk logic
+- Global refactors
+- Introducing new architectural patterns
+
+If in doubt: **assume it is locked**.
+
+---
+
+## 🏁 PHILOSOPHY
+
+FleetCore is built for real operators, real loads, and real consequences.
+
+Silent bugs are worse than visible ones.
+Stable systems beat clever systems.

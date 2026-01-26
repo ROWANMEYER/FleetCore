@@ -12,9 +12,12 @@ export default function QuickSendPage() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   // 2. Data Fetching
+  const [completedOnly, setCompletedOnly] = useState(true);
+
   const reportData = useQuery(api.dailyRoutes.getQuickSendReport, { 
     startDate, 
-    endDate 
+    endDate,
+    completedOnly
   });
   
   const sendLoadReportEmail = useAction(api.emails.sendLoadReportEmail);
@@ -29,7 +32,8 @@ export default function QuickSendPage() {
         recipientIds, 
         startDate, 
         endDate, 
-        subject 
+        subject,
+        completedOnly 
       });
       alert("Email sent successfully!");
     } catch (error) {
@@ -48,7 +52,7 @@ export default function QuickSendPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">QuickSend – Transport Report</h1>
           <p className="text-gray-500 mt-1">
-            Review completed loads and send reports to stakeholders.
+            Review loads and send reports to stakeholders.
           </p>
         </div>
         <div>
@@ -88,6 +92,18 @@ export default function QuickSendPage() {
             className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
           />
         </div>
+        
+        <div className="flex items-center pb-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
+                <input 
+                    type="checkbox" 
+                    checked={completedOnly} 
+                    onChange={(e) => setCompletedOnly(e.target.checked)} 
+                    className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                />
+                Show completed only
+            </label>
+        </div>
       </div>
 
       {/* Report Preview */}
@@ -105,7 +121,7 @@ export default function QuickSendPage() {
           <div className="p-12 text-center text-gray-500">Loading report data...</div>
         ) : !hasData ? (
           <div className="p-12 text-center text-gray-500">
-            No completed loads found for the selected period.
+            No loads found for the selected period.
           </div>
         ) : (
           <div>
@@ -126,7 +142,14 @@ export default function QuickSendPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {reportData.loads.map((load: any, idx: number) => (
                     <tr key={`${load.routeDate}-${load.truckFleetNo}-${idx}`} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{load.routeDate}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {load.routeDate}
+                        {load.status !== "completed" && load.status !== "locked" && (
+                          <span className="ml-2 inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                            Not completed
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{load.truckFleetNo}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{load.driverName}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{load.clientName}</td>

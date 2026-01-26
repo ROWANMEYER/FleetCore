@@ -52,6 +52,30 @@ function deriveTripAggregates(loads: any[]) {
   };
 }
 
+// Helper: Auto-complete Logic
+function shouldAutoComplete(loads: any[]) {
+  if (!loads || loads.length === 0) return false;
+
+  return loads.every((load) => {
+    const hasClient = load.client && load.client.trim().length > 0;
+    const hasFrom =
+      load.fromLocations &&
+      load.fromLocations.length > 0 &&
+      load.fromLocations[0].trim().length > 0;
+    const hasTo =
+      load.toLocations &&
+      load.toLocations.length > 0 &&
+      load.toLocations[0].trim().length > 0;
+
+    const r = parseFloat(load.rate || "0");
+    const q = parseFloat(load.quantity || "0");
+    const amount = calculateLoadAmount(q, r, load.rateType);
+
+    // We consider it filled if it has basic details and non-zero value
+    return hasClient && hasFrom && hasTo && amount > 0;
+  });
+}
+
 export const createDailyRoute = mutation({
   args: {
     routeDate: v.string(),
@@ -133,6 +157,9 @@ export const createDailyRoute = mutation({
       trailerFleetNo: args.trailerFleetNoStr
         ? Number(args.trailerFleetNoStr)
         : 0,
+      
+      // Auto-complete if all loads are valid
+      status: shouldAutoComplete(normalizedLoads) ? "completed" : "planned",
     });
 
     return id;
@@ -332,9 +359,25 @@ export const updateDailyRoute = mutation({
       throw new Error("At least one load is required");
     }
 
+    // Fetch existing route to check status
+    const existingRoute = await ctx.db.get(args.id);
+    if (!existingRoute) {
+      throw new Error("Route not found");
+    }
+
+    const currentStatus = (existingRoute as any).status || "planned";
+    if (currentStatus === "locked") {
+      throw new Error("Cannot edit a locked route.");
+    }
+
     // Normalize Loads: Enforce Flat Rate Logic (Qty 0 -> 1)
     // REMOVED: We now support explicit rateType "flat" or "per_unit"
     const normalizedLoads = args.loads;
+
+    // Auto-complete Logic
+    // If all loads are valid -> completed
+    // If ANY load is invalid -> planned (reverts manual completion if data is bad)
+    const newStatus = shouldAutoComplete(normalizedLoads) ? "completed" : "planned";
 
     const aggregates = deriveTripAggregates(normalizedLoads);
 
@@ -364,6 +407,7 @@ export const updateDailyRoute = mutation({
       fromLocation: aggregates.fromLocations[0],
       truckFleetNo: safeFleetNo,
       trailerFleetNo: args.trailerFleetNoStr ? Number(args.trailerFleetNoStr) : 0,
+      status: newStatus,
     });
   },
 });
@@ -534,6 +578,7 @@ export const getQuickSendReport = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
+    completedOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // 1. Validation (MANDATORY)
@@ -561,9 +606,13 @@ export const getQuickSendReport = query({
       // Exclude deleted routes
       if ((route as any).isDeleted) continue;
 
-      // Backend-first Filtering: status === "completed" ONLY
       const status = (route as any).status || "planned";
-      if (status !== "completed") {
+
+      // Filter based on completedOnly toggle
+      // Default to TRUE (strict mode) if not specified, to preserve legacy behavior
+      const completedOnly = args.completedOnly ?? true;
+      
+      if (completedOnly && status !== "completed" && status !== "locked") {
         continue;
       }
 
@@ -598,6 +647,7 @@ export const getQuickSendReport = query({
             rate: load.rate,
             rateType: load.rateType,
             amount: amountVal, // Return number, formatting in UI/Email
+            status: (route as any).status || "planned",
             _routeId: route._id,
             _sequence: index,
           });

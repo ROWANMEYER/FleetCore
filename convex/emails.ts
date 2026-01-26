@@ -10,6 +10,7 @@ export const sendLoadReportEmail = action({
     startDate: v.string(),
     endDate: v.string(),
     subject: v.string(),
+    completedOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -37,12 +38,13 @@ export const sendLoadReportEmail = action({
     const data = await ctx.runQuery(api.dailyRoutes.getQuickSendReport, {
       startDate: args.startDate,
       endDate: args.endDate,
+      completedOnly: args.completedOnly,
     });
 
     if (data.loads.length === 0) {
       // Backend safe return
       console.log("No loads found, skipping email.");
-      return { success: false, message: "No completed loads found for this period." };
+      return { success: false, message: "No loads found for this period." };
     }
 
     // 3. Generate HTML (Server-side)

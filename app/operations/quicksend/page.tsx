@@ -7,16 +7,26 @@ import { Id } from "../../../convex/_generated/dataModel";
 import EmailReportModal from "../../components/EmailReportModal";
 
 export default function QuickSendPage() {
-  // 1. Date Selection
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // 1. Date Selection (Shared State Model with Sheets)
+  const [dateMode, setDateMode] = useState<"single" | "range">("single");
+
+  // Single Date State (defaults to today)
+  const [singleDate, setSingleDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // Range Date State (defaults to today)
+  const [rangeStartDate, setRangeStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [rangeEndDate, setRangeEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  // Derive query dates based on mode (Identical logic to Sheets)
+  const queryStartDate = dateMode === "single" ? singleDate : rangeStartDate;
+  const queryEndDate = dateMode === "single" ? singleDate : rangeEndDate;
 
   // 2. Data Fetching
   const [completedOnly, setCompletedOnly] = useState(true);
 
   const reportData = useQuery(api.dailyRoutes.getQuickSendReport, { 
-    startDate, 
-    endDate,
+    startDate: queryStartDate, 
+    endDate: queryEndDate,
     completedOnly
   });
   
@@ -30,8 +40,8 @@ export default function QuickSendPage() {
     try {
       await sendLoadReportEmail({ 
         recipientIds, 
-        startDate, 
-        endDate, 
+        startDate: queryStartDate, 
+        endDate: queryEndDate, 
         subject,
         completedOnly 
       });
@@ -68,31 +78,75 @@ export default function QuickSendPage() {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col md:flex-row gap-4 items-end">
-        <div>
-          <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
-            Start Date
-          </label>
-          <input
-            type="date"
-            id="start-date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-          />
+        {/* Date Mode Selector */}
+        <div className="flex flex-col gap-2">
+           <span className="text-xs font-medium text-gray-700">Date Mode</span>
+           <div className="flex gap-4 p-2 bg-gray-50 rounded border border-gray-200">
+             <label className="flex items-center gap-2 cursor-pointer">
+               <input 
+                 type="radio" 
+                 checked={dateMode === "single"} 
+                 onChange={() => setDateMode("single")} 
+                 className="h-4 w-4 text-black focus:ring-black"
+               /> 
+               <span className="text-sm text-gray-700">Single Date</span> 
+             </label> 
+           
+             <label className="flex items-center gap-2 cursor-pointer">
+               <input 
+                 type="radio" 
+                 checked={dateMode === "range"} 
+                 onChange={() => setDateMode("range")} 
+                 className="h-4 w-4 text-black focus:ring-black"
+               /> 
+               <span className="text-sm text-gray-700">Date Range</span> 
+             </label> 
+           </div>
         </div>
-        <div>
-          <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
-            End Date
-          </label>
-          <input
-            type="date"
-            id="end-date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
-          />
-        </div>
-        
+
+        {/* Conditional Date Inputs */}
+        {dateMode === "single" ? (
+          <div>
+            <label htmlFor="single-date" className="block text-sm font-medium text-gray-700 mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              id="single-date"
+              value={singleDate}
+              onChange={(e) => setSingleDate(e.target.value)}
+              className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
+            />
+          </div>
+        ) : (
+          <div className="flex gap-4">
+            <div>
+              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                id="start-date"
+                value={rangeStartDate}
+                onChange={(e) => setRangeStartDate(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                id="end-date"
+                value={rangeEndDate}
+                onChange={(e) => setRangeEndDate(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center pb-2">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
                 <input 
@@ -188,7 +242,7 @@ export default function QuickSendPage() {
       <EmailReportModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
-        initialSubject={`Transport Report: ${startDate} to ${endDate}`}
+        initialSubject={`Transport Report: ${queryStartDate} to ${queryEndDate}`}
         onSend={handleSendEmail}
       />
     </div>

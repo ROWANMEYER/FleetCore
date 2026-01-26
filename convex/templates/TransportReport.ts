@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { calculateLoadAmount } from "../utils";
 
 // Helper to format currency (ZAR)

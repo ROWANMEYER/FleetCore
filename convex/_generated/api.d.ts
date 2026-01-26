@@ -13,6 +13,8 @@ import type * as dashboard from "../dashboard.js";
 import type * as dataImport from "../dataImport.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as emails from "../emails.js";
+import type * as finance_importAgeSnapshot from "../finance/importAgeSnapshot.js";
+import type * as finance_lib_validateAgeRows from "../finance/lib/validateAgeRows.js";
 import type * as fleet from "../fleet.js";
 import type * as migrations from "../migrations.js";
 import type * as recipients from "../recipients.js";
@@ -32,6 +34,8 @@ declare const fullApi: ApiFromModules<{
   dataImport: typeof dataImport;
   emailTemplates: typeof emailTemplates;
   emails: typeof emails;
+  "finance/importAgeSnapshot": typeof finance_importAgeSnapshot;
+  "finance/lib/validateAgeRows": typeof finance_lib_validateAgeRows;
   fleet: typeof fleet;
   migrations: typeof migrations;
   recipients: typeof recipients;

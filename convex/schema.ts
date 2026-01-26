@@ -88,4 +88,27 @@ import { defineSchema, defineTable } from "convex/server";
     name: v.string(),
     email: v.string(),
   }),
+
+  ageSnapshots: defineTable({
+    month: v.string(), // YYYY-MM
+    importedAt: v.number(),
+    importedBy: v.string(),
+    fileName: v.string(),
+    status: v.string(), // "active"
+  })
+  .index("by_month", ["month"]),
+
+  ageSnapshotRows: defineTable({
+    snapshotId: v.id("ageSnapshots"),
+    clientName: v.string(),
+    accountNumber: v.string(), // Rek no
+    current: v.number(),
+    days30: v.number(),
+    days60: v.number(),
+    days90: v.number(),
+    days120: v.number(), // 120+
+    totalDue: v.number(),
+    originalRowIndex: v.number(),
+  })
+  .index("by_snapshotId", ["snapshotId"]),
 });

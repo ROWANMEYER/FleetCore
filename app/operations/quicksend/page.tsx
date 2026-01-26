@@ -5,6 +5,9 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import EmailReportModal from "../../components/EmailReportModal";
+import { renderTransportReport } from "../../../convex/templates/TransportReport";
+
+type ColumnKey = "date" | "truck" | "trailer" | "driver" | "client" | "from" | "to" | "rate" | "distance" | "notes";
 
 export default function QuickSendPage() {
   // 1. Date Selection (Shared State Model with Sheets)
@@ -35,6 +38,28 @@ export default function QuickSendPage() {
   // 3. UI State
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
+  // Column State
+  const [columns, setColumns] = useState<Record<ColumnKey, { visible: boolean; note: string }>>({
+    date: { visible: true, note: "" },
+    truck: { visible: true, note: "" },
+    trailer: { visible: true, note: "" },
+    driver: { visible: true, note: "" },
+    client: { visible: true, note: "" },
+    from: { visible: true, note: "" },
+    to: { visible: true, note: "" },
+    rate: { visible: true, note: "" },
+    distance: { visible: false, note: "" },
+    notes: { visible: false, note: "" },
+  });
+
+  const activeColumns = (Object.entries(columns) as [ColumnKey, { visible: boolean }][])
+    .filter(([, config]) => config.visible)
+    .map(([key]) => key);
+
+  const columnNotes = (Object.entries(columns) as [ColumnKey, { visible: boolean; note: string }][])
+    .filter(([, config]) => config.visible && config.note.trim() !== "")
+    .map(([key, config]) => ({ column: key, note: config.note }));
+
   // 4. Handlers
   const handleSendEmail = async (recipientIds: Id<"recipients">[], subject: string) => {
     try {
@@ -43,7 +68,9 @@ export default function QuickSendPage() {
         startDate: queryStartDate, 
         endDate: queryEndDate, 
         subject,
-        completedOnly 
+        completedOnly,
+        activeColumns,
+        columnNotes
       });
       alert("Email sent successfully!");
     } catch (error) {
@@ -52,27 +79,37 @@ export default function QuickSendPage() {
     }
   };
 
+  const handleDownloadPDF = () => {
+    if (!reportData) return;
+    const html = renderTransportReport({
+      data: reportData,
+      startDate: queryStartDate,
+      endDate: queryEndDate,
+      activeColumns,
+      columnNotes
+    });
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+  };
+
   const isLoading = reportData === undefined;
   const hasData = reportData && reportData.loads && reportData.loads.length > 0;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto space-y-8 p-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">QuickSend – Transport Report</h1>
           <p className="text-gray-500 mt-1">
             Review loads and send reports to stakeholders.
           </p>
-        </div>
-        <div>
-          <button
-            onClick={() => setIsEmailModalOpen(true)}
-            disabled={!hasData}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send Report via Email
-          </button>
         </div>
       </div>
 
@@ -160,83 +197,93 @@ export default function QuickSendPage() {
         </div>
       </div>
 
-      {/* Report Preview */}
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-          <h2 className="text-lg font-medium text-gray-900">Report Preview</h2>
-          {hasData && (
-             <span className="text-sm text-gray-500">
-               {reportData.summary.totalLoads} loads found
-             </span>
-          )}
+      {/* Column Selection */}
+      <div className="bg-white p-4 rounded-lg border shadow-sm">
+        <h3 className="text-sm font-medium text-gray-900 mb-3">Report Columns</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Object.entries(columns).map(([key, config]) => (
+            <div key={key} className="flex flex-col space-y-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.visible}
+                  onChange={(e) => setColumns(prev => ({
+                    ...prev,
+                    [key]: { ...prev[key as ColumnKey], visible: e.target.checked }
+                  }))}
+                  className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                />
+                <span className="text-sm text-gray-700">
+                  {key === "notes" ? "Route Notes" : key.charAt(0).toUpperCase() + key.slice(1)}
+                </span>
+              </label>
+              {config.visible && (
+                <input
+                  type="text"
+                  placeholder="Add note..."
+                  value={config.note}
+                  onChange={(e) => setColumns(prev => ({
+                    ...prev,
+                    [key]: { ...prev[key as ColumnKey], note: e.target.value }
+                  }))}
+                  className="text-xs border-b border-gray-300 focus:border-black focus:outline-none px-0 py-0.5 bg-transparent"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Report Preview (Email-Exact) */}
+      <div className="bg-white rounded-lg border shadow-sm overflow-hidden flex flex-col h-[800px]">
+        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center flex-shrink-0">
+          <h2 className="text-lg font-medium text-gray-900">Email Preview</h2>
+          <div className="flex items-center gap-3">
+             {hasData && (
+                <span className="text-sm text-gray-500 mr-2">
+                  {reportData.summary.totalLoads} loads found
+                </span>
+             )}
+             <button
+               onClick={handleDownloadPDF}
+               disabled={!hasData}
+               className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+             >
+               Download PDF
+             </button>
+             <button
+               onClick={() => setIsEmailModalOpen(true)}
+               disabled={!hasData}
+               className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800 disabled:opacity-50"
+             >
+               Send Report
+             </button>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="p-12 text-center text-gray-500">Loading report data...</div>
-        ) : !hasData ? (
-          <div className="p-12 text-center text-gray-500">
-            No loads found for the selected period.
-          </div>
-        ) : (
-          <div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Truck</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reportData.loads.map((load: any, idx: number) => (
-                    <tr key={`${load.routeDate}-${load.truckFleetNo}-${idx}`} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {load.routeDate}
-                        {load.status !== "completed" && load.status !== "locked" && (
-                          <span className="ml-2 inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-                            Not completed
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{load.truckFleetNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{load.driverName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{load.clientName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        <div className="flex flex-col">
-                          <span className="text-xs text-gray-400">From:</span> {load.fromLocation}
-                          <span className="text-xs text-gray-400 mt-1">To:</span> {load.toLocation}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{load.quantity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{load.rate}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">{Number(load.amount).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="flex-1 bg-gray-100 p-8 overflow-auto">
+          {isLoading ? (
+            <div className="p-12 text-center text-gray-500">Loading report data...</div>
+          ) : !hasData ? (
+            <div className="p-12 text-center text-gray-500">
+              No loads found for the selected period.
             </div>
-
-            {/* Summary Footer */}
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-              <div className="flex justify-end gap-8 text-sm">
-                <div>
-                  <span className="text-gray-500">Total Distance:</span>
-                  <span className="ml-2 font-medium text-gray-900">{reportData.summary.totalKm} km</span>
-                </div>
-                <div>
-                  <span className="text-gray-500">Total Revenue:</span>
-                  <span className="ml-2 font-bold text-gray-900">{Number(reportData.summary.totalRevenue).toFixed(2)}</span>
-                </div>
-              </div>
+          ) : (
+            <div className="bg-white shadow-lg mx-auto max-w-[800px] min-h-[1000px]">
+              <iframe 
+                srcDoc={renderTransportReport({
+                  data: reportData,
+                  startDate: queryStartDate,
+                  endDate: queryEndDate,
+                  activeColumns,
+                  columnNotes
+                })}
+                className="w-full h-full min-h-[1000px] border-none"
+                title="Report Preview"
+              />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <EmailReportModal
@@ -245,6 +292,7 @@ export default function QuickSendPage() {
         initialSubject={`Transport Report: ${queryStartDate} to ${queryEndDate}`}
         onSend={handleSendEmail}
       />
+      </div>
     </div>
   );
 }

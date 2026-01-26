@@ -545,6 +545,7 @@ export const getLoadsForEmailReport = query({
             rate: load.rate,
             amount: amount,
             loadId: `${route._id}_${index}`,
+            distance: route.kilometers, // Add route distance to load
 
             // Internal fields for sorting
             _routeId: route._id,
@@ -648,6 +649,7 @@ export const getQuickSendReport = query({
             rateType: load.rateType,
             amount: amountVal, // Return number, formatting in UI/Email
             status: (route as any).status || "planned",
+            notes: route.notes || "",
             _routeId: route._id,
             _sequence: index,
           });

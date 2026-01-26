@@ -17,6 +17,7 @@ import type * as fleet from "../fleet.js";
 import type * as migrations from "../migrations.js";
 import type * as recipients from "../recipients.js";
 import type * as routes from "../routes.js";
+import type * as templates_TransportReport from "../templates/TransportReport.js";
 import type * as utils from "../utils.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   recipients: typeof recipients;
   routes: typeof routes;
+  "templates/TransportReport": typeof templates_TransportReport;
   utils: typeof utils;
 }>;
 

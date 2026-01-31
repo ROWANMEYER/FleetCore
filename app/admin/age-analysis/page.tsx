@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import Link from "next/link";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 import * as XLSX from "xlsx";
@@ -31,6 +32,7 @@ const REQUIRED_FIELDS = [
 
 export default function AgeAnalysisPage() {
   const importSnapshot = useAction(api.finance.importAgeSnapshot.importSnapshot);
+  const snapshots = useQuery(api.finance.getAgeSnapshots.getAgeSnapshots);
 
   const [month, setMonth] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -126,6 +128,47 @@ export default function AgeAnalysisPage() {
     try {
       // 2. Parse Data Rows
       const parsedRows: AgeAnalysisRow[] = [];
+      const grandTotals = {
+        days120: 0,
+        days90: 0,
+        days60: 0,
+        days30: 0,
+        current: 0,
+        totalDue: 0,
+      };
+
+      // Build Header Index Map for Totals Row extraction
+      // (Handles merged cells where user mapping might be off)
+      const headerRow = rawRows[selectedHeaderIndex] as any[];
+      const headerIndexMap = new Map<string, number>();
+      if (headerRow && Array.isArray(headerRow)) {
+        headerRow.forEach((cell, idx) => {
+          if (typeof cell === "string") {
+            const norm = cell.toLowerCase().replace(/[^a-z0-9]/g, ""); // "120days", "totaldue"
+            headerIndexMap.set(norm, idx);
+          }
+        });
+      }
+
+      const parseRawCurrency = (val: unknown): number => {
+        if (val == null || val === "") return 0;
+        if (typeof val === "number") return val;
+        if (typeof val === "string") {
+          // Remove all non-numeric chars except dot and minus (handles "R", ",", spaces)
+          const clean = val.replace(/[^0-9.-]/g, "");
+          const num = parseFloat(clean);
+          return isNaN(num) ? 0 : num;
+        }
+        return 0;
+      };
+
+      const findHeaderCol = (substrings: string[]) => {
+        for (const [h, idx] of headerIndexMap.entries()) {
+          if (substrings.some(s => h.includes(s))) return idx;
+        }
+        return undefined;
+      };
+
       for (let i = selectedHeaderIndex + 1; i < rawRows.length; i++) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const row = rawRows[i] as any[];
@@ -135,6 +178,37 @@ export default function AgeAnalysisPage() {
         const accClientIdx = columnMapping["accountClient"];
         const accClientVal = row[accClientIdx] ? String(row[accClientIdx]).trim() : "";
         if (!accClientVal) continue; // Skip empty rows
+
+        // CHECK FOR GRAND TOTAL ROW
+        const nameLower = accClientVal.toLowerCase();
+        if (nameLower.startsWith("totals") || nameLower.startsWith("grand") || nameLower.startsWith("percentage")) {
+          // If this is the Grand Total row, capture ALL totals
+          if (nameLower.startsWith("totals") || nameLower.startsWith("grand")) {
+             // FIX: Scan entire row for numeric values
+             const numericValues = row
+                .map(cell => parseRawCurrency(cell))
+                .filter(v => v > 0);
+             
+             // 1. Identify Total Due (largest value)
+             // 2. Filter it out to get just the buckets
+             // 3. Assign buckets in order (120 -> 90 -> 60 -> 30 -> Current)
+             if (numericValues.length > 0) {
+               const maxVal = Math.max(...numericValues);
+               grandTotals.totalDue = maxVal;
+
+               // Get buckets by excluding the total (handle floating point exactly if needed, but strict equality usually fine for extracted values)
+               const buckets = numericValues.filter(v => v !== maxVal);
+
+               if (buckets.length >= 1) grandTotals.days120 = buckets[0];
+               if (buckets.length >= 2) grandTotals.days90 = buckets[1];
+               if (buckets.length >= 3) grandTotals.days60 = buckets[2];
+               if (buckets.length >= 4) grandTotals.days30 = buckets[3];
+               if (buckets.length >= 5) grandTotals.current = buckets[4];
+             }
+          }
+          // Skip adding this row to parsedRows
+          continue;
+        }
 
         // Split logic: Try "Account - Client" or fallback
         let rekNo = accClientVal;
@@ -161,11 +235,7 @@ export default function AgeAnalysisPage() {
         const parseNumber = (key: string): number => {
           const idx = columnMapping[key];
           if (idx === undefined) return 0;
-          let val = row[idx];
-          if (val == null || val === "") return 0;
-          if (typeof val === "string") val = val.replace(/,/g, "").trim();
-          const num = parseFloat(val);
-          return isNaN(num) ? 0 : num;
+          return parseRawCurrency(row[idx]);
         };
 
         parsedRows.push({
@@ -182,10 +252,17 @@ export default function AgeAnalysisPage() {
       }
 
       // 3. Call Action
+      console.log("Grand Totals captured:", grandTotals); // Debug log for verification
       const result = await importSnapshot({
         month,
         fileName: file.name,
         rows: parsedRows,
+        totalDue: grandTotals.totalDue,
+        days120: grandTotals.days120,
+        days90: grandTotals.days90,
+        days60: grandTotals.days60,
+        days30: grandTotals.days30,
+        current: grandTotals.current,
         importedBy: "Admin",
       });
 
@@ -397,6 +474,61 @@ export default function AgeAnalysisPage() {
           </div>
         </div>
       )}
+
+      {/* Snapshot List */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Imported Snapshots</h2>
+        </div>
+        
+        {!snapshots ? (
+          <div className="p-6 text-center text-gray-500">Loading snapshots...</div>
+        ) : snapshots.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">No snapshots imported yet.</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Month
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Imported On
+                </th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total Due
+                </th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {snapshots.map((snapshot) => (
+                <tr key={snapshot.snapshotId} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {snapshot.month}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(snapshot.importedAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                    {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(snapshot.totalDue)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <Link
+                      href={`/admin/age-analysis/${snapshot.snapshotId}`}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

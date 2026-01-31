@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import EmailReportModal from "../../components/EmailReportModal";
+import EmailReportModal from "@/src/components/EmailReportModal";
 import { renderTransportReport } from "../../../convex/templates/TransportReport";
 
 type ColumnKey = "date" | "truck" | "trailer" | "driver" | "client" | "from" | "to" | "rate" | "distance" | "notes";

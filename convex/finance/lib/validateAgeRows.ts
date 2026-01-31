@@ -7,28 +7,14 @@ export interface ValidationError {
   difference?: number;
 }
 
-function isSummaryRow(row: AgeAnalysisRow): boolean {
-  const name = row.clientName?.toLowerCase() ?? "";
+export function isSummaryRow(row: AgeAnalysisRow): boolean {
+  const name = row.clientName?.toLowerCase().trim() ?? "";
 
-  // Explicit summary labels
-  if (
-    name.includes("grand") ||
-    name.includes("total") ||
-    name.includes("subtotal")
-  ) {
-    return true;
-  }
-
-  // Implicit summary pattern:
-  // totalDue > 0 but all aging buckets are zero
-  const bucketSum =
-    row.days120 +
-    row.days90 +
-    row.days60 +
-    row.days30 +
-    row.current;
-
-  return bucketSum === 0 && row.totalDue > 0;
+  return (
+    name.startsWith("totals") ||
+    name.startsWith("percentage") ||
+    name.startsWith("grand")
+  );
 }
 
 export function validateAgeRows(rows: AgeAnalysisRow[]): ValidationError[] {

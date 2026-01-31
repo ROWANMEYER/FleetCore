@@ -1,7 +1,6 @@
 import { action, internalMutation, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { parseAgeAnalysis } from "./lib/parseAgeAnalysis";
 import { validateAgeRows } from "./lib/validateAgeRows";
 
 // Helper query for the action check
@@ -20,6 +19,12 @@ export const saveSnapshot = internalMutation({
   args: {
     month: v.string(),
     fileName: v.string(),
+    totalDue: v.number(),
+    days120: v.number(),
+    days90: v.number(),
+    days60: v.number(),
+    days30: v.number(),
+    current: v.number(),
     rows: v.array(
       v.object({
         accountNumber: v.string(),
@@ -53,6 +58,12 @@ export const saveSnapshot = internalMutation({
       importedBy: args.importedBy,
       fileName: args.fileName,
       status: "active",
+      totalDue: args.totalDue,
+      days120: args.days120,
+      days90: args.days90,
+      days60: args.days60,
+      days30: args.days30,
+      current: args.current,
     });
 
     // 3. Insert Rows
@@ -72,6 +83,12 @@ export const importSnapshot = action({
   args: {
     month: v.string(), // YYYY-MM
     fileName: v.string(),
+    totalDue: v.number(),
+    days120: v.number(),
+    days90: v.number(),
+    days60: v.number(),
+    days30: v.number(),
+    current: v.number(),
     rows: v.array(
       v.object({
         accountNumber: v.string(),
@@ -109,6 +126,12 @@ export const importSnapshot = action({
     await ctx.runMutation((internal as any).finance.importAgeSnapshot.saveSnapshot, {
       month: args.month,
       fileName: args.fileName,
+      totalDue: args.totalDue,
+      days120: args.days120,
+      days90: args.days90,
+      days60: args.days60,
+      days30: args.days30,
+      current: args.current,
       rows: args.rows,
       importedBy: args.importedBy,
     });

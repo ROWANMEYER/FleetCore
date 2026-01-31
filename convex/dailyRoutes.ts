@@ -83,6 +83,7 @@ export const createDailyRoute = mutation({
     driverName: v.string(),
     // fromLocations/toLocations removed from args, calculated from loads 
     kilometers: v.number(),
+    routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
     truckFleetNoStr: v.string(),
     trailerFleetNoStr: v.optional(v.string()),
@@ -97,6 +98,7 @@ export const createDailyRoute = mutation({
         rateType: v.string(),
         fromLocations: v.array(v.string()),
         toLocations: v.array(v.string()),
+        kilometers: v.optional(v.number()),
       })
     ),
 
@@ -124,10 +126,21 @@ export const createDailyRoute = mutation({
     const now = Date.now();
     const aggregates = deriveTripAggregates(normalizedLoads);
 
-    // Auto-calculate kilometers if legs are provided
+    // Auto-calculate kilometers (Priority: Route KM > Legs > Max Load KM > Legacy Input)
     let finalKilometers = args.kilometers;
+    
+    // Check Max Load KM
+    const maxLoadKm = normalizedLoads.reduce((max, load) => Math.max(max, load.kilometers || 0), 0);
+    if (maxLoadKm > 0) finalKilometers = maxLoadKm;
+
+    // Check Legs
     if (args.legs && args.legs.length > 0) {
       finalKilometers = args.legs.reduce((sum, leg) => sum + leg.kilometers, 0);
+    }
+
+    // Check Explicit Route KM (Highest Priority)
+    if (args.routeKilometers !== undefined) {
+      finalKilometers = args.routeKilometers;
     }
 
     // Safe Fleet Number Logic 
@@ -145,6 +158,7 @@ export const createDailyRoute = mutation({
       toLocations: aggregates.toLocations,
 
       kilometers: finalKilometers,
+      routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
       truckFleetNoStr: args.truckFleetNoStr,
       trailerFleetNoStr: args.trailerFleetNoStr,
@@ -328,6 +342,7 @@ export const updateDailyRoute = mutation({
     routeDate: v.string(),
     driverName: v.string(),
     kilometers: v.number(),
+    routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
     truckFleetNoStr: v.string(),
     trailerFleetNoStr: v.optional(v.string()),
@@ -340,6 +355,7 @@ export const updateDailyRoute = mutation({
         rateType: v.string(),
         fromLocations: v.array(v.string()),
         toLocations: v.array(v.string()),
+        kilometers: v.optional(v.number()),
       })
     ),
     legs: v.optional(v.array(
@@ -382,10 +398,21 @@ export const updateDailyRoute = mutation({
 
     const aggregates = deriveTripAggregates(normalizedLoads);
 
-    // Auto-calculate kilometers if legs are provided
+    // Auto-calculate kilometers (Priority: Route KM > Legs > Max Load KM > Legacy Input)
     let finalKilometers = args.kilometers;
+    
+    // Check Max Load KM
+    const maxLoadKm = normalizedLoads.reduce((max, load) => Math.max(max, load.kilometers || 0), 0);
+    if (maxLoadKm > 0) finalKilometers = maxLoadKm;
+
+    // Check Legs
     if (args.legs && args.legs.length > 0) {
       finalKilometers = args.legs.reduce((sum, leg) => sum + leg.kilometers, 0);
+    }
+
+    // Check Explicit Route KM (Highest Priority)
+    if (args.routeKilometers !== undefined) {
+      finalKilometers = args.routeKilometers;
     }
 
     // Safe Fleet Number Logic
@@ -400,6 +427,7 @@ export const updateDailyRoute = mutation({
       fromLocations: aggregates.fromLocations,
       toLocations: aggregates.toLocations,
       kilometers: finalKilometers,
+      routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
       truckFleetNoStr: args.truckFleetNoStr,
       trailerFleetNoStr: args.trailerFleetNoStr,

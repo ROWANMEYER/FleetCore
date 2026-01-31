@@ -1,11 +1,102 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useSearchParams, useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
+import { SheetExportRow } from "@/src/types/sheetExport";
+import { exportCSV } from "@/src/lib/exports/exportCSV";
+import { exportJSON } from "@/src/lib/exports/exportJSON";
+import { exportExcelWithTemplate } from "@/src/lib/exports/exportExcelWithTemplate";
+import { generateInvoicePDF } from "@/src/pdf/invoiceTemplate";
+import { buildInvoiceData } from "@/src/pdf/invoiceBuilder";
+import { InvoiceData } from "@/src/pdf/types";
+import InvoiceDeliveryPanel from "@/src/components/operations/invoice/InvoiceDeliveryPanel";
+
+// --- Export Utilities ---
+
+function mapSheetsToExportRows(sheets: any[]): SheetExportRow[] {
+  return sheets.map((s) => {
+    const routeKm = Number(s.kilometers) || 0;
+    const amount = Number(s.rate) || 0; // Using route total rate/amount
+    const ratePerKm = routeKm > 0 ? Number((amount / routeKm).toFixed(2)) : 0;
+    
+    // Flatten locations
+    const allFroms = s.loads?.flatMap((l: any) => l.fromLocations || []) || [];
+    const allTos = s.loads?.flatMap((l: any) => l.toLocations || []) || [];
+    const uniqueFroms = Array.from(new Set(allFroms)).join(", ");
+    const uniqueTos = Array.from(new Set(allTos)).join(", ");
+
+    // Status: Capitalize or use mapped status
+    const statusMap: Record<string, string> = {
+      "planned": "Planned",
+      "completed": "Completed",
+      "locked": "Locked"
+    };
+    const status = statusMap[s.status] || s.status || "Planned";
+
+    return {
+      date: s.routeDate || "",
+      truck: s.truckFleetNoStr || "",
+      trailer: s.trailerFleetNoStr || "",
+      driver: s.driverName || "",
+      client: s.client || "",
+      from: uniqueFroms,
+      to: uniqueTos,
+      routeKm,
+      amount,
+      ratePerKm,
+      status,
+    };
+  });
+}
+
+function ExportDropdown({ onExport }: { onExport: (type: 'csv' | 'excel' | 'json') => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black shadow-sm transition-all"
+      >
+        <span>Export</span>
+        <span className="text-xs text-gray-500">▼</span>
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-xl z-20 py-1 animate-in fade-in slide-in-from-top-2">
+            <button
+              onClick={() => { onExport('excel'); setIsOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <span className="text-green-600 font-bold">xlsx</span> Excel
+            </button>
+            <button
+              onClick={() => { onExport('csv'); setIsOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <span className="text-blue-600 font-bold">csv</span> CSV
+            </button>
+            <button
+              onClick={() => { onExport('json'); setIsOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              <span className="text-yellow-600 font-bold">json</span> JSON
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// --- End Export Utilities ---
 
 export default function DailyPlannerSheetsPage({ mode = "primary" }: { mode?: "primary" | "secondary" }) {
   return (
@@ -16,6 +107,40 @@ export default function DailyPlannerSheetsPage({ mode = "primary" }: { mode?: "p
 }
 
 function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "secondary" }) {
+  // TRAE-FIX: Hydration Mismatch Fix
+  // 1. Track mount state (client-only enhancement)
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // TRAE-FIX: Remove conditional layout logic
+  // "mode" is used for logic, but we must NOT change the grid structure based on it during render.
+  // We force a 17-column layout always.
+
+  // 3. Confirmation Dialog State (replacing window.confirm)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isLoading?: boolean;
+    confirmText?: string;
+    confirmStyle?: "danger" | "primary" | "neutral";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    isLoading: false,
+    confirmText: "Confirm",
+    confirmStyle: "primary"
+  });
+
+  const closeConfirm = () => {
+    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Mutations for lifecycle
   const markRouteCompleted = useMutation(api.dailyRoutes.markRouteCompleted);
   const lockRoute = useMutation(api.dailyRoutes.lockRoute);
@@ -78,6 +203,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
 
   // Clear all filters
   const clearFilters = () => {
+    // 1. Reset generic filters
     setFilters({
       date: '',
       truck: '',
@@ -91,6 +217,18 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
       amountMax: '',
     });
     setSortConfig({ column: null, direction: 'asc' });
+
+    // 2. Reset Date Query to Defaults (Today)
+    const today = new Date().toISOString().split("T")[0];
+    setSingleDate(today);
+    setFromDate(today);
+    setToDate(today);
+    setDateMode("single");
+
+    // 3. Clear URL params
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("date");
+    router.replace(`?${params.toString()}`, { scroll: false });
   };
 
   // Apply filters and sorting
@@ -218,17 +356,36 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   };
 
   const handleStatusChange = async (routeId: Id<"dailyRoutes">, action: "complete" | "lock" | "unlock") => {
+    if (action === "unlock") {
+      setConfirmDialog({
+        isOpen: true,
+        title: "Unlock Route",
+        message: "Unlocking this route will allow edits and deletions. Are you sure?",
+        confirmText: "Unlock",
+        confirmStyle: "neutral",
+        onConfirm: async () => {
+          setActionLoading(routeId);
+          try {
+            await unlockRoute({ id: routeId });
+            closeConfirm();
+          } catch (error) {
+            console.error("Failed to update status:", error);
+            alert("Failed to update status. Please try again.");
+            closeConfirm();
+          } finally {
+            setActionLoading(null);
+          }
+        }
+      });
+      return;
+    }
+
     setActionLoading(routeId);
     try {
       if (action === "complete") {
         await markRouteCompleted({ id: routeId });
       } else if (action === "lock") {
         await lockRoute({ id: routeId });
-      } else if (action === "unlock") {
-        if (!window.confirm("Unlocking this route will allow edits and deletions. Are you sure?")) {
-          return;
-        }
-        await unlockRoute({ id: routeId });
       }
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -239,56 +396,69 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   };
 
   const handleDelete = async (routeId: Id<"dailyRoutes">) => {
-    if (!window.confirm("Are you sure you want to delete this route and all its loads?")) {
-      return;
-    }
-
-    setActionLoading(routeId);
-    try {
-      await deleteDailyRoute({ id: routeId });
-      setSelectedRouteIds(prev => {
-        const next = new Set(prev);
-        next.delete(routeId);
-        return next;
-      });
-    } catch (error) {
-      console.error("Failed to delete route:", error);
-      alert("Failed to delete route. It might be locked.");
-    } finally {
-      setActionLoading(null);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Route",
+      message: "Are you sure you want to delete this route and all its loads?",
+      confirmText: "Delete",
+      confirmStyle: "danger",
+      onConfirm: async () => {
+        setActionLoading(routeId);
+        try {
+          await deleteDailyRoute({ id: routeId });
+          setSelectedRouteIds(prev => {
+            const next = new Set(prev);
+            next.delete(routeId);
+            return next;
+          });
+          closeConfirm();
+        } catch (error) {
+          console.error("Failed to delete route:", error);
+          alert("Failed to delete route. It might be locked.");
+          closeConfirm();
+        } finally {
+          setActionLoading(null);
+        }
+      }
+    });
   };
 
   const handleBulkDelete = async () => {
     const idsToDelete = Array.from(selectedRouteIds) as Id<"dailyRoutes">[];
     if (idsToDelete.length === 0) return;
 
-    if (!window.confirm(`You are about to delete ${idsToDelete.length} routes and all associated loads.`)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Bulk Delete",
+      message: `You are about to delete ${idsToDelete.length} routes and all associated loads.`,
+      confirmText: "Delete All",
+      confirmStyle: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteBulkDailyRoutes({ ids: idsToDelete });
+          setSelectedRouteIds(new Set());
 
-    try {
-      await deleteBulkDailyRoutes({ ids: idsToDelete });
-      setSelectedRouteIds(new Set());
+          // Trigger Undo State
+          setDeletedIds(idsToDelete);
+          setShowUndo(true);
 
-      // Trigger Undo State
-      setDeletedIds(idsToDelete);
-      setShowUndo(true);
+          // Clear previous timer if any
+          if (undoTimer) clearTimeout(undoTimer);
 
-      // Clear previous timer if any
-      if (undoTimer) clearTimeout(undoTimer);
-
-      // Auto-hide after 15 seconds
-      const timer = setTimeout(() => {
-        setShowUndo(false);
-        setDeletedIds([]);
-      }, 15000);
-      setUndoTimer(timer);
-
-    } catch (error) {
-      console.error("Failed to bulk delete:", error);
-      alert("Failed to delete selected routes. Some might be locked.");
-    }
+          // Auto-hide after 15 seconds
+          const timer = setTimeout(() => {
+            setShowUndo(false);
+            setDeletedIds([]);
+          }, 15000);
+          setUndoTimer(timer);
+          closeConfirm();
+        } catch (error) {
+          console.error("Failed to bulk delete:", error);
+          alert("Failed to delete selected routes. Some might be locked.");
+          closeConfirm();
+        }
+      }
+    });
   };
 
   const handleUndo = async () => {
@@ -338,22 +508,28 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   // Date Mode State
   const [dateMode, setDateMode] = useState<"single" | "range">("single");
 
-  // Single Date State (defaults to URL or today)
-  const [singleDate, setSingleDate] = useState(() => {
-    return urlDate || new Date().toISOString().split("T")[0];
-  });
+  // Single Date State (defaults to URL or today - SAFE INIT)
+  const [singleDate, setSingleDate] = useState(""); 
 
-  // Range Date State (defaults to today)
-  const [fromDate, setFromDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [toDate, setToDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // Range Date State (defaults to today - SAFE INIT)
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-  // Sync state with URL changes (for single mode consistency)
+  // Sync state with URL changes and Init Defaults
   useEffect(() => {
+    // Set defaults on mount (client-only)
+    const today = new Date().toISOString().split("T")[0];
+    
     if (urlDate && urlDate !== singleDate) {
       setSingleDate(urlDate);
       setDateMode("single");
+    } else if (!singleDate) {
+      setSingleDate(today);
     }
-  }, [urlDate]);
+
+    if (!fromDate) setFromDate(today);
+    if (!toDate) setToDate(today);
+  }, [urlDate]); // Run on mount and URL change
 
   const handleSingleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
@@ -370,34 +546,24 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   };
 
   // Normalize dates for query
+  // Wait for initialization
   const startDate = dateMode === "single" ? singleDate : fromDate;
   const endDate = dateMode === "single" ? singleDate : toDate;
   const isRangeInvalid = dateMode === "range" && fromDate > toDate;
+  const isDatesReady = startDate && endDate; // Ensure dates are initialized
 
   // Fetch routes (using new range-capable query)
-  const routes = useQuery(api.dailyRoutes.getForSheets, {
+  const routes = useQuery(api.dailyRoutes.getForSheets, isDatesReady ? {
     startDate,
     endDate
-  });
+  } : "skip");
 
   // 1️⃣ Read reference data (queries)
   // Fetch all reference data to resolve names in-memory
-  const trucks = useQuery(api.fleet.getTrucks);
-  const trailers = useQuery(api.fleet.getTrailers);
-  const drivers = useQuery(api.fleet.getDrivers);
-
-  // Helper to resolve Truck
-  const getTruckDisplay = (fleetNoStr?: string) => {
-    if (!fleetNoStr) return "-";
-    const truck = trucks?.find(t => t.truckFleetNo === fleetNoStr);
-    if (!truck) return fleetNoStr; // Fallback to ID
-    return (
-      <span>
-        <span className="font-medium text-gray-900">{truck.truckFleetNo}</span>
-        <span className="text-gray-500 ml-1 text-xs">({truck.registration})</span>
-      </span>
-    );
-  };
+  const trucks = useQuery(api.fleet.getTrucks, {});
+  const trailers = useQuery(api.fleet.getTrailers, {});
+  const drivers = useQuery(api.fleet.getDrivers, {});
+  const customers = useQuery(api.customers.list, {});
 
   // Helper to resolve Driver
   const getDriverDisplay = (driverName?: string) => {
@@ -453,43 +619,11 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     return driver ? driver.driverName : driverName;
   };
 
-  // Helper to resolve Trailer
-  const getTrailerDisplay = (fleetNoStr?: string) => {
-    if (!fleetNoStr) return <span className="text-gray-300">-</span>;
-
-    // fleetNoStr could be "114" string.
-    // trailers table has trailerFleetNo (number) and trailerFleetNoStr (optional string).
-    // We should match against either.
-    const trailer = trailers?.find(t =>
-      String(t.trailerFleetNo) === fleetNoStr || t.trailerFleetNoStr === fleetNoStr
-    );
-
-    if (!trailer) return <span className="text-gray-600">{fleetNoStr}</span>;
-
-    // Resolve lengths
-    // trailer.trailers is an array of objects { length, registration }
-    const lengths = trailer.trailers?.map(t => t.length).join(" / ");
-
-    return (
-      <div className="flex flex-col">
-        <span className="font-medium text-gray-900">
-          {fleetNoStr} <span className="font-normal text-gray-500">({trailer.type})</span>
-        </span>
-        {lengths && (
-          <span className="text-xs text-gray-400">
-            {lengths}
-          </span>
-        )}
-      </div>
-    );
-  };
-
   const formatZAR = (value: number) => {
-    return new Intl.NumberFormat("en-ZA", {
-      style: "currency",
-      currency: "ZAR",
-      minimumFractionDigits: 2,
-    }).format(value);
+    // [HYDRATION SAFE] Use deterministic formatting
+    const parts = value.toFixed(2).split(".");
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return `R ${integerPart},${parts[1]}`;
   };
 
   // Fleet-specific risk status computation (pure, no hooks/mutations)
@@ -517,8 +651,9 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     }
 
     // Priority 2: 🟡 WARNING - Missing KM
-    const hasMissingKm = loads.some((load: any) => !load.kilometers || Number(load.kilometers) === 0);
-    if (hasMissingKm) {
+    // Check effective route KM (stored in route.kilometers which respects Route KM > Max Load KM)
+    const effectiveKm = Number(route.kilometers) || 0;
+    if (effectiveKm === 0) {
       return { label: "🟡 Missing KM", level: "yellow" };
     }
 
@@ -624,71 +759,166 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     mode?: "primary" | "secondary";
   }) => {
     const status = route.status || "planned";
+    const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+    const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
+    const [currentInvoiceData, setCurrentInvoiceData] = useState<InvoiceData | null>(null);
+
+    // Resolve Assets for Compact View (Closure access to trucks/trailers)
+    const truck = trucks?.find(t => t.truckFleetNo === route.truckFleetNoStr);
+    const truckReg = truck?.registration || "";
+    
+    const trailer = trailers?.find(t => 
+      String(t.trailerFleetNo) === route.trailerFleetNoStr || t.trailerFleetNoStr === route.trailerFleetNoStr
+    );
+    const trailerType = trailer?.type || "";
+    const trailerConfig = trailer?.length || "";
+
+    const assetParts = [
+      truckReg ? `Truck ${truckReg}` : null,
+      trailerType,
+      trailerConfig
+    ].filter(Boolean);
+
+    // Resolve Route Intelligence
+    const routeKm = Number(route.kilometers) || 0;
+    const routeParts = [
+      `${routeKm} km`,
+      status === "locked" ? "Locked" : null
+    ].filter(Boolean);
+
+    // Helper to serialize InvoiceData (Date -> ISO string)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serializeInvoiceData = (data: any) => {
+      return {
+        ...data,
+        date: data.date instanceof Date ? data.date.toISOString() : data.date,
+      };
+    };
+
+    // Helper to deserialize InvoiceData (ISO string -> Date)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deserializeInvoiceData = (data: any) => {
+      return {
+        ...data,
+        date: new Date(data.date),
+      };
+    };
+
+    const saveInvoice = useMutation(api.invoices.getOrCreate);
+
+    const handleGenerateProforma = async () => {
+      // 0. Validate Data
+      const errors: string[] = [];
+      if (!route.client) errors.push("Client");
+      if (!route.rate || Number(route.rate) <= 0) errors.push("Rate");
+      // Check loads for locations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hasFrom = route.loads?.some((l: any) => l.fromLocations?.length > 0) || route.fromLocation;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hasTo = route.loads?.some((l: any) => l.toLocations?.length > 0) || route.toLocations?.length > 0;
+      
+      if (!hasFrom) errors.push("From location");
+      if (!hasTo) errors.push("To location");
+      if (!route.driverName) errors.push("Driver");
+      if (!route.truckFleetNoStr) errors.push("Truck");
+
+      if (errors.length > 0) {
+        alert(`Cannot generate invoice. Missing required fields:\n- ${errors.join("\n- ")}`);
+        return;
+      }
+
+      // 1. Prepare Fresh Data (Candidate)
+      const freshData = buildInvoiceData(route, customers);
+      const serializedCandidate = serializeInvoiceData(freshData);
+
+      // 2. Persist or Fetch Existing (Convex Authority)
+      // If an invoice exists, we get THAT back (snapshot).
+      // If not, we save this candidate.
+      try {
+        const finalSnapshot = await saveInvoice({
+          routeId: route._id,
+          invoiceData: serializedCandidate
+        });
+
+        // 3. Generate PDF using Authority Data
+        const finalData = deserializeInvoiceData(finalSnapshot);
+        const doc = generateInvoicePDF(finalData);
+        
+        // 4. Prepare for Delivery (Modal)
+        const blob = doc.output("blob");
+        setCurrentInvoiceData(finalData);
+        setCurrentPdfBlob(blob);
+        setIsInvoiceModalOpen(true);
+
+      } catch (error) {
+        console.error("Failed to generate invoice:", error);
+        alert("Failed to generate invoice. Please try again.");
+      }
+    };
 
     return (
-      <div className={`px-3 pb-2 ${isLocked ? "opacity-75" : ""}`}>
-        {/* Asset Details Section */}
-        <div className="bg-gray-50/50 rounded-md border border-gray-100 p-3 mb-2">
-          <div className="grid grid-cols-3 gap-4 text-xs">
-            <div>
-              <span className="text-gray-500 font-medium block mb-1">Truck</span>
-              <div>{getTruckDisplay(route.truckFleetNoStr)}</div>
-            </div>
-            <div>
-              <span className="text-gray-500 font-medium block mb-1">Trailer</span>
-              <div>{getTrailerDisplay(route.trailerFleetNoStr)}</div>
-            </div>
-            <div>
-              <span className="text-gray-500 font-medium block mb-1">Driver</span>
-              <div className="font-medium text-gray-900">{getDriverDisplay(route.driverName)}</div>
-            </div>
-          </div>
-          {route.kilometers && (
-            <div className="mt-2 pt-2 border-t border-gray-200">
-              <span className="text-gray-500 font-medium text-xs">Route KM: </span>
-              <span className="font-mono text-xs text-gray-900">{route.kilometers} km</span>
-            </div>
-          )}
-          {route.notes && (
-            <div className="mt-2 pt-2 border-t border-gray-200">
-              <span className="text-gray-500 font-medium text-xs block mb-1">Notes</span>
-              <p className="text-xs text-gray-700">{route.notes}</p>
-            </div>
-          )}
+      <div className={`px-4 pb-4 pt-2 ${isLocked ? "opacity-75" : ""}`}>
+        {/* LEVEL 1: CONTEXT (Header Bar) */}
+        <div className="bg-gray-100/80 rounded-lg px-4 py-3 mb-6 flex flex-col gap-2 text-xs">
+           {/* Assets Row */}
+           {assetParts.length > 0 && (
+             <div className="flex items-baseline gap-3">
+               <span className="w-20 font-semibold text-gray-500 uppercase tracking-wide text-[10px] flex items-center gap-1.5">
+                 <span>🚛</span> Assets
+               </span>
+               <span className="font-medium text-gray-900">{assetParts.join(" · ")}</span>
+             </div>
+           )}
+
+           {/* Route Row */}
+           <div className="flex items-baseline gap-3">
+             <span className="w-20 font-semibold text-gray-500 uppercase tracking-wide text-[10px] flex items-center gap-1.5">
+               <span>📍</span> Route
+             </span>
+             <span className="font-medium text-gray-900">{routeParts.join(" · ")}</span>
+           </div>
+
+           {/* Notes Row */}
+           {route.notes && (
+              <div className="flex items-baseline gap-3">
+                 <span className="w-20 font-semibold text-gray-500 uppercase tracking-wide text-[10px] flex items-center gap-1.5">
+                   <span>📝</span> Notes
+                 </span>
+                 <span className="text-gray-700 italic truncate max-w-[400px]" title={route.notes}>{route.notes}</span>
+              </div>
+           )}
         </div>
 
-        {/* Loads Table */}
-        <div className="bg-gray-50/50 rounded-md border border-gray-100 overflow-hidden">
-          {/* Loads Header */}
-          <div className="grid grid-cols-12 gap-1 px-3 py-1 bg-gray-100/50 text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+        {/* LEVEL 2: EVIDENCE (Loads Table) */}
+        <div className="mb-6 px-1">
+          {/* Header - Very subtle */}
+          <div className="grid grid-cols-12 gap-1 px-2 py-1 text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">
             <div className="col-span-1 text-center">#</div>
-            <div className="col-span-1">Client</div>
+            <div className="col-span-2">Client</div>
             <div className="col-span-2">From</div>
             <div className="col-span-2">To</div>
-            <div className="col-span-1 text-right">KM</div>
             <div className="col-span-1 text-right">Qty</div>
             <div className="col-span-2 text-right">Rate</div>
             <div className="col-span-2 text-right">Amt</div>
           </div>
 
-          {/* Loads Rows */}
+          {/* Rows */}
           {route.loads && route.loads.length > 0 ? (
-            <div className="divide-y divide-gray-100">
+            <div className="space-y-0.5">
               {route.loads.map((load: any, index: number) => {
                 // Derived values for display
                 const qty = Number(load.quantity) || 0;
                 const rate = Number(load.rate) || 0;
                 const rateType = load.rateType || "per_unit";
                 const amount = calculateLoadAmount(qty, rate, rateType);
-                const loadKm = Number(load.kilometers) || 0;
                 const unit = unitMap[load.quantityType] || load.quantityType || "t";
 
                 return (
-                  <div key={index} className="grid grid-cols-12 gap-1 px-3 py-1 text-[10px] text-gray-600">
+                  <div key={index} className="grid grid-cols-12 gap-1 px-2 py-1 text-[10px] text-gray-600 hover:bg-gray-50 rounded-sm transition-colors border-b border-gray-50 last:border-0">
                     <div className="col-span-1 text-center font-mono text-gray-400">
                       {index + 1}
                     </div>
-                    <div className="col-span-1 font-medium text-gray-900 truncate" title={load.client}>
+                    <div className="col-span-2 font-medium text-gray-900 truncate" title={load.client}>
                       {load.client}
                     </div>
                     <div className="col-span-2 flex flex-col justify-center min-h-[20px]">
@@ -713,9 +943,6 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                         <span>-</span>
                       )}
                     </div>
-                    <div className="col-span-1 text-right font-mono text-gray-500">
-                      {loadKm > 0 ? `${loadKm}km` : "-"}
-                    </div>
                     <div className="col-span-1 text-right font-mono">
                       {qty} {unit}
                     </div>
@@ -732,152 +959,267 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                   </div>
                 );
               })}
-
-              {/* Route KM Validation Footer */}
-              {(() => {
-                const totalLoadKm = route.loads.reduce((sum: number, l: any) => sum + (Number(l.kilometers) || 0), 0);
-                const routeKm = route.kilometers || 0;
-                const mismatch = totalLoadKm !== routeKm;
-
-                if (mismatch && routeKm > 0) {
-                  return (
-                    <div className="px-3 py-1.5 bg-yellow-50 border-t border-yellow-100 text-[10px] text-yellow-800 flex items-center gap-2">
-                      <span>⚠️</span>
-                      <span className="font-medium">KM Mismatch:</span>
-                      <span>Loads total {totalLoadKm} km ≠ Route total {routeKm} km</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
             </div>
           ) : (
-            <div className="px-3 py-2 text-center text-[10px] text-gray-400 italic">
+            <div className="px-2 py-2 text-center text-[10px] text-gray-400 italic">
               No loads
             </div>
           )}
         </div>
 
-        {/* Lifecycle Actions */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        {/* LEVEL 3: ACTIONS (Footer) */}
+        <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+          {/* Status Badge (Left) */}
+          <div>
             {getStatusBadge(status, route._id)}
           </div>
+
+          {/* Actions (Right) */}
           {!isLocked && mode === "primary" && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push(`/operations/daily-planner/edit/${route._id}`)}
-                className="text-xs font-medium text-gray-600 hover:text-black hover:underline bg-transparent border-none p-0 cursor-pointer"
+                onClick={handleGenerateProforma}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                title="Generate Proforma Invoice"
+              >
+                <span>🧾</span> Invoice
+              </button>
+              <div className="h-3 w-px bg-gray-300 mx-1"></div>
+              <button
+                onClick={() => {
+                const params = new URLSearchParams(searchParams.toString());
+                params.set("editRouteId", route._id);
+                router.push(`?${params.toString()}`);
+              }}
+                className="text-xs font-medium text-gray-500 hover:text-black transition-colors"
               >
                 Edit
               </button>
               <button
                 onClick={() => handleDelete(route._id)}
                 disabled={actionLoading === route._id}
-                className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline disabled:opacity-50"
+                className="text-xs font-medium text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
               >
                 Delete
               </button>
             </div>
           )}
         </div>
+
+        {isInvoiceModalOpen && currentInvoiceData && currentPdfBlob && (
+          <InvoiceDeliveryPanel
+            invoiceData={currentInvoiceData}
+            pdfBlob={currentPdfBlob}
+            onClose={() => setIsInvoiceModalOpen(false)}
+          />
+        )}
       </div>
     );
   };
 
   const isLoading = routes === undefined || trucks === undefined || trailers === undefined || drivers === undefined;
 
-  return (
-    <div className="space-y-4">
-      {/* A. Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Sheets</h1>
-        <p className="text-gray-500 mt-1 text-xs">
-          Read-only operational view
-        </p>
-      </div>
+  // TRAE-ADDED: Memoize filtered routes for KPIs and Table consistency
+  // We use the existing getFilteredAndSortedRoutes function but memoize the result
+  // to prevent recalculation and ensure KPIs match the table exactly.
+  const filteredRoutes = useMemo(() => {
+    return getFilteredAndSortedRoutes(routes || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routes, filters, sortConfig]); 
 
-      {/* B. Date selector */}
-      <div className="bg-white p-3 rounded-lg border shadow-sm w-fit">
-        {/* Mode Selector */}
-        <div className="flex gap-4 mb-3 text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              checked={dateMode === "single"}
-              onChange={() => setDateMode("single")}
-              className="h-3 w-3 text-black focus:ring-black"
-            />
-            <span className="text-xs font-medium text-gray-700">Single Date</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="radio"
-              checked={dateMode === "range"}
-              onChange={() => setDateMode("range")}
-              className="h-3 w-3 text-black focus:ring-black"
-            />
-            <span className="text-xs font-medium text-gray-700">Date Range</span>
-          </label>
+  // TRAE-ADDED: KPI Calculations
+  const kpiStats = useMemo(() => {
+    const data = filteredRoutes;
+    const loadsDone = data.length;
+    
+    // Total Revenue: Sum of route rate/amount (using 'rate' field as per filter logic)
+    // "Missing KM rows: Still count toward Total Revenue"
+    const totalRevenue = data.reduce((sum, r: any) => sum + (Number(r.rate) || 0), 0);
+    
+    // Total Distance: Sum of kilometers (excluding missing/0)
+    // "Missing KM rows: Must NOT be included in distance"
+    const totalDistance = data.reduce((sum, r: any) => {
+        const km = Number(r.kilometers) || 0;
+        return sum + km;
+    }, 0);
+    
+    // Avg R / KM: Revenue / Distance (if distance > 0)
+    // "Formula: totalRevenue / totalDistance"
+    const avgRPerKm = totalDistance > 0 ? totalRevenue / totalDistance : 0;
+    
+    return { loadsDone, totalRevenue, totalDistance, avgRPerKm };
+  }, [filteredRoutes]);
+
+  const BASE_CONTAINER_CLASS = "bg-white rounded-lg border shadow-sm overflow-hidden relative";
+
+  return (
+    <div className="space-y-4 relative">
+      {/* Sticky Header Wrapper */}
+      <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pt-4 pb-2 border-b border-gray-100 shadow-sm mb-4">
+        {/* A. Header */}
+        <div className="mb-4">
+          <h1 className="text-xl font-bold tracking-tight">Sheets</h1>
+          <p className="text-gray-500 mt-1 text-xs">
+            Read-only operational view
+          </p>
         </div>
 
-        {/* Single Mode Input */}
-        {dateMode === "single" && (
-          <div>
-            <input
-              type="date"
-              value={singleDate}
-              onChange={handleSingleDateChange}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-            />
+        {/* B. Date selector & Export */}
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+          <div className="bg-white p-3 rounded-lg border shadow-sm w-fit">
+          {/* Mode Selector */}
+          <div className="flex gap-4 mb-3 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                checked={dateMode === "single"}
+                onChange={() => setDateMode("single")}
+                className="h-3 w-3 text-black focus:ring-black"
+              />
+              <span className="text-xs font-medium text-gray-700">Single Date</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                checked={dateMode === "range"}
+                onChange={() => setDateMode("range")}
+                className="h-3 w-3 text-black focus:ring-black"
+              />
+              <span className="text-xs font-medium text-gray-700">Date Range</span>
+            </label>
           </div>
-        )}
 
-        {/* Range Mode Inputs */}
-        {dateMode === "range" && (
-          <div className="space-y-2">
-            <div className="flex gap-2 items-center">
-              <div>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
+          {/* Single Mode Input */}
+          {dateMode === "single" && (
+            <div>
+              <input
+                type="date"
+                value={singleDate}
+                onChange={handleSingleDateChange}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+              />
+            </div>
+          )}
+
+          {/* Range Mode Inputs */}
+          {dateMode === "range" && (
+            <div className="space-y-2">
+              <div className="flex gap-2 items-center">
+                <div>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
+                <span className="text-gray-400 text-xs">→</span>
+                <div>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  />
+                </div>
               </div>
-              <span className="text-gray-400 text-xs">→</span>
-              <div>
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                />
+              {isRangeInvalid && (
+                <p className="text-xs text-red-600 font-medium animate-pulse">
+                  ⚠ From date cannot be after To date
+                </p>
+              )}
+            </div>
+          )}
+          </div>
+
+          <div className="flex items-center gap-2">
+             <button
+               onClick={clearFilters}
+               className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black shadow-sm transition-all"
+             >
+               Clear filters
+             </button>
+
+             <ExportDropdown onExport={(type) => {
+            const rows = mapSheetsToExportRows(filteredRoutes);
+            if (type === 'csv') exportCSV(rows);
+            if (type === 'json') exportJSON(rows);
+            if (type === 'excel') {
+               const rangeStr = (startDate && endDate) ? `${startDate} to ${endDate}` : (filters.date || "Single Day / All");
+               const timestamp = new Date().toLocaleString();
+               exportExcelWithTemplate(rows, { dateRange: rangeStr, generatedAt: timestamp });
+            }
+          }} />
+          </div>
+        </div>
+
+        {/* Bulk Action Bar */}
+        <div className={selectedRouteIds.size > 0 ? "block mb-4" : "hidden"}>
+           <div className="bg-black text-white px-6 py-3 rounded-lg flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
+              <div className="font-medium text-sm">
+                {selectedRouteIds.size} route{selectedRouteIds.size === 1 ? "" : "s"} selected
+              </div>
+              <button
+                onClick={handleBulkDelete}
+                className="bg-white text-black px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-gray-100 transition-colors"
+              >
+                Delete Selected
+              </button>
+           </div>
+        </div>
+
+        {/* KPI Summary Bar (TRAE-ADDED) */}
+        {isMounted && !isLoading && (
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Loads Done</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{kpiStats.loadsDone}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Revenue</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{formatZAR(kpiStats.totalRevenue)}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Distance</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">
+                {/* [HYDRATION SAFE] Manual formatting */}
+                {kpiStats.totalDistance.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} km
               </div>
             </div>
-            {isRangeInvalid && (
-              <p className="text-xs text-red-600 font-medium animate-pulse">
-                ⚠ From date cannot be after To date
-              </p>
-            )}
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm">
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Avg R / KM</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">
+                 {kpiStats.avgRPerKm > 0 ? formatZAR(kpiStats.avgRPerKm) : "—"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Clear Filters Bar */}
+        {(filters.date || filters.truck || filters.trailer || filters.driver || filters.from || filters.to || filters.status.length > 0 || filters.amountMin || filters.amountMax || sortConfig.column) && (
+          <div className="bg-gray-100 border border-gray-200 rounded-lg px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <span className="font-medium">Active filters:</span>
+              {Object.entries(filters).filter(([key, val]) => Array.isArray(val) ? val.length > 0 : !!val).map(([key]) => (
+                <span key={key} className="bg-white px-2 py-0.5 rounded border border-gray-300 capitalize">
+                  {key}
+                </span>
+              ))}
+              {sortConfig.column && (
+                <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  Sorted: {sortConfig.column} {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={clearFilters}
+              className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+            >
+              Clear All
+            </button>
           </div>
         )}
       </div>
-
-      {/* Bulk Action Bar */}
-      {mode === "primary" && selectedRouteIds.size > 0 && (
-        <div className="bg-black text-white px-6 py-3 rounded-lg flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
-          <div className="font-medium text-sm">
-            {selectedRouteIds.size} route{selectedRouteIds.size === 1 ? "" : "s"} selected
-          </div>
-          <button
-            onClick={handleBulkDelete}
-            className="bg-white text-black px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-gray-100 transition-colors"
-          >
-            Delete Selected
-          </button>
-        </div>
-      )}
 
       {/* Undo Toast */}
       {showUndo && (
@@ -901,53 +1243,28 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
         </div>
       )}
 
-      {/* Clear Filters Bar */}
-      {(filters.date || filters.truck || filters.trailer || filters.driver || filters.from || filters.to || filters.status.length > 0 || filters.amountMin || filters.amountMax || sortConfig.column) && (
-        <div className="bg-gray-100 border border-gray-200 rounded-lg px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <span className="font-medium">Active filters:</span>
-            {Object.entries(filters).filter(([key, val]) => Array.isArray(val) ? val.length > 0 : !!val).map(([key]) => (
-              <span key={key} className="bg-white px-2 py-0.5 rounded border border-gray-300 capitalize">
-                {key}
-              </span>
-            ))}
-            {sortConfig.column && (
-              <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                Sorted: {sortConfig.column} {sortConfig.direction === 'asc' ? '↑' : '↓'}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={clearFilters}
-            className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
-          >
-            Clear All
-          </button>
-        </div>
-      )}
-
       {/* C. Route list (core) */}
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden relative">
+      <div className={BASE_CONTAINER_CLASS}>
         {/* Table Header */}
-        <div className={`grid ${mode === "primary" ? "grid-cols-14" : "grid-cols-13"} gap-2 bg-gray-50 px-3 py-2 border-b text-[10px] font-semibold text-gray-500 uppercase tracking-wider items-center`}>
-          {mode === "primary" && (
-            <div className="col-span-1 flex items-center">
-              <input
-                type="checkbox"
-                className="h-3 w-3 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
-                checked={
+        <div className={`grid grid-cols-[repeat(17,minmax(0,1fr))] gap-2 bg-gray-50 px-3 py-2 border-b text-[10px] font-semibold text-gray-500 uppercase tracking-wider items-center`}>
+          
+          {/* Checkbox Column - Always Rendered, Hidden via CSS if needed (though we removed mode check for structure) */}
+          <div className="col-span-1 flex items-center">
+             <input
+               type="checkbox"
+               className="h-3 w-3 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+               checked={
                   routes
-                    ? selectedRouteIds.size === allSelectableRoutes(getFilteredAndSortedRoutes(routes)).length &&
-                    allSelectableRoutes(getFilteredAndSortedRoutes(routes)).length > 0
+                    ? selectedRouteIds.size === allSelectableRoutes(filteredRoutes).length &&
+                    allSelectableRoutes(filteredRoutes).length > 0
                     : false
                 }
                 onChange={() => {
-                  if (routes) toggleSelectAll(getFilteredAndSortedRoutes(routes));
+                  if (routes) toggleSelectAll(filteredRoutes);
                 }}
-                disabled={!routes || allSelectableRoutes(getFilteredAndSortedRoutes(routes)).length === 0}
-              />
-            </div>
-          )}
+                disabled={!routes || allSelectableRoutes(filteredRoutes).length === 0}
+             />
+          </div>
 
           {/* Chevron header */}
           <div className="col-span-1">▸</div>
@@ -1211,6 +1528,9 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
             )}
           </div>
 
+          {/* Notes Column Header (TRAE-ADDED) */}
+          <div className="col-span-2">Notes</div>
+
           {/* Amount Column Header */}
           <div className="col-span-1 relative text-right">
             <div className="flex items-center justify-end gap-1">
@@ -1257,6 +1577,9 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
               </div>
             )}
           </div>
+
+          {/* R/KM Column Header (TRAE-ADDED) */}
+          <div className="col-span-1 text-right">R / KM</div>
 
           {/* Status Column Header */}
           <div className="col-span-1 relative text-right">
@@ -1314,11 +1637,11 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
         )}
 
         {/* Loading State */}
-        {isLoading ? (
+        {!isMounted || isLoading ? (
           <div className="p-8 text-center text-gray-500 text-xs">
             Loading...
           </div>
-        ) : getFilteredAndSortedRoutes(routes).length === 0 ? (
+        ) : filteredRoutes.length === 0 ? (
           /* Empty State */
           <div className="p-8 text-center">
             <p className="text-gray-500 font-medium text-sm">No routes</p>
@@ -1329,7 +1652,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
         ) : (
           /* Route Rows */
           <div className="divide-y divide-gray-200">
-            {getFilteredAndSortedRoutes(routes).map((route) => {
+            {filteredRoutes.map((route) => {
               const status = (route as any).status || "planned";
               const isLocked = status === "locked";
               const isSelected = selectedRouteIds.has(route._id);
@@ -1360,21 +1683,19 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                 >
                   {/* Collapsed Summary Row */}
                   <div
-                    className={`grid ${mode === "primary" ? "grid-cols-14" : "grid-cols-13"} gap-2 px-3 py-2 items-center text-xs cursor-pointer ${isLocked ? "opacity-75" : ""}`}
+                    className={`grid grid-cols-[repeat(17,minmax(0,1fr))] gap-2 px-3 py-2 items-center text-xs cursor-pointer ${isLocked ? "opacity-75" : ""}`}
                     onClick={() => toggleExpand(route._id)}
                   >
                     {/* Checkbox */}
-                    {mode === "primary" && (
-                      <div className="col-span-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="h-3 w-3 rounded border-gray-300 text-black focus:ring-black cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                          checked={Boolean(isSelected)}
-                          onChange={() => toggleSelection(route._id)}
-                          disabled={isLocked}
-                        />
-                      </div>
-                    )}
+                    <div className="col-span-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3 rounded border-gray-300 text-black focus:ring-black cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        checked={Boolean(isSelected)}
+                        onChange={() => toggleSelection(route._id)}
+                        disabled={isLocked}
+                      />
+                    </div>
 
                     {/* Chevron - Keep for expand/collapse but make subtle */}
                     <div className="col-span-1">
@@ -1432,9 +1753,44 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       {toDisplay}
                     </div>
 
+                    {/* Notes (TRAE-ADDED) */}
+                    <div className="col-span-2 text-gray-500 text-[11px] italic truncate" title={route.notes}>
+                      {route.notes ? (route.notes.length > 40 ? route.notes.slice(0, 40) + "..." : route.notes) : ""}
+                    </div>
+
                     {/* Amount */}
                     <div className="col-span-1 text-right font-mono font-medium text-gray-900">
                       {formatZAR(route.rate || 0)}
+                    </div>
+
+                    {/* R/KM Badge (TRAE-ADDED) */}
+                    <div className="col-span-1 text-right flex justify-end">
+                      {(() => {
+                        const km = Number(route.kilometers) || 0;
+                        const amount = Number(route.rate) || 0;
+
+                        if (km === 0) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-50 text-gray-400 border border-gray-200 border-dashed">
+                              —
+                            </span>
+                          );
+                        }
+
+                        const val = amount / km;
+                        let colorClass = "bg-red-100 text-red-800"; // Default < 25
+                        if (val >= 30) {
+                          colorClass = "bg-green-100 text-green-800";
+                        } else if (val >= 25) {
+                          colorClass = "bg-yellow-100 text-yellow-800";
+                        }
+
+                        return (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colorClass}`}>
+                            R {val.toFixed(2)}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Risk Status Badge */}
@@ -1447,7 +1803,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
 
                   {/* Expanded Detail Card */}
                   {isExpanded && (
-                    <RouteDetailsCard route={route} isLocked={isLocked} mode={mode} />
+                    <RouteDetailsCard route={route} isLocked={isLocked} mode="primary" />
                   )}
                 </div>
               );
@@ -1455,6 +1811,42 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
           </div>
         )}
       </div>
+
+      {/* Confirmation Dialog */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmDialog.title}</h3>
+            <p className="text-sm text-gray-600 mb-6">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeConfirm}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                disabled={confirmDialog.isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                disabled={confirmDialog.isLoading}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors flex items-center gap-2 ${
+                  confirmDialog.confirmStyle === "danger" ? "bg-red-600 hover:bg-red-700 focus:ring-red-500" :
+                  confirmDialog.confirmStyle === "neutral" ? "bg-gray-800 hover:bg-black focus:ring-gray-500" :
+                  "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
+                }`}
+              >
+                {confirmDialog.isLoading && (
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {confirmDialog.isLoading ? "Processing..." : confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

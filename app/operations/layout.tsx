@@ -13,7 +13,7 @@ export default function OperationsLayout({
   const isActive = (path: string) => pathname.startsWith(path);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       <div className="bg-white border-b px-6 py-2 flex gap-2 flex-shrink-0">
         <Link
           href="/operations/daily-planner/input"
@@ -49,7 +49,7 @@ export default function OperationsLayout({
         </Link>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         {children}
       </div>
     </div>

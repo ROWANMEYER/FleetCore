@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { calculateLoadAmount } from "./utils";
 
 /**
  * Dashboard Queries — Read-Only Management Intelligence
@@ -49,12 +48,15 @@ export const getDashboardLoadsSummary = query({
 
         const avgLoadsPerRoute = totalRoutes > 0 ? totalLoads / totalRoutes : 0;
 
+        const totalKm = activeRoutes.reduce((sum, r) => sum + (Number((r as any).kilometers) || 0), 0);
+
         return {
             totalRoutes,
             totalLoads,
             completedRoutes,
             incompleteRoutes,
             avgLoadsPerRoute: Math.round(avgLoadsPerRoute * 10) / 10, // 1 decimal
+            totalKm: Math.round(totalKm),
         };
     },
 });
@@ -90,6 +92,39 @@ export const getLoadsOverTime = query({
         }));
 
         result.sort((a, b) => a.date.localeCompare(b.date));
+
+        return result;
+    },
+});
+
+export const getClientBreakdown = query({
+    args: {
+        startDate: v.string(),
+        endDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("dailyRoutes")
+            .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                q.gte("routeDate", args.startDate).lte("routeDate", args.endDate)
+            )
+            .collect();
+
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+        const clientCounts: Record<string, number> = {};
+
+        activeRoutes.forEach((route) => {
+            const client = route.client || "Unknown";
+            const loadCount = route.loads?.length || 0;
+            clientCounts[client] = (clientCounts[client] || 0) + loadCount;
+        });
+
+        // Convert to array, sort by count desc, take top 5
+        const result = Object.entries(clientCounts)
+            .map(([client, count]) => ({ client, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
 
         return result;
     },

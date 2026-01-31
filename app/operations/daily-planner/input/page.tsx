@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
@@ -6,6 +7,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
+
+import { WizardRouteHeader } from "@/src/components/operations/daily-planner/WizardRouteHeader";
 
 type Load = {
   id: string; // Frontend-only ID for React keys
@@ -21,12 +24,13 @@ type Load = {
 };
 
 // Helper to format currency (ZAR)
-const formatZAR = (value: number) =>
-  new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    minimumFractionDigits: 2,
-  }).format(value);
+// [HYDRATION SAFE] Use deterministic formatting to avoid server/client mismatches
+// Matches strict ZAR format in src/pdf/formatters.ts: "R 1 234,56"
+const formatZAR = (value: number) => {
+  const parts = value.toFixed(2).split(".");
+  const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `R ${integerPart},${parts[1]}`;
+};
 
 const unitMap: Record<string, string> = {
   tons: "t",
@@ -47,6 +51,8 @@ const rateTypeOptions = [
   { value: "flat", label: "Flat Rate" },
 ];
 
+import WarningIcon from "@/src/components/common/WarningIcon";
+
 export default function DailyPlannerInputPage() {
   return (
     <Suspense fallback={null}>
@@ -62,25 +68,114 @@ function DailyPlannerInputContent() {
   const urlDate = searchParams.get("date");
 
   // Explicit mode state as requested
-  const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(routeId);
+  // REMOVED: const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(routeId);
+  // We use routeId directly from URL as the source of truth.
 
-  // Sync state with URL param (handle initial load or navigation)
-  useEffect(() => {
-    setEditingRouteId(routeId);
-  }, [routeId]);
-
-  const isEditMode = !!editingRouteId;
-  const mode: "create" | "edit" = isEditMode ? "edit" : "create";
+  // Helper for Yesterday's date (Local time)
+  const getYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Local state for the form
-  const [date, setDate] = useState(urlDate || "");
+  const [date, setDate] = useState(urlDate || getYesterday());
   const [truckFleetNo, setTruckFleetNo] = useState("");
   const [trailerFleetNo, setTrailerFleetNo] = useState("");
   const [driverName, setDriverName] = useState("");
   const [notes, setNotes] = useState("");
+  const [routeKilometers, setRouteKilometers] = useState("");
+  const [headerComplete, setHeaderComplete] = useState(true);
+
+  // Sync state with URL param (handle initial load or navigation)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (routeId) setHeaderComplete(true);
+  }, [routeId]);
+
+  const isEditMode = !!routeId;
+  const mode: "create" | "edit" = isEditMode ? "edit" : "create";
+
+  // ---------------------------------------------------------------------------
+  // SESSION RECOVERY (STAGE 5)
+  // ---------------------------------------------------------------------------
+  const DRAFT_KEY = "fleetcor_daily_planner_draft";
+  const DRAFT_TTL = 10 * 60 * 1000; // 10 minutes
+
+  // Controlled step state for Wizard
+  const [wizardStep, setWizardStep] = useState(isEditMode ? 6 : 0);
+
+  // 1. RECOVERY (Mount only)
+  useEffect(() => {
+    // Only recover for NEW routes (Create Mode)
+    if (isEditMode) return;
+
+    try {
+      const stored = sessionStorage.getItem(DRAFT_KEY);
+      if (!stored) return;
+
+      const draft = JSON.parse(stored);
+      const age = Date.now() - draft.timestamp;
+
+      if (age > DRAFT_TTL) {
+        sessionStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+
+      // Restore State (Silent)
+      if (draft.data) {
+        if (draft.data.date) setDate(draft.data.date);
+        if (draft.data.truckFleetNo) setTruckFleetNo(draft.data.truckFleetNo);
+        if (draft.data.trailerFleetNo) setTrailerFleetNo(draft.data.trailerFleetNo);
+        if (draft.data.driverName) setDriverName(draft.data.driverName);
+        if (draft.data.routeKilometers) setRouteKilometers(draft.data.routeKilometers);
+        if (draft.data.notes) setNotes(draft.data.notes);
+      }
+
+      // Restore Step
+      if (typeof draft.step === 'number') {
+        setWizardStep(draft.step);
+        // If restored to summary (step 6), mark header complete
+        if (draft.step > 5) {
+          setHeaderComplete(true);
+        }
+      }
+    } catch (e) {
+      // Silent failure - clear corrupt data
+      sessionStorage.removeItem(DRAFT_KEY);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
+  // 2. PERSISTENCE (On Change)
+  useEffect(() => {
+    if (isEditMode) return;
+    
+    const draft = {
+      timestamp: Date.now(),
+      step: wizardStep,
+      data: {
+        date,
+        truckFleetNo,
+        trailerFleetNo,
+        driverName,
+        routeKilometers,
+        notes
+      }
+    };
+    
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [isEditMode, wizardStep, date, truckFleetNo, trailerFleetNo, driverName, routeKilometers, notes]);
 
   // 1) Loads state (single source of truth)
   const [loads, setLoads] = useState<Load[]>([]);
+
+  // Feedback state
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // 2) Draft load form state
   const [draftLoad, setDraftLoad] = useState({
@@ -91,14 +186,13 @@ function DailyPlannerInputContent() {
     quantityType: "tons", // Default
     rate: "",
     rateType: "per_unit", // Default
-    kilometers: "",
   });
 
   // Queries
   const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId } : "skip");
-  const trucks = useQuery(api.fleet.getTrucks) || [];
-  const trailers = useQuery(api.fleet.getTrailers) || [];
-  const drivers = useQuery(api.fleet.getDrivers) || [];
+  const trucks = useQuery(api.fleet.getTrucks, {}) || [];
+  const trailers = useQuery(api.fleet.getTrailers, {}) || [];
+  const drivers = useQuery(api.fleet.getDrivers, {}) || [];
 
   // Mutations
   const createRoute = useMutation(api.dailyRoutes.createDailyRoute);
@@ -110,7 +204,7 @@ function DailyPlannerInputContent() {
 
   // Populate form when existing route loads
   useEffect(() => {
-    if (existingRoute && editingRouteId) {
+    if (existingRoute && routeId) {
       setDate(existingRoute.routeDate);
 
       // Sync URL for Sheets side-by-side view
@@ -124,9 +218,11 @@ function DailyPlannerInputContent() {
       setTrailerFleetNo(existingRoute.trailerFleetNoStr ?? existingRoute.trailerFleetNo?.toString() ?? "");
       setDriverName(existingRoute.driverName ?? "");
       setNotes(existingRoute.notes ?? "");
+      setRouteKilometers(existingRoute.routeKilometers?.toString() ?? "");
 
       // Map existing loads to UI format
       if (existingRoute.loads) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mappedLoads: Load[] = existingRoute.loads.map((l: any, index: number) => ({
           id: crypto.randomUUID(),
           clientName: l.client ?? "",
@@ -142,7 +238,7 @@ function DailyPlannerInputContent() {
         setLoads(mappedLoads);
       }
     }
-  }, [existingRoute, editingRouteId, searchParams, router]);
+  }, [existingRoute, routeId, searchParams, router]);
 
   // Helper to update specific location in draft
   const updateDraftLocation = (type: "from" | "to", index: number, value: string) => {
@@ -169,40 +265,33 @@ function DailyPlannerInputContent() {
   };
 
   // 3) Add Load handler (REQUIRED)
-  const handleAddLoad = () => {
-    // Filter out empty strings
-    const cleanFromLocations = draftLoad.fromLocations.filter(l => l.trim() !== "");
-    const cleanToLocations = draftLoad.toLocations.filter(l => l.trim() !== "");
+  const handleAddLoad = (e?: React.MouseEvent) => {
+    e?.preventDefault();
 
-    // Validation
-    if (!draftLoad.clientName) {
-      alert("Client name is required");
-      return;
-    }
-    if (cleanFromLocations.length === 0) {
-      alert("At least one Pickup location is required");
-      return;
-    }
-    if (cleanToLocations.length === 0) {
-      alert("At least one Drop location is required");
-      return;
-    }
+    // Filter out empty strings
+    const cleanFromLocations = draftLoad.fromLocations.filter(l => l && l.trim() !== "");
+    const cleanToLocations = draftLoad.toLocations.filter(l => l && l.trim() !== "");
+
+    // Validation - Simple and Explicit
+    if (!draftLoad.clientName?.trim()) return;
+    if (cleanFromLocations.length === 0) return;
+    if (cleanToLocations.length === 0) return;
 
     const newLoad: Load = {
-      id: crypto.randomUUID(),
-      clientName: draftLoad.clientName,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      clientName: draftLoad.clientName.trim(),
       fromLocations: cleanFromLocations,
       toLocations: cleanToLocations,
       quantity: parseFloat(draftLoad.quantity) || 0,
-      quantityType: draftLoad.quantityType,
+      quantityType: draftLoad.quantityType || "tons",
       rate: parseFloat(draftLoad.rate) || 0,
-      rateType: draftLoad.rateType as "per_unit" | "flat",
+      rateType: (draftLoad.rateType as "per_unit" | "flat") || "per_unit",
       sequence: loads.length + 1,
-      kilometers: parseFloat(draftLoad.kilometers) || 0,
+      kilometers: 0, // Default to 0
     };
 
     // Appends a new load
-    setLoads([...loads, newLoad]);
+    setLoads(prev => [...prev, newLoad]);
 
     // Resets draftLoad
     setDraftLoad({
@@ -213,7 +302,6 @@ function DailyPlannerInputContent() {
       quantityType: "tons",
       rate: "",
       rateType: "per_unit",
-      kilometers: "",
     });
   };
 
@@ -249,7 +337,6 @@ function DailyPlannerInputContent() {
 
     // Validate
     if (editingLoadState.fromLocations.length === 0 || editingLoadState.fromLocations[0] === "") {
-      alert("At least one Pickup location is required");
       return;
     }
 
@@ -276,17 +363,26 @@ function DailyPlannerInputContent() {
       }
     }
 
-    return { quantityDisplay, revenue: totalRevenue, totalKm: 0 };
+    // Effective KM: Route KM > Max Load KM
+    const rKm = parseFloat(routeKilometers) || 0;
+    const maxLKm = loads.reduce((max, l) => Math.max(max, l.kilometers || 0), 0);
+    const effectiveKm = rKm > 0 ? rKm : maxLKm;
+
+    return { quantityDisplay, revenue: totalRevenue, totalKm: effectiveKm };
   };
 
   const totals = calculateTotals();
 
   const handleSave = async () => {
+    // STAGE 4: Defensive check (Save should not proceed with missing fields)
     if (!date || !truckFleetNo || !driverName) {
-      console.error("Missing required fields");
-      alert("Missing required fields: Date, Truck, or Driver");
+      setSaveStatus("error");
+      setSaveError("Please complete all required fields (Date, Truck, Driver).");
       return;
     }
+
+    setSaveStatus("saving");
+    setSaveError(null);
 
     // Transform UI loads to Schema loads
     const schemaLoads = loads.map((l) => ({
@@ -297,26 +393,26 @@ function DailyPlannerInputContent() {
       rateType: l.rateType,
       fromLocations: l.fromLocations, // Pass array directly
       toLocations: l.toLocations, // Pass array directly
+      kilometers: l.kilometers,
     }));
 
 
     try {
-      if (mode === "edit" && editingRouteId) {
+      if (mode === "edit" && routeId) {
         await updateRoute({
-          id: editingRouteId,
+          id: routeId,
           routeDate: date,
           truckFleetNoStr: truckFleetNo,
           driverName: driverName,
           trailerFleetNoStr: trailerFleetNo || undefined,
           notes: notes || undefined,
-          kilometers: totals.totalKm, // Use calculated totals
+          kilometers: totals.totalKm, // Legacy field (effective)
+          routeKilometers: parseFloat(routeKilometers) || undefined,
           loads: schemaLoads,
-
         });
-        alert("Route updated successfully!");
 
         // EXIT EDIT MODE & RESET FORM
-        setEditingRouteId(null);
+        // REMOVED: setEditingRouteId(null);
         setTruckFleetNo("");
         setTrailerFleetNo("");
         setDriverName("");
@@ -334,10 +430,15 @@ function DailyPlannerInputContent() {
           driverName: driverName,
           trailerFleetNoStr: trailerFleetNo || undefined,
           notes: notes || undefined,
-          kilometers: totals.totalKm, // Use calculated totals
+          kilometers: totals.totalKm, // Legacy field (effective)
+          routeKilometers: parseFloat(routeKilometers) || undefined,
           loads: schemaLoads,
 
         });
+
+        // Clear session draft (STAGE 5)
+        sessionStorage.removeItem(DRAFT_KEY);
+        setWizardStep(0);
 
         // Reset form only on create
         setTruckFleetNo("");
@@ -345,431 +446,295 @@ function DailyPlannerInputContent() {
         setDriverName("");
         setNotes("");
         setLoads([]); // Reset loads too
-
-        alert("Route saved successfully!");
+        setSaveStatus("success");
+        setTimeout(() => setSaveStatus("idle"), 3000);
       }
     } catch (error) {
       console.error("Failed to save route:", error);
-      alert("Failed to save route. Please check console for details.");
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "An unexpected error occurred.");
     }
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col space-y-8">
-      {/* Header */}
-      <div>
+    <div className="h-full min-h-0 flex flex-col relative">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-white -mx-8 px-8 pt-8 pb-4 border-b border-gray-100 shadow-sm mb-8 -mt-8">
         <h1 className="text-2xl font-bold tracking-tight">
           {mode === "edit" ? "Edit Route" : "New Route"}
         </h1>
-        <p className="text-gray-500">
-          {mode === "edit" ? "Update existing route details." : "Enter daily route details."}
-        </p>
       </div>
 
-      {/* Main Form */}
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-6 bg-gray-50 p-6 rounded-lg border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Date */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={date ?? ""}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-              disabled={!isEditable}
-            />
-          </div>
-
-          {/* Truck */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Truck
-            </label>
-            <select
-              value={truckFleetNo ?? ""}
-              onChange={(e) => setTruckFleetNo(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-              disabled={!isEditable}
-            >
-              <option value="">Select truck...</option>
-              {trucks?.map((t) => (
-                <option key={t._id} value={t.truckFleetNo}>
-                  {t.truckFleetNo} ({t.registration})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Trailer */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Trailer
-            </label>
-            <select
-              value={trailerFleetNo ?? ""}
-              onChange={(e) => setTrailerFleetNo(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-              disabled={!isEditable}
-            >
-              <option value="">Select trailer...</option>
-              {trailers?.map((t) => (
-                <option key={t._id} value={t.trailerFleetNoStr ?? t.trailerFleetNo?.toString() ?? ""}>
-                  {t.trailerFleetNo} ({t.type})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Driver */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Driver
-            </label>
-            <select
-              value={driverName ?? ""}
-              onChange={(e) => setDriverName(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-              disabled={!isEditable}
-            >
-              <option value="">Select driver...</option>
-              {drivers?.map((d) => (
-                <option key={d._id} value={d.driverName}>
-                  {d.driverName}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Notes
-          </label>
-          <textarea
-            value={notes ?? ""}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-            placeholder="Any additional notes..."
-            disabled={!isEditable}
+      <div className="space-y-8 pb-8">
+        {/* Main Form - Wizard Header */}
+        <div className={`
+          bg-gray-50 border border-gray-200 rounded-lg overflow-hidden
+          ${headerComplete ? "h-auto" : "h-auto"}
+          transition-all duration-300
+        `}>
+          <WizardRouteHeader
+            date={date}
+            setDate={setDate}
+            truckFleetNo={truckFleetNo}
+            setTruckFleetNo={setTruckFleetNo}
+            trailerFleetNo={trailerFleetNo}
+            setTrailerFleetNo={setTrailerFleetNo}
+            driverName={driverName}
+            setDriverName={setDriverName}
+            routeKilometers={routeKilometers}
+            setRouteKilometers={setRouteKilometers}
+            notes={notes}
+            setNotes={setNotes}
+            trucks={trucks || []}
+            trailers={trailers || []}
+            drivers={drivers || []}
+            isEditable={isEditable}
+            isEditMode={mode === "edit"}
+            onComplete={() => setHeaderComplete(true)}
+            onEdit={() => setHeaderComplete(false)}
+            step={wizardStep}
+            setStep={setWizardStep}
+            onSaveShortcut={handleSave}
           />
         </div>
-      </div>
 
-      {/* Loads Section */}
-      <div className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Loads</h2>
-            <div className="text-sm text-gray-500">
-              Total Qty: <span className="font-medium text-black">{totals.quantityDisplay}</span> |
-              Est. Revenue: <span className="font-medium text-black">{formatZAR(totals.revenue)}</span>
-            </div>
-          </div>
-
-          {/* KM Mismatch Warning */}
-          {(() => {
-            const totalLoadKm = loads.reduce((sum, l) => sum + (l.kilometers || 0), 0);
-            const routeKm = totals.totalKm;
-            const mismatch = totalLoadKm !== routeKm;
-
-            if (mismatch && routeKm > 0) {
-              return (
-                <div className="px-3 py-2 bg-yellow-50 border border-yellow-100 rounded text-xs text-yellow-800 flex items-center gap-2">
-                  <span>⚠️</span>
-                  <span className="font-medium">KM Mismatch:</span>
-                  <span>Sum of Load KMs ({totalLoadKm} km) ≠ Total Route KM ({routeKm} km)</span>
+        {/* Loads Section - RESTORED PARTIAL (List Only) */}
+              <div className={`space-y-4 ${headerComplete ? "animate-in fade-in slide-in-from-bottom-4 duration-500" : "hidden"}`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">Loads</h3>
+                  <div className="text-sm text-gray-500">
+                    Total: <span className="font-medium text-gray-900">{loads.length}</span>
+                    {loads.length > 0 && (
+                        <span className="ml-2 pl-2 border-l border-gray-300">
+                            {totals.quantityDisplay} • {formatZAR(totals.revenue)}
+                        </span>
+                    )}
+                  </div>
                 </div>
-              );
-            }
-            return null;
-          })()}
-        </div>
 
-        {/* Loads List */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {loads.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 text-sm">
-              No loads added yet. Use the form below to add a load.
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {loads.map((load, index) => (
-                <div key={load.id} className="p-4 flex items-center justify-between hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                  {editingLoadId === load.id && editingLoadState ? (
-                    /* Edit Mode */
-                    <div className="flex-1 space-y-3">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-1 text-sm text-gray-500 font-mono">#{load.sequence}</div>
-                        <div className="col-span-3">
-                          <input
-                            type="text"
-                            value={editingLoadState.clientName ?? ""}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, clientName: e.target.value })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="Client"
-                          />
+                <div className="space-y-3">
+                  {loads.map((load, index) => (
+                    <div key={load.id} className="p-4 border rounded-lg bg-white shadow-sm relative group">
+                        <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                                <div className="font-medium text-gray-900 flex items-center gap-2">
+                                    <span className="text-xs font-mono text-gray-400">#{load.sequence}</span>
+                                    {load.clientName}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    <span className="text-gray-400">From:</span> {load.fromLocations.join(", ")}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    <span className="text-gray-400">To:</span> {load.toLocations.join(", ")}
+                                </div>
+                            </div>
+                            <div className="text-right space-y-1">
+                                <div className="font-medium text-gray-900">
+                                    {load.quantity} <span className="text-gray-500 text-sm">{unitMap[load.quantityType] || load.quantityType}</span>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    {formatZAR(load.rate)} <span className="text-xs text-gray-400">/{load.rateType === "flat" ? "flat" : "unit"}</span>
+                                </div>
+                                <div className="font-medium text-emerald-600 text-sm pt-1 border-t border-gray-100 mt-1">
+                                    {formatZAR(calculateLoadAmount(load.quantity, load.rate, load.rateType))}
+                                </div>
+                            </div>
                         </div>
-                        <div className="col-span-8 grid grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={(editingLoadState.fromLocations ?? []).join(", ")}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, fromLocations: e.target.value.split(",").map(s => s.trim()) })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="From (comma sep)"
-                          />
-                          <input
-                            type="text"
-                            value={(editingLoadState.toLocations ?? []).join(", ")}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, toLocations: e.target.value.split(",").map(s => s.trim()) })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="To (comma sep)"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-1"></div>
-                        <div className="col-span-5 grid grid-cols-5 gap-2">
-                          <input
-                            type="number"
-                            value={editingLoadState.quantity ?? ""}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, quantity: parseFloat(e.target.value) || 0 })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="Qty"
-                          />
-                          <select
-                            value={editingLoadState.quantityType}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, quantityType: e.target.value })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                          >
-                            {unitOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <select
-                            value={editingLoadState.rateType}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, rateType: e.target.value as "per_unit" | "flat" })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                          >
-                            {rateTypeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            value={editingLoadState.rate ?? ""}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, rate: parseFloat(e.target.value) || 0 })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="Rate"
-                          />
-                          <input
-                            type="number"
-                            value={editingLoadState.kilometers ?? ""}
-                            onChange={(e) => setEditingLoadState({ ...editingLoadState, kilometers: parseFloat(e.target.value) || 0 })}
-                            className="w-full rounded border-gray-300 text-xs p-1"
-                            placeholder="KM"
-                          />
-                        </div>
-                        <div className="col-span-6 flex justify-end gap-2">
-                          <button onClick={handleSaveEdit} className="text-green-600 hover:text-green-800 text-xs font-medium px-2 py-1 border border-green-200 rounded bg-green-50">Save</button>
-                          <button onClick={handleCancelEdit} className="text-gray-600 hover:text-gray-800 text-xs font-medium px-2 py-1 border border-gray-200 rounded">Cancel</button>
-                        </div>
-                      </div>
+
+                        {/* Actions */}
+                        {isEditable && (
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                <button 
+                                    onClick={() => handleRemoveLoad(load.id)}
+                                    className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50"
+                                    title="Remove Load"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
                     </div>
-                  ) : (
-                    /* View Mode */
-                    <>
-                      <div className="grid grid-cols-12 gap-4 flex-1 items-center">
-                        <div className="col-span-1 text-sm text-gray-500 font-mono">#{load.sequence}</div>
-                        <div className="col-span-3 font-medium truncate">{load.clientName}</div>
-                        <div className="col-span-3 text-sm text-gray-600">
-                          <div className="truncate"><span className="text-xs font-semibold text-gray-400">FROM:</span> {load.fromLocations.join(", ")}</div>
-                          <div className="truncate"><span className="text-xs font-semibold text-gray-400">TO:</span> {load.toLocations.join(", ")}</div>
-                        </div>
-                        <div className="col-span-1 text-sm text-right">{load.quantity} {unitMap[load.quantityType] || load.quantityType}</div>
-                        <div className="col-span-1 text-sm text-right font-mono text-gray-400 text-xs">{load.kilometers ? `${load.kilometers} km` : "-"}</div>
-                        <div className="col-span-2 text-right">
-                          <div className="text-sm font-medium">{formatZAR(calculateLoadAmount(load.quantity, load.rate, load.rateType))}</div>
-                          <div className="text-xs text-gray-500">{load.rateType === "flat" ? "Flat Rate" : `${formatZAR(load.rate)} / ${unitMap[load.quantityType] || load.quantityType}`}</div>
-                        </div>
-                      </div>
-                      {isEditable && (
-                        <div className="flex items-center ml-4 gap-2">
-                          <button
-                            onClick={() => handleEditLoad(load)}
-                            className="text-blue-500 hover:text-blue-700 p-1"
-                            title="Edit Load"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleRemoveLoad(load.id)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            title="Remove Load"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </>
+                  ))}
+                  
+                  {loads.length === 0 && (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg text-gray-500 bg-gray-50/50">
+                        No loads added yet.
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Add Load Form */}
+                {/* Add Load Form */}
+                <div className={`border rounded-lg p-4 bg-gray-50 transition-all duration-300 ${!isEditable ? "opacity-50 pointer-events-none" : ""}`}>
+                  <div className="space-y-4">
+                    {/* Row 1: Client */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                      <input
+                        type="text"
+                        value={draftLoad.clientName}
+                        onChange={(e) => setDraftLoad({ ...draftLoad, clientName: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        placeholder="Client Name"
+                      />
+                    </div>
+
+                    {/* Row 2: Locations */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* From Locations */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">From</label>
+                        {draftLoad.fromLocations.map((loc, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={loc}
+                              onChange={(e) => updateDraftLocation("from", i, e.target.value)}
+                              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              placeholder="Pickup Location"
+                            />
+                            {draftLoad.fromLocations.length > 1 && (
+                              <button
+                                onClick={() => removeLocationField("from", i)}
+                                className="text-gray-400 hover:text-red-500"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addLocationField("from")}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          + Add Pickup
+                        </button>
+                      </div>
+
+                      {/* To Locations */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">To</label>
+                        {draftLoad.toLocations.map((loc, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={loc}
+                              onChange={(e) => updateDraftLocation("to", i, e.target.value)}
+                              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                              placeholder="Drop Location"
+                            />
+                            {draftLoad.toLocations.length > 1 && (
+                              <button
+                                onClick={() => removeLocationField("to", i)}
+                                className="text-gray-400 hover:text-red-500"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addLocationField("to")}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          + Add Drop
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Row 3: Metrics */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Quantity */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={draftLoad.quantity}
+                            onChange={(e) => setDraftLoad({ ...draftLoad, quantity: e.target.value })}
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="0.00"
+                          />
+                          <select
+                            value={draftLoad.quantityType}
+                            onChange={(e) => setDraftLoad({ ...draftLoad, quantityType: e.target.value })}
+                            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          >
+                            {unitOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Rate */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Rate (R)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={draftLoad.rate}
+                            onChange={(e) => setDraftLoad({ ...draftLoad, rate: e.target.value })}
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="0.00"
+                          />
+                          <select
+                            value={draftLoad.rateType}
+                            onChange={(e) => setDraftLoad({ ...draftLoad, rateType: e.target.value })}
+                            className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          >
+                            {rateTypeOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add Button */}
+                    <div className="pt-2">
+                      <button
+                        onClick={handleAddLoad}
+                        className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 shadow-sm flex justify-center items-center gap-2"
+                      >
+                        <span>+ Add Load to Route</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+        {/* Save Actions */}
         {isEditable && (
-          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
-            <h3 className="text-sm font-medium text-gray-900">Add Load</h3>
-            <div className="flex flex-col md:flex-row gap-4 items-start">
-              {/* Growing Zone: Client + Pickups + Drops */}
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-                {/* Client */}
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Client Name"
-                    value={draftLoad.clientName ?? ""}
-                    onChange={(e) => setDraftLoad({ ...draftLoad, clientName: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                  />
-                </div>
-
-                {/* From Locations (Repeatable) */}
-                <div className="space-y-2">
-                  {draftLoad.fromLocations.map((loc, idx) => (
-                    <div key={idx} className="flex gap-1">
-                      <input
-                        type="text"
-                        placeholder="Pickup Location"
-                        value={loc ?? ""}
-                        onChange={(e) => updateDraftLocation("from", idx, e.target.value)}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                      />
-                      {draftLoad.fromLocations.length > 1 && (
-                        <button onClick={() => removeLocationField("from", idx)} className="text-gray-400 hover:text-red-500">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addLocationField("from")}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                  >
-                    + Add Pickup
-                  </button>
-                </div>
-
-                {/* To Locations (Repeatable) */}
-                <div className="space-y-2">
-                  {draftLoad.toLocations.map((loc, idx) => (
-                    <div key={idx} className="flex gap-1">
-                      <input
-                        type="text"
-                        placeholder="Drop Location"
-                        value={loc ?? ""}
-                        onChange={(e) => updateDraftLocation("to", idx, e.target.value)}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                      />
-                      {draftLoad.toLocations.length > 1 && (
-                        <button onClick={() => removeLocationField("to", idx)} className="text-gray-400 hover:text-red-500">×</button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addLocationField("to")}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                  >
-                    + Add Drop
-                  </button>
-                </div>
+          <div className="flex flex-col gap-4 pt-4 border-t">
+            {saveStatus === "error" && (
+              <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-200 flex items-center gap-2">
+                <WarningIcon tooltip="Error" />
+                {saveError}
               </div>
-
-              {/* Fixed Zone: Numeric Inputs */}
-              <div className="flex gap-2 self-start items-center">
-                <input
-                  type="number"
-                  placeholder="Qty"
-                  value={draftLoad.quantity ?? ""}
-                  onChange={(e) => setDraftLoad({ ...draftLoad, quantity: e.target.value })}
-                  className="w-24 h-10 min-h-[40px] self-start rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                />
-                <select
-                  value={draftLoad.quantityType}
-                  onChange={(e) => setDraftLoad({ ...draftLoad, quantityType: e.target.value })}
-                  className="w-24 h-10 min-h-[40px] self-start rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                >
-                  {unitOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={draftLoad.rateType}
-                  onChange={(e) => setDraftLoad({ ...draftLoad, rateType: e.target.value })}
-                  className="w-24 h-10 min-h-[40px] self-start rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                >
-                  {rateTypeOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  placeholder="Rate"
-                  value={draftLoad.rate ?? ""}
-                  onChange={(e) => setDraftLoad({ ...draftLoad, rate: e.target.value })}
-                  className="w-32 h-10 min-h-[40px] self-start rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                />
-                <input
-                  type="number"
-                  placeholder="KM (Est)"
-                  value={draftLoad.kilometers ?? ""}
-                  onChange={(e) => setDraftLoad({ ...draftLoad, kilometers: e.target.value })}
-                  className="w-28 h-10 min-h-[40px] self-start rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm p-2 border"
-                />
+            )}
+            {saveStatus === "success" && (
+              <div className="bg-green-50 text-green-700 p-3 rounded-md text-sm border border-green-200">
+                Route saved successfully!
               </div>
-            </div>
+            )}
+
             <div className="flex justify-end">
               <button
-                onClick={handleAddLoad}
-                className="bg-black text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-800 transition-colors"
+                onClick={handleSave}
+                disabled={saveStatus === "saving"}
+                className={`
+                  bg-green-600 text-white px-6 py-2 rounded-md text-sm font-medium shadow-sm transition-colors
+                  ${saveStatus === "saving" ? "opacity-50 cursor-not-allowed" : "hover:bg-green-700"}
+                `}
               >
-                Add Load
+                {saveStatus === "saving" ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
         )}
       </div>
-
-      {/* Journey Legs Section REMOVED */}
-
-      {/* Save Actions */}
-      {isEditable && (
-        <div className="flex justify-end pt-4 border-t">
-          <button
-            onClick={handleSave}
-            className="bg-green-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors shadow-sm"
-          >
-            {isEditMode ? "Update Route" : "Save Route"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }

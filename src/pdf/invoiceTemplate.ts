@@ -92,7 +92,7 @@ export const generateInvoicePDF = (data: InvoiceData): jsPDF => {
     const formattedDesc = formatDescription(item.description);
     const baseParts = formattedDesc.split("\n");
     
-    let wrapped: string[] = [];
+    const wrapped: string[] = [];
     for (const part of baseParts) {
       const lines = doc.splitTextToSize(part, DESC_MAX_WIDTH);
       for (const l of lines) {
@@ -162,4 +162,5 @@ export const generateInvoicePDF = (data: InvoiceData): jsPDF => {
 
   // --- Save ---
   doc.save(`Proforma_${data.client.name}_${data.invoiceNumber}.pdf`);
+  return doc;
 };

@@ -90,22 +90,24 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                     <h3 className="text-sm font-semibold text-gray-700 mb-4">
                         Revenue Over Time
                     </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={revenueOverTime}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `R${(value / 1000).toFixed(0)}k`} />
-                            <Tooltip formatter={(value) => formatZAR(Number(value))} />
-                            <Legend wrapperStyle={{ fontSize: "12px" }} />
-                            <Line
-                                type="monotone"
-                                dataKey="revenue"
-                                stroke="#10b981"
-                                strokeWidth={2}
-                                name="Revenue (ZAR)"
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+                    <div className="w-full min-h-[300px]">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <LineChart data={revenueOverTime}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `R${(value / 1000).toFixed(0)}k`} />
+                                <Tooltip formatter={(value) => formatZAR(Number(value))} />
+                                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                                <Line
+                                    type="monotone"
+                                    dataKey="revenue"
+                                    stroke="#10b981"
+                                    strokeWidth={2}
+                                    name="Revenue (ZAR)"
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* Revenue by Truck */}
@@ -113,16 +115,18 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                     <h3 className="text-sm font-semibold text-gray-700 mb-4">
                         Revenue by Truck (Top 10)
                     </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={revenueByTruck} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(value) => `R${(value / 1000).toFixed(0)}k`} />
-                            <YAxis dataKey="truckFleetNo" type="category" tick={{ fontSize: 11 }} width={60} />
-                            <Tooltip formatter={(value) => formatZAR(Number(value))} />
-                            <Legend wrapperStyle={{ fontSize: "12px" }} />
-                            <Bar dataKey="revenue" fill="#3b82f6" name="Revenue (ZAR)" />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <div className="w-full min-h-[300px]">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={revenueByTruck} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(value) => `R${(value / 1000).toFixed(0)}k`} />
+                                <YAxis dataKey="truckFleetNo" type="category" tick={{ fontSize: 11 }} width={60} />
+                                <Tooltip formatter={(value) => formatZAR(Number(value))} />
+                                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                                <Bar dataKey="revenue" fill="#3b82f6" name="Revenue (ZAR)" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
         </div>

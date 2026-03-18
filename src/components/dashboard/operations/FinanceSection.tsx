@@ -160,12 +160,12 @@ export default function FinanceSection() {
           {/* CHART A: Age Bucket Breakdown */}
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-xs font-semibold text-gray-500 uppercase mb-4">Debt Age Profile</h3>
-              <div className="h-48">
+              <div className="h-48 w-full min-h-[192px]">
                   <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={ageBucketData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
                           <XAxis type="number" hide />
                           <YAxis type="category" dataKey="name" width={60} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                          <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                           <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                               {ageBucketData.map((entry, index) => (
                                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -179,12 +179,12 @@ export default function FinanceSection() {
           {/* CHART B: Outstanding Trend */}
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-4">6-Month Trend</h3>
-               <div className="h-48">
+               <div className="h-48 w-full min-h-[192px]">
                   <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={charts.outstandingTrend}>
                           <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                           <YAxis hide domain={['auto', 'auto']} />
-                          <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                          <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
                           <Line type="monotone" dataKey="totalDue" stroke="#2563EB" strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
                   </ResponsiveContainer>

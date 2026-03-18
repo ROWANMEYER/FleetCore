@@ -77,6 +77,13 @@ function shouldAutoComplete(loads: any[]) {
   });
 }
 
+export const listAllRoutes = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("dailyRoutes").collect();
+  },
+});
+
 export const createDailyRoute = mutation({
   args: {
     routeDate: v.string(),
@@ -85,7 +92,8 @@ export const createDailyRoute = mutation({
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
-    truckFleetNoStr: v.string(),
+    truckFleetNo: v.optional(v.string()), // Canonical
+    truckFleetNoStr: v.optional(v.string()), // Legacy
     trailerFleetNoStr: v.optional(v.string()),
 
     // New: multiple loads 
@@ -114,8 +122,10 @@ export const createDailyRoute = mutation({
   },
   handler: async (ctx, args) => {
     console.log("📥 MUTATION HIT", args); // DEBUG LOG 
-    if (args.truckFleetNoStr.trim().length === 0) {
-      throw new Error("truckFleetNoStr must be a non-empty string");
+
+    const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
+    if (!truckIdentifier || truckIdentifier.trim().length === 0) {
+      throw new Error("truckFleetNo must be a non-empty string");
     }
 
     // Normalize Loads: Enforce Flat Rate Logic (Qty 0 -> 1)
@@ -144,7 +154,7 @@ export const createDailyRoute = mutation({
     }
 
     // Safe Fleet Number Logic 
-    const rawFleetNo = Number(args.truckFleetNoStr);
+    const rawFleetNo = Number(truckIdentifier);
     const safeFleetNo = Number.isFinite(rawFleetNo) ? rawFleetNo : undefined;
 
     const id = await ctx.db.insert("dailyRoutes", {
@@ -160,7 +170,7 @@ export const createDailyRoute = mutation({
       kilometers: finalKilometers,
       routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
-      truckFleetNoStr: args.truckFleetNoStr,
+      truckFleetNoStr: truckIdentifier,
       trailerFleetNoStr: args.trailerFleetNoStr,
 
       loads: normalizedLoads,
@@ -178,6 +188,81 @@ export const createDailyRoute = mutation({
     });
 
     return id;
+  },
+});
+
+export const createBulkDailyRoutes = mutation({
+  args: {
+    routes: v.array(
+      v.object({
+        routeDate: v.string(),
+        driverName: v.string(),
+        kilometers: v.number(),
+        routeKilometers: v.optional(v.number()),
+        notes: v.optional(v.string()),
+        truckFleetNo: v.optional(v.string()),
+        truckFleetNoStr: v.optional(v.string()),
+        trailerFleetNoStr: v.optional(v.string()),
+        isSplit: v.optional(v.boolean()),
+        loads: v.array(
+          v.object({
+            client: v.string(),
+            quantity: v.string(),
+            quantityType: v.string(),
+            rate: v.string(),
+            rateType: v.string(),
+            fromLocations: v.array(v.string()),
+            toLocations: v.array(v.string()),
+            kilometers: v.optional(v.number()),
+          })
+        ),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const createdIds = [];
+
+    for (const route of args.routes) {
+      const truckIdentifier = route.truckFleetNo ?? route.truckFleetNoStr;
+      if (!truckIdentifier || truckIdentifier.trim().length === 0) {
+        continue; // Skip invalid rows
+      }
+
+      const normalizedLoads = route.loads;
+      const aggregates = deriveTripAggregates(normalizedLoads);
+
+      let finalKilometers = route.kilometers;
+      const maxLoadKm = normalizedLoads.reduce((max, load) => Math.max(max, load.kilometers || 0), 0);
+      if (maxLoadKm > 0) finalKilometers = maxLoadKm;
+      if (route.routeKilometers !== undefined) finalKilometers = route.routeKilometers;
+
+      const rawFleetNo = Number(truckIdentifier);
+      const safeFleetNo = Number.isFinite(rawFleetNo) ? rawFleetNo : undefined;
+
+      const id = await ctx.db.insert("dailyRoutes", {
+        routeDate: route.routeDate,
+        driverName: route.driverName,
+        client: aggregates.client,
+        rate: aggregates.rate,
+        fromLocations: aggregates.fromLocations,
+        toLocations: aggregates.toLocations,
+        kilometers: finalKilometers,
+        routeKilometers: route.routeKilometers,
+        notes: route.notes ?? "",
+        truckFleetNoStr: truckIdentifier,
+        trailerFleetNoStr: route.trailerFleetNoStr,
+        loads: normalizedLoads,
+        legs: [],
+        createdAt: now,
+        fromLocation: aggregates.fromLocations[0],
+        truckFleetNo: safeFleetNo,
+        trailerFleetNo: route.trailerFleetNoStr ? Number(route.trailerFleetNoStr) : 0,
+        status: shouldAutoComplete(normalizedLoads) ? "completed" : "planned",
+      });
+      createdIds.push(id);
+    }
+    return createdIds;
   },
 });
 
@@ -254,15 +339,22 @@ export const getById = query({
 export const getRoutesByTruckAndDate = query({
   args: {
     routeDate: v.string(),
-    truckFleetNoStr: v.string(),
+    truckFleetNoStr: v.optional(v.string()),
+    truckFleetNo: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
+    if (!truckIdentifier) {
+      // If neither is provided, return empty list (or handle error)
+      return [];
+    }
+
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
         q
           .eq("routeDate", args.routeDate)
-          .eq("truckFleetNoStr", args.truckFleetNoStr)
+          .eq("truckFleetNoStr", truckIdentifier)
       )
       .collect();
 
@@ -344,6 +436,7 @@ export const updateDailyRoute = mutation({
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
+    truckFleetNo: v.optional(v.string()), // Canonical
     truckFleetNoStr: v.string(),
     trailerFleetNoStr: v.optional(v.string()),
     loads: v.array(
@@ -416,7 +509,8 @@ export const updateDailyRoute = mutation({
     }
 
     // Safe Fleet Number Logic
-    const rawFleetNo = Number(args.truckFleetNoStr);
+    const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
+    const rawFleetNo = Number(truckIdentifier);
     const safeFleetNo = Number.isFinite(rawFleetNo) ? rawFleetNo : undefined;
 
     await ctx.db.patch(args.id, {
@@ -430,12 +524,12 @@ export const updateDailyRoute = mutation({
       routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
       truckFleetNoStr: args.truckFleetNoStr,
+      truckFleetNo: safeFleetNo,
       trailerFleetNoStr: args.trailerFleetNoStr,
+      trailerFleetNo: args.trailerFleetNoStr ? Number(args.trailerFleetNoStr) : 0,
       loads: normalizedLoads,
       legs: args.legs,
       fromLocation: aggregates.fromLocations[0],
-      truckFleetNo: safeFleetNo,
-      trailerFleetNo: args.trailerFleetNoStr ? Number(args.trailerFleetNoStr) : 0,
       status: newStatus,
     });
   },
@@ -454,18 +548,13 @@ export const deleteDailyRoute = mutation({
       throw new Error("Cannot delete a locked route.");
     }
 
-    // Soft Delete
-    await ctx.db.patch(args.id, {
-      isDeleted: true,
-      deletedAt: Date.now(),
-    });
+    await ctx.db.delete(args.id);
   },
 });
 
 export const deleteBulkDailyRoutes = mutation({
   args: { ids: v.array(v.id("dailyRoutes")) },
   handler: async (ctx, args) => {
-    const now = Date.now();
     for (const id of args.ids) {
       const route = await ctx.db.get(id);
       if (!route) continue;
@@ -475,29 +564,7 @@ export const deleteBulkDailyRoutes = mutation({
         throw new Error(`Cannot delete locked route ${id}. Operation aborted.`);
       }
 
-      // Soft Delete
-      await ctx.db.patch(id, {
-        isDeleted: true,
-        deletedAt: now,
-      });
-    }
-  },
-});
-
-export const undoBulkDelete = mutation({
-  args: { ids: v.array(v.id("dailyRoutes")) },
-  handler: async (ctx, args) => {
-    for (const id of args.ids) {
-      const route = await ctx.db.get(id);
-      if (!route) continue;
-
-      // Check permission if needed (Role check can be here in future)
-
-      await ctx.db.patch(id, {
-        isDeleted: false,
-        // We leave deletedAt as is or clear it if strictness required, 
-        // but checking isDeleted=false is sufficient for queries.
-      });
+      await ctx.db.delete(id);
     }
   },
 });

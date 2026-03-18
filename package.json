@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "update-backend": "powershell -ExecutionPolicy Bypass -File scripts/updateBackend.ps1",
     "lint": "eslint"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "convex": "^1.31.5",
+    "bcryptjs": "^3.0.3",
+    "convex": "^1.31.7",
+    "exceljs": "^4.4.0",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "next": "16.1.4",

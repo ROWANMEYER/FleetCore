@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 
 export const getOrCreate = mutation({
@@ -41,4 +41,8 @@ export const getOrCreate = mutation({
 
     return args.invoiceData;
   },
+});
+
+export const debugAllInvoices = query({
+  handler: async (ctx) => ctx.db.query("invoices").collect(),
 });

@@ -1,46 +1,109 @@
-import { query, mutation } from "./_generated/server"; 
- import { v } from "convex/values"; 
- 
- export const listTrucks = query({ 
-     args: {}, 
-     handler: async (ctx) => { 
-         const trucks = await ctx.db.query("trucks").collect(); 
-         return trucks.map((t) => ({ 
-             label: `${t.truckFleetNo} (${t.registration})`, 
-             value: t.truckFleetNo, 
-         })); 
-     }, 
- }); 
- 
- export const listTrailers = query({ 
-     args: {}, 
-     handler: async (ctx) => { 
-         const trailers = await ctx.db.query("trailers").collect(); 
-         return trailers.map((t) => { 
-             // Use string field if available, else number 
-             const fleetNo = t.trailerFleetNoStr || String(t.trailerFleetNo); 
-             return { 
-                 label: `${fleetNo} (${t.type})`, 
-                 value: fleetNo, 
-             }; 
-         }); 
-     }, 
- }); 
- 
- export const listDrivers = query({ 
-     args: {}, 
-     handler: async (ctx) => { 
-       const drivers = await ctx.db.query("drivers").collect();
-       const activeDrivers = drivers.filter((d) => {
-         const status = (d as { status?: string }).status;
-         return status !== "inactive";
-       });
-        return activeDrivers.map((d) => ({ 
-             label: d.driverName, 
-             value: d.driverName, // Storing name as requested by prompt 
-         })); 
-     }, 
- });
+import { query, mutation, action, internalMutation } from "./_generated/server"; 
+import { v } from "convex/values"; 
+import { internal } from "./_generated/api";
+
+export const listTrucks = query({ 
+    args: {}, 
+    handler: async (ctx) => { 
+       const trucks = await ctx.db.query("trucks").collect(); 
+       const activeTrucks = trucks.filter(
+           (t) => (t as { status?: string }).status !== "inactive"
+       );
+       return activeTrucks.map((t) => ({ 
+            label: `${t.truckFleetNo} (${t.registration})`, 
+            value: t.truckFleetNo, 
+        })); 
+    }, 
+}); 
+
+export const listTrailers = query({ 
+    args: {}, 
+    handler: async (ctx) => { 
+       const trailers = await ctx.db.query("trailers").collect(); 
+       const activeTrailers = trailers.filter(
+           (t) => (t as { status?: string }).status !== "inactive"
+       );
+       return activeTrailers.map((t) => { 
+            // Use string field if available, else number 
+            const fleetNo = t.trailerFleetNoStr || String(t.trailerFleetNo); 
+            return { 
+                label: `${fleetNo} (${t.type})`, 
+                value: fleetNo, 
+            }; 
+        }); 
+    }, 
+}); 
+
+export const getTrailers = query({
+  args: {
+    search: v.optional(v.string()),
+    sortBy: v.optional(v.string()),
+    sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    includeInactive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const data = await ctx.db.query("trailers").collect();
+    const includeInactive = Boolean(args.includeInactive);
+    let rows = includeInactive ? data : data.filter((t) => (t as { status?: string }).status !== "inactive");
+    const search = args.search;
+    if (search && search.trim() !== "") {
+      const q = search.toLowerCase();
+      rows = rows.filter((t) => {
+        const fleetNo = t.trailerFleetNoStr || String(t.trailerFleetNo ?? "");
+        const trailersList = Array.isArray(t.trailers) ? t.trailers : [];
+        const matchesTrailer = trailersList.some((item) =>
+          `${item.length ?? ""} ${item.registration ?? ""}`.toLowerCase().includes(q)
+        );
+        return (
+          fleetNo.toLowerCase().includes(q) ||
+          (t.type || "").toLowerCase().includes(q) ||
+          matchesTrailer
+        );
+      });
+    }
+    const flatRows = rows.flatMap((t) => {
+      const trailersList = Array.isArray(t.trailers) && t.trailers.length > 0
+        ? t.trailers
+        : [{ length: "", registration: "" }];
+      return trailersList.map((item) => ({
+        _id: t._id,
+        trailerFleetNo: t.trailerFleetNo,
+        trailerFleetNoStr: t.trailerFleetNoStr,
+        type: t.type,
+        status: (t as { status?: string }).status,
+        length: item.length,
+        registration: item.registration,
+        originalLength: item.length,
+        originalRegistration: item.registration,
+        currentExpiry: t.licenseExpiryDate,
+      }));
+    });
+    const sortBy = args.sortBy || "trailerFleetNoStr";
+    const sortDir = args.sortDir || "asc";
+    flatRows.sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortBy] ?? "";
+      const bv = (b as Record<string, unknown>)[sortBy] ?? "";
+      const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return flatRows;
+  },
+}); 
+
+export const listDrivers = query({ 
+    args: {}, 
+    handler: async (ctx) => { 
+      const drivers = await ctx.db.query("drivers").collect();
+      const activeDrivers = drivers.filter((d) => {
+        const status = (d as { status?: string }).status;
+        return status !== "inactive";
+      });
+       return activeDrivers.map((d) => ({ 
+            label: d.driverName, 
+            value: d.driverName, // Storing name as requested by prompt 
+        })); 
+    }, 
+});
 
 export const getDriverStats = query({
     args: {},
@@ -58,8 +121,33 @@ export const getTruckStats = query({
     handler: async (ctx) => {
         const trucks = await ctx.db.query("trucks").collect();
         const total = trucks.length;
-        return { total };
+        const active = trucks.filter((t) => (t as any).status !== "inactive").length;
+        const inactive = total - active;
+        return { total, active, inactive };
     },
+});
+
+export const getTrailerStats = query({
+    args: {},
+    handler: async (ctx) => {
+        const trailers = await ctx.db.query("trailers").collect();
+        const total = trailers.length;
+        const active = trailers.filter((t) => (t as any).status !== "inactive").length;
+        const inactive = total - active;
+        return { total, active, inactive };
+    },
+});
+
+export const debugAllTrucks = query({
+    handler: async (ctx) => ctx.db.query("trucks").collect(),
+});
+
+export const debugAllTrailers = query({
+    handler: async (ctx) => ctx.db.query("trailers").collect(),
+});
+
+export const debugAllDrivers = query({
+    handler: async (ctx) => ctx.db.query("drivers").collect(),
 });
 
 export const getTrucks = query({
@@ -67,11 +155,13 @@ export const getTrucks = query({
         search: v.optional(v.string()),
         sortBy: v.optional(v.string()), // "truckFleetNo" | "registration" | "make" | "model"
         sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        includeInactive: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const data = await ctx.db.query("trucks").collect();
+        const includeInactive = Boolean(args.includeInactive);
+        let rows = includeInactive ? data : data.filter((t) => (t as any).status !== "inactive");
         const search = args.search;
-        let rows = data;
         if (search && search.trim() !== "") {
             const q = search.toLowerCase();
             rows = rows.filter((t) => {
@@ -88,91 +178,15 @@ export const getTrucks = query({
         rows.sort((a, b) => {
             const av = (a as Record<string, unknown>)[sortBy] ?? "";
             const bv = (b as Record<string, unknown>)[sortBy] ?? "";
-            const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
-            return sortDir === "asc" ? cmp : -cmp;
-        });
-        return rows;
-    },
-});
-
-export const getTrailers = query({
-    args: {
-        search: v.optional(v.string()),
-        sortBy: v.optional(v.string()), // "trailerFleetNoStr" | "type" | "length" | "registration"
-        sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
-    },
-    handler: async (ctx, args) => {
-        const data = await ctx.db.query("trailers").collect();
-        
-        // Flatten nested trailers into rows
-        let rows = data.flatMap((t) => {
-            // Handle edge case where trailers array might be empty or undefined (though schema says required)
-            const subTrailers = t.trailers && t.trailers.length > 0 ? t.trailers : [];
-            if (subTrailers.length === 0) {
-                // Return a "phantom" row or just the parent info? 
-                // If there are no physical trailers, maybe we shouldn't show it, or show with empty fields.
-                // Assuming schema enforcement, trailers array should have items. 
-                // If empty, let's return one row with empty length/reg so it can be edited/deleted.
-                return [{
-                    _id: t._id,
-                    trailerFleetNo: t.trailerFleetNo,
-                    trailerFleetNoStr: t.trailerFleetNoStr,
-                    type: t.type,
-                    length: "",
-                    registration: "",
-                    originalLength: "",
-                    originalRegistration: "",
-                }];
-            }
-            return subTrailers.map((inner) => ({
-                _id: t._id,
-                trailerFleetNo: t.trailerFleetNo,
-                trailerFleetNoStr: t.trailerFleetNoStr,
-                type: t.type,
-                length: inner.length,
-                registration: inner.registration,
-                originalLength: inner.length,
-                originalRegistration: inner.registration,
-            }));
-        });
-
-        const search = args.search;
-        if (search && search.trim() !== "") {
-            const q = search.toLowerCase();
-            rows = rows.filter((r) => {
-                const fleetNo = r.trailerFleetNoStr || String(r.trailerFleetNo || "");
-                return (
-                    fleetNo.toLowerCase().includes(q) ||
-                    (r.type || "").toLowerCase().includes(q) ||
-                    (r.length || "").toLowerCase().includes(q) ||
-                    (r.registration || "").toLowerCase().includes(q)
-                );
-            });
-        }
-
-        const sortBy = args.sortBy || "trailerFleetNoStr";
-        const sortDir = args.sortDir || "asc";
-        
-        rows.sort((a, b) => {
-            // @ts-ignore
-            let av = a[sortBy];
-            // @ts-ignore
-            let bv = b[sortBy];
-
-            if (sortBy === "trailerFleetNoStr") {
-                av = a.trailerFleetNoStr || String(a.trailerFleetNo);
-                bv = b.trailerFleetNoStr || String(b.trailerFleetNo);
-            }
-            
-            // Fallback for nulls
-            av = av ?? "";
-            bv = bv ?? "";
 
             const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
             return sortDir === "asc" ? cmp : -cmp;
         });
         
-        return rows;
+        return rows.map(t => ({
+            ...t,
+            currentExpiry: t.licenseExpiryDate,
+        }));
     },
 });
 
@@ -209,33 +223,12 @@ export const getDrivers = query({
         rows.sort((a, b) => {
             const av = (a as Record<string, unknown>)[sortBy] ?? "";
             const bv = (b as Record<string, unknown>)[sortBy] ?? "";
+
             const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
             return sortDir === "asc" ? cmp : -cmp;
         });
+        
         return rows;
-    },
-});
-
-// =============================================================================
-// Mutations — Admin Master Data
-// =============================================================================
-
-export const createTruck = mutation({
-    args: {
-        truckFleetNo: v.string(),
-        registration: v.string(),
-        make: v.string(),
-        model: v.string(),
-    },
-    handler: async (ctx, args) => {
-        const existing = await ctx.db
-            .query("trucks")
-            .withIndex("by_truckFleetNo", (q) => q.eq("truckFleetNo", args.truckFleetNo))
-            .first();
-        if (existing) {
-            throw new Error("Truck with this fleet number already exists");
-        }
-        return await ctx.db.insert("trucks", args);
     },
 });
 
@@ -247,20 +240,64 @@ export const updateTruck = mutation({
             registration: v.optional(v.string()),
             make: v.optional(v.string()),
             model: v.optional(v.string()),
+            currentTrailerId: v.optional(v.id("trailers")),
+            status: v.optional(v.string()),
+            licenseExpiryDate: v.optional(v.string()),
+            serviceDueDate: v.optional(v.string()),
+            serviceDueKm: v.optional(v.number()),
+            currentKm: v.optional(v.number()),
         }),
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
         if (!current) throw new Error("Truck not found");
-        // If changing fleet number, ensure unique
+        // If changing truckFleetNo ensure uniqueness
         if (args.patch.truckFleetNo && args.patch.truckFleetNo !== current.truckFleetNo) {
             const exists = await ctx.db
                 .query("trucks")
-                .withIndex("by_truckFleetNo", (q) => q.eq("truckFleetNo", args.patch.truckFleetNo!))
+                .filter((q) => q.eq(q.field("truckFleetNo"), args.patch.truckFleetNo!))
                 .first();
             if (exists) throw new Error("Another truck already has this fleet number");
         }
         await ctx.db.patch(args.id, args.patch);
+    },
+});
+
+export const createTruck = mutation({
+    args: {
+        truckFleetNo: v.string(),
+        registration: v.string(),
+        make: v.string(),
+        model: v.string(),
+        currentTrailerId: v.optional(v.id("trailers")),
+        status: v.string(), // "active" | "inactive"
+        licenseExpiryDate: v.optional(v.string()),
+        serviceDueDate: v.optional(v.string()),
+        serviceDueKm: v.optional(v.number()),
+        currentKm: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        // Simple uniqueness check on truckFleetNo
+        const existing = await ctx.db
+            .query("trucks")
+            .filter((q) => q.eq(q.field("truckFleetNo"), args.truckFleetNo))
+            .first();
+        if (existing) {
+            throw new Error("Truck with this fleet number already exists");
+        }
+        return await ctx.db.insert("trucks", args);
+    },
+});
+
+export const updateTruckStatus = mutation({
+    args: {
+        id: v.id("trucks"),
+        status: v.string(), // "active" | "inactive"
+    },
+    handler: async (ctx, args) => {
+        const current = await ctx.db.get(args.id);
+        if (!current) throw new Error("Truck not found");
+        await ctx.db.patch(args.id, { status: args.status });
     },
 });
 
@@ -288,6 +325,10 @@ export const createDriver = mutation({
         idNumber: v.string(),
         phone: v.string(),
         status: v.string(), // "active" | "inactive"
+        photoStorageId: v.optional(v.string()),
+        photoUrl: v.optional(v.string()),
+        licenseExpiryDate: v.optional(v.string()),
+        pdpExpiryDate: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         // Simple uniqueness check on driverId
@@ -311,6 +352,10 @@ export const updateDriver = mutation({
             idNumber: v.optional(v.string()),
             phone: v.optional(v.string()),
             status: v.optional(v.string()),
+            photoStorageId: v.optional(v.string()),
+            photoUrl: v.optional(v.string()),
+            licenseExpiryDate: v.optional(v.string()),
+            pdpExpiryDate: v.optional(v.string()),
         }),
     },
     handler: async (ctx, args) => {
@@ -360,7 +405,8 @@ export const deleteDriver = mutation({
 export const createTrailer = mutation({
     args: {
         trailerFleetNo: v.number(),
-        trailerFleetNoStr: v.optional(v.string()),
+        trailerFleetNoStr: v.string(),
+        trailerNumber: v.optional(v.string()),
         trailers: v.array(
             v.object({
                 length: v.string(),
@@ -368,12 +414,34 @@ export const createTrailer = mutation({
             })
         ),
         type: v.string(),
+        status: v.optional(v.string()),
+        licenseExpiryDate: v.optional(v.string()),
+        serviceDueDate: v.optional(v.string()),
+        serviceDueKm: v.optional(v.number()),
+        currentKm: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const resolvedFleetNoStr = args.trailerFleetNoStr ?? args.trailerNumber;
+        if (!resolvedFleetNoStr) {
+            throw new Error("trailerFleetNoStr is required");
+        }
+
+        const resolvedFleetNoNum = (() => {
+            const n = parseInt(resolvedFleetNoStr, 10);
+            return isNaN(n) ? args.trailerFleetNo : n;
+        })();
+
+        const { trailerNumber: _trailerNumber, ...argsWithoutTrailerNumber } = args;
+        const payload = {
+            ...argsWithoutTrailerNumber,
+            trailerFleetNoStr: resolvedFleetNoStr,
+            trailerFleetNo: resolvedFleetNoNum,
+        };
+
         // Check if fleet number exists
         const existing = await ctx.db
             .query("trailers")
-            .withIndex("by_trailerFleetNo", (q) => q.eq("trailerFleetNo", args.trailerFleetNo))
+            .withIndex("by_trailerFleetNoStr", (q) => q.eq("trailerFleetNoStr", resolvedFleetNoStr))
             .first();
 
         if (existing) {
@@ -386,18 +454,13 @@ export const createTrailer = mutation({
              
              // If we have new items, append them
              if (newItems.length > 0) {
-                 await ctx.db.patch(existing._id, {
-                     trailers: [...existing.trailers, ...newItems],
-                     // Optionally update type/string if provided, assuming latest write wins for shared fields
-                     type: args.type, 
-                     trailerFleetNoStr: args.trailerFleetNoStr || existing.trailerFleetNoStr
-                 });
-             } else {
-                 throw new Error("This trailer already exists for fleet number " + args.trailerFleetNo);
+                 const updatedTrailers = [...existing.trailers, ...newItems];
+                 await ctx.db.patch(existing._id, { trailers: updatedTrailers });
              }
+             return existing._id;
         } else {
             // Create new
-            await ctx.db.insert("trailers", args);
+            return await ctx.db.insert("trailers", payload);
         }
     },
 });
@@ -406,19 +469,54 @@ export const updateTrailer = mutation({
     args: {
         id: v.id("trailers"),
         patch: v.object({
-            trailerFleetNo: v.optional(v.number()), // Changed from string to number to match schema
+            trailerNumber: v.optional(v.string()),
             trailerFleetNoStr: v.optional(v.string()),
-            trailers: v.array(
+            type: v.optional(v.string()),
+            trailers: v.optional(v.array(
                 v.object({
                     length: v.string(),
                     registration: v.string(),
                 })
-            ),
-            type: v.optional(v.string()),
+            )),
+            status: v.optional(v.string()),
+            licenseExpiryDate: v.optional(v.string()),
+            serviceDueDate: v.optional(v.string()),
+            serviceDueKm: v.optional(v.number()),
+            currentKm: v.optional(v.number()),
         }),
     },
     handler: async (ctx, args) => {
-        await ctx.db.patch(args.id, args.patch);
+        const current = await ctx.db.get(args.id);
+        if (!current) throw new Error("Trailer not found");
+        
+        // If changing trailerFleetNoStr ensure uniqueness
+        if (args.patch.trailerFleetNoStr && args.patch.trailerFleetNoStr !== current.trailerFleetNoStr) {
+             const exists = await ctx.db
+                .query("trailers")
+                .withIndex("by_trailerFleetNoStr", (q) => q.eq("trailerFleetNoStr", args.patch.trailerFleetNoStr!))
+                .first();
+            if (exists) throw new Error("Another trailer already has this fleet number");
+        }
+
+        // If trailers array is provided, just replace it (simple update)
+        const patch = { ...args.patch } as any;
+
+        if (args.patch.trailerNumber && !args.patch.trailerFleetNoStr) {
+            (patch as any).trailerFleetNoStr = args.patch.trailerNumber;
+        }
+
+        // Never persist legacy field to DB (not in schema)
+        delete patch.trailerNumber;
+
+        if (args.patch.trailerFleetNoStr) {
+            // Also update numeric field if possible (best effort, legacy)
+            const num = parseInt(args.patch.trailerFleetNoStr, 10);
+            if (!isNaN(num)) {
+                (patch as any).trailerFleetNo = num;
+            }
+        }
+        
+        await ctx.db.patch(args.id, patch);
     },
 });
 
@@ -427,48 +525,69 @@ export const updateTrailerComponent = mutation({
         id: v.id("trailers"),
         originalLength: v.string(),
         originalRegistration: v.string(),
-        
         newLength: v.string(),
         newRegistration: v.string(),
         newType: v.string(),
-        newTrailerFleetNo: v.number(),
+        newTrailerFleetNo: v.optional(v.number()),
         newTrailerFleetNoStr: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const doc = await ctx.db.get(args.id);
-        if (!doc) throw new Error("Trailer not found");
+        const current = await ctx.db.get(args.id);
+        if (!current) throw new Error("Trailer not found");
 
-        const patch: any = {};
-        
-        // 1. Handle Parent Fields (affects all siblings)
-        if (args.newType !== doc.type) patch.type = args.newType;
-        if (args.newTrailerFleetNoStr !== doc.trailerFleetNoStr) patch.trailerFleetNoStr = args.newTrailerFleetNoStr;
-        
-        if (args.newTrailerFleetNo !== doc.trailerFleetNo) {
-             const existing = await ctx.db.query("trailers").withIndex("by_trailerFleetNo", q => q.eq("trailerFleetNo", args.newTrailerFleetNo)).first();
-             if (existing && existing._id !== doc._id) throw new Error("Fleet number " + args.newTrailerFleetNo + " already exists");
-             patch.trailerFleetNo = args.newTrailerFleetNo;
+        const resolvedFleetNoStr =
+            args.newTrailerFleetNoStr ??
+            current.trailerFleetNoStr ??
+            (args.newTrailerFleetNo !== undefined ? String(args.newTrailerFleetNo) : undefined);
+
+        if (resolvedFleetNoStr && resolvedFleetNoStr !== current.trailerFleetNoStr) {
+            const exists = await ctx.db
+                .query("trailers")
+                .withIndex("by_trailerFleetNoStr", (q) => q.eq("trailerFleetNoStr", resolvedFleetNoStr))
+                .first();
+            if (exists && exists._id !== current._id) {
+                throw new Error("Another trailer already has this fleet number");
+            }
         }
 
-        // 2. Handle Child Fields (update specific array item)
-        const trailers = [...doc.trailers];
-        const index = trailers.findIndex(t => t.length === args.originalLength && t.registration === args.originalRegistration);
-        
-        if (index === -1) {
-            // If not found, maybe it was already changed? Or we are adding?
-            // Fallback: if array has only 1 item, update it? No, unsafe.
-            throw new Error("Original trailer component not found. Please refresh.");
+        let found = false;
+        const updatedTrailers = current.trailers.map((t) => {
+            if (t.length === args.originalLength && t.registration === args.originalRegistration) {
+                found = true;
+                return { length: args.newLength, registration: args.newRegistration };
+            }
+            return t;
+        });
+
+        if (!found) {
+            throw new Error("Trailer component not found");
         }
-        
-        trailers[index] = {
-            length: args.newLength,
-            registration: args.newRegistration
+
+        const patch: Record<string, unknown> = {
+            trailers: updatedTrailers,
+            type: args.newType,
         };
-        
-        patch.trailers = trailers;
-        
+        if (args.newTrailerFleetNo !== undefined) {
+            patch.trailerFleetNo = args.newTrailerFleetNo;
+        }
+        if (resolvedFleetNoStr) {
+            patch.trailerFleetNoStr = resolvedFleetNoStr;
+        }
+
         await ctx.db.patch(args.id, patch);
-    }
+    },
+});
+
+export const updateTrailerStatus = mutation({
+    args: {
+        id: v.id("trailers"),
+        status: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const current = await ctx.db.get(args.id);
+        if (!current) throw new Error("Trailer not found");
+        await ctx.db.patch(args.id, { status: args.status });
+    },
 });
 
 export const deleteTrailerComponent = mutation({
@@ -506,7 +625,7 @@ export const deleteTrailerComponent = mutation({
         } else {
             await ctx.db.patch(args.id, { trailers: newTrailers });
         }
-    }
+    },
 });
 
 export const deleteTrailer = mutation({
@@ -528,4 +647,101 @@ export const deleteTrailer = mutation({
         }
         await ctx.db.delete(args.id);
     },
+});
+
+// =============================================================================
+// Driver Photo Management
+// =============================================================================
+
+export const updateDriverPhotoInternal = internalMutation({
+  args: {
+    driverId: v.id("drivers"),
+    storageId: v.string(),
+    url: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.driverId, {
+      photoStorageId: args.storageId,
+      photoUrl: args.url,
+    });
+  },
+});
+
+export const setDriverPhoto = mutation({
+  args: {
+    driverId: v.id("drivers"),
+    storageId: v.string(),
+    url: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver) throw new Error("Driver not found");
+    
+    await ctx.db.patch(args.driverId, {
+      photoStorageId: args.storageId,
+      photoUrl: args.url,
+    });
+  },
+});
+
+export const removeDriverPhoto = mutation({
+  args: {
+    driverId: v.id("drivers"),
+  },
+  handler: async (ctx, args) => {
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver) throw new Error("Driver not found");
+    
+    await ctx.db.patch(args.driverId, {
+      photoStorageId: undefined,
+      photoUrl: undefined,
+    });
+  },
+});
+
+export const uploadDriverPhoto = action({
+  args: {
+    driverId: v.id("drivers"),
+    image: v.string(), // Base64 data URL
+  },
+  handler: async (ctx, args) => {
+    // 1. Auth check
+    // const identity = await ctx.auth.getUserIdentity();
+    // if (!identity) throw new Error("Unauthorized");
+
+    // 2. Parse Base64 Data URL
+    const matches = args.image.match(/^data:(.+);base64,(.+)$/);
+    if (!matches) throw new Error("Invalid image data URL");
+
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+
+    // 3. Validation
+    if (!mimeType.startsWith("image/")) throw new Error("Invalid file type: must be an image");
+    
+    // Check size (approximate: base64 length * 0.75)
+    const sizeInBytes = base64Data.length * 0.75;
+    if (sizeInBytes > 5 * 1024 * 1024) throw new Error("File size too large (max 5MB)");
+
+    // 4. Store file
+    const bytes = Uint8Array.from(
+      atob(base64Data),
+      (c) => c.charCodeAt(0)
+    );
+    const blob = new Blob([bytes], { type: mimeType });
+    
+    const storageId = await ctx.storage.store(blob);
+    const url = await ctx.storage.getUrl(storageId);
+
+    if (!url) throw new Error("Failed to generate storage URL");
+
+    // 5. Update driver record
+    await ctx.runMutation(internal.fleet.updateDriverPhotoInternal, {
+      driverId: args.driverId,
+      storageId,
+      url,
+    });
+
+    return { storageId, url };
+  },
 });

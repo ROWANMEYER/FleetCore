@@ -37,6 +37,13 @@ export default function Navigation() {
           >
             Admin
           </Link>
+
+          <Link
+            href="/settings"
+            className={`hover:text-gray-300 transition-colors ${isActive('/settings') ? 'text-white border-b-2 border-white pb-1' : 'text-gray-400'}`}
+          >
+            Settings
+          </Link>
         </div>
       </div>
     </nav>

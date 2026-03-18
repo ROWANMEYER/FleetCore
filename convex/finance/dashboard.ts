@@ -15,7 +15,7 @@ export const getFinanceSummary = query({
     const previousSnapshot = snapshots[1];
 
     // Initialize default values
-    let kpis = {
+    const kpis = {
       totalOutstanding: 0,
       overdue60Plus: 0,
       risk120Plus: 0,
@@ -23,7 +23,7 @@ export const getFinanceSummary = query({
       onAccount: 0,
     };
 
-    let charts = {
+    const charts = {
       ageBuckets: {
         current: 0,
         days30: 0,
@@ -35,7 +35,7 @@ export const getFinanceSummary = query({
       topRiskCustomers: [] as { name: string; amount: number; category: string }[],
     };
 
-    let insights: { type: "warning" | "info"; message: string }[] = [];
+    const insights: { type: "warning" | "info"; message: string }[] = [];
 
     // Process Snapshot Data
     if (latestSnapshot) {

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { query } from "./_generated/server";
+import { calculateLoadAmount } from "./utils";
 import { v } from "convex/values";
 
 /**
@@ -189,14 +190,13 @@ export const getDashboardRevenueSummary = query({
 
         activeRoutes.forEach((route) => {
             if (route.loads && Array.isArray(route.loads)) {
-                route.loads.forEach((load) => {
-                    const q = parseFloat(load.quantity) || 0;
-                    const r = parseFloat(load.rate) || 0;
-                    const amount = calculateLoadAmount(q, r, load.rateType);
-                    totalRevenue += amount;
-                    totalLoads++;
-                });
+                totalLoads += route.loads.length;
             }
+            
+            // Fix: calculateLoadAmount is not defined. Using flat route fields as requested.
+            // Formula: (route.rate ?? 0) * (route.kilometers ?? 0)
+            const amount = (route.rate ?? 0) * (route.kilometers ?? 0);
+            totalRevenue += amount;
         });
 
         const totalRoutes = activeRoutes.length;
@@ -307,5 +307,319 @@ export const getRevenueByTruck = query({
         result = result.slice(0, limit);
 
         return result;
+    },
+});
+
+// ============================================================================
+// CEO-LEVEL ANALYTICS QUERIES
+// ============================================================================
+
+/**
+ * Executive Summary: Key business metrics for decision making
+ */
+export const getExecutiveSummary = query({
+    args: {
+        startDate: v.string(),
+        endDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("dailyRoutes")
+            .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                q.gte("routeDate", args.startDate).lte("routeDate", args.endDate)
+            )
+            .collect();
+
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+        // Revenue calculations
+        let totalRevenue = 0;
+        let totalKm = 0;
+        let totalLoads = 0;
+        let completedCount = 0;
+
+        activeRoutes.forEach((route) => {
+            totalRevenue += route.rate || 0;
+            totalKm += (route as any).kilometers || 0;
+            totalLoads += route.loads?.length || 0;
+            if ((route as any).status === "completed" || (route as any).status === "locked") {
+                completedCount++;
+            }
+        });
+
+        const totalRoutes = activeRoutes.length;
+
+        return {
+            period: { startDate: args.startDate, endDate: args.endDate },
+            totalRevenue,
+            totalRoutes,
+            totalLoads,
+            totalKm,
+            completedRoutes: completedCount,
+            activeRoutes: totalRoutes - completedCount,
+            revenuePerKm: totalKm > 0 ? totalRevenue / totalKm : 0,
+            revenuePerLoad: totalLoads > 0 ? totalRevenue / totalLoads : 0,
+            revenuePerRoute: totalRoutes > 0 ? totalRevenue / totalRoutes : 0,
+            avgKmPerRoute: totalRoutes > 0 ? totalKm / totalRoutes : 0,
+            completionRate: totalRoutes > 0 ? (completedCount / totalRoutes) * 100 : 0,
+        };
+    },
+});
+
+/**
+ * Customer Performance Analysis: Identify top customers and risk profiles
+ */
+export const getCustomerAnalytics = query({
+    args: {
+        startDate: v.string(),
+        endDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("dailyRoutes")
+            .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                q.gte("routeDate", args.startDate).lte("routeDate", args.endDate)
+            )
+            .collect();
+
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+        // Group by customer
+        const customerMetrics: Record<
+            string,
+            {
+                name: string;
+                revenue: number;
+                loads: number;
+                routes: number;
+                km: number;
+                avgRevenuePerLoad: number;
+            }
+        > = {};
+
+        activeRoutes.forEach((route) => {
+            const client = route.client || "Unknown";
+            if (!customerMetrics[client]) {
+                customerMetrics[client] = {
+                    name: client,
+                    revenue: 0,
+                    loads: 0,
+                    routes: 0,
+                    km: 0,
+                    avgRevenuePerLoad: 0,
+                };
+            }
+
+            customerMetrics[client].revenue += route.rate || 0;
+            customerMetrics[client].loads += route.loads?.length || 0;
+            customerMetrics[client].routes += 1;
+            customerMetrics[client].km += (route as any).kilometers || 0;
+        });
+
+        // Calculate avg revenue per load
+        Object.values(customerMetrics).forEach((c) => {
+            c.avgRevenuePerLoad = c.loads > 0 ? c.revenue / c.loads : 0;
+        });
+
+        // Rank by revenue
+        const byRevenue = Object.values(customerMetrics)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 10);
+
+        // Total revenue for concentration analysis
+        const totalRevenue = Object.values(customerMetrics).reduce((sum, c) => sum + c.revenue, 0);
+        const topCustomersRevenue = byRevenue.reduce((sum, c) => sum + c.revenue, 0);
+        const concentrationRisk = totalRevenue > 0 ? (topCustomersRevenue / totalRevenue) * 100 : 0;
+
+        return {
+            topCustomers: byRevenue,
+            totalUniqueCustomers: Object.keys(customerMetrics).length,
+            concentrationRisk, // % of revenue from top 10
+        };
+    },
+});
+
+/**
+ * Fleet Performance: Truck and utilization analytics
+ */
+export const getFleetPerformance = query({
+    args: {
+        startDate: v.string(),
+        endDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("dailyRoutes")
+            .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                q.gte("routeDate", args.startDate).lte("routeDate", args.endDate)
+            )
+            .collect();
+
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+        // Group by truck
+        const truckMetrics: Record<
+            string,
+            {
+                truckNumber: string;
+                revenue: number;
+                routes: number;
+                km: number;
+                loads: number;
+                revenuePerKm: number;
+                efficiency: number;
+            }
+        > = {};
+
+        activeRoutes.forEach((route) => {
+            const truck = route.truckFleetNoStr || "Unknown";
+            if (!truckMetrics[truck]) {
+                truckMetrics[truck] = {
+                    truckNumber: truck,
+                    revenue: 0,
+                    routes: 0,
+                    km: 0,
+                    loads: 0,
+                    revenuePerKm: 0,
+                    efficiency: 0,
+                };
+            }
+
+            truckMetrics[truck].revenue += route.rate || 0;
+            truckMetrics[truck].routes += 1;
+            truckMetrics[truck].km += (route as any).kilometers || 0;
+            truckMetrics[truck].loads += route.loads?.length || 0;
+        });
+
+        // Calculate efficiency metrics
+        Object.values(truckMetrics).forEach((t) => {
+            t.revenuePerKm = t.km > 0 ? t.revenue / t.km : 0;
+            t.efficiency = t.routes > 0 ? t.km / t.routes : 0; // avg km per route
+        });
+
+        // Sort by revenue
+        const topPerformers = Object.values(truckMetrics)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 10);
+
+        const avgRevenuePerKm =
+            activeRoutes.reduce((sum, r) => sum + (r.rate || 0), 0) /
+                (activeRoutes.reduce((sum, r) => sum + ((r as any).kilometers || 0), 0) || 1);
+
+        return {
+            topTrucks: topPerformers,
+            totalTrucksActive: Object.keys(truckMetrics).length,
+            avgRevenuePerKm,
+        };
+    },
+});
+
+/**
+ * Financial Health: Receivables and payment metrics
+ */
+export const getFinancialHealth = query({
+    args: {},
+    handler: async (ctx) => {
+        // Get latest age snapshot
+        const snapshots = await ctx.db
+            .query("ageSnapshots")
+            .withIndex("by_month")
+            .order("desc")
+            .take(2);
+
+        const latest = snapshots[0];
+        const previous = snapshots[1];
+
+        if (!latest) {
+            return {
+                totalOutstanding: 0,
+                overdue30Plus: 0,
+                overdue60Plus: 0,
+                overdue90Plus: 0,
+                critical120Plus: 0,
+                daysOutstanding: 0,
+                collectionTrend: 0,
+                riskLevel: "unknown",
+            };
+        }
+
+        const overdue30Plus = latest.days30 + latest.days60 + latest.days90 + latest.days120;
+        const overdue60Plus = latest.days60 + latest.days90 + latest.days120;
+        const overdue90Plus = latest.days90 + latest.days120;
+
+        // Calculate trend
+        let collectionTrend = 0;
+        if (previous) {
+            collectionTrend = latest.totalDue - previous.totalDue;
+        }
+
+        // Risk level assessment
+        let riskLevel: "healthy" | "caution" | "risk" | "critical" = "healthy";
+        if (latest.days120 > latest.totalDue * 0.2) riskLevel = "critical";
+        else if (overdue60Plus > latest.totalDue * 0.3) riskLevel = "risk";
+        else if (overdue30Plus > latest.totalDue * 0.4) riskLevel = "caution";
+
+        return {
+            totalOutstanding: latest.totalDue,
+            overdue30Plus,
+            overdue60Plus,
+            overdue90Plus,
+            critical120Plus: latest.days120,
+            daysOutstanding:
+                latest.totalDue > 0
+                    ? ((latest.current * 0 +
+                        latest.days30 * 15 +
+                        latest.days60 * 45 +
+                        latest.days90 * 75 +
+                        latest.days120 * 150) /
+                        latest.totalDue) |
+                      0
+                    : 0,
+            collectionTrend,
+            riskLevel,
+        };
+    },
+});
+
+/**
+ * Operational Efficiency: Load and route analysis
+ */
+export const getOperationalEfficiency = query({
+    args: {
+        startDate: v.string(),
+        endDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("dailyRoutes")
+            .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                q.gte("routeDate", args.startDate).lte("routeDate", args.endDate)
+            )
+            .collect();
+
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+        const completed = activeRoutes.filter(
+            (r) => (r as any).status === "completed" || (r as any).status === "locked"
+        );
+        const planned = activeRoutes.filter((r) => (r as any).status === "planned");
+
+        const totalLoads = activeRoutes.reduce((sum, r) => sum + (r.loads?.length || 0), 0);
+        const totalKm = activeRoutes.reduce((sum, r) => sum + ((r as any).kilometers || 0), 0);
+        const totalRevenue = activeRoutes.reduce((sum, r) => sum + (r.rate || 0), 0);
+
+        return {
+            totalRoutes: activeRoutes.length,
+            completedRoutes: completed.length,
+            plannedRoutes: planned.length,
+            totalLoads,
+            loadsPerRoute: activeRoutes.length > 0 ? totalLoads / activeRoutes.length : 0,
+            totalKm,
+            kmPerRoute: activeRoutes.length > 0 ? totalKm / activeRoutes.length : 0,
+            revenuePerRoute: activeRoutes.length > 0 ? totalRevenue / activeRoutes.length : 0,
+            avgRouteLength: activeRoutes.length > 0 ? totalKm / activeRoutes.length : 0,
+            plannedCompletionRate:
+                activeRoutes.length > 0 ? (completed.length / activeRoutes.length) * 100 : 0,
+        };
     },
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -60,18 +60,73 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
   const trailers = useQuery(api.fleet.listTrailers) || [];
   const drivers = useQuery(api.fleet.listDrivers) || [];
 
+  if (!route) {
+    return <div className="p-4 text-gray-500">Loading route...</div>;
+  }
+
+  return (
+    <EditRouteFormInner
+      route={route}
+      routeId={routeId}
+      trucks={trucks}
+      trailers={trailers}
+      drivers={drivers}
+      onSuccess={onSuccess}
+      onCancel={onCancel}
+    />
+  );
+}
+
+type EditRouteFormInnerProps = {
+  route: any;
+  routeId: Id<"dailyRoutes">;
+  trucks: any[];
+  trailers: any[];
+  drivers: any[];
+  onSuccess: () => void;
+  onCancel: () => void;
+};
+
+function EditRouteFormInner({
+  route,
+  routeId,
+  trucks,
+  trailers,
+  drivers,
+  onSuccess,
+  onCancel,
+}: EditRouteFormInnerProps) {
   // --- Mutations ---
   const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
 
   // --- Form State ---
-  const [routeDate, setRouteDate] = useState("");
-  const [truck, setTruck] = useState("");
-  const [trailer, setTrailer] = useState("");
-  const [driver, setDriver] = useState("");
-  const [notes, setNotes] = useState("");
-  const [routeKilometers, setRouteKilometers] = useState("");
+  const [routeDate, setRouteDate] = useState(route.routeDate ?? "");
+  const [truckFleetNo, setTruckFleetNo] = useState(
+    route.truckFleetNo?.toString() ?? route.truckFleetNoStr ?? ""
+  );
+  const [trailer, setTrailer] = useState(
+    route.trailerFleetNoStr ?? route.trailerFleetNo?.toString() ?? ""
+  );
+  const [driver, setDriver] = useState(route.driverName ?? "");
+  const [notes, setNotes] = useState(route.notes ?? "");
+  const [routeKilometers, setRouteKilometers] = useState(
+    route.routeKilometers?.toString() ?? ""
+  );
 
-  const [loads, setLoads] = useState<Load[]>([]);
+  const initialLoads: Load[] = (route.loads ?? []).map((l: any, index: number) => ({
+    id: crypto.randomUUID(),
+    clientName: l.client ?? "",
+    fromLocations: l.fromLocations ?? [],
+    toLocations: l.toLocations ?? [],
+    quantity: Number(l.quantity) || 0,
+    quantityType: l.quantityType || "tons",
+    rate: Number(l.rate) || 0,
+    rateType: l.rateType === "flat" ? "flat" : "per_unit",
+    sequence: index + 1,
+    kilometers: l.kilometers || 0,
+  }));
+
+  const [loads, setLoads] = useState<Load[]>(initialLoads);
   
   // --- Draft State ---
   const [draftLoad, setDraftLoad] = useState({
@@ -87,35 +142,6 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
   // --- Inline Editing State ---
   const [editingLoadId, setEditingLoadId] = useState<string | null>(null);
   const [editingLoadState, setEditingLoadState] = useState<Load | null>(null);
-
-  // --- Initialization Effect ---
-  useEffect(() => {
-    if (!route) return;
-
-    setRouteDate(route.routeDate ?? "");
-    setTruck(route.truckFleetNoStr ?? route.truckFleetNo?.toString() ?? "");
-    setTrailer(route.trailerFleetNoStr ?? route.trailerFleetNo?.toString() ?? "");
-    setDriver(route.driverName ?? "");
-    setNotes(route.notes ?? "");
-    setRouteKilometers(route.routeKilometers?.toString() ?? "");
-
-    // Map Loads
-    if (route.loads) {
-      const mappedLoads: Load[] = route.loads.map((l: any, index: number) => ({
-        id: crypto.randomUUID(),
-        clientName: l.client ?? "",
-        fromLocations: l.fromLocations ?? [],
-        toLocations: l.toLocations ?? [],
-        quantity: Number(l.quantity) || 0,
-        quantityType: l.quantityType || "tons",
-        rate: Number(l.rate) || 0,
-        rateType: l.rateType === "flat" ? "flat" : "per_unit",
-        sequence: index + 1,
-        kilometers: l.kilometers || 0,
-      }));
-      setLoads(mappedLoads);
-    }
-  }, [route]);
 
   // --- Load Handlers ---
   const addLocationField = (type: "from" | "to") => {
@@ -271,7 +297,7 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
 
   // --- Save Handler ---
   const handleSave = async () => {
-    if (!routeDate || !truck || !driver) {
+    if (!routeDate || !truckFleetNo || !driver) {
       return alert("Missing required fields: Date, Truck, or Driver");
     }
 
@@ -290,7 +316,7 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
       await updateRoute({
         id: routeId,
         routeDate: routeDate,
-        truckFleetNoStr: truck,
+        truckFleetNoStr: truckFleetNo.toString(),
         driverName: driver,
         trailerFleetNoStr: trailer || undefined,
         notes: notes || undefined,
@@ -310,10 +336,6 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
   const handleCancel = () => {
     onCancel();
   };
-
-  if (!route) {
-    return <div className="p-4 text-gray-500">Loading route...</div>;
-  }
 
   return (
     <div className="bg-white border rounded-lg shadow-sm p-6 space-y-8 max-w-5xl mx-auto">
@@ -347,8 +369,8 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Truck</label>
           <select
-            value={truck}
-            onChange={(e) => setTruck(e.target.value)}
+            value={truckFleetNo}
+            onChange={(e) => setTruckFleetNo(e.target.value)}
             className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
           >
             <option value="">Select truck...</option>

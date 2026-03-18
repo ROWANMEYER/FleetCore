@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface WorkspaceSplitProps {
     primary: React.ReactNode;
@@ -21,7 +21,7 @@ export default function WorkspaceSplit({
         setIsDragging(true);
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = useCallback((e: MouseEvent) => {
         if (!isDragging || !containerRef.current) return;
 
         const containerRect = containerRef.current.getBoundingClientRect();
@@ -36,11 +36,11 @@ export default function WorkspaceSplit({
         if (newPrimaryWidth > 70) newPrimaryWidth = 70;
 
         setPrimaryWidth(newPrimaryWidth);
-    };
+    }, [isDragging]);
 
-    const handleMouseUp = () => {
+    const handleMouseUp = useCallback(() => {
         setIsDragging(false);
-    };
+    }, []);
 
     // Attach global mouse event listeners when dragging
     useEffect(() => {
@@ -59,11 +59,11 @@ export default function WorkspaceSplit({
                 document.body.style.cursor = "";
             };
         }
-    }, [isDragging]);
+    }, [isDragging, handleMouseMove, handleMouseUp]);
 
     // If no secondary panel, render primary at 100%
     if (secondary === null) {
-        return <div className="w-full h-full">{primary}</div>;
+        return <div className="w-full h-full overflow-auto">{primary}</div>;
     }
 
     return (

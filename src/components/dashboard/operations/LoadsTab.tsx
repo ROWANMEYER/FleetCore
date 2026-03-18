@@ -93,22 +93,24 @@ export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
                     <h3 className="text-sm font-semibold text-gray-700 mb-4">
                         Loads Over Time
                     </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={loadsOverTime}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: "12px" }} />
-                            <Line
-                                type="monotone"
-                                dataKey="loadCount"
-                                stroke="#3b82f6"
-                                strokeWidth={2}
-                                name="Loads"
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+                    <div className="w-full min-h-[300px]">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <LineChart data={loadsOverTime}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 11 }} />
+                                <Tooltip />
+                                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                                <Line
+                                    type="monotone"
+                                    dataKey="loadCount"
+                                    stroke="#3b82f6"
+                                    strokeWidth={2}
+                                    name="Loads"
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 {/* Routes by Status */}
@@ -116,29 +118,36 @@ export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
                     <h3 className="text-sm font-semibold text-gray-700 mb-4">
                         Routes by Status
                     </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={routesByStatus}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ status, count }) => `${status}: ${count}`}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="count"
-                            >
-                                {routesByStatus.map((entry: any, index: number) => (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={STATUS_COLORS[entry.status as keyof typeof STATUS_COLORS] || "#gray"}
-                                    />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend wrapperStyle={{ fontSize: "12px" }} />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="w-full min-h-[300px]">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie
+                                    data={routesByStatus}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={(props) => {
+                                        const payload = props.payload as { status?: string; count?: number };
+                                        const status = payload?.status ?? "";
+                                        const count = payload?.count ?? 0;
+                                        return `${status}: ${count}`;
+                                    }}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="count"
+                                >
+                                    {routesByStatus.map((entry: any, index: number) => (
+                                        <Cell
+                                            key={`cell-${index}`}
+                                            fill={STATUS_COLORS[entry.status as keyof typeof STATUS_COLORS] || "#gray"}
+                                        />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
         </div>

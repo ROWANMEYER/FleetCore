@@ -21,7 +21,7 @@ export const buildInvoiceData = (route: any, customers: any[] | undefined): Invo
   const toLocs = (route.loads?.flatMap((l: any) => l.toLocations || []) || []).join(" → ");
   
   const rawDesc = `${route.routeDate || ""}: TRANSPORTATION OF LOAD FROM ${fromLocs} TO ${toLocs}`;
-  const subDesc = `Vehicle: ${route.truckFleetNoStr || ""} / ${route.trailerFleetNoStr || ""} | Driver: ${route.driverName || ""}`;
+  const subDesc = `Vehicle: ${route.truckFleetNo?.toString() ?? route.truckFleetNoStr ?? ""} / ${route.trailerFleetNo?.toString() ?? route.trailerFleetNoStr ?? ""} | Driver: ${route.driverName || ""}`;
 
   const rate = Number(route.rate) || 0;
   const vatRate = 0.15;

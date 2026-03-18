@@ -49,6 +49,10 @@ export const importTrucks = mutation({
   handler: async (ctx, args) => {
     let count = 0;
     for (const truck of args.trucks) {
+      if (!truck.truckFleetNo || truck.truckFleetNo.trim().length === 0) {
+        console.log("Skipping invalid truck:", truck);
+        continue;
+      }
       // Check by truckFleetNo using index
       const existing = await ctx.db
         .query("trucks")
@@ -85,16 +89,23 @@ export const importTrailers = mutation({
   handler: async (ctx, args) => {
     let count = 0;
     for (const trailer of args.trailers) {
-      // Check by trailerFleetNo using index
+      // Check by trailerFleetNoStr using index
       const existing = await ctx.db
         .query("trailers")
-        .withIndex("by_trailerFleetNo", (q) => q.eq("trailerFleetNo", trailer.trailerFleetNo))
+        .withIndex("by_trailerFleetNoStr", (q) =>
+          q.eq("trailerFleetNoStr", String(trailer.trailerFleetNo))
+        )
         .first();
-      
+
+      const payload = {
+        ...trailer,
+        trailerFleetNoStr: String(trailer.trailerFleetNo),
+      };
+
       if (existing) {
-        await ctx.db.patch(existing._id, trailer);
+        await ctx.db.patch(existing._id, payload);
       } else {
-        await ctx.db.insert("trailers", trailer);
+        await ctx.db.insert("trailers", payload);
       }
       count++;
     }

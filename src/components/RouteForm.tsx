@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
 
 /**
  * ⚠️ LEGACY COMPONENT - RouteForm
@@ -26,7 +25,8 @@ export type Load = {
 
 export type RouteFormData = {
   routeDate: string;
-  truckFleetNoStr: string;
+  truckFleetNo: string;
+  truckFleetNoStr?: string; // Legacy support
   driverName: string;
   trailerFleetNoStr?: string;
   kilometers: number;
@@ -56,7 +56,7 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
   const [loads, setLoads] = useState<(Load & { tempId: string })[]>(
     (initialValues?.loads || [
       { client: "", quantity: "0", quantityType: "ton", rate: "0", rateType: "full", fromLocation: "", toLocation: "" },
-    ]).map(l => ({ ...l, tempId: Math.random().toString(36).substring(7) }))
+    ]).map((l, index) => ({ ...l, tempId: String(index) }))
   );
 
   const updateLoad = (index: number, field: keyof Load, value: string) => {
@@ -95,6 +95,7 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
 
     await onSubmit({
       routeDate,
+      truckFleetNo: truckFleetNoStr,
       truckFleetNoStr,
       driverName,
       trailerFleetNoStr,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { InvoiceData } from "@/src/pdf/types";
+import { formatCurrency, formatDate } from "@/src/pdf/formatters";
 
 interface InvoiceDeliveryPanelProps {
   invoiceData: InvoiceData;
@@ -36,9 +37,9 @@ export default function InvoiceDeliveryPanel({
 
   const getSummaryText = () => {
     return `*Invoice ${invoiceData.invoiceNumber}*
-Client: ${invoiceData.clientName}
-Date: ${invoiceData.date}
-Total: ${invoiceData.currency} ${invoiceData.totalAmount.toFixed(2)}`;
+Client: ${invoiceData.client.name}
+Date: ${formatDate(invoiceData.date)}
+Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
   };
 
   const handleCopySummary = async () => {
@@ -62,7 +63,7 @@ Total: ${invoiceData.currency} ${invoiceData.totalAmount.toFixed(2)}`;
         <div>
             <h3 className="text-sm font-semibold text-gray-900">Invoice Ready</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-                #{invoiceData.invoiceNumber} • {invoiceData.clientName}
+                #{invoiceData.invoiceNumber} • {invoiceData.client.name}
             </p>
         </div>
         <button 

@@ -48,7 +48,6 @@ export function WizardRouteHeader({
   trailers,
   drivers,
   isEditMode,
-  onComplete,
 }: Props) {
   // ---------------------------------------------------------------------------
   // WARNING LOGIC (Preserved)
@@ -57,7 +56,7 @@ export function WizardRouteHeader({
   // A. Duplicate Check (Reactive Query)
   const existingRoutes = useQuery(api.dailyRoutes.getRoutesByTruckAndDate, {
     routeDate: date,
-    truckFleetNoStr: truckFleetNo,
+    truckFleetNo: truckFleetNo,
   });
   
   // Filter out current route if editing
@@ -87,18 +86,18 @@ export function WizardRouteHeader({
   // RENDER (Flat Form)
   // ---------------------------------------------------------------------------
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 bg-white shadow-sm border border-gray-100 rounded-xl space-y-6">
+    <div className="w-full max-w-4xl mx-auto p-6 bg-white/15 backdrop-blur-xl shadow-sm border border-white/25 rounded-xl space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Date */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Date</label>
+          <label className="text-sm font-semibold text-gray-900">Date</label>
           <div className="flex items-center gap-2">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+              className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white/20 backdrop-blur-sm"
             />
             {isWeekend && (
               <div className="text-blue-600 flex-shrink-0">
@@ -110,12 +109,12 @@ export function WizardRouteHeader({
 
         {/* Truck */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Truck</label>
+          <label className="text-sm font-semibold text-gray-900">Truck</label>
           <div className="flex items-center gap-2">
             <select
               value={truckFleetNo}
               onChange={(e) => setTruckFleetNo(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white"
+              className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white/20 backdrop-blur-sm"
             >
               <option value="">Select Truck...</option>
               {uniqueTrucks.map((t) => (
@@ -134,12 +133,12 @@ export function WizardRouteHeader({
 
         {/* Trailer */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Trailer</label>
+          <label className="text-sm font-semibold text-gray-900">Trailer</label>
           <div className="flex items-center gap-2">
             <select
               value={trailerFleetNo}
               onChange={(e) => setTrailerFleetNo(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white"
+              className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white/20 backdrop-blur-sm"
             >
               <option value="">Select Trailer...</option>
               {uniqueTrailers.map((t) => (
@@ -158,12 +157,12 @@ export function WizardRouteHeader({
 
         {/* Driver */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Driver</label>
+          <label className="text-sm font-semibold text-gray-900">Driver</label>
           <div className="flex items-center gap-2">
             <select
               value={driverName}
               onChange={(e) => setDriverName(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white"
+              className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white/20 backdrop-blur-sm"
             >
               <option value="">Select Driver...</option>
               {uniqueDrivers.map((d) => (
@@ -182,14 +181,14 @@ export function WizardRouteHeader({
 
         {/* Route KM */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Route KM</label>
+          <label className="text-sm font-semibold text-gray-900">Route KM</label>
           <div className="flex items-center gap-2">
             <input
               type="number"
               value={routeKilometers}
               onChange={(e) => setRouteKilometers(e.target.value)}
               placeholder="0"
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none"
+              className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none bg-white/20 backdrop-blur-sm"
             />
             {missingFields.includes("KM") && (
                <div className="text-blue-600 flex-shrink-0">
@@ -201,13 +200,13 @@ export function WizardRouteHeader({
 
         {/* Notes */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Notes</label>
+          <label className="text-sm font-semibold text-gray-900">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes..."
             rows={1}
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none resize-none"
+            className="w-full p-2 border border-white/30 rounded-md focus:ring-2 focus:ring-black focus:border-transparent outline-none resize-none bg-white/20 backdrop-blur-sm"
           />
         </div>
       </div>

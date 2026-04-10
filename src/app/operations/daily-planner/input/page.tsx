@@ -11,16 +11,16 @@ import { calculateLoadAmount } from "@/convex/utils";
 import { WizardRouteHeader } from "@/src/components/operations/daily-planner/WizardRouteHeader";
 
 type Load = {
-  id: string; // Frontend-only ID for React keys
+  id: string;
   clientName: string;
-  fromLocations: string[]; // Changed to array
-  toLocations: string[]; // Changed to array
-  quantity: number;
-  quantityType: string; // Added field
-  rate: number;
+  fromLocations: string[];
+  toLocations: string[];
+  quantity: string;
+  quantityType: string;
+  rate: string;
   rateType: "per_unit" | "flat";
   sequence: number;
-  kilometers?: number; // UI-only
+  kilometers?: number;
 };
 
 // Helper to format currency (ZAR)
@@ -226,11 +226,11 @@ function DailyPlannerInputContent() {
         const mappedLoads: Load[] = existingRoute.loads.map((l: any, index: number) => ({
           id: crypto.randomUUID(),
           clientName: l.client ?? "",
-          fromLocations: l.fromLocations ?? [], // Ensure array
-          toLocations: l.toLocations ?? [], // Ensure array
-          quantity: Number(l.quantity) || 0,
+          fromLocations: l.fromLocations ?? [],
+          toLocations: l.toLocations ?? [],
+          quantity: String(l.quantity ?? ""),
           quantityType: l.quantityType || "tons",
-          rate: Number(l.rate) || 0,
+          rate: String(l.rate ?? ""),
           rateType: l.rateType === "flat" ? "flat" : "per_unit",
           sequence: index + 1,
           kilometers: l.kilometers || 0,
@@ -282,12 +282,12 @@ function DailyPlannerInputContent() {
       clientName: draftLoad.clientName.trim(),
       fromLocations: cleanFromLocations,
       toLocations: cleanToLocations,
-      quantity: parseFloat(draftLoad.quantity) || 0,
+      quantity: draftLoad.quantity,
       quantityType: draftLoad.quantityType || "tons",
-      rate: parseFloat(draftLoad.rate) || 0,
+      rate: draftLoad.rate,
       rateType: (draftLoad.rateType as "per_unit" | "flat") || "per_unit",
       sequence: loads.length + 1,
-      kilometers: 0, // Default to 0
+      kilometers: 0,
     };
 
     // Appends a new load
@@ -346,16 +346,15 @@ function DailyPlannerInputContent() {
   };
 
   const calculateTotals = () => {
-    // 1. Calculate Total Revenue (always sum currency)
-    const totalRevenue = loads.reduce((sum, load) => sum + calculateLoadAmount(load.quantity, load.rate, load.rateType), 0);
+    const totalRevenue = loads.reduce((sum, load) =>
+      sum + calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.rate) || 0, load.rateType), 0);
 
-    // 2. Calculate Total Qty (strict unit check)
     const uniqueUnits = Array.from(new Set(loads.map(l => l.quantityType)));
 
     let quantityDisplay = "0 t";
     if (loads.length > 0) {
       if (uniqueUnits.length === 1) {
-        const sum = loads.reduce((acc, l) => acc + l.quantity, 0);
+        const sum = loads.reduce((acc, l) => acc + (parseFloat(l.quantity) || 0), 0);
         const unit = unitMap[uniqueUnits[0]] || uniqueUnits[0];
         quantityDisplay = `${sum.toFixed(2)} ${unit}`;
       } else {
@@ -363,7 +362,6 @@ function DailyPlannerInputContent() {
       }
     }
 
-    // Effective KM: Route KM > Max Load KM
     const rKm = parseFloat(routeKilometers) || 0;
     const maxLKm = loads.reduce((max, l) => Math.max(max, l.kilometers || 0), 0);
     const effectiveKm = rKm > 0 ? rKm : maxLKm;
@@ -534,10 +532,10 @@ function DailyPlannerInputContent() {
                                     {load.quantity} <span className="text-gray-600 text-sm">{unitMap[load.quantityType] || load.quantityType}</span>
                                 </div>
                                 <div className="text-sm text-gray-700">
-                                    {formatZAR(load.rate)} <span className="text-xs text-gray-500">/{load.rateType === "flat" ? "flat" : "unit"}</span>
+                                    {formatZAR(parseFloat(load.rate) || 0)} <span className="text-xs text-gray-500">/{load.rateType === "flat" ? "flat" : "unit"}</span>
                                 </div>
                                 <div className="font-medium text-gray-900 text-sm pt-2 border-t border-white/30 mt-2">
-                                    {formatZAR(calculateLoadAmount(load.quantity, load.rate, load.rateType))}
+                                    {formatZAR(calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.rate) || 0, load.rateType))}
                                 </div>
                             </div>
                         </div>

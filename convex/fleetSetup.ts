@@ -45,6 +45,7 @@ import { Id } from "./_generated/dataModel";
 // ✅ All changes are validation-wrapped to prevent partial writes
 
 export const getStatus = query({
+  args: {},
   handler: async (ctx) => {
     const status = await ctx.db.query("fleetSetupStatus").first();
     return status ?? { complete: false };
@@ -58,6 +59,7 @@ export const getStatus = query({
  * Returns null if no baseline exists yet.
  */
 export const getBaseline = query({
+  args: {},
   handler: async (ctx) => {
     const baseline = await ctx.db.query("fleetSetupBaseline").first();
     return baseline ?? null;
@@ -65,6 +67,7 @@ export const getBaseline = query({
 });
 
 export const setIncomplete = mutation({
+  args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("fleetSetupStatus").first();
     if (existing) {
@@ -77,6 +80,7 @@ export const setIncomplete = mutation({
 });
 
 export const setComplete = mutation({
+  args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("fleetSetupStatus").first();
     if (existing) {
@@ -96,11 +100,15 @@ export const pairTruckAndTrailer = mutation({
   handler: async (ctx, args) => {
     // 1) Fetch truck
     const truck = await ctx.db.get(args.truckId);
-    if (!truck) throw new Error("Truck not found");
+    if (!truck) {
+      throw new Error("Document not found");
+    }
 
     // 2) Fetch trailer to ensure it exists and get fleet number
     const trailer = await ctx.db.get(args.trailerId);
-    if (!trailer) throw new Error("Trailer not found");
+    if (!trailer) {
+      throw new Error("Document not found");
+    }
 
     const oldTrailerId = truck.currentTrailerId;
 
@@ -117,7 +125,10 @@ export const pairTruckAndTrailer = mutation({
     let oldTrailerFleetNoStr = "";
     if (oldTrailerId) {
        const oldT = await ctx.db.get(oldTrailerId as Id<"trailers">);
-       if (oldT) oldTrailerFleetNoStr = oldT.trailerFleetNoStr;
+       if (!oldT) {
+         throw new Error("Document not found");
+       }
+       oldTrailerFleetNoStr = oldT.trailerFleetNoStr;
     }
 
     await ctx.db.insert("trailerSwaps", {
@@ -138,6 +149,7 @@ export const pairTruckAndTrailer = mutation({
 });
 
 export const createFleetSetupBaseline = mutation({
+  args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("fleetSetupBaseline").first();
     if (existing) {
@@ -163,6 +175,7 @@ export const createFleetSetupBaseline = mutation({
 });
 
 export const lockFleetSetup = mutation({
+  args: {},
   handler: async (ctx) => {
     const baseline = await ctx.db.query("fleetSetupBaseline").first();
     if (!baseline) {
@@ -175,6 +188,7 @@ export const lockFleetSetup = mutation({
 });
 
 export const masterResetFleet = mutation({
+  args: {},
   handler: async (ctx) => {
     const baseline = await ctx.db.query("fleetSetupBaseline").first();
     if (!baseline) {

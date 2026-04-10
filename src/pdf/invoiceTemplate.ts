@@ -1,166 +1,106 @@
-import jsPDF from "jspdf";
-import { formatCurrency, formatDate, formatDescription, clampText } from "./formatters";
+﻿import jsPDF from "jspdf";
 import { InvoiceData } from "./types";
 
+const W = 210, H = 297, ML = 20, MR = 190, MT = 15, MB = 15;
+const fmtR = (n: number) => { const p = n.toFixed(2).split("."); return `R ${p[0].replace(/\B(?=(\d{3})+(?!\d))/g," ")},${p[1]}`; };
+const fmtShort = (d: Date) => d.toLocaleDateString("en-ZA",{day:"2-digit",month:"short",year:"2-digit"});
+const fmtLong  = (d: Date) => d.toLocaleDateString("en-ZA",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+const CO = {name:"ANTON LE ROUX VERVOER",pobox:"POSBUS / BOX 132",city:"GEORGE",postal:"6530",tel:"Tel: 044 8742292",fax:"Fax: 044 8746515",vat:"4130255724",bank:"ABSA GEORGE",acc:"0890000118",branch:"630-114"};
+
 export const generateInvoicePDF = (data: InvoiceData): jsPDF => {
-  // 1. Initialize with Points (pt) for absolute precision
-  // [LAYOUT CRITICAL] Do not change unit to 'mm' or 'px'. 
-  // All coordinates are manually tuned for 'pt'.
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const doc = new jsPDF({unit:"mm",format:"a4"});
+  const sf = (s:"normal"|"bold"|"italic"|"bolditalic",sz:number)=>{doc.setFont("helvetica",s);doc.setFontSize(sz);};
+  const sw = (t:string,s:"normal"|"bold"|"italic"|"bolditalic",sz:number)=>{sf(s,sz);return doc.getTextWidth(t);};
 
-  // --- Layout Constants (Fixed Zones) ---
-  // [LAYOUT CRITICAL] Fixed zones ensure no overlapping. 
-  // Do NOT convert to relative flow logic.
-  const LEFT_MARGIN = 40;
-  const RIGHT_MARGIN = 555; // Used as right anchor for aligned text
-  
-  const ZONE_BILL_TO_Y = 140;
-  const ZONE_DESC_Y = 220;
-  const ZONE_TOTALS_Y = 300; // Isolated Totals Block (Below Description)
-  const ZONE_BANKING_Y = 380;
+  // SECTION 1: PROFORMA
+  let y = MT+5;
+  sf("bolditalic",11); const proW=sw("PROFORMA","bolditalic",11);
+  doc.text("PROFORMA",W/2,y,{align:"center"});
+  doc.setLineWidth(0.3); doc.line(W/2-proW/2,y+0.8,W/2+proW/2,y+0.8);
+  if(data.copyLabel){sf("bold",8);doc.setTextColor(150,150,150);doc.text(data.copyLabel,MR,y,{align:"right"});doc.setTextColor(0,0,0);}
+  y+=9;
 
-  const DESC_MAX_WIDTH = 350;
-  
-  // --- Static Data ---
-  const COMPANY_NAME = "FleetCore Logistics (Pty) Ltd";
-  const COMPANY_REG = "2024/123456/07";
-  const COMPANY_VAT = "4000123456";
-  const COMPANY_ADDRESS = "123 Transport Way, George, 6530";
-  const BANK_DETAILS = {
-    bank: "First National Bank",
-    account: "1234567890",
-    branch: "210114",
-    name: "FleetCore Logistics"
-  };
+  // SECTION 2: Title + invoice box
+  sf("bolditalic",15); doc.text("TAX INVOICE / BELASTING FAKTUUR",ML,y);
+  sf("bold",13);
+  const bW=sw(data.invoiceNumber,"bold",13)+6,bH=8,bX=MR-bW,bY=y-6;
+  doc.setLineWidth(1); doc.rect(bX,bY,bW,bH); doc.text(data.invoiceNumber,bX+3,bY+5.5);
+  y+=3; doc.setLineWidth(1.5); doc.line(ML,y,MR,y); y+=6;
 
-  // --- 1. Header Section ---
-  // Left: Company Info
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text(COMPANY_NAME, LEFT_MARGIN, 40);
+  // SECTION 3: Company block
+  const cx=ML+sw(CO.name,"bolditalic",13)/2,rC=y,rP=y+6,rG=y+12,rZ=y+18;
+  sf("bolditalic",13); doc.text(CO.name,ML,rC);
+  sf("italic",9); doc.text(CO.pobox,cx-sw(CO.pobox,"italic",9)/2,rP);
+  sf("bolditalic",11); doc.text(CO.city,cx-sw(CO.city,"bolditalic",11)/2,rG);
+  sf("italic",9); doc.text(CO.postal,cx-sw(CO.postal,"italic",9)/2,rZ);
+  const mx=W/2-10;
+  sf("bolditalic",11); doc.text("DATUM:",mx,rC); sf("bolditalic",13); doc.text(fmtShort(data.date),mx+20,rC);
+  sf("normal",9); doc.text(CO.tel,mx,rP); doc.text(CO.fax,mx,rG);
+  const vbX=MR-42,vbY=rP-4;
+  doc.setLineWidth(0.5); doc.rect(vbX,vbY,42,15);
+  sf("bold",8); doc.text("V.A.T Regd No.",vbX+2,vbY+4.5); doc.text("B.T.W Gereg Nr.",vbX+2,vbY+9);
+  sf("bold",9); doc.text(CO.vat,vbX+2,vbY+13.5);
+  y=rZ+7; doc.setLineWidth(0.5); doc.line(ML,y,MR,y); y+=5;
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(COMPANY_ADDRESS, LEFT_MARGIN, 52); // lineGap ~12
-  doc.text(`Reg: ${COMPANY_REG}`, LEFT_MARGIN, 64);
-  doc.text(`VAT: ${COMPANY_VAT}`, LEFT_MARGIN, 76);
+  // SECTION 4: TO/AAN + Driver block
+  const toY=y,rg=6,cX=ML+10,dX=W/2+5,dLW=30;
 
-  // Right: Invoice Info
-  doc.setFontSize(20);
-  doc.setFont("helvetica", "bold");
-  doc.text("PROFORMA INVOICE", RIGHT_MARGIN, 40, { align: "right" });
+  // TO: client name bold + underline
+  sf("bold",9); doc.text("TO:",ML,toY);
+  sf("bold",10); doc.text(data.client.name,cX,toY);
+  doc.setLineWidth(0.3); doc.line(cX,toY+0.8,cX+sw(data.client.name,"bold",10),toY+0.8);
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Invoice #: ${data.invoiceNumber}`, RIGHT_MARGIN, 60, { align: "right" });
-  doc.text(`Date: ${formatDate(data.date)}`, RIGHT_MARGIN, 74, { align: "right" });
-
-  // --- 2. Bill To Section ---
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("BILL TO:", LEFT_MARGIN, ZONE_BILL_TO_Y);
-
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(clampText(data.client.name), LEFT_MARGIN, ZONE_BILL_TO_Y + 14);
-  doc.text(clampText(data.client.vatNumber ? `VAT: ${data.client.vatNumber}` : ""), LEFT_MARGIN, ZONE_BILL_TO_Y + 26);
-  doc.text(clampText(data.client.address), LEFT_MARGIN, ZONE_BILL_TO_Y + 38);
-  doc.text(clampText(data.client.contactPerson ? `Attn: ${data.client.contactPerson}` : ""), LEFT_MARGIN, ZONE_BILL_TO_Y + 50);
-
-  // --- 3. Description & Line Items (The Flexible Zone) ---
-  // [LAYOUT CRITICAL] Constrained to max 2 lines to prevent overlap with Totals
-  // Header
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setFillColor(245, 245, 245); // Light gray background
-  doc.rect(LEFT_MARGIN - 5, ZONE_DESC_Y - 15, DESC_MAX_WIDTH + 10, 20, "F"); // Background for header
-  doc.text("DESCRIPTION", LEFT_MARGIN, ZONE_DESC_Y);
-  
-  doc.text("AMOUNT (ZAR)", RIGHT_MARGIN, ZONE_DESC_Y, { align: "right" });
-
-  // Content
-  // We assume a single main line item for now as per previous logic, 
-  // but loop if needed (though layout constants are somewhat fixed)
-  const item = data.lineItems[0];
-  if (item) {
-    // Draw Description
-    doc.setFontSize(9.5); // User requested 9.5pt
-    doc.setFont("helvetica", "normal");
-    
-    const descY = ZONE_DESC_Y + 20;
-    // Format description (insert newlines, etc.)
-    const formattedDesc = formatDescription(item.description);
-    const baseParts = formattedDesc.split("\n");
-    
-    const wrapped: string[] = [];
-    for (const part of baseParts) {
-      const lines = doc.splitTextToSize(part, DESC_MAX_WIDTH);
-      for (const l of lines) {
-        wrapped.push(l);
-        if (wrapped.length >= 2) break;
-      }
-      if (wrapped.length >= 2) break;
-    }
-    const line1 = clampText(wrapped[0] ?? "");
-    const line2 = clampText(wrapped[1] ?? "");
-    doc.text(line1, LEFT_MARGIN, descY);
-    doc.text(line2, LEFT_MARGIN, descY + 12);
-    const subDescY = descY + 24;
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    doc.text(clampText(item.subDescription), LEFT_MARGIN, subDescY);
-    doc.setTextColor(0);
-
-    // Draw Line Item Amount (Aligned with start of description)
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(formatCurrency(item.amount), RIGHT_MARGIN, descY, { align: "right" });
+  // AAN: with first address line inline, rest below at 5mm spacing
+  sf("bold",9); doc.text("AAN:",ML,toY+rg);
+  sf("normal",9);
+  const al=(data.client.address||"").split(/[,\n]/).map((s:string)=>s.trim()).filter(Boolean);
+  if(al.length>0){
+    doc.text(al[0],cX,toY+rg);
+    al.slice(1,4).forEach((l:string,i:number)=>doc.text(l,cX,toY+rg+(i+1)*5));
   }
+  const addrExtraLines=Math.max(al.length-1,0);
+  const abH=rg+addrExtraLines*5+5;
 
-  // --- 4. Totals Block (ISOLATED) ---
-  // Fixed position, independent of description height
-  // [LAYOUT CRITICAL] Must remain at fixed Y to match pre-printed stationery style
-  const totalsStartY = ZONE_TOTALS_Y; 
-  const totalsLabelX = RIGHT_MARGIN - 100; // Anchor for labels
-  const totalsValueX = RIGHT_MARGIN;       // Anchor for values
+  // Right column vertically centred in the block
+  const blockH=Math.max(abH,rg*2+6);
+  const drvY=toY+(blockH-rg*2)/2-2;
+  sf("normal",9); doc.text("Driver / Drywer:",dX,drvY); sf("bold",9); doc.text(data.lineItems[0]?.driverName||"",dX+dLW,drvY);
+  sf("normal",9); doc.text("Trok / Truck:",dX,drvY+rg); sf("bold",9); doc.text(data.lineItems[0]?.truckReg||"",dX+dLW,drvY+rg);
+  sf("italic",9); doc.text("BTW nommer:",dX,drvY+rg*2);
+  if(data.client.vatNumber){sf("bold",9);doc.text(data.client.vatNumber,dX+dLW,drvY+rg*2);}
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
+  y=toY+blockH; doc.setLineWidth(1); doc.line(ML,y,MR,y); y+=1;
 
-  // Subtotal
-  doc.text("Subtotal:", totalsLabelX, totalsStartY, { align: "right" });
-  doc.text(formatCurrency(data.totals.subtotal), totalsValueX, totalsStartY, { align: "right" });
+  // SECTION 5: Description box
+  const bsH=28,dbB=H-MB-bsH,dbH=dbB-y;
+  doc.setLineWidth(0.5); doc.rect(ML,y,MR-ML,dbH);
+  let dy=y+7;
+  data.lineItems.forEach((item,idx)=>{
+    sf("normal",10);
+    doc.splitTextToSize(item.description,MR-ML-8).slice(0,2).forEach((l:string)=>{if(dy<dbB-4){doc.text(l,ML+4,dy);dy+=6;}});
+    if(idx<data.lineItems.length-1&&dy<dbB-8){doc.setLineWidth(0.2);doc.setDrawColor(180,180,180);doc.line(ML+4,dy,MR-4,dy);doc.setDrawColor(0,0,0);dy+=4;}
+  });
+  dy+=4;
+  const nt=data.lineItems[0]?.notes;
+  if(nt&&dy<dbB-8){sf("italic",9);doc.splitTextToSize(nt,MR-ML-8).slice(0,2).forEach((l:string)=>{if(dy<dbB-4){doc.text(l,ML+4,dy);dy+=5.5;}});dy+=3;}
+  sf("normal",10);
+  if(data.client.contactPerson&&dy<dbB-6){doc.text(data.client.contactPerson,ML+4,dy);dy+=6;}
+  if(data.client.phone&&dy<dbB-6){doc.text(data.client.phone,ML+4,dy);dy+=6;}
+  if(data.client.email&&dy<dbB-6){doc.text(data.client.email,ML+4,dy);}
 
-  // VAT
-  doc.text("VAT @ 15%:", totalsLabelX, totalsStartY + 14, { align: "right" });
-  doc.text(formatCurrency(data.totals.vatAmount), totalsValueX, totalsStartY + 14, { align: "right" });
+  // SECTION 6: Bottom strip
+  const sY=H-MB-bsH+4,rH=8;
+  doc.setLineWidth(0.5); doc.rect(ML,sY,58,24);
+  sf("bolditalic",8); doc.text("ACCOUNT DETAILS:",ML+2,sY+5); doc.text("REKENING BESONDERHEDE:",ML+2,sY+10);
+  sf("normal",8); doc.text(CO.bank,ML+2,sY+15); doc.text(CO.acc,ML+2,sY+19); doc.text(CO.branch,ML+2,sY+23);
+  const ccX=ML+63;
+  sf("bold",8); doc.text("V.A.T",ccX,sY+5); doc.text("B.T.W",ccX,sY+13);
+  sf("normal",8); doc.text("@ 15% /",ccX+8,sY+5); doc.text("inclusive",ccX+8,sY+10); doc.text("ingesluit",ccX+8,sY+15);
+  const tW=MR-(W/2+10),tX=W/2+10;
+  [{top:"Sub Total",bot:"Subtotaal",amt:data.totals.subtotal,bold:false},{top:"inclusive",bot:"ingesluit",amt:data.totals.vatAmount,bold:false},{top:"TOTAL",bot:"TOTAAL",amt:data.totals.totalAmount,bold:true}]
+    .forEach((r,i)=>{const ry=sY+i*rH;doc.setLineWidth(0.5);doc.rect(tX,ry,tW,rH);sf("normal",8);doc.text(r.top,tX+2,ry+3.5);sf("normal",7);doc.text(r.bot,tX+2,ry+7);sf(r.bold?"bold":"normal",r.bold?10:8);doc.text(fmtR(r.amt),MR-2,ry+5.5,{align:"right"});});
 
-  // TOTAL
-  doc.setFontSize(14); // User: "10-15% larger" -> Bumped to 14pt
-  doc.setFont("helvetica", "bold");
-  doc.text("TOTAL:", totalsLabelX, totalsStartY + 30, { align: "right" });
-  doc.text(formatCurrency(data.totals.totalAmount), totalsValueX, totalsStartY + 30, { align: "right" });
-
-  // --- 5. Banking Details ---
-  // User: y=360
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("BANKING DETAILS:", LEFT_MARGIN, ZONE_BANKING_Y);
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Bank: ${BANK_DETAILS.bank}`, LEFT_MARGIN, ZONE_BANKING_Y + 12);
-  doc.text(`Account Name: ${BANK_DETAILS.name}`, LEFT_MARGIN, ZONE_BANKING_Y + 24);
-  doc.text(`Account No: ${BANK_DETAILS.account}`, LEFT_MARGIN, ZONE_BANKING_Y + 36);
-  doc.text(`Branch Code: ${BANK_DETAILS.branch}`, LEFT_MARGIN, ZONE_BANKING_Y + 48);
-  
-  // --- 6. Footer ---
-  doc.setFontSize(8);
-  doc.setTextColor(120);
-  doc.text("Thank you for your business.", LEFT_MARGIN, 770);
-  doc.setTextColor(0);
-
-  // --- Save ---
-  doc.save(`Proforma_${data.client.name}_${data.invoiceNumber}.pdf`);
+  sf("bolditalic",9); doc.text(fmtLong(data.date),ML,H-MB+8);
+  sf("normal",7); doc.setTextColor(150,150,150); doc.text("Page 1 of 1",MR,H-MB+8,{align:"right"}); doc.setTextColor(0,0,0);
   return doc;
 };

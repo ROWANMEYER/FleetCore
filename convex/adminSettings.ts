@@ -8,6 +8,7 @@ const DEFAULT_MODE = "ADMIN";
 
 // Internal mutation to ensure admin settings exists
 export const ensureAdminSettingsExists = internalMutation({
+  args: {},
   handler: async (ctx: MutationCtx) => {
     const existing = await ctx.db.query("adminSettings").first();
     if (!existing) {
@@ -68,6 +69,7 @@ export const ensureAdminInitialized = mutation({
 
 // Internal mutation to get settings
 export const getSettingsInternal = internalMutation({
+  args: {},
   handler: async (ctx: MutationCtx) => {
     // Ensure settings exist by creating if needed
     const existing = await ctx.db.query("adminSettings").first();
@@ -83,6 +85,7 @@ export const getSettingsInternal = internalMutation({
 
 // Internal query to get all settings
 export const getAllSettingsInternal = internalMutation({
+  args: {},
   handler: async (ctx: MutationCtx) => {
     return await ctx.db.query("adminSettings").collect();
   },

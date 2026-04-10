@@ -11,16 +11,17 @@ interface EditRouteFormProps {
   routeId: Id<"dailyRoutes">;
   onSuccess: () => void;
   onCancel: () => void;
+  isDayMode?: boolean;
 }
 
 type Load = {
-  id: string; // Frontend-only ID for React keys
+  id: string;
   clientName: string;
   fromLocations: string[];
   toLocations: string[];
-  quantity: number;
+  quantity: string;
   quantityType: string;
-  rate: number;
+  rate: string;
   rateType: "per_unit" | "flat";
   sequence: number;
   kilometers?: number;
@@ -53,7 +54,7 @@ const rateTypeOptions = [
   { value: "flat", label: "Flat Rate" },
 ];
 
-export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRouteFormProps) {
+export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode = true }: EditRouteFormProps) {
   // --- Queries ---
   const route = useQuery(api.dailyRoutes.getById, { id: routeId });
   const trucks = useQuery(api.fleet.listTrucks) || [];
@@ -61,7 +62,7 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
   const drivers = useQuery(api.fleet.listDrivers) || [];
 
   if (!route) {
-    return <div className="p-4 text-gray-500">Loading route...</div>;
+    return <div className={`p-4 ${isDayMode ? "text-gray-500" : "text-gray-400"}`}>Loading route...</div>;
   }
 
   return (
@@ -73,6 +74,7 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel }: EditRout
       drivers={drivers}
       onSuccess={onSuccess}
       onCancel={onCancel}
+      isDayMode={isDayMode}
     />
   );
 }
@@ -85,6 +87,7 @@ type EditRouteFormInnerProps = {
   drivers: any[];
   onSuccess: () => void;
   onCancel: () => void;
+  isDayMode?: boolean;
 };
 
 function EditRouteFormInner({
@@ -95,7 +98,22 @@ function EditRouteFormInner({
   drivers,
   onSuccess,
   onCancel,
+  isDayMode = true,
 }: EditRouteFormInnerProps) {
+  const panelTheme = {
+    bg: {
+        primary: isDayMode ? "bg-white" : "bg-gray-950",
+        secondary: isDayMode ? "bg-gray-50" : "bg-gray-900",
+    },
+    text: {
+        primary: isDayMode ? "text-gray-900" : "text-white",
+        secondary: isDayMode ? "text-gray-700" : "text-gray-300",
+        tertiary: isDayMode ? "text-gray-500" : "text-gray-400",
+    },
+    border: isDayMode ? "border-gray-300" : "border-gray-700",
+    input: isDayMode ? "bg-white border-gray-300 text-gray-900" : "bg-gray-900 border-gray-700 text-white focus:bg-gray-800",
+  };
+
   // --- Mutations ---
   const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
 
@@ -118,9 +136,9 @@ function EditRouteFormInner({
     clientName: l.client ?? "",
     fromLocations: l.fromLocations ?? [],
     toLocations: l.toLocations ?? [],
-    quantity: Number(l.quantity) || 0,
+    quantity: String(l.quantity ?? ""),
     quantityType: l.quantityType || "tons",
-    rate: Number(l.rate) || 0,
+    rate: String(l.rate ?? ""),
     rateType: l.rateType === "flat" ? "flat" : "per_unit",
     sequence: index + 1,
     kilometers: l.kilometers || 0,
@@ -185,9 +203,9 @@ function EditRouteFormInner({
       clientName: draftLoad.clientName,
       fromLocations: cleanFrom,
       toLocations: cleanTo,
-      quantity: parseFloat(draftLoad.quantity) || 0,
+      quantity: draftLoad.quantity,
       quantityType: draftLoad.quantityType,
-      rate: parseFloat(draftLoad.rate) || 0,
+      rate: draftLoad.rate,
       rateType: draftLoad.rateType as "per_unit" | "flat",
       sequence: loads.length + 1,
     };
@@ -270,19 +288,18 @@ function EditRouteFormInner({
   // --- Totals Calculation ---
   const calculateTotals = () => {
     const totalRevenue = loads.reduce(
-      (sum, l) => sum + calculateLoadAmount(l.quantity, l.rate, l.rateType),
+      (sum, l) => sum + calculateLoadAmount(parseFloat(l.quantity) || 0, parseFloat(l.rate) || 0, l.rateType),
       0
     );
-    // Effective KM: Route KM > Max Load KM
     const rKm = parseFloat(routeKilometers) || 0;
     const maxLKm = loads.reduce((max, l) => Math.max(max, l.kilometers || 0), 0);
     const totalKm = rKm > 0 ? rKm : maxLKm;
-    
+
     const uniqueUnits = Array.from(new Set(loads.map((l) => l.quantityType)));
     let quantityDisplay = "0 t";
     if (loads.length > 0) {
       if (uniqueUnits.length === 1) {
-        const sum = loads.reduce((acc, l) => acc + l.quantity, 0);
+        const sum = loads.reduce((acc, l) => acc + (parseFloat(l.quantity) || 0), 0);
         const unit = unitMap[uniqueUnits[0]] || uniqueUnits[0];
         quantityDisplay = `${sum.toFixed(2)} ${unit}`;
       } else {
@@ -338,12 +355,12 @@ function EditRouteFormInner({
   };
 
   return (
-    <div className="bg-white border rounded-lg shadow-sm p-6 space-y-8 max-w-5xl mx-auto">
+    <div className={`${panelTheme.bg.primary} ${panelTheme.border} border rounded-lg shadow-sm p-6 space-y-8 max-w-5xl mx-auto`}>
       {/* Top Controls */}
       <div className="flex justify-end gap-3">
         <button
           onClick={handleCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className={`px-4 py-2 text-sm font-medium ${panelTheme.text.secondary} ${panelTheme.bg.primary} border ${panelTheme.border} rounded-md hover:${panelTheme.bg.secondary}`}
         >
           Cancel
         </button>
@@ -358,20 +375,20 @@ function EditRouteFormInner({
       {/* Main Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Date</label>
           <input
             type="date"
             value={routeDate}
             onChange={(e) => setRouteDate(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Truck</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Truck</label>
           <select
             value={truckFleetNo}
             onChange={(e) => setTruckFleetNo(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
           >
             <option value="">Select truck...</option>
             {trucks.map((t: any) => (
@@ -382,11 +399,11 @@ function EditRouteFormInner({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Trailer</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Trailer</label>
           <select
             value={trailer}
             onChange={(e) => setTrailer(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
           >
             <option value="">Select trailer...</option>
             {trailers.map((t: any) => (
@@ -397,11 +414,11 @@ function EditRouteFormInner({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Driver</label>
           <select
             value={driver}
             onChange={(e) => setDriver(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
           >
             <option value="">Select driver...</option>
             {drivers.map((d: any) => (
@@ -415,18 +432,18 @@ function EditRouteFormInner({
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+        <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+          className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
         />
       </div>
 
       {/* Route KM */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>
           Route KM
         </label>
         <div className="flex items-center gap-2">
@@ -434,36 +451,36 @@ function EditRouteFormInner({
             type="number"
             value={routeKilometers}
             onChange={(e) => setRouteKilometers(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm p-2 border"
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
             placeholder="Total trip distance..."
           />
-          <span className="text-gray-500 text-sm font-medium">km</span>
+          <span className={`${panelTheme.text.tertiary} text-sm font-medium`}>km</span>
         </div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className={`mt-1 text-xs ${panelTheme.text.tertiary}`}>
           Total trip distance (enter once per route — do not split per load)
         </p>
       </div>
 
-      <hr />
+      <hr className={panelTheme.border} />
 
       {/* Loads Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Loads</h2>
-          <div className="text-sm text-gray-500">
-            Qty: <span className="font-medium text-black">{totals.quantityDisplay}</span> | 
-            Rev: <span className="font-medium text-black">{formatZAR(totals.totalRevenue)}</span>
+          <h2 className={`text-lg font-semibold ${panelTheme.text.primary}`}>Loads</h2>
+          <div className={`text-sm ${panelTheme.text.secondary}`}>
+            Qty: <span className={`font-medium ${panelTheme.text.primary}`}>{totals.quantityDisplay}</span> | 
+            Rev: <span className={`font-medium ${panelTheme.text.primary}`}>{formatZAR(totals.totalRevenue)}</span>
           </div>
         </div>
 
         {/* List of Loads */}
-        <div className="border rounded-lg overflow-hidden">
+        <div className={`border rounded-lg overflow-hidden ${panelTheme.border}`}>
           {loads.length === 0 ? (
-             <div className="p-4 text-center text-sm text-gray-500">No loads. Add one below.</div>
+             <div className={`p-4 text-center text-sm ${panelTheme.text.tertiary}`}>No loads. Add one below.</div>
           ) : (
-            <div className="divide-y">
+            <div className={`divide-y ${isDayMode ? "divide-gray-200" : "divide-gray-800"}`}>
               {loads.map((load) => (
-                <div key={load.id} className="p-4 hover:bg-gray-50">
+                <div key={load.id} className={`p-4 hover:${panelTheme.bg.secondary}`}>
                   {editingLoadId === load.id && editingLoadState ? (
                     // Inline Edit Form
                     <div className="space-y-3">
@@ -472,20 +489,20 @@ function EditRouteFormInner({
                            placeholder="Client"
                            value={editingLoadState.clientName}
                            onChange={e => setEditingLoadState({...editingLoadState, clientName: e.target.value})}
-                           className="border rounded p-1 text-sm"
+                           className={`rounded p-2 text-sm border ${panelTheme.input}`}
                         />
                          <div className="flex gap-2">
                            <input
                              placeholder="Qty"
                              type="number"
                              value={editingLoadState.quantity}
-                             onChange={e => setEditingLoadState({...editingLoadState, quantity: parseFloat(e.target.value) || 0})}
-                             className="border rounded p-1 text-sm w-20"
+                             onChange={e => setEditingLoadState({...editingLoadState, quantity: e.target.value})}
+                             className={`rounded p-2 text-sm w-20 border ${panelTheme.input}`}
                            />
                            <select
                               value={editingLoadState.quantityType}
                               onChange={e => setEditingLoadState({...editingLoadState, quantityType: e.target.value})}
-                              className="border rounded p-1 text-sm flex-1"
+                              className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                            >
                               {unitOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                            </select>
@@ -499,13 +516,13 @@ function EditRouteFormInner({
                              placeholder="Rate"
                              type="number"
                              value={editingLoadState.rate}
-                             onChange={e => setEditingLoadState({...editingLoadState, rate: parseFloat(e.target.value) || 0})}
-                             className="border rounded p-1 text-sm w-24"
+                             onChange={e => setEditingLoadState({...editingLoadState, rate: e.target.value})}
+                             className={`rounded p-2 text-sm w-24 border ${panelTheme.input}`}
                            />
                            <select
                               value={editingLoadState.rateType}
                               onChange={e => setEditingLoadState({...editingLoadState, rateType: e.target.value as "per_unit" | "flat"})}
-                              className="border rounded p-1 text-sm flex-1"
+                              className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                            >
                               <option value="per_unit">/ Unit</option>
                               <option value="flat">Flat</option>
@@ -516,62 +533,62 @@ function EditRouteFormInner({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* From Locations */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-500">Pickups</label>
+                          <label className={`text-xs font-medium ${panelTheme.text.tertiary}`}>Pickups</label>
                           {editingLoadState.fromLocations.map((loc, idx) => (
                             <div key={idx} className="flex gap-2">
                               <input
                                 placeholder="Pickup Location"
                                 value={loc}
                                 onChange={(e) => updateEditLocation("from", idx, e.target.value)}
-                                className="border rounded p-1 text-sm flex-1"
+                                className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                               />
                               {editingLoadState.fromLocations.length > 1 && (
                                 <button onClick={() => removeEditLocationField("from", idx)} className="text-red-500 px-2">×</button>
                               )}
                             </div>
                           ))}
-                          <button onClick={() => addEditLocationField("from")} className="text-xs text-blue-600 hover:underline">+ Add Pickup</button>
+                          <button onClick={() => addEditLocationField("from")} className="text-xs text-blue-500 hover:text-blue-400 hover:underline">+ Add Pickup</button>
                         </div>
 
                         {/* To Locations */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-500">Drops</label>
+                          <label className={`text-xs font-medium ${panelTheme.text.tertiary}`}>Drops</label>
                           {editingLoadState.toLocations.map((loc, idx) => (
                             <div key={idx} className="flex gap-2">
                               <input
                                 placeholder="Drop Location"
                                 value={loc}
                                 onChange={(e) => updateEditLocation("to", idx, e.target.value)}
-                                className="border rounded p-1 text-sm flex-1"
+                                className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                               />
                               {editingLoadState.toLocations.length > 1 && (
                                 <button onClick={() => removeEditLocationField("to", idx)} className="text-red-500 px-2">×</button>
                               )}
                             </div>
                           ))}
-                          <button onClick={() => addEditLocationField("to")} className="text-xs text-blue-600 hover:underline">+ Add Drop</button>
+                          <button onClick={() => addEditLocationField("to")} className="text-xs text-blue-500 hover:text-blue-400 hover:underline">+ Add Drop</button>
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <button onClick={handleCancelEdit} className="text-xs text-gray-500 underline">Cancel</button>
-                        <button onClick={handleSaveEdit} className="text-xs text-green-600 font-bold">Save</button>
+                        <button onClick={handleCancelEdit} className={`text-xs ${panelTheme.text.tertiary} hover:${panelTheme.text.primary} underline`}>Cancel</button>
+                        <button onClick={handleSaveEdit} className="text-xs text-emerald-500 hover:text-emerald-400 font-bold">Save</button>
                       </div>
                     </div>
                   ) : (
                     // Display Mode
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-medium text-sm">#{load.sequence} {load.clientName}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className={`font-medium text-sm ${panelTheme.text.primary}`}>#{load.sequence} {load.clientName}</div>
+                        <div className={`text-xs ${panelTheme.text.tertiary}`}>
                           {load.fromLocations.join(", ")} → {load.toLocations.join(", ")}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                           {load.quantity} {load.quantityType} @ {formatZAR(load.rate)} ({load.rateType})
+                        <div className={`text-xs ${panelTheme.text.tertiary} mt-1`}>
+                           <span className={panelTheme.text.secondary}>{load.quantity} {load.quantityType}</span> @ <span className="font-semibold">{formatZAR(parseFloat(load.rate) || 0)}</span> ({load.rateType})
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => handleEditLoad(load)} className="text-blue-600 text-xs hover:underline">Edit</button>
-                        <button onClick={() => handleRemoveLoad(load.id)} className="text-red-600 text-xs hover:underline">Remove</button>
+                        <button onClick={() => handleEditLoad(load)} className="text-blue-500 hover:text-blue-400 text-xs hover:underline">Edit</button>
+                        <button onClick={() => handleRemoveLoad(load.id)} className="text-red-500 hover:text-red-400 text-xs hover:underline">Remove</button>
                       </div>
                     </div>
                   )}
@@ -582,14 +599,14 @@ function EditRouteFormInner({
         </div>
 
         {/* Add Load Form */}
-        <div className="bg-gray-50 p-4 rounded-lg border space-y-3">
-          <h3 className="text-sm font-medium">Add New Load</h3>
+        <div className={`p-4 rounded-lg border space-y-3 ${panelTheme.bg.secondary} ${panelTheme.border}`}>
+          <h3 className={`text-sm font-medium ${panelTheme.text.primary}`}>Add New Load</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               placeholder="Client Name"
               value={draftLoad.clientName}
               onChange={(e) => setDraftLoad({ ...draftLoad, clientName: e.target.value })}
-              className="border rounded p-2 text-sm"
+              className={`rounded p-2 text-sm border ${panelTheme.input}`}
             />
             <div className="flex gap-2">
                <input
@@ -597,12 +614,12 @@ function EditRouteFormInner({
                  placeholder="Quantity"
                  value={draftLoad.quantity}
                  onChange={(e) => setDraftLoad({ ...draftLoad, quantity: e.target.value })}
-                 className="border rounded p-2 text-sm w-24"
+                 className={`rounded p-2 text-sm w-24 border ${panelTheme.input}`}
                />
                <select
                  value={draftLoad.quantityType}
                  onChange={(e) => setDraftLoad({ ...draftLoad, quantityType: e.target.value })}
-                 className="border rounded p-2 text-sm flex-1"
+                 className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                >
                  {unitOptions.map((o) => (
                    <option key={o.value} value={o.value}>{o.label}</option>
@@ -612,40 +629,40 @@ function EditRouteFormInner({
             
             {/* Dynamic Locations: From */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-500">Pickups</label>
+              <label className={`text-xs font-medium ${panelTheme.text.tertiary}`}>Pickups</label>
               {draftLoad.fromLocations.map((loc, idx) => (
                 <div key={idx} className="flex gap-2">
                   <input
                     placeholder="Pickup Location"
                     value={loc}
                     onChange={(e) => updateDraftLocation("from", idx, e.target.value)}
-                    className="border rounded p-2 text-sm flex-1"
+                    className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                   />
                   {draftLoad.fromLocations.length > 1 && (
                     <button onClick={() => removeLocationField("from", idx)} className="text-red-500 px-2">×</button>
                   )}
                 </div>
               ))}
-              <button onClick={() => addLocationField("from")} className="text-xs text-blue-600 hover:underline">+ Add Pickup</button>
+              <button onClick={() => addLocationField("from")} className="text-xs text-blue-500 hover:text-blue-400 hover:underline">+ Add Pickup</button>
             </div>
 
             {/* Dynamic Locations: To */}
              <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-500">Drops</label>
+              <label className={`text-xs font-medium ${panelTheme.text.tertiary}`}>Drops</label>
               {draftLoad.toLocations.map((loc, idx) => (
                 <div key={idx} className="flex gap-2">
                   <input
                     placeholder="Drop Location"
                     value={loc}
                     onChange={(e) => updateDraftLocation("to", idx, e.target.value)}
-                    className="border rounded p-2 text-sm flex-1"
+                    className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                   />
                   {draftLoad.toLocations.length > 1 && (
                     <button onClick={() => removeLocationField("to", idx)} className="text-red-500 px-2">×</button>
                   )}
                 </div>
               ))}
-              <button onClick={() => addLocationField("to")} className="text-xs text-blue-600 hover:underline">+ Add Drop</button>
+              <button onClick={() => addLocationField("to")} className="text-xs text-blue-500 hover:text-blue-400 hover:underline">+ Add Drop</button>
             </div>
 
             <div className="flex gap-2">
@@ -654,12 +671,12 @@ function EditRouteFormInner({
                  placeholder="Rate"
                  value={draftLoad.rate}
                  onChange={(e) => setDraftLoad({ ...draftLoad, rate: e.target.value })}
-                 className="border rounded p-2 text-sm flex-1"
+                 className={`rounded p-2 text-sm flex-1 border ${panelTheme.input}`}
                />
                <select
                  value={draftLoad.rateType}
                  onChange={(e) => setDraftLoad({ ...draftLoad, rateType: e.target.value as any })}
-                 className="border rounded p-2 text-sm w-32"
+                 className={`rounded p-2 text-sm w-32 border ${panelTheme.input}`}
                >
                  {rateTypeOptions.map((o) => (
                    <option key={o.value} value={o.value}>{o.label}</option>
@@ -669,14 +686,14 @@ function EditRouteFormInner({
           </div>
           <button
             onClick={handleAddLoad}
-            className="w-full py-2 bg-gray-900 text-white rounded text-sm hover:bg-black"
+            className={`w-full py-2 rounded text-sm transition-colors ${isDayMode ? "bg-gray-900 text-white hover:bg-black" : "bg-white text-gray-900 hover:bg-gray-100"}`}
           >
             Add Load
           </button>
         </div>
       </div>
 
-      <hr />
+      <hr className={panelTheme.border} />
 
       {/* Legs Section REMOVED */}
       
@@ -684,7 +701,7 @@ function EditRouteFormInner({
       <div className="flex justify-end gap-3 pt-6">
         <button
           onClick={handleCancel}
-          className="px-6 py-2 font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          className={`px-6 py-2 font-medium ${panelTheme.text.secondary} ${panelTheme.bg.primary} border ${panelTheme.border} rounded-md hover:${panelTheme.bg.secondary}`}
         >
           Cancel
         </button>

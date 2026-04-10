@@ -250,7 +250,9 @@ export const updateTruck = mutation({
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
-        if (!current) throw new Error("Truck not found");
+        if (!current) {
+          throw new Error("Document not found");
+        }
         // If changing truckFleetNo ensure uniqueness
         if (args.patch.truckFleetNo && args.patch.truckFleetNo !== current.truckFleetNo) {
             const exists = await ctx.db
@@ -296,7 +298,9 @@ export const updateTruckStatus = mutation({
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
-        if (!current) throw new Error("Truck not found");
+        if (!current) {
+          throw new Error("Document not found");
+        }
         await ctx.db.patch(args.id, { status: args.status });
     },
 });
@@ -487,7 +491,9 @@ export const updateTrailer = mutation({
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
-        if (!current) throw new Error("Trailer not found");
+        if (!current) {
+          throw new Error("Document not found");
+        }
         
         // If changing trailerFleetNoStr ensure uniqueness
         if (args.patch.trailerFleetNoStr && args.patch.trailerFleetNoStr !== current.trailerFleetNoStr) {
@@ -533,7 +539,9 @@ export const updateTrailerComponent = mutation({
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
-        if (!current) throw new Error("Trailer not found");
+        if (!current) {
+          throw new Error("Document not found");
+        }
 
         const resolvedFleetNoStr =
             args.newTrailerFleetNoStr ??
@@ -585,7 +593,9 @@ export const updateTrailerStatus = mutation({
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
-        if (!current) throw new Error("Trailer not found");
+        if (!current) {
+          throw new Error("Document not found");
+        }
         await ctx.db.patch(args.id, { status: args.status });
     },
 });
@@ -670,17 +680,21 @@ export const updateDriverPhotoInternal = internalMutation({
 export const setDriverPhoto = mutation({
   args: {
     driverId: v.id("drivers"),
-    storageId: v.string(),
-    url: v.string(),
+    storageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
     const driver = await ctx.db.get(args.driverId);
     if (!driver) throw new Error("Driver not found");
-    
+
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (!url) throw new Error("Failed to get storage URL");
+
     await ctx.db.patch(args.driverId, {
       photoStorageId: args.storageId,
-      photoUrl: args.url,
+      photoUrl: url,
     });
+
+    return { url };
   },
 });
 

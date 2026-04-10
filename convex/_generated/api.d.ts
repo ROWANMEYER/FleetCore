@@ -9,6 +9,7 @@
  */
 
 import type * as adminSettings from "../adminSettings.js";
+import type * as ai from "../ai.js";
 import type * as attachments from "../attachments.js";
 import type * as backfillStatus from "../backfillStatus.js";
 import type * as cleanupTrailerSwaps from "../cleanupTrailerSwaps.js";
@@ -69,6 +70,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
+  ai: typeof ai;
   attachments: typeof attachments;
   backfillStatus: typeof backfillStatus;
   cleanupTrailerSwaps: typeof cleanupTrailerSwaps;

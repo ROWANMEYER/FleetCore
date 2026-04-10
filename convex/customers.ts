@@ -107,6 +107,7 @@ export const createCustomer = mutation({
     address: v.optional(v.string()),
     vatNumber: v.optional(v.string()),
     contactPerson: v.optional(v.string()),
+    phone: v.optional(v.string()),
     email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -151,6 +152,7 @@ export const createCustomer = mutation({
       address: args.address,
       vatNumber: args.vatNumber,
       contactPerson: args.contactPerson,
+      phone: args.phone,
       email: args.email,
       isActive: true,
       createdAt: Date.now(),
@@ -169,11 +171,14 @@ export const updateCustomer = mutation({
     address: v.optional(v.string()),
     vatNumber: v.optional(v.string()),
     contactPerson: v.optional(v.string()),
+    phone: v.optional(v.string()),
     email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const customer = await ctx.db.get(args.id);
-    if (!customer) throw new Error("Customer not found");
+    if (!customer) {
+      throw new Error("Document not found");
+    }
 
     const normalizedName = args.name.toLowerCase().trim();
     const newAccountNumber = args.accountNumber?.trim();
@@ -216,6 +221,7 @@ export const updateCustomer = mutation({
       address: args.address,
       vatNumber: args.vatNumber,
       contactPerson: args.contactPerson,
+      phone: args.phone,
       email: args.email,
     });
   },
@@ -224,6 +230,62 @@ export const updateCustomer = mutation({
 export const deactivateCustomer = mutation({
   args: { id: v.id("customers"), isActive: v.boolean() },
   handler: async (ctx, args) => {
+    const doc = await ctx.db.get(args.id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
     await ctx.db.patch(args.id, { isActive: args.isActive });
+  },
+});
+
+export const deleteCustomer = mutation({
+  args: { id: v.id("customers") },
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.id);
+    if (!customer) throw new Error("Customer not found");
+
+    // Block delete if customer has any routes
+    const linkedRoute = await ctx.db
+      .query("dailyRoutes")
+      .filter((q) => q.eq(q.field("client"), customer.name))
+      .first();
+
+    if (linkedRoute) {
+      throw new Error(
+        `Cannot delete "${customer.name}" — they have existing routes. Deactivate instead.`
+      );
+    }
+
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const deleteBulkCustomers = mutation({
+  args: { ids: v.array(v.id("customers")) },
+  handler: async (ctx, args) => {
+    const blocked: string[] = [];
+
+    for (const id of args.ids) {
+      const customer = await ctx.db.get(id);
+      if (!customer) continue;
+
+      const linkedRoute = await ctx.db
+        .query("dailyRoutes")
+        .filter((q) => q.eq(q.field("client"), customer.name))
+        .first();
+
+      if (linkedRoute) {
+        blocked.push(customer.name);
+        continue;
+      }
+
+      await ctx.db.delete(id);
+    }
+
+    if (blocked.length > 0) {
+      throw new Error(
+        `Deleted what was possible. Skipped (have routes): ${blocked.join(", ")}`
+      );
+    }
   },
 });

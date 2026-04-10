@@ -24,6 +24,7 @@ function getPriority(daysDiff: number): "critical" | "warning" | "normal" {
 // ============================================================================
 
 export const getMyDayTasks = query({
+  args: {},
   handler: async (ctx) => {
     const now = Date.now();
     const todayStr = new Date().toISOString().slice(0, 10);

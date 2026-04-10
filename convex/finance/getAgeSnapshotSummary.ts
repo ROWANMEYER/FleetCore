@@ -7,7 +7,7 @@ export const getAgeSnapshotSummary = query({
     // 1. Get Snapshot Metadata
     const snapshot = await ctx.db.get(args.snapshotId);
     if (!snapshot) {
-      return null;
+      throw new Error("Document not found");
     }
 
     // Return values directly from snapshot (Excel Source of Truth)

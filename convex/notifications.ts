@@ -10,8 +10,13 @@ export const checkStageReminders = internalAction({
     const DAY_MS = 86400000;
 
     const active = await ctx.runQuery(internal.pdp.getActiveApplications);
+    console.log("Active applications count:", active.length);
 
     for (const app of active) {
+      if (typeof app.driverId !== "string" || !app.driverId || app.driverId.trim() === "") {
+        console.warn("Skipping app with invalid driverId:", app);
+        continue;
+      }
       const driver = await ctx.runQuery(internal.drivers.getDriver, { driverId: app.driverId });
       const name = driver?.driverName ?? "A driver";
 
@@ -63,7 +68,7 @@ export const checkExpiryReminders = internalAction({
     const settings = await ctx.runQuery(internal.settings.getAppSettingsInternal);
     if (!settings?.pushToken) return;
 
-    const drivers = await ctx.runQuery(internal.drivers.getAllDrivers);
+    const drivers = await ctx.runQuery(internal.drivers.getAllDrivers, {});
     const now = Date.now();
     const DAY_MS = 86400000;
 

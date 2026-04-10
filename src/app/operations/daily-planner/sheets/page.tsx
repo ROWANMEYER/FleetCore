@@ -11,6 +11,7 @@ import { SheetExportRow } from "@/src/types/sheetExport";
 import { exportCSV } from "@/src/lib/exports/exportCSV";
 import { exportJSON } from "@/src/lib/exports/exportJSON";
 import { exportExcelWithTemplate } from "@/src/lib/exports/exportExcelWithTemplate";
+import { exportPDF } from "@/src/lib/exports/exportPDF";
 import { generateInvoicePDF } from "@/src/pdf/invoiceTemplate";
 import { buildInvoiceData } from "@/src/pdf/invoiceBuilder";
 import { InvoiceData } from "@/src/pdf/types";
@@ -32,7 +33,15 @@ function parseNumberSafe(value: unknown): number {
 function mapSheetsToExportRows(sheets: any[]): SheetExportRow[] {
   return sheets.map((s) => {
     const routeKm = Number(s.kilometers) || 0;
-    const amount = Number(s.rate) || 0; // Using route total rate/amount
+    
+    // Calculate total revenue from all loads (same as RouteDetailsCard)
+    const totalRevenue = (s.loads ?? []).reduce((sum: number, l: any) => {
+      const qty = parseNumberSafe(l.quantity);
+      const rate = parseNumberSafe(l.rate);
+      return sum + calculateLoadAmount(qty, rate, l.rateType || "per_unit");
+    }, 0);
+    
+    const amount = totalRevenue; // Actual total revenue from all loads
     const ratePerKm = routeKm > 0 ? Number((amount / routeKm).toFixed(2)) : 0;
     
     // Flatten locations
@@ -65,7 +74,7 @@ function mapSheetsToExportRows(sheets: any[]): SheetExportRow[] {
   });
 }
 
-function ExportDropdown({ onExport }: { onExport: (type: 'csv' | 'excel' | 'json') => void }) {
+function ExportDropdown({ onExport }: { onExport: (type: 'csv' | 'excel' | 'json' | 'pdf') => void }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -99,6 +108,12 @@ function ExportDropdown({ onExport }: { onExport: (type: 'csv' | 'excel' | 'json
               className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-white/20 flex items-center gap-2"
             >
               <span className="text-yellow-600 font-bold">json</span> JSON
+            </button>
+            <button
+              onClick={() => { onExport('pdf'); setIsOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-800 hover:bg-white/20 flex items-center gap-2"
+            >
+              <span className="text-red-600 font-bold">pdf</span> PDF (with KPIs & Charts)
             </button>
           </div>
         </>
@@ -168,12 +183,11 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
 
   // Undo State
 
-  // Expand/Collapse State (progressive disclosure)
-  const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null);
+  // Side panel state (replaces inline expand/collapse)
+  const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
 
-  const toggleExpand = (routeId: string) => {
-    setExpandedRouteId(prev => prev === routeId ? null : routeId);
-  };
+  const openPanel = (route: any) => setSelectedRoute(route);
+  const closePanel = () => setSelectedRoute(null);
 
   // Sort and Filter State
   const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc' }>({
@@ -547,8 +561,9 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     }
     if (dateMode === "month" && selectedMonth) {
       const [year, month] = selectedMonth.split("-").map(Number);
-      const start = new Date(year, month - 1, 1).toISOString().split("T")[0];
-      const end = new Date(year, month, 0).toISOString().split("T")[0];
+      // Use UTC dates to avoid timezone offset issues
+      const start = new Date(Date.UTC(year, month - 1, 1)).toISOString().split("T")[0];
+      const end = new Date(Date.UTC(year, month, 0)).toISOString().split("T")[0];
       return { start, end };
     }
     return { start: singleDate, end: singleDate };
@@ -563,6 +578,16 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     startDate,
     endDate
   } : "skip");
+
+  // Sync selectedRoute with updated data from routes query after edits
+  useEffect(() => {
+    if (selectedRoute && routes) {
+      const updatedRoute = routes.find(r => r._id === selectedRoute._id);
+      if (updatedRoute) {
+        setSelectedRoute(updatedRoute);
+      }
+    }
+  }, [routes, selectedRoute]);
 
   // 1️⃣ Read reference data (queries)
   // Fetch all reference data to resolve names in-memory
@@ -754,263 +779,318 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
     }
   };
 
-  // RouteDetailsCard - Expanded view component (houses all load details + lifecycle actions)
   const RouteDetailsCard = ({
     route,
     isLocked,
-    mode = "primary"
+    mode = "primary",
+    onDrillDown
   }: {
     route: any;
     isLocked: boolean;
     mode?: "primary" | "secondary";
+    onDrillDown?: (route: any) => void;
   }) => {
     const status = route.status || "planned";
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
     const [currentInvoiceData, setCurrentInvoiceData] = useState<InvoiceData | null>(null);
 
-    // Resolve Assets for Compact View (Closure access to trucks/trailers)
+    // Resolve assets
     const truck = trucks?.find(t => t.truckFleetNo === route.truckFleetNoStr);
     const truckReg = truck?.registration || "";
-    
-    const trailer = trailers?.find(t => 
+    const trailer = trailers?.find(t =>
       String(t.trailerFleetNo) === route.trailerFleetNoStr || t.trailerFleetNoStr === route.trailerFleetNoStr
     );
     const trailerType = trailer?.type || "";
-    const trailerConfig = trailer?.length || "";
+    const trailerLength = (trailer as any)?.trailers?.[0]?.length || (trailer as any)?.length || "";
 
-    const assetParts = [
-      truckReg ? `Truck ${truckReg}` : null,
-      trailerType,
-      trailerConfig
-    ].filter(Boolean);
-
-    // Resolve Route Intelligence
+    // Derived metrics
     const routeKm = Number(route.kilometers) || 0;
-    const routeParts = [
-      `${routeKm} km`,
-      status === "locked" ? "Locked" : null
-    ].filter(Boolean);
+    const totalRevenue = (route.loads ?? []).reduce((sum: number, l: any) => {
+      const qty = parseNumberSafe(l.quantity);
+      const rate = parseNumberSafe(l.rate);
+      return sum + calculateLoadAmount(qty, rate, l.rateType || "per_unit");
+    }, 0);
+    const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
+    const totalQty = (route.loads ?? []).reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
+    const qtyUnit = route.loads?.[0]?.quantityType || "t";
+    const maxCapacity = qtyUnit === "bales" ? 490 : 34; // 490 bales or 34 tons
+    const capacityLabel = qtyUnit === "bales" ? "bales" : "T";
+    const allFroms = [...new Set((route.loads ?? []).flatMap((l: any) => l.fromLocations ?? []))];
+    const allTos = [...new Set((route.loads ?? []).flatMap((l: any) => l.toLocations ?? []))];
 
-    // Helper to serialize InvoiceData (Date -> ISO string)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const serializeInvoiceData = (data: any) => {
-      return {
-        ...data,
-        date: data.date instanceof Date ? data.date.toISOString() : data.date,
-      };
-    };
+    // Last 7 routes for this truck (revenue chart)
+    const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
+      truckFleetNoStr: route.truckFleetNoStr ?? "",
+      limit: 7,
+    });
+    const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
+    const avgRevenue = recentRoutes && recentRoutes.length > 0
+      ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.rate) || 0), 0) / recentRoutes.length
+      : 0;
 
-    // Helper to deserialize InvoiceData (ISO string -> Date)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const deserializeInvoiceData = (data: any) => {
-      return {
-        ...data,
-        date: new Date(data.date),
-      };
-    };
-
+    // Invoice helpers
+    const serializeInvoiceData = (data: any) => ({ ...data, date: data.date instanceof Date ? data.date.toISOString() : data.date });
+    const deserializeInvoiceData = (data: any) => ({ ...data, date: new Date(data.date) });
     const saveInvoice = useMutation(api.invoices.getOrCreate);
 
     const handleGenerateProforma = async () => {
-      // 0. Validate Data
       const errors: string[] = [];
       if (!route.client) errors.push("Client");
       if (!route.rate || Number(route.rate) <= 0) errors.push("Rate");
-      // Check loads for locations
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasFrom = route.loads?.some((l: any) => l.fromLocations?.length > 0) || route.fromLocation;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasTo = route.loads?.some((l: any) => l.toLocations?.length > 0) || route.toLocations?.length > 0;
-      
       if (!hasFrom) errors.push("From location");
       if (!hasTo) errors.push("To location");
       if (!route.driverName) errors.push("Driver");
       if (!route.truckFleetNoStr) errors.push("Truck");
-
-      if (errors.length > 0) {
-        alert(`Cannot generate invoice. Missing required fields:\n- ${errors.join("\n- ")}`);
-        return;
-      }
-
-      // 1. Prepare Fresh Data (Candidate)
-      const freshData = buildInvoiceData(route, customers);
-      const serializedCandidate = serializeInvoiceData(freshData);
-
-      // 2. Persist or Fetch Existing (Convex Authority)
-      // If an invoice exists, we get THAT back (snapshot).
-      // If not, we save this candidate.
+      if (errors.length > 0) { alert(`Cannot generate invoice. Missing:\n- ${errors.join("\n- ")}`); return; }
       try {
-        const finalSnapshot = await saveInvoice({
-          routeId: route._id,
-          invoiceData: serializedCandidate
-        });
-
-        // 3. Generate PDF using Authority Data
+        const finalSnapshot = await saveInvoice({ routeId: route._id, invoiceData: serializeInvoiceData(buildInvoiceData(route, customers)) });
         const finalData = deserializeInvoiceData(finalSnapshot);
         const doc = generateInvoicePDF(finalData);
-        
-        // 4. Prepare for Delivery (Modal)
-        const blob = doc.output("blob");
         setCurrentInvoiceData(finalData);
-        setCurrentPdfBlob(blob);
+        setCurrentPdfBlob(doc.output("blob"));
         setIsInvoiceModalOpen(true);
-
-      } catch (error) {
-        console.error("Failed to generate invoice:", error);
-        alert("Failed to generate invoice. Please try again.");
-      }
+      } catch { alert("Failed to generate invoice."); }
     };
 
+    const statusColour = status === "locked" ? "bg-gray-100 text-gray-700 border-gray-300"
+      : status === "completed" ? "bg-green-50 text-green-700 border-green-300"
+      : "bg-blue-50 text-blue-700 border-blue-300";
+    const statusLabel = status === "locked" ? "● LOCKED" : status === "completed" ? "● COMPLETED" : "● PLANNED";
+
     return (
-      <div className={`px-4 pb-4 pt-2 ${isLocked ? "opacity-75" : ""}`}>
-        {/* LEVEL 1: CONTEXT (Header Bar) */}
-        <div className="bg-white/5 backdrop-blur-lg rounded px-4 py-3 mb-6 flex flex-col gap-2 text-xs border border-white/10 shadow-sm">
-           {/* Assets Row */}
-           {assetParts.length > 0 && (
-             <div className="flex items-baseline gap-3">
-               <span className="w-16 font-semibold text-gray-900 uppercase tracking-wide text-[10px]">
-                 Assets
-               </span>
-               <span className="font-medium text-gray-900">{assetParts.join(" · ")}</span>
-             </div>
-           )}
+      <div className="p-5 space-y-5 text-gray-900">
 
-           {/* Route Row */}
-           <div className="flex items-baseline gap-3">
-             <span className="w-16 font-semibold text-gray-900 uppercase tracking-wide text-[10px]">
-               Route
-             </span>
-             <span className="font-medium text-gray-900">{routeParts.join(" · ")}</span>
-           </div>
-
-           {/* Notes Row */}
-           {route.notes && (
-              <div className="flex items-baseline gap-3">
-                 <span className="w-16 font-semibold text-gray-900 uppercase tracking-wide text-[10px]">
-                   Notes
-                 </span>
-                 <span className="text-gray-900 italic truncate max-w-[400px]" title={route.notes}>{route.notes}</span>
-              </div>
-           )}
+        {/* ── Breadcrumb + status ── */}
+        <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium uppercase tracking-wider">
+          <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
+          <span className={`px-3 py-1 rounded-full border text-[10px] font-bold ${statusColour}`}>{statusLabel}</span>
         </div>
 
-        {/* LEVEL 2: EVIDENCE (Loads Table) */}
-        <div className="mb-6 px-1 bg-white/10 backdrop-blur-lg rounded border border-white/20 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-1 px-4 py-2.5 text-[10px] font-semibold text-gray-800 uppercase tracking-wide bg-white/5 backdrop-blur-lg border-b border-white/10">
-            <div className="col-span-1 text-center">№</div>
-            <div className="col-span-2">Client</div>
-            <div className="col-span-2">From</div>
-            <div className="col-span-2">To</div>
-            <div className="col-span-1 text-right">Qty</div>
-            <div className="col-span-2 text-right">Rate</div>
-            <div className="col-span-2 text-right">Amount</div>
-          </div>
-
-          {/* Rows */}
-          {route.loads && route.loads.length > 0 ? (
-            <div className="space-y-px">
-              {route.loads.map((load: any, index: number) => {
-                // Derived values for display
-                const qty = parseNumberSafe(load.quantity);
-                const rate = parseNumberSafe(load.rate);
-                const rateType = load.rateType || "per_unit";
-                const amount = calculateLoadAmount(qty, rate, rateType);
-                const unit = unitMap[load.quantityType] || load.quantityType || "t";
-
-                return (
-                  <div key={index} className="grid grid-cols-12 gap-1 px-4 py-2 text-[10px] text-gray-800 hover:bg-white/5 transition-colors border-b border-white/10 last:border-0">
-                    <div className="col-span-1 text-center font-medium text-gray-700 bg-white/5 rounded px-1.5 h-6 flex items-center justify-center">
-                      {index + 1}
-                    </div>
-                    <div className="col-span-2 font-medium text-gray-900 truncate" title={load.client}>
-                      {load.client}
-                    </div>
-                    <div className="col-span-2 flex flex-col justify-center min-h-[20px] text-gray-800">
-                      {load.fromLocations && load.fromLocations.length > 0 ? (
-                        load.fromLocations.map((loc: string, i: number) => (
-                          <div key={i} className="truncate text-[10px] leading-tight" title={loc}>
-                            {loc}
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </div>
-                    <div className="col-span-2 flex flex-col justify-center min-h-[20px] text-gray-800">
-                      {load.toLocations && load.toLocations.length > 0 ? (
-                        load.toLocations.map((loc: string, i: number) => (
-                          <div key={i} className="truncate text-[10px] leading-tight" title={loc}>
-                            {loc}
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </div>
-                    <div className="col-span-1 text-right font-medium text-gray-900">
-                      {qty} {unit}
-                    </div>
-                    <div className="col-span-2 text-right text-gray-800">
-                      {rateType === "flat" ? (
-                        <span className="text-[9px] bg-white/5 text-gray-800 px-2 py-0.5 rounded font-medium border border-white/10 backdrop-blur-sm">Flat</span>
-                      ) : (
-                        formatZAR(rate)
-                      )}
-                    </div>
-                    <div className="col-span-2 text-right font-medium text-gray-900">
-                      {formatZAR(amount)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="px-4 py-6 text-center text-[11px] text-gray-600 italic">
-              No loads on this route
-            </div>
-          )}
-        </div>
-
-        {/* LEVEL 3: ACTIONS (Footer) */}
-        <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-          {/* Status Badge (Left) */}
+        {/* ── Title + actions ── */}
+        <div className="flex items-start justify-between gap-4">
           <div>
-            {getStatusBadge(status, route._id)}
+            <h1 className="text-2xl font-black tracking-tight">
+              Truck {route.truckFleetNoStr}
+              <span className="text-gray-400 font-light ml-2">/ Route Detail</span>
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">
+              {[truckReg, trailerType, trailerLength ? `${trailerLength}m` : "", route.routeDate, route.client].filter(Boolean).join(" · ")}
+            </p>
           </div>
-
-          {/* Actions (Right) */}
           {!isLocked && mode === "primary" && (
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleGenerateProforma}
-                className="text-xs font-medium text-gray-800 hover:text-gray-900 flex items-center gap-1 transition-colors hover:bg-white/20 px-2.5 py-1.5 rounded backdrop-blur-sm"
-                title="Generate Proforma Invoice"
-              >
-                Invoice
+            <div className="flex gap-2 shrink-0">
+              {status === "completed" && (
+                <button onClick={() => handleStatusChange(route._id, "lock")}
+                  className="px-3 py-1.5 text-xs font-bold border border-gray-300 rounded-lg hover:bg-gray-50">
+                  LOCK ROUTE
+                </button>
+              )}
+              {status === "planned" && (
+                <button onClick={() => handleStatusChange(route._id, "complete")}
+                  className="px-3 py-1.5 text-xs font-bold border border-gray-300 rounded-lg hover:bg-gray-50">
+                  COMPLETE
+                </button>
+              )}
+              <button onClick={() => { const p = new URLSearchParams(searchParams.toString()); p.set("editRouteId", route._id); router.push(`?${p.toString()}`); }}
+                className="px-3 py-1.5 text-xs font-bold border border-gray-300 rounded-lg hover:bg-gray-50">
+                EDIT
               </button>
-              <div className="h-3 w-px bg-white/10 mx-1"></div>
-              <button
-                onClick={() => {
-                const params = new URLSearchParams(searchParams.toString());
-                params.set("editRouteId", route._id);
-                router.push(`?${params.toString()}`);
-              }}
-                className="text-xs font-medium text-gray-800 hover:text-gray-900 transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(route._id)}
-                disabled={actionLoading === route._id}
-                className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
-              >
-                Delete
+              <button onClick={() => handleDelete(route._id)} disabled={actionLoading === route._id}
+                className="px-3 py-1.5 text-xs font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+                DELETE
               </button>
             </div>
           )}
+          {isLocked && (
+            <button onClick={() => handleStatusChange(route._id, "unlock")}
+              className="px-3 py-1.5 text-xs font-bold border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0">
+              UNLOCK
+            </button>
+          )}
         </div>
+
+        {/* ── KPI strip ── */}
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "TOTAL REVENUE", value: formatZAR(totalRevenue), sub: null, accent: "border-l-blue-500" },
+            { label: "DISTANCE", value: `${routeKm} km`, sub: allFroms[0] && allTos[0] ? `${allFroms[0]} → ${allTos[0]}` : null, accent: "border-l-green-500" },
+            { label: "LOAD WEIGHT", value: `${totalQty} ${unitMap[qtyUnit] || qtyUnit}`, sub: route.loads?.[0]?.rateType === "flat" ? "Flat rate" : null, accent: "border-l-orange-400" },
+            { label: "R / KM", value: `R ${rPerKm.toFixed(2)}`, sub: rPerKm >= 30 ? "Efficient" : rPerKm > 0 ? "Below avg" : "—", accent: "border-l-purple-500" },
+          ].map((k) => (
+            <div key={k.label} className={`bg-white border border-gray-200 rounded-xl p-3 border-l-4 ${k.accent}`}>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{k.label}</p>
+              <p className="text-lg font-black mt-1">{k.value}</p>
+              {k.sub && <p className="text-[10px] text-gray-500 mt-0.5">{k.sub}</p>}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Revenue chart + Load gauge ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Revenue last 7 routes */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-700">Revenue · Last {recentRoutes?.length ?? 0} Routes</p>
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Truck {route.truckFleetNoStr}</span>
+            </div>
+            {!recentRoutes ? (
+              <p className="text-xs text-gray-400 text-center py-4">Loading…</p>
+            ) : (
+              <div className="flex items-end gap-1 h-24">
+                {recentRoutes.map((r: any, i: number) => {
+                  const rev = Number(r.rate) || 0;
+                  const pct = (rev / chartMax) * 100;
+                  const isThis = r._id === route._id;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full flex items-end cursor-pointer group" style={{ height: "72px" }} onClick={() => onDrillDown?.(r)} title="Click to view route details">
+                        <div
+                          className={`w-full rounded-t transition-all ${isThis ? "bg-blue-600" : "bg-blue-200 group-hover:bg-blue-400"}`}
+                          style={{ height: `${Math.max(pct, 4)}%` }}
+                        />
+                      </div>
+                      <span className="text-[8px] text-gray-400 truncate w-full text-center">
+                        {r.routeDate?.slice(5)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {/* avg line overlay */}
+              </div>
+            )}
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-600 inline-block" /> Revenue (R)</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-1 bg-yellow-400 inline-block" /> Avg {formatZAR(avgRevenue)}</span>
+            </div>
+          </div>
+
+          {/* Load vs capacity gauge */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center">
+            <div className="flex items-center justify-between w-full mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-700">Load vs Capacity</p>
+              <span className="text-[10px] font-bold text-gray-500">{totalQty} {capacityLabel} / {maxCapacity} {capacityLabel}</span>
+            </div>
+            {/* Semicircle gauge */}
+            <div className="relative w-28 h-14 overflow-hidden">
+              <div className="absolute inset-0 rounded-t-full border-8 border-gray-100" style={{ borderBottomColor: "transparent" }} />
+              <div
+                className="absolute inset-0 rounded-t-full border-8 border-blue-600 transition-all"
+                style={{
+                  borderBottomColor: "transparent",
+                  clipPath: `inset(0 ${100 - Math.min((totalQty / maxCapacity) * 100, 100)}% 0 0)`,
+                }}
+              />
+            </div>
+            <p className="text-2xl font-black text-blue-600 mt-1">{Math.round((totalQty / maxCapacity) * 100)}%</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">
+              {totalQty >= maxCapacity ? "Full load · optimal utilisation" : `${(maxCapacity - totalQty).toFixed(1)} ${capacityLabel} remaining capacity`}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Route profile ── */}
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-700 mb-3">Route Profile</p>
+
+          {/* Journey line */}
+          <div className="relative mb-1">
+            <div className="h-1.5 bg-gray-100 rounded-full">
+              <div className="h-1.5 bg-blue-600 rounded-full w-full" />
+            </div>
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-600 border-2 border-white shadow" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-600 border-2 border-white shadow" />
+          </div>
+          <div className="flex justify-between text-xs font-semibold text-gray-700 mb-1">
+            <span>{allFroms.join(", ") || "—"}</span>
+            <span>{allTos.join(", ") || "—"}</span>
+          </div>
+          {routeKm > 0 && <p className="text-center text-[10px] text-gray-400 mb-3">{routeKm} km total</p>}
+
+          {/* Loads table */}
+          <div className="border border-gray-100 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              <div className="col-span-1">#</div>
+              <div className="col-span-3">Client</div>
+              <div className="col-span-2">From</div>
+              <div className="col-span-2">To</div>
+              <div className="col-span-1 text-right">Qty</div>
+              <div className="col-span-1 text-right">Rate</div>
+              <div className="col-span-2 text-right">Amount</div>
+            </div>
+            {(route.loads ?? []).length === 0 ? (
+              <p className="text-center text-xs text-gray-400 py-4 italic">No loads</p>
+            ) : (
+              <>
+                {(route.loads ?? []).map((load: any, i: number) => {
+                  const qty = parseNumberSafe(load.quantity);
+                  const rate = parseNumberSafe(load.rate);
+                  const amount = calculateLoadAmount(qty, rate, load.rateType || "per_unit");
+                  const unit = unitMap[load.quantityType] || load.quantityType || "t";
+                  return (
+                    <div key={i} className="grid grid-cols-12 gap-1 px-3 py-2.5 text-xs border-t border-gray-100 hover:bg-gray-50">
+                      <div className="col-span-1 text-gray-400 font-mono">{String(i + 1).padStart(2, "0")}</div>
+                      <div className="col-span-3 font-semibold truncate">{load.client}</div>
+                      <div className="col-span-2 text-gray-600 truncate">{(load.fromLocations ?? []).join(", ")}</div>
+                      <div className="col-span-2 text-gray-600 truncate">{(load.toLocations ?? []).join(", ")}</div>
+                      <div className="col-span-1 text-right">{qty} {unit}</div>
+                      <div className="col-span-1 text-right text-gray-500">{load.rateType === "flat" ? "Flat" : formatZAR(rate)}</div>
+                      <div className="col-span-2 text-right font-bold text-blue-700">{formatZAR(amount)}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── Invoice + Asset card ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Invoice */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-sm font-bold mb-1">Invoice ready</p>
+            <p className="text-[10px] text-gray-400 mb-3">{route.client || "—"}</p>
+            <div className="flex gap-2">
+              <button onClick={handleGenerateProforma}
+                className="flex-1 py-2 text-xs font-bold border border-gray-300 rounded-lg hover:bg-gray-50">
+                PDF
+              </button>
+            </div>
+          </div>
+
+          {/* Asset card */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 text-lg">🚛</div>
+              <div>
+                <p className="text-sm font-bold">{truckReg || route.truckFleetNoStr}</p>
+                <p className="text-[10px] text-gray-400">{[trailerType, trailerLength ? `${trailerLength} metre` : "", `Truck ${route.truckFleetNoStr}`].filter(Boolean).join(" · ")}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase">Routes (30D)</p>
+                <p className="text-base font-black">{recentRoutes?.length ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase">Total KM</p>
+                <p className="text-base font-black">{recentRoutes ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.kilometers) || 0), 0).toLocaleString() : "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase">Utilisation</p>
+                <p className="text-base font-black">{Math.round((totalQty / maxCapacity) * 100)}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {route.notes && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+            <span className="font-bold">Notes: </span>{route.notes}
+          </div>
+        )}
 
         {isInvoiceModalOpen && currentInvoiceData && currentPdfBlob && (
           <InvoiceDeliveryPanel
@@ -1183,6 +1263,11 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                  const rangeStr = (startDate && endDate) ? `${startDate} to ${endDate}` : (filters.date || "Single Day / All");
                  const timestamp = new Date().toLocaleString();
                  exportExcelWithTemplate(rows, { dateRange: rangeStr, generatedAt: timestamp });
+              }
+              if (type === 'pdf') {
+                 const rangeStr = (startDate && endDate) ? `${startDate} to ${endDate}` : (filters.date || "Single Day / All");
+                 const timestamp = new Date().toLocaleString();
+                 exportPDF(rows, { dateRange: rangeStr, generatedAt: timestamp });
               }
             }} />
             </div>
@@ -1679,7 +1764,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
               const status = (route as any).status || "planned";
               const isLocked = status === "locked";
               const isSelected = selectedRouteIds.has(route._id);
-              const isExpanded = expandedRouteId === route._id;
+              const isActive = selectedRoute?._id === route._id;
               const riskStatus = getRouteRiskStatus(route);
 
               // Derive From/To from loads
@@ -1702,12 +1787,12 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
               return (
                 <div
                   key={route._id}
-                  className={`group transition-colors ${isLocked ? "opacity-60" : "hover:bg-white/20"} ${isSelected ? "bg-white/30" : ""}`}
+                  className={`group transition-colors ${isLocked ? "opacity-60" : "hover:bg-white/20"} ${isSelected ? "bg-white/30" : ""} ${isActive ? "bg-white/25 ring-1 ring-inset ring-white/30" : ""}`}
                 >
-                  {/* Collapsed Summary Row */}
+                  {/* Summary Row */}
                   <div
                     className={`grid grid-cols-[repeat(17,minmax(0,1fr))] gap-2 px-3 py-2.5 items-center text-xs cursor-pointer ${isLocked ? "opacity-60" : ""}`}
-                    onClick={() => toggleExpand(route._id)}
+                    onClick={() => isActive ? closePanel() : openPanel(route)}
                   >
                     {/* Checkbox */}
                     <div className="col-span-1" onClick={(e) => e.stopPropagation()}>
@@ -1720,18 +1805,14 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       />
                     </div>
 
-                    {/* Chevron - Keep for expand/collapse but make subtle */}
+                    {/* Panel indicator */}
                     <div className="col-span-1">
                       <button
                         className="text-gray-400 hover:text-black focus:outline-none transition-colors"
-                        aria-expanded={isExpanded}
-                        aria-label="Expand route details"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleExpand(route._id);
-                        }}
+                        aria-label="Open route details"
+                        onClick={(e) => { e.stopPropagation(); isActive ? closePanel() : openPanel(route); }}
                       >
-                        {isExpanded ? "▾" : "▸"}
+                        {isActive ? "◂" : "▸"}
                       </button>
                     </div>
 
@@ -1746,12 +1827,12 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       })() : "-"}
                     </div>
 
-                    {/* Truck (Fleet Number Only) */}
+                    {/* Truck */}
                     <div className="col-span-1 font-medium text-gray-900 truncate">
                       {route.truckFleetNoStr || "-"}
                     </div>
 
-                    {/* Trailer (Fleet Number Only) */}
+                    {/* Trailer */}
                     <div className="col-span-1 text-gray-600 truncate">
                       {route.trailerFleetNoStr || "-"}
                     </div>
@@ -1776,7 +1857,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       {toDisplay}
                     </div>
 
-                    {/* Notes (TRAE-ADDED) */}
+                    {/* Notes */}
                     <div className="col-span-2 text-gray-500 text-[11px] italic truncate" title={route.notes}>
                       {route.notes ? (route.notes.length > 40 ? route.notes.slice(0, 40) + "..." : route.notes) : ""}
                     </div>
@@ -1786,33 +1867,17 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       {formatZAR(route.rate || 0)}
                     </div>
 
-                    {/* R/KM Badge (TRAE-ADDED) */}
+                    {/* R/KM Badge */}
                     <div className="col-span-1 text-right flex justify-end">
                       {(() => {
                         const km = Number(route.kilometers) || 0;
                         const amount = Number(route.rate) || 0;
-
-                        if (km === 0) {
-                          return (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 border border-gray-300">
-                              —
-                            </span>
-                          );
-                        }
-
+                        if (km === 0) return <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 border border-gray-300">—</span>;
                         const val = amount / km;
-                        let colorClass = "bg-red-100 text-red-800"; // Default < 25
-                        if (val >= 30) {
-                          colorClass = "bg-green-100 text-green-800";
-                        } else if (val >= 25) {
-                          colorClass = "bg-yellow-100 text-yellow-800";
-                        }
-
-                        return (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colorClass}`}>
-                            R {val.toFixed(2)}
-                          </span>
-                        );
+                        let colorClass = "bg-red-100 text-red-800";
+                        if (val >= 30) colorClass = "bg-green-100 text-green-800";
+                        else if (val >= 25) colorClass = "bg-yellow-100 text-yellow-800";
+                        return <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colorClass}`}>R {val.toFixed(2)}</span>;
                       })()}
                     </div>
 
@@ -1823,11 +1888,6 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                       </span>
                     </div>
                   </div>
-
-                  {/* Expanded Detail Card */}
-                  {isExpanded && (
-                    <RouteDetailsCard route={route} isLocked={isLocked} mode="primary" />
-                  )}
                 </div>
               );
             })}
@@ -1835,6 +1895,41 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
         )}
       </div>
       </div>
+
+      {/* ── Route Detail Side Panel ── */}
+      {selectedRoute && (
+        <div className="fixed inset-0 z-50 flex pointer-events-none">
+          {/* backdrop — blurs the background, click to close */}
+          <div
+            className="flex-1 pointer-events-auto backdrop-blur-sm bg-black/20"
+            onClick={closePanel}
+          />
+
+          {/* panel — solid white background, matches app theme */}
+          <div className="w-full max-w-xl bg-white border-l border-gray-200 flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden">
+            {/* header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-white shrink-0">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Route Detail</p>
+                <h2 className="text-sm font-black text-gray-900 mt-0.5">
+                  Truck {selectedRoute.truckFleetNoStr ?? "—"} · {selectedRoute.routeDate}
+                </h2>
+              </div>
+              <button
+                onClick={closePanel}
+                className="text-gray-500 hover:text-gray-900 text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* scrollable body — reuse RouteDetailsCard */}
+            <div className="flex-1 overflow-y-auto">
+              <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ?? "planned") === "locked"} mode="primary" onDrillDown={openPanel} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Dialog */}
       {confirmDialog.isOpen && (

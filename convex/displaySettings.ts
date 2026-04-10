@@ -43,7 +43,11 @@ export const upsert = mutation({
         createdAt: now,
         updatedAt: now,
       });
-      return await ctx.db.get(id);
+      const doc = await ctx.db.get(id);
+      if (!doc) {
+        throw new Error("Document not found");
+      }
+      return doc;
     }
 
     await ctx.db.patch(existing._id, {
@@ -53,6 +57,10 @@ export const upsert = mutation({
       reduceMotion: typeof args.reduceMotion === "boolean" ? args.reduceMotion : existing.reduceMotion,
       updatedAt: now,
     });
-    return await ctx.db.get(existing._id);
+    const updated = await ctx.db.get(existing._id);
+    if (!updated) {
+      throw new Error("Document not found");
+    }
+    return updated;
   },
 });

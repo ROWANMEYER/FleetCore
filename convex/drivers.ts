@@ -1,8 +1,9 @@
-import { internalQuery, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
 export const list = query({
+  args: {},
   handler: async (ctx) => {
     return await ctx.db.query("drivers").collect();
   },
@@ -11,18 +12,27 @@ export const list = query({
 export const getById = query({
   args: { driverId: v.id("drivers") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.driverId);
+    const doc = await ctx.db.get(args.driverId);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
 export const getDriver = internalQuery({
   args: { driverId: v.id("drivers") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.driverId);
+    const doc = await ctx.db.get(args.driverId);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
 export const getAllDrivers = internalQuery({
+  args: {},
   handler: async (ctx) => {
     return await ctx.db.query("drivers").collect();
   },
@@ -111,5 +121,23 @@ export const getDriverDocumentExpiries = query({
 
     out.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
     return out;
+  },
+});
+
+export const patchByName = mutation({
+  args: {
+    driverName: v.string(),
+    patch: v.object({
+      licenseExpiryDate: v.optional(v.string()),
+      pdpExpiryDate: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const driver = await ctx.db
+      .query("drivers")
+      .filter((q) => q.eq(q.field("driverName"), args.driverName))
+      .first();
+    if (!driver) throw new Error("Driver not found");
+    await ctx.db.patch(driver._id, args.patch);
   },
 });

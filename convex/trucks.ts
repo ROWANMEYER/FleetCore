@@ -45,7 +45,7 @@ export const assignTrailer = mutation({
     const selectedTruck = await ctx.db.get(truckId);
 
     if (!selectedTruck) {
-      throw new Error("Truck not found");
+      throw new Error("Document not found");
     }
 
     if (selectedTruck.currentTrailerId) {
@@ -69,18 +69,23 @@ export const updateTruckTrailer = mutation({
   handler: async (ctx, args) => {
     const truck = await ctx.db.get(args.truckId);
     if (!truck) {
-      throw new Error("Truck not found");
+      throw new Error("Document not found");
     }
 
     await ctx.db.patch(args.truckId, {
       currentTrailerId: args.trailerId,
     });
 
-    return await ctx.db.get(args.truckId);
+    const updatedDoc = await ctx.db.get(args.truckId);
+    if (!updatedDoc) {
+      throw new Error("Document not found");
+    }
+    return updatedDoc;
   },
 });
 
 export const getAll = query({
+  args: {},
   handler: async (ctx) => {
     const trucks = await ctx.db.query("trucks").collect();
     return trucks.map((t) => ({
@@ -120,6 +125,7 @@ export const getWithoutTrailers = query({
 });
 
 export const getAllWithTrailer = query({
+  args: {},
   handler: async (ctx) => {
     const trucks = await ctx.db.query("trucks").collect();
     const trailers = await ctx.db.query("trailers").collect();
@@ -140,6 +146,7 @@ export const getAllWithTrailer = query({
 });
 
 export const list = query({
+  args: {},
   handler: async (ctx) => {
     const rows = await ctx.db.query("trucks").collect();
 
@@ -148,6 +155,7 @@ export const list = query({
 });
 
 export const migrateTruckTrailerIds = mutation({
+  args: {},
   handler: async (ctx) => {
     const trucks = await ctx.db.query("trucks").collect();
     const trailers = await ctx.db.query("trailers").collect();
@@ -197,5 +205,25 @@ export const migrateTruckTrailerIds = mutation({
       unchanged,
       unmatchedValues,
     };
+  },
+});
+
+export const patchByFleetNo = mutation({
+  args: {
+    truckFleetNo: v.string(),
+    patch: v.object({
+      licenseExpiryDate: v.optional(v.string()),
+      serviceDueDate: v.optional(v.string()),
+      serviceDueKm: v.optional(v.float64()),
+      currentKm: v.optional(v.float64()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const truck = await ctx.db
+      .query("trucks")
+      .withIndex("by_truckFleetNo", (q) => q.eq("truckFleetNo", args.truckFleetNo))
+      .first();
+    if (!truck) throw new Error("Truck not found");
+    await ctx.db.patch(truck._id, args.patch);
   },
 });

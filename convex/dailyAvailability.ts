@@ -112,6 +112,7 @@ export const upsert = mutation({
       };
       await ctx.db.patch(existing._id, next);
       const updated = await ctx.db.get(existing._id);
+      if (!updated) throw new Error("Document not found");
       return { action: "updated", record: updated };
     }
 
@@ -126,7 +127,47 @@ export const upsert = mutation({
       createdBy: args.createdBy,
     });
     const created = await ctx.db.get(insertedId);
+    if (!created) throw new Error("Document not found");
     return { action: "created", record: created };
+  },
+});
+
+export const deleteDay = mutation({
+  args: { dayKey: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("dailyAvailability")
+      .withIndex("by_day", (q) => q.eq("dayKey", args.dayKey))
+      .first();
+    if (!existing) return { ok: false, reason: "not_found" as const };
+    await ctx.db.delete(existing._id);
+    return { ok: true };
+  },
+});
+
+export const replaceDay = mutation({
+  args: {
+    dayKey: v.string(),
+    trucks: v.array(v.string()),
+    trailers: v.array(v.string()),
+    drivers: v.array(v.string()),
+    status: v.union(v.literal("available"), v.literal("unavailable"), v.literal("maintenance")),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("dailyAvailability")
+      .withIndex("by_day", (q) => q.eq("dayKey", args.dayKey))
+      .first();
+    if (!existing) return { ok: false, reason: "not_found" as const };
+    const next = {
+      trucks: dedupe(args.trucks),
+      trailers: dedupe(args.trailers),
+      drivers: dedupe(args.drivers),
+      status: args.status,
+    };
+    await ctx.db.patch(existing._id, next);
+    const updated = await ctx.db.get(existing._id);
+    return { ok: true, record: updated };
   },
 });
 
@@ -158,6 +199,7 @@ export const deleteSelections = mutation({
 
     await ctx.db.patch(existing._id, next);
     const updated = await ctx.db.get(existing._id);
+    if (!updated) throw new Error("Document not found");
     return { ok: true, record: updated };
   },
 });

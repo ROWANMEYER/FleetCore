@@ -332,7 +332,11 @@ export const getForSheets = query({
 export const getById = query({
   args: { id: v.id("dailyRoutes") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const doc = await ctx.db.get(args.id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -772,5 +776,25 @@ export const getQuickSendReport = query({
         totalRevenue: totalRevenue, // Return number
       },
     };
+  },
+});
+
+export const getRecentRoutesByTruck = query({
+  args: {
+    truckFleetNoStr: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 7;
+    const all = await ctx.db
+      .query("dailyRoutes")
+      .withIndex("by_routeDate_truckFleetNoStr")
+      .order("desc")
+      .collect();
+
+    return all
+      .filter((r) => !(r as any).isDeleted && r.truckFleetNoStr === args.truckFleetNoStr)
+      .slice(0, limit)
+      .reverse(); // oldest first for chart
   },
 });

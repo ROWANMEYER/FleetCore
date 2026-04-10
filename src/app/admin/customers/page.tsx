@@ -14,6 +14,7 @@ type Customer = {
   vatNumber?: string;
   address?: string;
   contactPerson?: string;
+  phone?: string;
   email?: string;
   isActive: boolean;
   createdAt: number;
@@ -24,6 +25,38 @@ export default function CustomersPage() {
   const createCustomer = useMutation(api.customers.createCustomer);
   const updateCustomer = useMutation(api.customers.updateCustomer);
   const deactivateCustomer = useMutation(api.customers.deactivateCustomer);
+  const deleteCustomer = useMutation(api.customers.deleteCustomer);
+  const deleteBulkCustomers = useMutation(api.customers.deleteBulkCustomers);
+
+  const [selected, setSelected] = useState<Set<Id<"customers">>>(new Set());
+
+  const toggleSelect = (id: Id<"customers">) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const toggleSelectAll = () => {
+    if (!customers) return;
+    if (selected.size === customers.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(customers.map((c) => c._id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} selected customer(s)? This cannot be undone.`)) return;
+    try {
+      await deleteBulkCustomers({ ids: Array.from(selected) as Id<"customers">[] });
+      setSelected(new Set());
+    } catch (err: any) {
+      alert(err.message || "Bulk delete failed");
+      setSelected(new Set());
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -35,7 +68,8 @@ export default function CustomersPage() {
     vatNumber: "",
     address: "",
     contactPerson: "",
-    email: ""
+    phone: "",
+    email: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -49,7 +83,8 @@ export default function CustomersPage() {
       vatNumber: "",
       address: "",
       contactPerson: "",
-      email: ""
+      phone: "",
+      email: "",
     });
     setError("");
     setSuccess("");
@@ -65,7 +100,8 @@ export default function CustomersPage() {
       vatNumber: customer.vatNumber || "",
       address: customer.address || "",
       contactPerson: customer.contactPerson || "",
-      email: customer.email || ""
+      phone: customer.phone || "",
+      email: customer.email || "",
     });
     setError("");
     setSuccess("");
@@ -92,7 +128,8 @@ export default function CustomersPage() {
           vatNumber: formData.vatNumber || undefined,
           address: formData.address || undefined,
           contactPerson: formData.contactPerson || undefined,
-          email: formData.email || undefined
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
         });
         setSuccess("Customer updated successfully!");
       } else {
@@ -103,14 +140,12 @@ export default function CustomersPage() {
           vatNumber: formData.vatNumber || undefined,
           address: formData.address || undefined,
           contactPerson: formData.contactPerson || undefined,
-          email: formData.email || undefined
+          phone: formData.phone || undefined,
+          email: formData.email || undefined,
         });
         setSuccess("Customer created successfully!");
       }
       
-      // Close modal after short delay or immediately?
-      // Let's keep it open to show success, or close it. 
-      // User experience: usually close on success.
       setIsModalOpen(false);
       setFormData({ 
         name: "", 
@@ -119,7 +154,8 @@ export default function CustomersPage() {
         vatNumber: "",
         address: "",
         contactPerson: "",
-        email: ""
+        phone: "",
+        email: "",
       });
     } catch (err: any) {
       setError(err.message || "Failed to save customer");
@@ -128,12 +164,18 @@ export default function CustomersPage() {
 
   const handleToggleActive = async (customer: Customer) => {
     try {
-      await deactivateCustomer({
-        id: customer._id,
-        isActive: !customer.isActive,
-      });
+      await deactivateCustomer({ id: customer._id, isActive: !customer.isActive });
     } catch (err: any) {
       alert("Failed to update status: " + err.message);
+    }
+  };
+
+  const handleDelete = async (customer: Customer) => {
+    if (!confirm(`Delete "${customer.name}"? This cannot be undone.`)) return;
+    try {
+      await deleteCustomer({ id: customer._id });
+    } catch (err: any) {
+      alert(err.message || "Failed to delete customer");
     }
   };
 
@@ -158,6 +200,24 @@ export default function CustomersPage() {
         </button>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="bg-red-50 border-b border-red-200 px-8 py-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-red-700">{selected.size} customer{selected.size > 1 ? "s" : ""} selected</span>
+          <div className="flex gap-3">
+            <button onClick={() => setSelected(new Set())} className="text-sm text-gray-600 hover:text-gray-900">
+              Clear
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="bg-red-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-red-700"
+            >
+              Delete Selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-auto">
         {customers === undefined ? (
@@ -171,58 +231,60 @@ export default function CustomersPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={customers.length > 0 && selected.size === customers.length}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Account Number
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Note
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT No.</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {customers.map((customer) => (
-                  <tr key={customer._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {customer.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                      {customer.accountNumber || "—"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <tr key={customer._id} className={["hover:bg-gray-50", selected.has(customer._id) ? "bg-blue-50" : ""].join(" ").trim()}>
+                    <td className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(customer._id)}
+                        onChange={() => toggleSelect(customer._id)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{customer.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 font-mono">{customer.vatNumber || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate" title={customer.address}>{customer.address || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{customer.contactPerson || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 font-mono">{(customer as any).phone || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate" title={customer.email}>{customer.email || "—"}</td>
+                    <td className="px-4 py-3">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        customer.isActive 
-                          ? "bg-green-100 text-green-800" 
-                          : "bg-red-100 text-red-800"
+                        customer.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}>
                         {customer.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-xs" title={customer.note}>
-                      {customer.note || "—"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => openEditModal(customer)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        Edit
-                      </button>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                      <button onClick={() => openEditModal(customer)} className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
                       <button
                         onClick={() => handleToggleActive(customer)}
-                        className={`${
-                          customer.isActive ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"
-                        }`}
+                        className={customer.isActive ? "text-orange-600 hover:text-orange-900 mr-4" : "text-green-600 hover:text-green-900 mr-4"}
                       >
                         {customer.isActive ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(customer)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>
@@ -302,24 +364,34 @@ export default function CustomersPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Contact Person</label>
-                    <input
-                      type="text"
-                      value={formData.contactPerson}
-                      onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value.toUpperCase() })}
+                      <input
+                        type="text"
+                        value={formData.contactPerson}
+                        onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value.toUpperCase() })}
                         className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="Name"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
                       <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="accounts@client.com"
+                        placeholder="e.g. 0729527049"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="accounts@client.com"
+                    />
                   </div>
                 </div>
               </div>

@@ -21,6 +21,7 @@ function checkIssue(dateStr?: string): "critical" | "warning" | null {
 }
 
 export const getFleetHealth = query({
+  args: {},
   handler: async (ctx) => {
     const drivers = await ctx.db.query("drivers").collect();
     const trucks = await ctx.db.query("trucks").collect();

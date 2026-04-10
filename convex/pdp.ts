@@ -25,8 +25,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function requireDriver(ctx: any, driverId: Id<"drivers">) {
-  return ctx.db.get(driverId);
+async function requireDriver(ctx: any, driverId: Id<"drivers">) {
+  const doc = await ctx.db.get(driverId);
+  if (!doc) {
+    throw new Error("Document not found");
+  }
+  return doc;
 }
 
 async function upsertApplicationForDriver(ctx: any, driverId: Id<"drivers">) {
@@ -44,8 +48,13 @@ async function upsertApplicationForDriver(ctx: any, driverId: Id<"drivers">) {
     createdAt: now,
     updatedAt: now,
   });
+  console.log("Inserted pdpApplication with driverId:", driverId);
 
-  return await ctx.db.get(applicationId);
+  const doc = await ctx.db.get(applicationId);
+  if (!doc) {
+    throw new Error("Document not found");
+  }
+  return doc;
 }
 
 async function appendLog(ctx: any, args: {
@@ -86,13 +95,23 @@ export const getApplicationLogsByDriver = query({
 });
 
 export const getActiveApplications = internalQuery({
+  args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query("pdpApplications").collect();
-    return all.filter((a: any) => {
+    const filtered = all.filter((a: any) => {
       const statusUpper = (a.status ?? "").toString().toUpperCase();
       const done = statusUpper.includes("COMPLETE") || statusUpper.includes("COMPLETED") || !!a.expiry?.expiryDate;
       return !done;
     });
+    
+    // Log any found with empty driverId
+    filtered.forEach(a => {
+        if (!a.driverId || a.driverId.trim() === "") {
+            console.error("Found active application with invalid driverId:", a);
+        }
+    });
+    
+    return filtered;
   },
 });
 
@@ -104,6 +123,7 @@ export const markDeparted = mutation({
     departedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    console.log("markDeparted called with driverId:", args.driverId);
     const driver = await requireDriver(ctx, args.driverId);
     if (!driver) throw new Error("Driver not found");
 
@@ -139,7 +159,11 @@ export const markDeparted = mutation({
       notes: `PDP type: ${args.pdpType}`,
     });
 
-    return await ctx.db.get(applicationId);
+    const doc = await ctx.db.get(applicationId);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -198,7 +222,11 @@ export const submitDocs = mutation({
       notes: contingency ? contingency.resolutionNote : args.notes,
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -237,7 +265,11 @@ export const submitCardCopy = mutation({
       notes: `Card number: ${args.cardNumber}`,
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -285,7 +317,11 @@ export const setExpiryAndComplete = mutation({
       performedBy: args.performedBy,
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -334,7 +370,11 @@ export const logContingencyAndReset = mutation({
       notes: args.reasons.join(", ") + (args.note ? ` — ${args.note}` : ""),
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -407,7 +447,11 @@ export const undoStage = mutation({
       notes: `${args.targetStage}${args.clearData ? " (clear)" : " (keep)"}`,
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 
@@ -451,7 +495,11 @@ export const resetFlow = mutation({
       notes: "keep",
     });
 
-    return await ctx.db.get(app._id);
+    const doc = await ctx.db.get(app._id);
+    if (!doc) {
+      throw new Error("Document not found");
+    }
+    return doc;
   },
 });
 

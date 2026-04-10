@@ -1,261 +1,218 @@
 import { query } from "./_generated/server";
 
-type Tier = "expired" | "critical" | "warning" | "notice" | "open" | "current_month";
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+// Helper to calculate days until a given date string
+function calcDaysUntil(expiryDateStr: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(`${expiryDateStr}T00:00:00`);
+  return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function isCurrentMonth(dateStr: string): boolean {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    const now = new Date();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+// Helper to determine the tier based on days remaining
+function getTier(days: number): string {
+  if (days <= 0) return "expired";
+  if (days <= 7) return "critical";
+  if (days <= 30) return "warning";
+  if (days <= 60) return "notice";
+  if (days <= 90) return "current_month";
+  return "ok";
 }
 
-function daysUntil(dateStr: string): number {
-  try {
-    const target = new Date(dateStr + 'T00:00:00');
-    const now = new Date();
-    return Math.floor((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  } catch {
-    return Number.POSITIVE_INFINITY;
-  }
-}
-
-function tierFor(days: number, s1: number, s2: number, s3: number): Tier | null {
-  if (Number.isNaN(days)) return null;
-  if (days < 0) return 'expired';
-  if (days <= s1) return 'critical';
-  if (days <= s2) return 'warning';
-  if (days <= s3) return 'notice';
-  return null;
-}
-
+// Main query to get a snapshot of daily operations issues
 export const getDailyOpsSnapshot = query({
   args: {},
   handler: async (ctx) => {
-    const dayKey = todayKey();
+    // Step 1: Get today's date string in "YYYY-MM-DD" format
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-    const availability = await ctx.db
+    // Step 2: Query for today's availability
+    const avail = await ctx.db
       .query("dailyAvailability")
-      .withIndex("by_day", (q) => q.eq("dayKey", dayKey))
+      .withIndex("by_day", q => q.eq("dayKey", today))
       .first();
-    // if (!availability) return null; // Removed early return to allow listing monthly items even if no daily ops
 
-    // Fetch app settings thresholds
-    const appSettings = (await ctx.db.query('appSettings').collect())[0] || {};
-    const stage1AlertDays = Number(appSettings.stage1AlertDays ?? 3);
-    const stage2AlertDays = Number(appSettings.stage2AlertDays ?? 7);
-    const stage3AlertDays = Number(appSettings.stage3AlertDays ?? 14);
+    // If no availability record or status is not "available", return an empty structure
+    if (!avail || avail.status !== "available") {
+      return { date: today, hasAvailability: false, drivers: [], trucks: [], trailers: [] };
+    }
 
-    const driverKeys: string[] = availability && Array.isArray(availability.drivers) ? availability.drivers : [];
-    const truckKeys: string[] = availability && Array.isArray(availability.trucks) ? availability.trucks : [];
-    const trailerKeys: string[] = availability && Array.isArray(availability.trailers) ? availability.trailers : [];
+    // Step 3: Create sets for efficient lookups of available assets
+    const availDriverIds = new Set(avail.drivers);
+    const availTruckNos = new Set(avail.trucks);
+    const availTrailerNos = new Set(avail.trailers);
 
-    // Preload tables (no indexes assumed)
-    const allDrivers = await ctx.db.query('drivers').collect();
-    const allTrucks = await ctx.db.query('trucks').collect();
-    const allTrailers = await ctx.db.query('trailers').collect();
-    const allDamageLogs = await ctx.db.query('damageLogs').collect();
+    // Step 4: Fetch all asset and damage log tables
+    const [allDrivers, allTrucks, allTrailers, allDamageLogs] = await Promise.all([
+      ctx.db.query("drivers").collect(),
+      ctx.db.query("trucks").collect(),
+      ctx.db.query("trailers").collect(),
+      ctx.db.query("damageLogs").collect(),
+    ]);
 
-    // Helper finders to "inspect" identifier formats at runtime
-    const findDriver = (key: string) => {
-      return (
-        allDrivers.find((d: any) => d.driverName === key) ||
-        allDrivers.find((d: any) => d.idNumber === key) ||
-        allDrivers.find((d: any) => d.driverId === key) ||
-        null
-      );
-    };
+    // Filter down to only the assets marked as available for today
+    const drivers = allDrivers.filter(d => availDriverIds.has(d.driverId));
+    const trucks = allTrucks.filter(t => availTruckNos.has(t.truckFleetNo));
+    const trailers = allTrailers.filter(t => availTrailerNos.has(t.trailerFleetNoStr));
+    const openDamageLogs = allDamageLogs.filter(d => d.status === "open");
 
-    const findTruck = (key: string) => {
-      return (
-        allTrucks.find((t: any) => t.fleetNo === key) ||
-        allTrucks.find((t: any) => t.truckFleetNo === key) ||
-        allTrucks.find((t: any) => t.registration === key) ||
-        null
-      );
-    };
-
-    const findTrailer = (key: string) => {
-      return (
-        allTrailers.find((t: any) => t.fleetNoStr === key) ||
-        allTrailers.find((t: any) => t.trailerFleetNoStr === key) ||
-        allTrailers.find((t: any) => t.registration === key) ||
-        null
-      );
-    };
-
-    const driversOut: Array<{
-      driverId: string;
-      driverName: string;
-      idNumber: string;
-      docType: 'License' | 'PDP';
-      expiryDate: string;
-      daysUntilExpiry: number;
-      tier: Tier;
-    }> = [];
-
-    const processedDriverKeys = new Set<string>();
-
-    const addDriver = (d: any, docType: 'License' | 'PDP', date: string, tier: Tier, du: number) => {
-        const id = String(d.driverId ?? d.id ?? d._id ?? '');
-        const key = `${id}-${docType}`;
-        if (processedDriverKeys.has(key)) return;
-        driversOut.push({
-            driverId: id,
-            driverName: String(d.driverName ?? ''),
-            idNumber: String(d.idNumber ?? ''),
-            docType,
-            expiryDate: date,
-            daysUntilExpiry: du,
+    // Step 7: Build driver-related todos
+    const driverTodos: any[] = [];
+    for (const driver of drivers) {
+      if (driver.licenseExpiryDate) {
+        const daysUntilExpiry = calcDaysUntil(driver.licenseExpiryDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          driverTodos.push({
+            driverId: driver.driverId,
+            driverName: driver.driverName,
+            idNumber: driver.idNumber,
+            docType: "License",
+            expiryDate: driver.licenseExpiryDate,
+            daysUntilExpiry,
             tier,
-        });
-        processedDriverKeys.add(key);
-    };
-
-    // 1. Daily Ops Drivers
-    for (const k of driverKeys) {
-      const d: any = findDriver(k);
-      if (!d) continue;
-
-      const checks: Array<{ docType: 'License' | 'PDP'; date?: string }> = [
-        { docType: 'License', date: d.licenseExpiryDate },
-        { docType: 'PDP', date: d.pdpExpiryDate },
-      ];
-      for (const c of checks) {
-        if (!c.date) continue;
-        const du = daysUntil(c.date);
-        const t = tierFor(du, stage1AlertDays, stage2AlertDays, 90);
-        if (t) {
-            addDriver(d, c.docType, c.date, t, du);
+          });
+        }
+      }
+      if (driver.pdpExpiryDate) {
+        const daysUntilExpiry = calcDaysUntil(driver.pdpExpiryDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          driverTodos.push({
+            driverId: driver.driverId,
+            driverName: driver.driverName,
+            idNumber: driver.idNumber,
+            docType: "PDP",
+            expiryDate: driver.pdpExpiryDate,
+            daysUntilExpiry,
+            tier,
+          });
         }
       }
     }
 
-    // Sort drivers by urgency
-    driversOut.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
-
-
-    const trucksOut: Array<{
-      truckFleetNo: string;
-      registration: string;
-      issueType: 'License' | 'Service' | 'Damage';
-      expiryDate?: string;
-      loggedDate?: string;
-      daysUntilExpiry?: number;
-      tier: Tier;
-    }> = [];
-
-    const processedTruckKeys = new Set<string>();
-
-    const addTruck = (t: any, issueType: 'License' | 'Service' | 'Damage', tier: Tier, expiryDate?: string, loggedDate?: string, du?: number) => {
-        const id = String(t.truckFleetNo ?? t.fleetNo ?? '');
-        const key = `${id}-${issueType}-${expiryDate ?? loggedDate}`; // Unique key including date for multiple damages
-        if (processedTruckKeys.has(key)) return;
-        
-        trucksOut.push({
-            truckFleetNo: id,
-            registration: String(t.registration ?? ''),
-            issueType,
-            expiryDate,
-            loggedDate,
-            daysUntilExpiry: du,
+    // Step 8: Build truck-related todos
+    const truckTodos: any[] = [];
+    for (const truck of trucks) {
+      if (truck.licenseExpiryDate) {
+        const daysUntilExpiry = calcDaysUntil(truck.licenseExpiryDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          truckTodos.push({
+            truckFleetNo: truck.truckFleetNo,
+            registration: truck.registration,
+            issueType: "License",
+            expiryDate: truck.licenseExpiryDate,
+            daysUntilExpiry,
             tier,
-        });
-        processedTruckKeys.add(key);
-    };
-
-    // 1. Daily Ops Trucks
-    for (const k of truckKeys) {
-      const t: any = findTruck(k);
-      if (!t) continue;
-
-      // License
-      if (t.licenseExpiryDate) {
-        const du = daysUntil(t.licenseExpiryDate);
-        const tier = tierFor(du, stage1AlertDays, stage2AlertDays, 90);
-        if (tier) addTruck(t, 'License', tier, t.licenseExpiryDate, undefined, du);
+          });
+        }
       }
-      // Service
-      if (t.serviceDueDate) {
-        const du = daysUntil(t.serviceDueDate);
-        const tier = tierFor(du, stage1AlertDays, stage2AlertDays, 90);
-        if (tier) addTruck(t, 'Service', tier, t.serviceDueDate, undefined, du);
+      if (truck.serviceDueDate) {
+        const daysUntilExpiry = calcDaysUntil(truck.serviceDueDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          truckTodos.push({
+            truckFleetNo: truck.truckFleetNo,
+            registration: truck.registration,
+            issueType: "Service",
+            expiryDate: truck.serviceDueDate,
+            daysUntilExpiry,
+            tier,
+          });
+        }
       }
-      // Damage
-      const unitKey = String(t.truckFleetNo ?? t.fleetNo ?? t.registration ?? '');
-      const openDamages = allDamageLogs.filter(
-        (dl: any) => dl.assetType === 'truck' && dl.assetUnit === unitKey && dl.status !== 'closed',
-      );
-      for (const dl of openDamages) {
-         addTruck(t, 'Damage', 'open', undefined, String((dl as any).date ?? dayKey));
+    }
+    // Add open damage logs for available trucks
+    for (const dmg of openDamageLogs) {
+      if (dmg.assetType === "truck" && availTruckNos.has(dmg.assetUnit)) {
+        const truck = trucks.find(t => t.truckFleetNo === dmg.assetUnit);
+        if (truck) {
+          truckTodos.push({
+            truckFleetNo: truck.truckFleetNo,
+            registration: truck.registration,
+            issueType: "Damage",
+            loggedDate: dmg.date,
+            tier: "open"
+          });
+        }
       }
     }
 
-    trucksOut.sort((a, b) => (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0));
-
-
-    const trailersOut: Array<{
-      trailerFleetNoStr: string;
-      issueType: 'License' | 'Service' | 'Damage';
-      expiryDate?: string;
-      loggedDate?: string;
-      daysUntilExpiry?: number;
-      tier: Tier;
-    }> = [];
-
-    const processedTrailerKeys = new Set<string>();
-
-    const addTrailer = (t: any, issueType: 'License' | 'Service' | 'Damage', tier: Tier, expiryDate?: string, loggedDate?: string, du?: number) => {
-        const id = String(t.trailerFleetNoStr ?? t.fleetNoStr ?? '');
-        const key = `${id}-${issueType}-${expiryDate ?? loggedDate}`;
-        if (processedTrailerKeys.has(key)) return;
-
-        trailersOut.push({
-            trailerFleetNoStr: id,
-            issueType,
-            expiryDate,
-            loggedDate,
-            daysUntilExpiry: du,
+    // Step 9: Build trailer-related todos
+    const trailerTodos: any[] = [];
+    for (const trailer of trailers) {
+      if (trailer.licenseExpiryDate) {
+        const daysUntilExpiry = calcDaysUntil(trailer.licenseExpiryDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          trailerTodos.push({
+            trailerFleetNoStr: trailer.trailerFleetNoStr,
+            registration: trailer.trailers[0]?.registration ?? trailer.trailerFleetNoStr,
+            issueType: "License",
+            expiryDate: trailer.licenseExpiryDate,
+            daysUntilExpiry,
             tier,
-        });
-        processedTrailerKeys.add(key);
-    };
-
-    // 1. Daily Ops Trailers
-    for (const k of trailerKeys) {
-      const t: any = findTrailer(k);
-      if (!t) continue;
-
-      if (t.licenseExpiryDate) {
-        const du = daysUntil(t.licenseExpiryDate);
-        const tier = tierFor(du, stage1AlertDays, stage2AlertDays, 90);
-        if (tier) addTrailer(t, 'License', tier, t.licenseExpiryDate, undefined, du);
+          });
+        }
       }
-      if (t.serviceDueDate) {
-        const du = daysUntil(t.serviceDueDate);
-        const tier = tierFor(du, stage1AlertDays, stage2AlertDays, 90);
-        if (tier) addTrailer(t, 'Service', tier, t.serviceDueDate, undefined, du);
+      if (trailer.serviceDueDate) {
+        const daysUntilExpiry = calcDaysUntil(trailer.serviceDueDate);
+        const tier = getTier(daysUntilExpiry);
+        if (tier !== "ok") {
+          trailerTodos.push({
+            trailerFleetNoStr: trailer.trailerFleetNoStr,
+            registration: trailer.trailers[0]?.registration ?? trailer.trailerFleetNoStr,
+            issueType: "Service",
+            expiryDate: trailer.serviceDueDate,
+            daysUntilExpiry,
+            tier,
+          });
+        }
       }
-      const unitKey = String(t.trailerFleetNoStr ?? t.fleetNoStr ?? t.registration ?? '');
-      const openDamages = allDamageLogs.filter(
-        (dl: any) => dl.assetType === 'trailer' && dl.assetUnit === unitKey && dl.status !== 'closed',
-      );
-      for (const dl of openDamages) {
-        addTrailer(t, 'Damage', 'open', undefined, String((dl as any).date ?? dayKey));
+    }
+    // Add open damage logs for available trailers
+    for (const dmg of openDamageLogs) {
+      if (dmg.assetType === "trailer" && availTrailerNos.has(dmg.assetUnit)) {
+        const trailer = trailers.find(t => t.trailerFleetNoStr === dmg.assetUnit);
+        if (trailer) {
+          trailerTodos.push({
+            trailerFleetNoStr: trailer.trailerFleetNoStr,
+            registration: trailer.trailers[0]?.registration ?? trailer.trailerFleetNoStr,
+            issueType: "Damage",
+            loggedDate: dmg.date,
+            tier: "open"
+          });
+        }
       }
     }
 
-    trailersOut.sort((a, b) => (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0));
+    // Step 10: Sort all todo lists by urgency
+    const tierOrder: Record<string, number> = {
+      expired: 0, open: 0, critical: 1, warning: 2, notice: 3, current_month: 4
+    };
+    const sortFn = (a: any, b: any) => {
+      const tierA = tierOrder[a.tier];
+      const tierB = tierOrder[b.tier];
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+      const daysA = a.daysUntilExpiry ?? Number.POSITIVE_INFINITY;
+      const daysB = b.daysUntilExpiry ?? Number.POSITIVE_INFINITY;
+      return daysA - daysB;
+    };
 
+    driverTodos.sort(sortFn);
+    truckTodos.sort(sortFn);
+    trailerTodos.sort(sortFn);
+
+    // Step 11: Return the final structured data
     return {
-      date: dayKey,
-      drivers: driversOut,
-      trucks: trucksOut,
-      trailers: trailersOut,
+      date: today,
+      hasAvailability: true,
+      drivers: driverTodos,
+      trucks: truckTodos,
+      trailers: trailerTodos,
     };
   },
 });

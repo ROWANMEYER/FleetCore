@@ -4,6 +4,8 @@ import "./globals.css";
 import { ConvexClientProvider } from "@/src/components/providers/ConvexClientProvider";
 import Navigation from "@/src/components/Navigation";
 import { BackgroundProvider } from "@/src/components/BackgroundProvider";
+import { ThemeProvider } from "@/src/components/ThemeProvider";
+import { ParticleBackground } from "@/src/components/ParticleBackground";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,12 +28,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 flex flex-col h-screen overflow-hidden`}
       >
-        <ConvexClientProvider>
-          <BackgroundProvider>
+        <ThemeProvider>
+          <ConvexClientProvider>
+            <BackgroundProvider>
             <div
               className="flex flex-col h-screen overflow-hidden"
               style={{
@@ -43,13 +46,15 @@ export default function RootLayout({
                 backgroundColor: "#87ceeb",
               }}
             >
+              <ParticleBackground />
               <Navigation />
-              <main className="flex-1 min-h-0 w-full relative flex flex-col overflow-hidden">
+              <main className="flex-1 min-h-0 w-full relative flex flex-col overflow-auto">
                 {children}
               </main>
             </div>
           </BackgroundProvider>
-        </ConvexClientProvider>
+          </ConvexClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

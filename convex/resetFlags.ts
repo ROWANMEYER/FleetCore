@@ -1,6 +1,7 @@
 import { mutation } from "./_generated/server";
 
 export const setFleetSetupIncomplete = mutation({
+  args: {},
   handler: async (ctx) => {
     // 1. Set fleetSetup.complete = false
     const setup = await ctx.db.query("fleetSetupStatus").first();

@@ -119,7 +119,7 @@ export default function AdminTrucksPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="w-full h-full p-6 space-y-6 overflow-y-auto">
       <div>
         <h1 className="text-xl font-bold">Admin — Trucks</h1>
         <p className="text-xs text-gray-500">Manage truck master data. Changes apply system-wide.</p>

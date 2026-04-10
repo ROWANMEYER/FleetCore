@@ -71,7 +71,7 @@ export const pairTruckAndTrailer = mutation({
     // 1. Fetch truck by truckId
     const truck = await ctx.db.get(args.truckId);
     if (!truck) {
-      throw new Error("Truck not found");
+      throw new Error("Document not found");
     }
     // If truck.currentTrailerId exists: throw Error
     if (truck.currentTrailerId) {
@@ -81,7 +81,7 @@ export const pairTruckAndTrailer = mutation({
     // 2. Fetch trailer by trailerId
     const trailer = await ctx.db.get(args.trailerId);
     if (!trailer) {
-      throw new Error("Trailer not found");
+      throw new Error("Document not found");
     }
 
     // If trailer.currentTruckId exists (Simulated by checking if ANY truck holds this trailer)
@@ -122,7 +122,9 @@ export const unpairByTruck = mutation({
   handler: async (ctx, args) => {
     // 1) Fetch truck
     const truck = await ctx.db.get(args.truckId);
-    if (!truck) throw new Error("Truck not found");
+    if (!truck) {
+      throw new Error("Document not found");
+    }
 
     // 2) Get truck.currentTrailerId -> trailerId
     const trailerId = truck.currentTrailerId;
@@ -199,7 +201,9 @@ export const recordTrailerSwap = mutation({
   },
   handler: async (ctx, args) => {
     const truck = await ctx.db.get(args.truckId);
-    if (!truck) throw new Error("Truck not found");
+    if (!truck) {
+      throw new Error("Document not found");
+    }
     
     const oldTrailerId = truck.currentTrailerId;
     if (args.newTrailerId === oldTrailerId) throw new Error("New trailer is same as current");
@@ -210,12 +214,7 @@ export const recordTrailerSwap = mutation({
       // Validate trailer exists
       const trailer = await ctx.db.get(args.newTrailerId as Id<"trailers">);
       if (!trailer) {
-         // Fallback: check if it's a string ID that might be valid but we need to cast? 
-         // Actually schema says trailers table uses v.id("trailers").
-         // If newTrailerId is passed as string, we try to get it.
-         // If get fails, maybe it's not a valid ID format? 
-         // But let's assume valid ID string.
-         throw new Error("Trailer not found");
+         throw new Error("Document not found");
       }
       newTrailerFleetNoStr = trailer.trailerFleetNoStr;
 
@@ -233,9 +232,10 @@ export const recordTrailerSwap = mutation({
     let oldTrailerFleetNoStr = "";
     if (oldTrailerId) {
       const oldTrailer = await ctx.db.get(oldTrailerId as Id<"trailers">);
-      if (oldTrailer) {
-        oldTrailerFleetNoStr = oldTrailer.trailerFleetNoStr;
+      if (!oldTrailer) {
+        throw new Error("Document not found");
       }
+      oldTrailerFleetNoStr = oldTrailer.trailerFleetNoStr;
     }
 
     await ctx.db.patch(args.truckId, { currentTrailerId: args.newTrailerId || undefined });
@@ -276,8 +276,13 @@ export const swapTwoTrucks = mutation({
   },
   handler: async (ctx, args) => {
     const truckA = await ctx.db.get(args.truckAId);
+    if (!truckA) {
+      throw new Error("Document not found");
+    }
     const truckB = await ctx.db.get(args.truckBId);
-    if (!truckA || !truckB) throw new Error("One or both trucks not found");
+    if (!truckB) {
+      throw new Error("Document not found");
+    }
 
     const oldTrailerAId = truckA.currentTrailerId;
     const oldTrailerBId = truckB.currentTrailerId;
@@ -293,12 +298,18 @@ export const swapTwoTrucks = mutation({
     let trailerAFleetNoStr = "";
     if (oldTrailerAId) {
         const t = await ctx.db.get(oldTrailerAId as Id<"trailers">);
-        if (t) trailerAFleetNoStr = t.trailerFleetNoStr;
+        if (!t) {
+          throw new Error("Document not found");
+        }
+        trailerAFleetNoStr = t.trailerFleetNoStr;
     }
     let trailerBFleetNoStr = "";
     if (oldTrailerBId) {
         const t = await ctx.db.get(oldTrailerBId as Id<"trailers">);
-        if (t) trailerBFleetNoStr = t.trailerFleetNoStr;
+        if (!t) {
+          throw new Error("Document not found");
+        }
+        trailerBFleetNoStr = t.trailerFleetNoStr;
     }
 
     // Perform atomic updates

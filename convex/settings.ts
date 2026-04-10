@@ -40,6 +40,7 @@ export const getAppSettings = query({
 });
 
 export const getAppSettingsInternal = internalQuery({
+  args: {},
   handler: async (ctx) => {
     return await ctx.db.query("appSettings").first();
   },

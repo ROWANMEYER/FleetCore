@@ -53,7 +53,7 @@ export default function AdminLayout({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto relative">
+      <div className="flex-1 overflow-y-auto relative min-h-0">
         {children}
       </div>
     </div>

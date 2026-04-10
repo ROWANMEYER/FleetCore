@@ -58,7 +58,7 @@ export const completeRenewal = mutation({
   handler: async (ctx, args) => {
     const renewal = await ctx.db.get(args.renewalId);
     if (!renewal) {
-      throw new Error("Renewal not found.");
+      throw new Error("Document not found");
     }
 
     const now = Date.now();
@@ -99,7 +99,7 @@ export const stepBack = mutation({
   handler: async (ctx, args) => {
     const renewal = await ctx.db.get(args.renewalId);
     if (!renewal) {
-      throw new Error("Renewal not found.");
+      throw new Error("Document not found");
     }
 
     if (renewal.status === "initiated") {
@@ -155,7 +155,7 @@ export const reset = mutation({
   handler: async (ctx, args) => {
     const renewal = await ctx.db.get(args.renewalId);
     if (!renewal) {
-      throw new Error("Renewal not found.");
+      throw new Error("Document not found");
     }
 
     const patch: any = {

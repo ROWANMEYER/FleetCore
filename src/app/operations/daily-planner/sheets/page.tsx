@@ -137,6 +137,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   // 1. Track mount state (client-only enhancement)
   const [isMounted, setIsMounted] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false);
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -1144,15 +1145,33 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
         {/* Sticky Header Wrapper */}
         <div className="sticky top-0 z-10 bg-white/10 backdrop-blur-xl -mx-4 px-4 pt-4 pb-2 border-b border-white/10 shadow-sm mb-4 rounded-b-xl">
           {/* A. Header */}
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sheets</h1>
-            <p className="text-gray-500 mt-1 text-xs">
-              Read-only operational view
-            </p>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sheets</h1>
+              <p className="text-gray-500 mt-1 text-xs">
+                Read-only operational view
+              </p>
+            </div>
+            <button
+              onClick={() => setIsHeaderCompact(!isHeaderCompact)}
+              className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-white/10 transition-colors"
+              title={isHeaderCompact ? "Expand" : "Collapse"}
+            >
+              {isHeaderCompact ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              )}
+            </button>
           </div>
 
           {/* B. Date selector & Export */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+          {!isHeaderCompact && (
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
             <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm w-fit">
             {/* Mode Selector */}
             <div className="flex gap-4 mb-3 text-sm">
@@ -1272,6 +1291,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
             }} />
             </div>
           </div>
+          )}
 
           {/* Bulk Action Bar */}
           <div className={selectedRouteIds.size > 0 ? "block mb-4" : "hidden"}>
@@ -1290,29 +1310,106 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
 
           {/* KPI Summary Bar (TRAE-ADDED) */}
           {isMounted && !isLoading && (
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Loads Done</div>
-                <div className="text-xl font-bold text-gray-900 mt-1">{kpiStats.loadsDone}</div>
-              </div>
-              <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Revenue</div>
-                <div className="text-xl font-bold text-gray-900 mt-1">{formatZAR(kpiStats.totalRevenue)}</div>
-              </div>
-              <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Distance</div>
-                <div className="text-xl font-bold text-gray-900 mt-1">
-                  {/* [HYDRATION SAFE] Manual formatting */}
-                  {kpiStats.totalDistance.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} km
+            <>
+              {/* Expanded View */}
+              {!isHeaderCompact && (
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Loads Done</div>
+                    <div className="text-xl font-bold text-gray-900 mt-1">{kpiStats.loadsDone}</div>
+                  </div>
+                  <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Revenue</div>
+                    <div className="text-xl font-bold text-gray-900 mt-1">{formatZAR(kpiStats.totalRevenue)}</div>
+                  </div>
+                  <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Distance</div>
+                    <div className="text-xl font-bold text-gray-900 mt-1">
+                      {/* [HYDRATION SAFE] Manual formatting */}
+                      {kpiStats.totalDistance.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} km
+                    </div>
+                  </div>
+                  <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Avg R / KM</div>
+                    <div className="text-xl font-bold text-gray-900 mt-1">
+                       {kpiStats.avgRPerKm > 0 ? formatZAR(kpiStats.avgRPerKm) : "—"}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="bg-white/0 backdrop-blur-lg p-3 rounded-lg border border-white/10 shadow-sm">
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">Avg R / KM</div>
-                <div className="text-xl font-bold text-gray-900 mt-1">
-                   {kpiStats.avgRPerKm > 0 ? formatZAR(kpiStats.avgRPerKm) : "—"}
+              )}
+
+              {/* Compact View */}
+              {isHeaderCompact && (
+                <div className="bg-white/0 backdrop-blur-lg border border-white/10 rounded-lg p-2 mb-4">
+                  {/* Date Range */}
+                  <div className="text-[11px] text-gray-500 mb-2 px-2 flex items-center gap-1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span>
+                      {dateMode === "single" && singleDate}
+                      {dateMode === "range" && `${fromDate} → ${toDate}`}
+                      {dateMode === "month" && selectedMonth}
+                    </span>
+                  </div>
+                  
+                  {/* KPI Mini Cards */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {/* Loads Done */}
+                    <div className="bg-white/5 p-1.5 rounded border border-white/5">
+                      <div className="flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
+                          <path d="M9 11l3 3L22 4"></path>
+                          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span className="text-[10px] text-gray-500">Loads</span>
+                      </div>
+                      <div className="text-xs font-bold text-gray-900 mt-0.5">{kpiStats.loadsDone}</div>
+                    </div>
+
+                    {/* Total Revenue */}
+                    <div className="bg-white/5 p-1.5 rounded border border-white/5">
+                      <div className="flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-500">
+                          <line x1="12" y1="1" x2="12" y2="23"></line>
+                          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                        <span className="text-[10px] text-gray-500">Revenue</span>
+                      </div>
+                      <div className="text-xs font-bold text-gray-900 mt-0.5">{formatZAR(kpiStats.totalRevenue / 1000)}k</div>
+                    </div>
+
+                    {/* Total Distance */}
+                    <div className="bg-white/5 p-1.5 rounded border border-white/5">
+                      <div className="flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500">
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <path d="M12 11v2"></path>
+                          <path d="M4 3h16v16H4z"></path>
+                        </svg>
+                        <span className="text-[10px] text-gray-500">Km</span>
+                      </div>
+                      <div className="text-xs font-bold text-gray-900 mt-0.5">{(kpiStats.totalDistance / 1000).toFixed(1)}k</div>
+                    </div>
+
+                    {/* Avg R/KM */}
+                    <div className="bg-white/5 p-1.5 rounded border border-white/5">
+                      <div className="flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500">
+                          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                          <polyline points="17 6 23 6 23 12"></polyline>
+                        </svg>
+                        <span className="text-[10px] text-gray-500">R/KM</span>
+                      </div>
+                      <div className="text-xs font-bold text-gray-900 mt-0.5">{kpiStats.avgRPerKm > 0 ? kpiStats.avgRPerKm.toFixed(0) : "—"}</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
 
           {/* Clear Filters Bar */}

@@ -180,15 +180,15 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10 dark:bg-slate-950/60 dark:border-slate-800 dark:backdrop-blur-sm">
         <div>
           <Link href="/admin" className="text-blue-600 hover:text-blue-800 text-sm font-medium mb-2 block">
             ← Back to Admin
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Customers</h1>
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
             Manage master customer list.
           </p>
         </div>
@@ -202,10 +202,10 @@ export default function CustomersPage() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="bg-red-50 border-b border-red-200 px-8 py-3 flex items-center justify-between">
-          <span className="text-sm font-medium text-red-700">{selected.size} customer{selected.size > 1 ? "s" : ""} selected</span>
+        <div className="bg-red-50 border-b border-red-200 px-8 py-3 flex items-center justify-between dark:bg-red-950/30 dark:border-red-900/40">
+          <span className="text-sm font-medium text-red-700 dark:text-red-200">{selected.size} customer{selected.size > 1 ? "s" : ""} selected</span>
           <div className="flex gap-3">
-            <button onClick={() => setSelected(new Set())} className="text-sm text-gray-600 hover:text-gray-900">
+            <button onClick={() => setSelected(new Set())} className="text-sm text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white">
               Clear
             </button>
             <button
@@ -221,15 +221,15 @@ export default function CustomersPage() {
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-auto">
         {customers === undefined ? (
-          <div className="text-center text-gray-500 mt-10">Loading customers...</div>
+          <div className="text-center text-gray-500 dark:text-slate-400 mt-10">Loading customers...</div>
         ) : customers.length === 0 ? (
-          <div className="text-center text-gray-500 mt-10 bg-white p-8 rounded-lg shadow-sm">
+          <div className="text-center text-gray-500 dark:text-slate-400 mt-10 bg-white dark:bg-slate-900/60 p-8 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
             No customers found. Click &quot;Add Customer&quot; to create one.
           </div>
         ) : (
-          <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="bg-white dark:bg-slate-900/60 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-slate-800">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
+              <thead className="bg-gray-50 dark:bg-slate-950/40">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -239,19 +239,19 @@ export default function CustomersPage() {
                       className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VAT No.</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">VAT No.</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Address</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Contact</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-slate-800">
                 {customers.map((customer) => (
-                  <tr key={customer._id} className={["hover:bg-gray-50", selected.has(customer._id) ? "bg-blue-50" : ""].join(" ").trim()}>
+                  <tr key={customer._id} className={["hover:bg-gray-50 dark:hover:bg-slate-950/50", selected.has(customer._id) ? "bg-blue-50 dark:bg-slate-950/40" : ""].join(" ").trim()}>
                     <td className="px-4 py-3 w-10">
                       <input
                         type="checkbox"
@@ -259,18 +259,16 @@ export default function CustomersPage() {
                         onChange={() => toggleSelect(customer._id)}
                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                    </td>                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{customer.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 font-mono">{customer.vatNumber || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate" title={customer.address}>{customer.address || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{customer.contactPerson || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 font-mono">{(customer as any).phone || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 max-w-[160px] truncate" title={customer.email}>{customer.email || "—"}</td>
+                    </td>                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{customer.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300 font-mono">{customer.vatNumber || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300 max-w-[160px] truncate" title={customer.address}>{customer.address || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{customer.contactPerson || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300 font-mono">{(customer as any).phone || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-300 max-w-[160px] truncate" title={customer.email}>{customer.email || "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         customer.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}>
-                        {customer.isActive ? "Active" : "Inactive"}
-                      </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                       <button onClick={() => openEditModal(customer)} className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
@@ -297,9 +295,9 @@ export default function CustomersPage() {
 
       {/* Add/Edit Customer Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
               {editingCustomer ? "Edit Customer" : "Add Customer"}
             </h3>
             
@@ -311,7 +309,7 @@ export default function CustomersPage() {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
                   Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -319,77 +317,77 @@ export default function CustomersPage() {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value.toUpperCase() })}
-                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                   placeholder="e.g. ABC Logistics"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
                   Account Number
                 </label>
                 <input
                   type="text"
                   value={formData.accountNumber}
                   onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value.toUpperCase() })}
-                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                   placeholder="e.g. A001"
                 />
               </div>
 
               {/* Invoice Details Section */}
               <div className="pt-2 border-t border-gray-100">
-                <h4 className="text-sm font-semibold text-gray-900 mb-3">Invoice Details</h4>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Invoice Details</h4>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">VAT Number</label>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">VAT Number</label>
                     <input
                       type="text"
                       value={formData.vatNumber}
                       onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value.toUpperCase() })}
-                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                       placeholder="e.g. 4700291823"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Postal Address</label>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Postal Address</label>
                     <textarea
                       rows={2}
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value.toUpperCase() })}
-                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                       placeholder="e.g. 123 Industrial Rd, George, 6530"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Contact Person</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Contact Person</label>
                       <input
                         type="text"
                         value={formData.contactPerson}
                         onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value.toUpperCase() })}
-                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                         placeholder="Name"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Phone</label>
                       <input
                         type="tel"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                         placeholder="e.g. 0729527049"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Email</label>
                     <input
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                       placeholder="accounts@client.com"
                     />
                   </div>
@@ -397,14 +395,14 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
                   Note
                 </label>
                 <textarea
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   rows={3}
-                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
                   placeholder="Optional details..."
                 />
               </div>
@@ -413,7 +411,7 @@ export default function CustomersPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>

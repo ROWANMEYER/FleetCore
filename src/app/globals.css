@@ -17,8 +17,8 @@
 
 /* Dark mode: only activates when .dark class is present — never from OS preference */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #0b1220;
+  --foreground: #e5e7eb;
 }
 
 body {
@@ -88,61 +88,6 @@ body,
 html:not(.dark) {
   /* Page background — soft blue-grey instead of plain white */
   background-color: #f0f4f8 !important;
-}
-
-/* Frosted glass cards → solid white with shadow */
-html:not(.dark) [class*="bg-white/"] {
-  background-color: #ffffff !important;
-  backdrop-filter: none !important;
-}
-html:not(.dark) [class*="bg-white\/0"] {
-  background-color: transparent !important;
-}
-
-/* Transparent borders → visible grey */
-html:not(.dark) [class*="border-white/"] {
-  border-color: #d1d5db !important;
-}
-
-/* Input fields with transparent bg → white with grey border */
-html:not(.dark) input[class*="border-white/"],
-html:not(.dark) select[class*="border-white/"],
-html:not(.dark) textarea[class*="border-white/"] {
-  background-color: #ffffff !important;
-  border-color: #d1d5db !important;
-  color: #111827 !important;
-}
-
-/* Dashed empty-state borders */
-html:not(.dark) [class*="border-dashed"][class*="border-white/"] {
-  border-color: #9ca3af !important;
-}
-
-/* Sticky headers that use bg-white/0 backdrop-blur */
-html:not(.dark) [class*="backdrop-blur"] {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Resizer between panes */
-html:not(.dark) [class*="bg-black/"] {
-  background-color: #e5e7eb !important;
-}
-html:not(.dark) [class*="bg-black/"]:hover {
-  background-color: #d1d5db !important;
-}
-
-/* KPI / summary cards */
-html:not(.dark) [class*="bg-white\/10"],
-html:not(.dark) [class*="bg-white\/15"],
-html:not(.dark) [class*="bg-white\/20"] {
-  background-color: #f9fafb !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
-}
-
-/* Table rows hover */
-html:not(.dark) [class*="hover:bg-white/"] {
-  --tw-bg-opacity: 1;
 }
 
 /* ─── Visible thin scrollbar for sheets table ───────────────────────────── */

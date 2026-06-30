@@ -459,17 +459,17 @@ function DailyPlannerInputContent() {
   return (
     <div className="h-full min-h-0 flex flex-col relative">
       {/* Sticky Header */}
-            <div className="sticky top-0 z-10 bg-white/0 backdrop-blur-lg -mx-8 px-8 pt-8 pb-4 border-b border-white/10 shadow-sm mb-8 -mt-8">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+      <div className="sticky top-0 z-10 bg-white/90 dark:bg-gray-900/70 backdrop-blur-lg -mx-8 px-8 pt-8 pb-4 border-b border-gray-200 dark:border-white/10 shadow-sm mb-8 -mt-8">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
           {mode === "edit" ? "Edit Route" : "New Route"}
         </h1>
-        <p className="text-sm text-gray-900/80 mt-1">Create and manage your fleet routes efficiently</p>
+        <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">Create and manage your fleet routes efficiently</p>
       </div>
 
       <div className="space-y-8 pb-8">
         {/* Main Form - Wizard Header */}
         <div className={`
-          bg-white/0 backdrop-blur-lg border border-white/20 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300
+          bg-white dark:bg-white/5 dark:backdrop-blur-lg border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300
           ${headerComplete ? "h-auto" : "h-auto"}
         `}>
           <WizardRouteHeader
@@ -501,14 +501,14 @@ function DailyPlannerInputContent() {
         {/* Loads Section - RESTORED PARTIAL (List Only) */}
               <div className={`space-y-4 ${headerComplete ? "animate-in fade-in slide-in-from-bottom-4 duration-500" : "hidden"}`}>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-gray-900">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
                     Loads
                   </h3>
-                  <div className="text-sm text-gray-900 bg-white/15 backdrop-blur px-4 py-2 rounded-lg border border-white/25 shadow-sm">
-                    Total: <span className="font-semibold text-gray-900">{loads.length}</span>
+                  <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-white/10 dark:backdrop-blur px-4 py-2 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
+                    Total: <span className="font-semibold text-gray-900 dark:text-gray-100">{loads.length}</span>
                     {loads.length > 0 && (
-                        <span className="ml-3 pl-3 border-l border-white/50">
-                            {totals.quantityDisplay} • <span className="font-semibold text-gray-900">{formatZAR(totals.revenue)}</span>
+                        <span className="ml-3 pl-3 border-l border-gray-300 dark:border-white/20">
+                            {totals.quantityDisplay} • <span className="font-semibold text-gray-900 dark:text-gray-100">{formatZAR(totals.revenue)}</span>
                         </span>
                     )}
                   </div>
@@ -516,25 +516,25 @@ function DailyPlannerInputContent() {
 
                 <div className="space-y-2">
                   {loads.map((load, index) => (
-                    <div key={load.id} className="p-4 border border-white/20 rounded-lg bg-white/0 backdrop-blur-md hover:bg-white/10 transition-all duration-200 relative group shadow-sm">
+                    <div key={load.id} className="p-4 border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-white/5 dark:backdrop-blur-md hover:bg-gray-50 dark:hover:bg-white/10 transition-all duration-200 relative group shadow-sm">
                         <div className="flex justify-between items-start">
                             <div className="space-y-1 flex-1">
-                                <div className="font-medium text-gray-900 flex items-center gap-2">
-                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-white/20 text-gray-700 text-xs font-bold">{load.sequence}</span>
+                                <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-100 dark:bg-white/20 text-gray-700 dark:text-gray-200 text-xs font-bold">{load.sequence}</span>
                                     {load.clientName}
                                 </div>
-                                <div className="text-sm text-gray-700">
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
                                     {load.fromLocations.join(", ")} → {load.toLocations.join(", ")}
                                 </div>
                             </div>
                             <div className="text-right space-y-1 pl-4">
-                                <div className="font-medium text-gray-900">
-                                    {load.quantity} <span className="text-gray-600 text-sm">{unitMap[load.quantityType] || load.quantityType}</span>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                    {load.quantity} <span className="text-gray-600 dark:text-gray-400 text-sm">{unitMap[load.quantityType] || load.quantityType}</span>
                                 </div>
-                                <div className="text-sm text-gray-700">
-                                    {formatZAR(parseFloat(load.rate) || 0)} <span className="text-xs text-gray-500">/{load.rateType === "flat" ? "flat" : "unit"}</span>
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                    {formatZAR(parseFloat(load.rate) || 0)} <span className="text-xs text-gray-500 dark:text-gray-400">/{load.rateType === "flat" ? "flat" : "unit"}</span>
                                 </div>
-                                <div className="font-medium text-gray-900 text-sm pt-2 border-t border-white/30 mt-2">
+                                <div className="font-medium text-gray-900 dark:text-gray-100 text-sm pt-2 border-t border-gray-200 dark:border-white/10 mt-2">
                                     {formatZAR(calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.rate) || 0, load.rateType))}
                                 </div>
                             </div>
@@ -558,7 +558,7 @@ function DailyPlannerInputContent() {
                   ))}
                   
                   {loads.length === 0 && (
-                    <div className="text-center py-12 border-2 border-dashed border-white/30 rounded-lg text-gray-500 bg-white/0 backdrop-blur-sm transition-all duration-300">
+                    <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-white/20 rounded-lg text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/5 dark:backdrop-blur-sm transition-all duration-300">
                         <span className="text-4xl block mb-2">📋</span>
                         <p className="font-medium">No loads added yet.</p>
                         <p className="text-sm">Start adding loads to build your route</p>
@@ -567,14 +567,14 @@ function DailyPlannerInputContent() {
                 </div>
 
                 {/* Add Load Form */}
-                <div className={`border border-white/30 rounded-xl p-6 bg-white/10 backdrop-blur-xl shadow-lg transition-all duration-300 ${!isEditable ? "opacity-50 pointer-events-none" : ""}`}>
-                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className={`border border-gray-200 dark:border-white/10 rounded-xl p-6 bg-white dark:bg-white/10 dark:backdrop-blur-xl shadow-lg transition-all duration-300 ${!isEditable ? "opacity-50 pointer-events-none" : ""}`}>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                     <span className="text-lg">➕</span> Add a New Load
                   </h4>
                   <div className="space-y-4">
                     {/* Row 1: Client */}
                     <div className="mb-4">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                         <span className="inline-flex items-center gap-2">
                           <svg className="w-4 h-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M10 10a3 3 0 100-6 3 3 0 000 6z" />
@@ -587,7 +587,7 @@ function DailyPlannerInputContent() {
                         type="text"
                         value={draftLoad.clientName}
                         onChange={(e) => setDraftLoad({ ...draftLoad, clientName: e.target.value.toUpperCase() })}
-                        className="w-full h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors"
+                        className="w-full h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors text-gray-900 dark:text-gray-100"
                         placeholder="Client Name"
                       />
                     </div>
@@ -596,7 +596,7 @@ function DailyPlannerInputContent() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       {/* From Locations */}
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-gray-700">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                           <span className="inline-flex items-center gap-2">
                             <svg className="w-4 h-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M10 2a6 6 0 00-6 6c0 4.418 6 10 6 10s6-5.582 6-10a6 6 0 00-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z" clipRule="evenodd" />
@@ -610,13 +610,13 @@ function DailyPlannerInputContent() {
                               type="text"
                               value={loc}
                               onChange={(e) => updateDraftLocation("from", i, e.target.value.toUpperCase())}
-                              className="flex-1 h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors"
+                              className="flex-1 h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors text-gray-900 dark:text-gray-100"
                               placeholder="Pickup Location"
                             />
                             {draftLoad.fromLocations.length > 1 && (
                               <button
                                 onClick={() => removeLocationField("from", i)}
-                                className="px-3 text-gray-400 hover:text-red-600 hover:bg-red-50/80 rounded-lg transition-colors"
+                                className="px-3 text-gray-400 hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                               >
                                 ✕
                               </button>
@@ -625,7 +625,7 @@ function DailyPlannerInputContent() {
                         ))}
                         <button
                           onClick={() => addLocationField("from")}
-                          className="text-xs text-gray-600 hover:text-gray-900 font-medium hover:bg-gray-100 px-3 py-1.5 rounded transition-colors"
+                          className="text-xs text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white font-medium hover:bg-gray-100 dark:hover:bg-white/5 px-3 py-1.5 rounded transition-colors"
                         >
                           + Add Pickup
                         </button>
@@ -633,7 +633,7 @@ function DailyPlannerInputContent() {
 
                       {/* To Locations */}
                       <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-gray-700">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                           <span className="inline-flex items-center gap-2">
                             <svg className="w-4 h-4 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M10 2a6 6 0 00-6 6c0 4.418 6 10 6 10s6-5.582 6-10a6 6 0 00-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z" clipRule="evenodd" />
@@ -647,13 +647,13 @@ function DailyPlannerInputContent() {
                               type="text"
                               value={loc}
                               onChange={(e) => updateDraftLocation("to", i, e.target.value.toUpperCase())}
-                              className="flex-1 h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors"
+                              className="flex-1 h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors text-gray-900 dark:text-gray-100"
                               placeholder="Drop Location"
                             />
                             {draftLoad.toLocations.length > 1 && (
                               <button
                                 onClick={() => removeLocationField("to", i)}
-                                className="px-3 text-gray-400 hover:text-red-600 hover:bg-red-50/80 rounded-lg transition-colors"
+                                className="px-3 text-gray-400 hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                               >
                                 ✕
                               </button>
@@ -662,7 +662,7 @@ function DailyPlannerInputContent() {
                         ))}
                         <button
                           onClick={() => addLocationField("to")}
-                          className="text-xs text-gray-600 hover:text-gray-900 font-medium hover:bg-gray-100 px-3 py-1.5 rounded transition-colors"
+                          className="text-xs text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white font-medium hover:bg-gray-100 dark:hover:bg-white/5 px-3 py-1.5 rounded transition-colors"
                         >
                           + Add Drop
                         </button>
@@ -673,7 +673,7 @@ function DailyPlannerInputContent() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       {/* Quantity */}
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           <span className="inline-flex items-center gap-2">
                             <svg className="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M4 3a2 2 0 00-2 2v2a2 2 0 002 2h3V5a2 2 0 00-2-2H4z" />
@@ -687,13 +687,13 @@ function DailyPlannerInputContent() {
                             type="number"
                             value={draftLoad.quantity}
                             onChange={(e) => setDraftLoad({ ...draftLoad, quantity: e.target.value })}
-                            className="flex-1 h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors"
+                            className="flex-1 h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors text-gray-900 dark:text-gray-100"
                             placeholder="0.00"
                           />
                           <select
                             value={draftLoad.quantityType}
                             onChange={(e) => setDraftLoad({ ...draftLoad, quantityType: e.target.value })}
-                            className="h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors appearance-none cursor-pointer"
+                            className="h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors appearance-none cursor-pointer text-gray-900 dark:text-gray-100"
                           >
                             {unitOptions.map(opt => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -704,7 +704,7 @@ function DailyPlannerInputContent() {
 
                       {/* Rate */}
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           <span className="inline-flex items-center gap-2">
                             <svg className="w-4 h-4 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
                               <path d="M10 2a6 6 0 00-6 6h2a4 4 0 118 0h2a6 6 0 00-6-6z" />
@@ -718,13 +718,13 @@ function DailyPlannerInputContent() {
                             type="number"
                             value={draftLoad.rate}
                             onChange={(e) => setDraftLoad({ ...draftLoad, rate: e.target.value })}
-                            className="flex-1 h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors"
+                            className="flex-1 h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors text-gray-900 dark:text-gray-100"
                             placeholder="0.00"
                           />
                           <select
                             value={draftLoad.rateType}
                             onChange={(e) => setDraftLoad({ ...draftLoad, rateType: e.target.value })}
-                            className="h-10 px-3 rounded border border-white/20 bg-white/0 backdrop-blur-sm shadow-sm focus:border-white/40 focus:ring-1 focus:ring-white/20 focus:outline-none text-sm transition-colors appearance-none cursor-pointer"
+                            className="h-10 px-3 rounded border border-gray-300 dark:border-white/20 bg-white dark:bg-gray-900/60 dark:backdrop-blur-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 focus:outline-none text-sm transition-colors appearance-none cursor-pointer text-gray-900 dark:text-gray-100"
                           >
                             {rateTypeOptions.map(opt => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -749,15 +749,15 @@ function DailyPlannerInputContent() {
 
         {/* Save Actions */}
         {isEditable && (
-          <div className="flex flex-col gap-4 pt-6 border-t border-white/30">
+          <div className="flex flex-col gap-4 pt-6 border-t border-gray-200 dark:border-white/10">
             {saveStatus === "error" && (
-              <div className="bg-red-500/20 text-red-900 p-4 rounded text-sm border border-red-500/40 flex items-center gap-3 shadow-sm backdrop-blur-sm">
+              <div className="bg-red-50 dark:bg-red-500/20 text-red-900 dark:text-red-200 p-4 rounded text-sm border border-red-200 dark:border-red-500/40 flex items-center gap-3 shadow-sm">
                 <span className="font-semibold">Error:</span>
                 <span>{saveError}</span>
               </div>
             )}
             {saveStatus === "success" && (
-              <div className="bg-green-500/20 text-green-900 p-4 rounded text-sm border border-green-500/40 flex items-center gap-3 shadow-sm backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
+              <div className="bg-green-50 dark:bg-green-500/20 text-green-900 dark:text-green-200 p-4 rounded text-sm border border-green-200 dark:border-green-500/40 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
                 <span className="font-semibold">✓</span>
                 <span>Route saved successfully!</span>
               </div>
@@ -768,7 +768,7 @@ function DailyPlannerInputContent() {
                 onClick={handleSave}
                 disabled={saveStatus === "saving"}
                 className={`
-                  bg-gray-800/80 backdrop-blur-sm hover:bg-gray-900 text-white px-8 py-2.5 rounded text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200
+                  bg-gray-900 hover:bg-black text-white px-8 py-2.5 rounded text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 dark:bg-gray-800/80 dark:backdrop-blur-sm dark:hover:bg-gray-700/80
                   ${saveStatus === "saving" ? "opacity-50 cursor-not-allowed" : ""}
                 `}
               >

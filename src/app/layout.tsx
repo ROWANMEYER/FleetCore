@@ -3,9 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "@/src/components/providers/ConvexClientProvider";
 import Navigation from "@/src/components/Navigation";
-import { BackgroundProvider } from "@/src/components/BackgroundProvider";
 import { ThemeProvider } from "@/src/components/ThemeProvider";
-import { ParticleBackground } from "@/src/components/ParticleBackground";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,29 +28,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 flex flex-col h-screen overflow-hidden`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col h-screen overflow-hidden`}
       >
         <ThemeProvider>
           <ConvexClientProvider>
-            <BackgroundProvider>
-            <div
-              className="flex flex-col h-screen overflow-hidden"
-              style={{
-                backgroundImage:
-                  "var(--fleetcore-wallpaper), url('https://wallpaperaccess.com/full/4292206.jpg')",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                backgroundAttachment: "fixed",
-                backgroundColor: "#87ceeb",
-              }}
-            >
-              <ParticleBackground />
+            <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
               <Navigation />
-              <main className="flex-1 min-h-0 w-full relative flex flex-col overflow-auto">
+              <main className="flex-1 min-h-0 w-full relative flex flex-col overflow-auto bg-gray-50 dark:bg-slate-950">
                 {children}
               </main>
             </div>
-          </BackgroundProvider>
           </ConvexClientProvider>
         </ThemeProvider>
       </body>

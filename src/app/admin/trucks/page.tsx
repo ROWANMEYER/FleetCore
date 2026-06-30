@@ -119,24 +119,24 @@ export default function AdminTrucksPage() {
   };
 
   return (
-    <div className="w-full h-full p-6 space-y-6 overflow-y-auto">
+    <div className="w-full h-full p-6 space-y-6 overflow-y-auto text-gray-900 dark:text-slate-100">
       <div>
         <h1 className="text-xl font-bold">Admin — Trucks</h1>
-        <p className="text-xs text-gray-500">Manage truck master data. Changes apply system-wide.</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400">Manage truck master data. Changes apply system-wide.</p>
       </div>
 
       <div className="flex gap-4">
-        <div className="bg-slate-50 rounded-lg px-4 py-2 min-w-[120px]">
+        <div className="bg-slate-50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
           <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-0.5">Total Trucks</div>
-          <div className="text-2xl font-bold text-slate-600">{stats.total}</div>
+          <div className="text-2xl font-bold text-slate-600 dark:text-slate-100">{stats.total}</div>
         </div>
-        <div className="bg-green-50 rounded-lg px-4 py-2 min-w-[120px]">
+        <div className="bg-green-50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
           <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600/80 mb-0.5">Active</div>
           <div className="text-2xl font-bold text-green-700">{stats.active}</div>
         </div>
-        <div className="bg-gray-100/50 rounded-lg px-4 py-2 min-w-[120px]">
+        <div className="bg-gray-100/50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
           <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Inactive</div>
-          <div className="text-2xl font-bold text-gray-500">{stats.inactive}</div>
+          <div className="text-2xl font-bold text-gray-500 dark:text-slate-200">{stats.inactive}</div>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export default function AdminTrucksPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search fleet no, registration, make, model"
-          className="border rounded px-2 py-1 text-sm w-80"
+          className="border border-gray-300 dark:border-slate-700 rounded px-2 py-1 text-sm w-80 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
         />
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -157,11 +157,11 @@ export default function AdminTrucksPage() {
         </label>
       </div>
 
-      {errorMsg && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">{errorMsg}</div>}
-      {successMsg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">{successMsg}</div>}
+      {errorMsg && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 dark:bg-red-950/30 dark:border-red-900/40 dark:text-red-200">{errorMsg}</div>}
+      {successMsg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 dark:bg-emerald-950/30 dark:border-emerald-900/40 dark:text-emerald-200">{successMsg}</div>}
 
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 px-3 py-2 border-b text-[10px] font-semibold text-gray-500 uppercase tracking-wider items-center">
+      <div className="bg-white dark:bg-slate-900/60 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 dark:bg-slate-950/40 px-3 py-2 border-b border-gray-200 dark:border-slate-800 text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center">
           <div className="col-span-2 flex items-center gap-1">
             <button onClick={() => handleSort("truckFleetNo")} className="hover:text-black">Fleet No</button>
             <span className="text-blue-600">{sortBy === "truckFleetNo" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
@@ -182,35 +182,35 @@ export default function AdminTrucksPage() {
           <div className="col-span-1 text-right">Actions</div>
         </div>
 
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200 dark:divide-slate-800">
           {/* New row */}
           <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
             <input
-              className="col-span-2 border rounded px-2 py-1"
+              className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
               placeholder="Fleet No"
               value={newTruck.truckFleetNo}
               onChange={(e) => setNewTruck({ ...newTruck, truckFleetNo: e.target.value })}
             />
             <input
-              className="col-span-1 border rounded px-2 py-1"
+              className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
               placeholder="Registration"
               value={newTruck.registration}
               onChange={(e) => setNewTruck({ ...newTruck, registration: e.target.value })}
             />
             <input
-              className="col-span-1 border rounded px-2 py-1"
+              className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
               placeholder="Make"
               value={newTruck.make}
               onChange={(e) => setNewTruck({ ...newTruck, make: e.target.value })}
             />
             <input
-              className="col-span-1 border rounded px-2 py-1"
+              className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
               placeholder="Model"
               value={newTruck.model}
               onChange={(e) => setNewTruck({ ...newTruck, model: e.target.value })}
             />
             <div className="col-span-2 text-right">
-              <button onClick={handleCreate} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Add</button>
+              <button onClick={handleCreate} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Add</button>
             </div>
           </div>
 
@@ -232,7 +232,7 @@ export default function AdminTrucksPage() {
                   </>
                 ) : (
                   <>
-                    <div className="col-span-2 font-medium text-gray-900">{t.truckFleetNo}</div>
+                    <div className="col-span-2 font-medium text-gray-900 dark:text-gray-100">{t.truckFleetNo}</div>
                     <div className="col-span-1">{t.registration}</div>
                     <div className="col-span-1">{t.make}</div>
                     <div className="col-span-1">{t.model}</div>
@@ -248,10 +248,10 @@ export default function AdminTrucksPage() {
                       </span>
                     </div>
                     <div className="col-span-1 text-right space-x-3">
-                      <button onClick={() => startEdit(t)} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Edit</button>
+                      <button onClick={() => startEdit(t)} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Edit</button>
                       <button
                         onClick={() => toggleStatus(t)}
-                        className="text-xs font-medium text-gray-600 hover:text-black hover:underline"
+                        className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline"
                       >
                         {t.status === "inactive" ? "Activate" : "Deactivate"}
                       </button>

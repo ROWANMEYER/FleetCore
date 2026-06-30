@@ -35,21 +35,11 @@ export default function DailyPlannerLayout({ children }: { children: React.React
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [isLight, setIsLight] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("split");
 
   const editRouteId = searchParams.get("editRouteId");
   const [leftWidth, setLeftWidth] = useState(65);
   const isDraggingRef = useRef(false);
-
-  // Theme observer
-  useEffect(() => {
-    const check = () => setIsLight(!document.documentElement.classList.contains("dark"));
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
 
   // Resizer drag listeners
   useEffect(() => {
@@ -81,14 +71,13 @@ export default function DailyPlannerLayout({ children }: { children: React.React
     router.push(`?${params.toString()}`);
   };
 
-  // Theme-aware class helpers
-  const paneBg   = isLight ? "bg-white border-gray-200 shadow-md"       : "bg-white/10 backdrop-blur-xl border-white/10";
-  const paneWrap = isLight ? "bg-white border-gray-200 shadow-md"       : "bg-white/10 backdrop-blur-xl border-white/10";
-  const resizerBg = isLight ? "bg-gray-300 hover:bg-gray-400"           : "bg-black/20 hover:bg-black/30";
-  const textBase  = isLight ? "text-gray-900"                           : "text-gray-900";
-  const toggleBg  = isLight ? "bg-gray-100 border border-gray-200"      : "bg-white/10 border border-white/10";
-  const toggleActive = isLight ? "bg-white shadow text-gray-900"        : "bg-white/20 shadow text-white";
-  const toggleInactive = isLight ? "text-gray-500 hover:text-gray-700"  : "text-gray-400 hover:text-white";
+  const paneBg = "bg-white border-gray-200 shadow-md dark:bg-slate-900/60 dark:border-slate-800";
+  const paneWrap = "bg-white border-gray-200 shadow-sm dark:bg-slate-900/60 dark:border-slate-800";
+  const resizerBg = "bg-gray-300 hover:bg-gray-400 dark:bg-slate-800 dark:hover:bg-slate-700";
+  const textBase = "text-gray-900 dark:text-gray-100";
+  const toggleBg = "bg-gray-100 border border-gray-200 dark:bg-slate-900/60 dark:border-slate-800";
+  const toggleActive = "bg-white shadow text-gray-900 dark:bg-slate-800 dark:text-white";
+  const toggleInactive = "text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white";
 
   if (pathname.includes("/edit/")) return <>{children}</>;
 
@@ -98,10 +87,10 @@ export default function DailyPlannerLayout({ children }: { children: React.React
       {/* Edit slide-over */}
       {editRouteId && (
         <div className="absolute inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`w-[600px] h-full shadow-2xl border-l flex flex-col animate-in slide-in-from-right duration-300 ${isLight ? "bg-white border-gray-200" : "bg-white/90 border-white/40 backdrop-blur-lg"}`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${isLight ? "border-gray-200 bg-gray-50" : "border-white/30 bg-white/20 backdrop-blur-sm"}`}>
+          <div className="w-[600px] h-full shadow-2xl border-l flex flex-col animate-in slide-in-from-right duration-300 bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50 dark:border-slate-800 dark:bg-slate-900">
               <h2 className={`text-lg font-semibold ${textBase}`}>Edit Route</h2>
-              <button onClick={closeEditPanel} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">✕</button>
+              <button onClick={closeEditPanel} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hidden p-6">
               <EditRouteForm routeId={editRouteId as Id<"dailyRoutes">} onSuccess={closeEditPanel} onCancel={closeEditPanel} />
@@ -112,7 +101,7 @@ export default function DailyPlannerLayout({ children }: { children: React.React
 
       {/* Mobile header */}
       <div className="lg:hidden flex-shrink-0">
-        <div className={`border-b px-8 pt-6 ${isLight ? "bg-white border-gray-200" : "bg-white/0 backdrop-blur-lg border-white/10"}`}>
+        <div className="border-b px-8 pt-6 bg-white border-gray-200 dark:bg-slate-950 dark:border-slate-800">
           <h2 className={`text-lg font-semibold mb-4 ${textBase}`}>Daily Planner</h2>
           <div className="flex gap-6">
             {[
@@ -120,7 +109,12 @@ export default function DailyPlannerLayout({ children }: { children: React.React
               { href: "/operations/daily-planner/sheets", label: "Sheets" },
             ].map(({ href, label }) => (
               <Link key={href} href={href}
-                className={`pb-2 text-sm font-medium border-b-2 transition-all ${pathname.startsWith(href) ? "border-black text-black" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+                className={`pb-2 text-sm font-medium border-b-2 transition-all ${
+                  pathname.startsWith(href)
+                    ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
+                    : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                }`}
+              >
                 {label}
               </Link>
             ))}
@@ -129,7 +123,7 @@ export default function DailyPlannerLayout({ children }: { children: React.React
       </div>
 
       {/* Mobile content */}
-      <div className={`lg:hidden p-8 flex-1 overflow-y-auto scrollbar-hidden ${isLight ? "bg-white" : "bg-white/0 backdrop-blur-sm"}`}>
+      <div className="lg:hidden p-8 flex-1 overflow-y-auto scrollbar-hidden bg-gray-50 dark:bg-slate-950">
         {children}
       </div>
 
@@ -137,8 +131,8 @@ export default function DailyPlannerLayout({ children }: { children: React.React
       <div className="hidden lg:flex flex-col flex-1 overflow-hidden min-h-0">
 
         {/* View mode toggle bar */}
-        <div className={`flex-shrink-0 flex items-center justify-end px-4 py-1.5 border-b gap-2 ${isLight ? "border-gray-200 bg-white/60" : "border-white/10 bg-black/10"}`}>
-          <span className={`text-xs mr-1 ${isLight ? "text-gray-400" : "text-gray-500"}`}>View</span>
+        <div className="flex-shrink-0 flex items-center justify-end px-4 py-1.5 border-b gap-2 border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 dark:backdrop-blur-sm">
+          <span className="text-xs mr-1 text-gray-400 dark:text-slate-400">View</span>
           <div className={`flex items-center rounded-lg p-0.5 gap-0.5 ${toggleBg}`}>
             {(["input", "split", "sheets"] as ViewMode[]).map((mode) => (
               <button
@@ -162,7 +156,7 @@ export default function DailyPlannerLayout({ children }: { children: React.React
           {/* Left pane — Input */}
           {(viewMode === "split" || viewMode === "input") && (
             <div
-              className={`h-full overflow-y-auto overscroll-y-contain scrollbar-hidden min-h-0 min-w-0 ${viewMode === "split" ? "border-r" : ""} ${isLight ? "bg-gray-50 border-gray-200" : "bg-white/0 backdrop-blur-lg border-white/10"}`}
+              className={`h-full overflow-y-auto overscroll-y-contain scrollbar-hidden min-h-0 min-w-0 ${viewMode === "split" ? "border-r" : ""} bg-gray-50 border-gray-200 dark:bg-slate-950 dark:border-slate-800`}
               style={{ width: viewMode === "input" ? "100%" : viewMode === "split" ? `${leftWidth}%` : undefined }}
             >
               <div className={`min-h-full p-8 max-w-none w-full border rounded-xl shadow-sm ${paneWrap}`}>
@@ -181,7 +175,7 @@ export default function DailyPlannerLayout({ children }: { children: React.React
 
           {/* Right pane — Sheets */}
           {(viewMode === "split" || viewMode === "sheets") && (
-            <div className={`h-full overflow-hidden min-h-0 min-w-0 flex-1 ${viewMode === "split" ? "border-l" : ""} ${isLight ? "bg-gray-50 border-gray-200" : "bg-white/0 backdrop-blur-lg border-white/10"}`}>
+            <div className={`h-full overflow-hidden min-h-0 min-w-0 flex-1 ${viewMode === "split" ? "border-l" : ""} bg-gray-50 border-gray-200 dark:bg-slate-950 dark:border-slate-800`}>
               <div className={`h-full overflow-hidden p-4 w-full border rounded-xl shadow-sm ${paneBg}`}>
                 <SheetsPage />
               </div>

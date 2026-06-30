@@ -1131,9 +1131,14 @@ export default function DashboardPage() {
     const [endDate, setEndDate] = useState(monthEnd());
     const [drill, setDrill] = useState<DrillDown | null>(null);
     const [showAnalytics, setShowAnalytics] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
-    const { theme } = useTheme();
-    const isDayMode = theme === "light";
+    const { resolvedTheme } = useTheme();
+    const isDayMode = mounted ? resolvedTheme !== "dark" : true;
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
     
     // Theme colors
     const themeClasses = {

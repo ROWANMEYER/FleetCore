@@ -128,10 +128,10 @@ export default function AdminDriversPage() {
   };
 
   return (
-    <div className="w-full h-full p-6 space-y-6 overflow-y-auto">
+    <div className="w-full h-full p-6 space-y-6 overflow-y-auto text-gray-900 dark:text-slate-100">
       <div>
         <h1 className="text-xl font-bold">Admin — Drivers</h1>
-        <p className="text-xs text-gray-500">Manage driver master data. Inactive drivers are hidden from dropdowns.</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400">Manage driver master data. Inactive drivers are hidden from dropdowns.</p>
       </div>
 
       <div className="flex gap-4">
@@ -140,20 +140,20 @@ export default function AdminDriversPage() {
           onClick={() => setKpiFilter("total")}
           className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
             kpiFilter === "total"
-              ? "bg-slate-100 border-slate-400"
-              : "bg-slate-50 border-transparent"
+              ? "bg-slate-100 border-slate-400 dark:bg-slate-900/60 dark:border-slate-700"
+              : "bg-slate-50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
           }`}
         >
            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-0.5">Total Drivers</div>
-           <div className="text-2xl font-bold text-slate-600">{stats.total}</div>
+           <div className="text-2xl font-bold text-slate-600 dark:text-slate-100">{stats.total}</div>
         </button>
         <button
           type="button"
           onClick={() => setKpiFilter("active")}
           className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
             kpiFilter === "active"
-              ? "bg-green-100 border-green-500"
-              : "bg-green-50 border-transparent"
+              ? "bg-green-100 border-green-500 dark:bg-slate-900/60 dark:border-slate-700"
+              : "bg-green-50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
           }`}
         >
            <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600/80 mb-0.5">Active</div>
@@ -164,12 +164,12 @@ export default function AdminDriversPage() {
           onClick={() => setKpiFilter("inactive")}
           className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
             kpiFilter === "inactive"
-              ? "bg-gray-200 border-gray-500"
-              : "bg-gray-100/50 border-transparent"
+              ? "bg-gray-200 border-gray-500 dark:bg-slate-900/60 dark:border-slate-700"
+              : "bg-gray-100/50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
           }`}
         >
            <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Inactive</div>
-           <div className="text-2xl font-bold text-gray-500">{stats.inactive}</div>
+           <div className="text-2xl font-bold text-gray-500 dark:text-slate-200">{stats.inactive}</div>
         </button>
       </div>
 
@@ -178,7 +178,7 @@ export default function AdminDriversPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, id, phone, status"
-          className="border rounded px-2 py-1 text-sm w-80"
+          className="border border-gray-300 dark:border-slate-700 rounded px-2 py-1 text-sm w-80 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
         />
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -190,11 +190,11 @@ export default function AdminDriversPage() {
         </label>
       </div>
 
-      {errorMsg && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">{errorMsg}</div>}
-      {successMsg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">{successMsg}</div>}
+      {errorMsg && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 dark:bg-red-950/30 dark:border-red-900/40 dark:text-red-200">{errorMsg}</div>}
+      {successMsg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 dark:bg-emerald-950/30 dark:border-emerald-900/40 dark:text-emerald-200">{successMsg}</div>}
 
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 px-3 py-2 border-b text-[10px] font-semibold text-gray-500 uppercase tracking-wider items-center">
+      <div className="bg-white dark:bg-slate-900/60 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 dark:bg-slate-950/40 px-3 py-2 border-b border-gray-200 dark:border-slate-800 text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center">
           <div className="col-span-2 flex items-center gap-1">
             <button onClick={() => handleSort("driverName")} className="hover:text-black">Name</button>
             <span className="text-blue-600">{sortBy === "driverName" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
@@ -212,19 +212,19 @@ export default function AdminDriversPage() {
           <div className="col-span-1 text-right">Actions</div>
         </div>
 
-        <div className="divide-y divide-gray-200">
+        <div className="divide-y divide-gray-200 dark:divide-slate-800">
           {/* New row */}
           <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
-            <input className="col-span-2 border rounded px-2 py-1" placeholder="Name" value={newDriver.driverName} onChange={(e) => setNewDriver({ ...newDriver, driverName: e.target.value })} />
-            <input className="col-span-1 border rounded px-2 py-1" placeholder="Driver ID" value={newDriver.driverId} onChange={(e) => setNewDriver({ ...newDriver, driverId: e.target.value })} />
-            <input className="col-span-1 border rounded px-2 py-1" placeholder="ID Number" value={newDriver.idNumber} onChange={(e) => setNewDriver({ ...newDriver, idNumber: e.target.value })} />
-            <input className="col-span-1 border rounded px-2 py-1" placeholder="Phone" value={newDriver.phone} onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })} />
-            <select className="col-span-1 border rounded px-2 py-1" value={newDriver.status} onChange={(e) => setNewDriver({ ...newDriver, status: e.target.value })}>
+            <input className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Name" value={newDriver.driverName} onChange={(e) => setNewDriver({ ...newDriver, driverName: e.target.value })} />
+            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Driver ID" value={newDriver.driverId} onChange={(e) => setNewDriver({ ...newDriver, driverId: e.target.value })} />
+            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="ID Number" value={newDriver.idNumber} onChange={(e) => setNewDriver({ ...newDriver, idNumber: e.target.value })} />
+            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Phone" value={newDriver.phone} onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })} />
+            <select className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={newDriver.status} onChange={(e) => setNewDriver({ ...newDriver, status: e.target.value })}>
               <option value="active">active</option>
               <option value="inactive">inactive</option>
             </select>
             <div className="col-span-1 text-right">
-              <button onClick={handleCreate} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Add</button>
+              <button onClick={handleCreate} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Add</button>
             </div>
           </div>
 
@@ -234,22 +234,22 @@ export default function AdminDriversPage() {
               <div key={d._id} className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
                 {isEditing ? (
                   <>
-                    <input className="col-span-2 border rounded px-2 py-1" value={editingState.driverName} onChange={(e) => setEditingState({ ...editingState, driverName: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.driverId} onChange={(e) => setEditingState({ ...editingState, driverId: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.idNumber} onChange={(e) => setEditingState({ ...editingState, idNumber: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.phone} onChange={(e) => setEditingState({ ...editingState, phone: e.target.value })} />
-                    <select className="col-span-1 border rounded px-2 py-1" value={editingState.status} onChange={(e) => setEditingState({ ...editingState, status: e.target.value })}>
+                    <input className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.driverName} onChange={(e) => setEditingState({ ...editingState, driverName: e.target.value })} />
+                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.driverId} onChange={(e) => setEditingState({ ...editingState, driverId: e.target.value })} />
+                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.idNumber} onChange={(e) => setEditingState({ ...editingState, idNumber: e.target.value })} />
+                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.phone} onChange={(e) => setEditingState({ ...editingState, phone: e.target.value })} />
+                    <select className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.status} onChange={(e) => setEditingState({ ...editingState, status: e.target.value })}>
                       <option value="active">active</option>
                       <option value="inactive">inactive</option>
                     </select>
                     <div className="col-span-1 text-right space-x-2">
                       <button onClick={saveEdit} className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">Save</button>
-                      <button onClick={cancelEdit} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Cancel</button>
+                      <button onClick={cancelEdit} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Cancel</button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="col-span-2 font-medium text-gray-900">{d.driverName}</div>
+                    <div className="col-span-2 font-medium text-gray-900 dark:text-gray-100">{d.driverName}</div>
                     <div className="col-span-1">{d.driverId}</div>
                     <div className="col-span-1">{d.idNumber}</div>
                     <div className="col-span-1">{d.phone}</div>
@@ -259,7 +259,7 @@ export default function AdminDriversPage() {
                       </span>
                     </div>
                     <div className="col-span-1 text-right space-x-3">
-                      <button onClick={() => startEdit(d)} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Edit</button>
+                      <button onClick={() => startEdit(d)} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Edit</button>
                       <button onClick={() => toggleStatus(d)} className="text-xs font-medium text-yellow-600 hover:text-yellow-800 hover:underline">{d.status === "inactive" ? "Activate" : "Deactivate"}</button>
                       <button onClick={() => removeDriver(d._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
                     </div>

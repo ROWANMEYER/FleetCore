@@ -107,17 +107,17 @@ export default function QuickSendPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">QuickSend – Transport Report</h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-gray-500 dark:text-slate-400 mt-1">
             Review loads and send reports to stakeholders.
           </p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white/10 backdrop-blur-xl p-4 rounded-lg border border-white/10 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+      <div className="bg-white dark:bg-white/5 dark:backdrop-blur-xl p-4 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm flex flex-col md:flex-row gap-4 items-end">
         {/* Date Mode Selector */}
         <div className="flex flex-col gap-2">
-           <span className="text-xs font-medium text-gray-700">Date Mode</span>
+           <span className="text-xs font-medium text-gray-700 dark:text-slate-200">Date Mode</span>
            <div className="flex gap-4 p-2 bg-gray-50 rounded border border-gray-200">
              <label className="flex items-center gap-2 cursor-pointer">
                <input 
@@ -126,7 +126,7 @@ export default function QuickSendPage() {
                  onChange={() => setDateMode("single")} 
                  className="h-4 w-4 text-black focus:ring-black"
                /> 
-               <span className="text-sm text-gray-700">Single Date</span> 
+               <span className="text-sm text-gray-700 dark:text-slate-200">Single Date</span> 
              </label> 
            
              <label className="flex items-center gap-2 cursor-pointer">
@@ -136,7 +136,7 @@ export default function QuickSendPage() {
                  onChange={() => setDateMode("range")} 
                  className="h-4 w-4 text-black focus:ring-black"
                /> 
-               <span className="text-sm text-gray-700">Date Range</span> 
+               <span className="text-sm text-gray-700 dark:text-slate-200">Date Range</span> 
              </label> 
            </div>
         </div>
@@ -144,7 +144,7 @@ export default function QuickSendPage() {
         {/* Conditional Date Inputs */}
         {dateMode === "single" ? (
           <div>
-            <label htmlFor="single-date" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="single-date" className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
               Date
             </label>
             <input
@@ -158,7 +158,7 @@ export default function QuickSendPage() {
         ) : (
           <div className="flex gap-4">
             <div>
-              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
                 Start Date
               </label>
               <input
@@ -170,7 +170,7 @@ export default function QuickSendPage() {
               />
             </div>
             <div>
-              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">
                 End Date
               </label>
               <input
@@ -185,7 +185,7 @@ export default function QuickSendPage() {
         )}
 
         <div className="flex items-center pb-2">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-200 cursor-pointer select-none">
                 <input 
                     type="checkbox" 
                     checked={completedOnly} 
@@ -198,8 +198,8 @@ export default function QuickSendPage() {
       </div>
 
       {/* Column Selection */}
-      <div className="bg-white/10 backdrop-blur-xl p-4 rounded-lg border border-white/10 shadow-sm">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">Report Columns</h3>
+      <div className="bg-white dark:bg-white/5 dark:backdrop-blur-xl p-4 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Report Columns</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {Object.entries(columns).map(([key, config]) => (
             <div key={key} className="flex flex-col space-y-1">
@@ -213,7 +213,7 @@ export default function QuickSendPage() {
                   }))}
                   className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
                 />
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 dark:text-slate-200">
                   {key === "notes" ? "Route Notes" : key.charAt(0).toUpperCase() + key.slice(1)}
                 </span>
               </label>
@@ -235,12 +235,12 @@ export default function QuickSendPage() {
       </div>
 
       {/* Report Preview (Email-Exact) */}
-      <div className="bg-white/10 backdrop-blur-xl rounded-lg border border-white/10 shadow-sm overflow-hidden flex flex-col h-[800px]">
-        <div className="bg-white/10 backdrop-blur-xl px-6 py-4 border-b border-white/10 flex justify-between items-center flex-shrink-0">
-          <h2 className="text-lg font-medium text-gray-900">Email Preview</h2>
+      <div className="bg-white dark:bg-white/5 dark:backdrop-blur-xl rounded-lg border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col h-[800px]">
+        <div className="bg-gray-50 dark:bg-white/5 dark:backdrop-blur-xl px-6 py-4 border-b border-gray-200 dark:border-white/10 flex justify-between items-center flex-shrink-0">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Email Preview</h2>
           <div className="flex items-center gap-3">
              {hasData && (
-                <span className="text-sm text-gray-500 mr-2">
+                <span className="text-sm text-gray-500 dark:text-slate-400 mr-2">
                   {reportData.summary.totalLoads} loads found
                 </span>
              )}
@@ -261,15 +261,15 @@ export default function QuickSendPage() {
           </div>
         </div>
 
-        <div className="flex-1 bg-white/5 backdrop-blur-lg p-8 overflow-auto">
+        <div className="flex-1 bg-gray-50 dark:bg-white/5 dark:backdrop-blur-lg p-8 overflow-auto">
           {isLoading ? (
-            <div className="p-12 text-center text-gray-500">Loading report data...</div>
+            <div className="p-12 text-center text-gray-500 dark:text-slate-400">Loading report data...</div>
           ) : !hasData ? (
-            <div className="p-12 text-center text-gray-500">
+            <div className="p-12 text-center text-gray-500 dark:text-slate-400">
               No loads found for the selected period.
             </div>
           ) : (
-            <div className="bg-white/90 backdrop-blur-xl shadow-lg mx-auto max-w-[800px] min-h-[1000px]">
+            <div className="bg-white dark:bg-gray-100 shadow-lg mx-auto max-w-[800px] min-h-[1000px]">
               <iframe 
                 srcDoc={renderTransportReport({
                   data: reportData,

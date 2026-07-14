@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import EditRouteForm from "@/src/components/operations/daily-planner/EditRouteForm";
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Dot, AreaChart, Area } from "recharts";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -1132,6 +1132,32 @@ export default function DashboardPage() {
     const [drill, setDrill] = useState<DrillDown | null>(null);
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [mounted, setMounted] = useState(false);
+    
+    // Month-to-month comparison state
+    const [month1, setMonth1] = useState(() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        return d.toISOString().slice(0, 7);
+    });
+    const [month2, setMonth2] = useState(() => {
+        const d = new Date();
+        return d.toISOString().slice(0, 7);
+    });
+    const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(
+        new Set(["revenue", "loads", "km"])
+    );
+
+    const toggleMetric = (metric: string) => {
+        setVisibleMetrics((prev) => {
+            const newSet = new Set(prev);
+            if (newSet.has(metric)) {
+                newSet.delete(metric);
+            } else {
+                newSet.add(metric);
+            }
+            return newSet;
+        });
+    };
 
     const { resolvedTheme } = useTheme();
     const isDayMode = mounted ? resolvedTheme !== "dark" : true;
@@ -1163,6 +1189,7 @@ export default function DashboardPage() {
     const topClients = useQuery(api.dashboard.getCustomerAnalytics, { startDate, endDate });
     const fleetPerf = useQuery(api.dashboard.getFleetPerformance, { startDate, endDate });
     const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, { startDate, endDate });
+    const monthComparison = useQuery(api.dashboard.getMonthToMonthComparison, { month1, month2 });
 
     const loading = !summary || !todaySummary || !statusBreakdown || !topClients || !fleetPerf;
     const maxRevDay = revenueOverTime ? Math.max(...revenueOverTime.map((d) => d.revenue), 1) : 1;
@@ -1357,10 +1384,267 @@ export default function DashboardPage() {
                                         onClick={() => setDrill({ kind: "period", startDate, endDate, label: "Revenue per KM — all routes" })} />
                                 </div>
                             </section>
+
+                            {/* ── Month-to-Month Comparison ── */}
+                            <section className={`${themeClasses.bg.secondary} border ${themeClasses.border} rounded-xl p-5`}>
+                                <SectionHeader title="Month-to-Month Comparison" isDayMode={isDayMode} />
+                                
+                                {/* Month selectors */}
+                                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                                    <div className="flex-1">
+                                        <label className={`text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-2`}>
+                                            Month 1
+                                        </label>
+                                        <input
+                                            type="month"
+                                            value={month1}
+                                            onChange={(e) => setMonth1(e.target.value)}
+                                            className={`w-full px-4 py-2 rounded-lg border ${
+                                                isDayMode
+                                                    ? "bg-white border-gray-300 text-gray-900"
+                                                    : "bg-gray-800 border-gray-700 text-white"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                        />
+                                    </div>
+                                    <div className="flex items-end justify-center">
+                                        <span className={`text-2xl font-bold ${themeClasses.text.secondary}`}>→</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className={`text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-2`}>
+                                            Month 2
+                                        </label>
+                                        <input
+                                            type="month"
+                                            value={month2}
+                                            onChange={(e) => setMonth2(e.target.value)}
+                                            className={`w-full px-4 py-2 rounded-lg border ${
+                                                isDayMode
+                                                    ? "bg-white border-gray-300 text-gray-900"
+                                                    : "bg-gray-800 border-gray-700 text-white"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* MTD Badge */}
+                                {monthComparison?.isMtdComparison && (
+                                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
+                                        isDayMode
+                                            ? "bg-blue-100 text-blue-800 border border-blue-300"
+                                            : "bg-blue-900/30 text-blue-300 border border-blue-700"
+                                    }`}>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Day {monthComparison.mtdDayCount} of {new Date(
+                                            parseInt(month2.slice(0, 4), 10),
+                                            parseInt(month2.slice(5, 7), 10),
+                                            0
+                                        ).getDate()} · same basis
+                                    </div>
+                                )}
+
+                                {!monthComparison ? (
+                                    <div className={`text-center py-8 ${themeClasses.text.secondary}`}>Loading comparison data...</div>
+                                ) : (
+                                    <>
+                                        {/* Metrics comparison cards */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                            <ComparisonMetricCard
+                                                metric="revenue"
+                                                label="Revenue"
+                                                value1={fmt(monthComparison.month1.totalRevenue)}
+                                                value2={fmt(monthComparison.month2.totalRevenue)}
+                                                change={monthComparison.changes.revenue}
+                                                isDayMode={isDayMode}
+                                                isVisible={visibleMetrics.has("revenue")}
+                                                onToggle={() => toggleMetric("revenue")}
+                                            />
+                                            <ComparisonMetricCard
+                                                metric="loads"
+                                                label="Loads"
+                                                value1={fmtNum(monthComparison.month1.totalLoads)}
+                                                value2={fmtNum(monthComparison.month2.totalLoads)}
+                                                change={monthComparison.changes.loads}
+                                                isDayMode={isDayMode}
+                                                isVisible={visibleMetrics.has("loads")}
+                                                onToggle={() => toggleMetric("loads")}
+                                            />
+                                            <ComparisonMetricCard
+                                                metric="km"
+                                                label="Total KM"
+                                                value1={fmtNum(monthComparison.month1.totalKm)}
+                                                value2={fmtNum(monthComparison.month2.totalKm)}
+                                                change={monthComparison.changes.km}
+                                                isDayMode={isDayMode}
+                                                isVisible={visibleMetrics.has("km")}
+                                                onToggle={() => toggleMetric("km")}
+                                            />
+                                        </div>
+
+                                        {/* Combined Indexed Chart */}
+                                        <div className={`p-5 rounded-xl ${themeClasses.bg.secondary} border ${themeClasses.border}`}>
+                                            {/* Custom Legend */}
+                                            <div className="flex flex-wrap gap-6 mb-4">
+                                                {visibleMetrics.has("revenue") && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#10b981" }}></div>
+                                                        <span className={`text-sm ${themeClasses.text.secondary}`}>Revenue</span>
+                                                    </div>
+                                                )}
+                                                {visibleMetrics.has("loads") && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#f59e0b" }}></div>
+                                                        <span className={`text-sm ${themeClasses.text.secondary}`}>Loads</span>
+                                                    </div>
+                                                )}
+                                                {visibleMetrics.has("km") && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#3b82f6" }}></div>
+                                                        <span className={`text-sm ${themeClasses.text.secondary}`}>Total KM</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <ResponsiveContainer width="100%" height={250}>
+                                                <BarChart
+                                                    data={[
+                                                        {
+                                                            metric: monthLabel(month1),
+                                                            ...(visibleMetrics.has("revenue") && { revenue: 100 }),
+                                                            ...(visibleMetrics.has("loads") && { loads: 100 }),
+                                                            ...(visibleMetrics.has("km") && { km: 100 }),
+                                                        },
+                                                        {
+                                                            metric: monthLabel(month2),
+                                                            ...(visibleMetrics.has("revenue") && { 
+                                                                revenue: monthComparison.month1.totalRevenue === 0 
+                                                                    ? 0 
+                                                                    : (monthComparison.month2.totalRevenue / monthComparison.month1.totalRevenue) * 100 
+                                                            }),
+                                                            ...(visibleMetrics.has("loads") && { 
+                                                                loads: monthComparison.month1.totalLoads === 0 
+                                                                    ? 0 
+                                                                    : (monthComparison.month2.totalLoads / monthComparison.month1.totalLoads) * 100 
+                                                            }),
+                                                            ...(visibleMetrics.has("km") && { 
+                                                                km: monthComparison.month1.totalKm === 0 
+                                                                    ? 0 
+                                                                    : (monthComparison.month2.totalKm / monthComparison.month1.totalKm) * 100 
+                                                            }),
+                                                        },
+                                                    ]}
+                                                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" stroke={isDayMode ? "#e5e7eb" : "#374151"} />
+                                                    <XAxis dataKey="metric" stroke={isDayMode ? "#6b7280" : "#9ca3af"} />
+                                                    <YAxis 
+                                                        stroke={isDayMode ? "#6b7280" : "#9ca3af"} 
+                                                        tickFormatter={(val) => `${val}%`}
+                                                        label={{ 
+                                                            value: "Index (Month 1 = 100)", 
+                                                            angle: -90, 
+                                                            position: "insideLeft", 
+                                                            style: { fill: isDayMode ? "#6b7280" : "#9ca3af" } 
+                                                        }}
+                                                    />
+                                                    <Tooltip
+                                                        formatter={(val: number) => [`${val.toFixed(1)}%`, "Index"]}
+                                                        contentStyle={{
+                                                            backgroundColor: isDayMode ? "#ffffff" : "#1f2937",
+                                                            border: `1px solid ${isDayMode ? "#e5e7eb" : "#4b5563"}`,
+                                                            borderRadius: "8px",
+                                                        }}
+                                                        cursor={{ fill: "transparent" }}
+                                                    />
+                                                    {visibleMetrics.has("revenue") && (
+                                                        <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                                    )}
+                                                    {visibleMetrics.has("loads") && (
+                                                        <Bar dataKey="loads" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                                                    )}
+                                                    {visibleMetrics.has("km") && (
+                                                        <Bar dataKey="km" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                                    )}
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </>
+                                )}
+                            </section>
                         </>
                     )}
                 </div>
             </div>
         </>
+    );
+}
+
+function ComparisonMetricCard({
+    label,
+    value1,
+    value2,
+    change,
+    isDayMode,
+    isVisible,
+    onToggle,
+    metric,
+}: {
+    label: string;
+    value1: string;
+    value2: string;
+    change: number;
+    isDayMode: boolean;
+    isVisible: boolean;
+    onToggle: () => void;
+    metric: string;
+}) {
+    const isPositive = change > 0;
+    const isZero = change === 0;
+    const changeColor = isZero 
+        ? (isDayMode ? "text-gray-500" : "text-gray-400")
+        : isPositive 
+            ? (isDayMode ? "text-emerald-700" : "text-emerald-400")
+            : (isDayMode ? "text-red-700" : "text-red-400");
+    const bgClass = isVisible 
+        ? (isDayMode ? "bg-white border-gray-200" : "bg-gray-800 border-gray-700")
+        : (isDayMode ? "bg-gray-100 border-gray-200" : "bg-gray-700 border-gray-600");
+    const textClass = isVisible 
+        ? (isDayMode ? "text-gray-900" : "text-white")
+        : (isDayMode ? "text-gray-400" : "text-gray-500");
+    const secondaryTextClass = isDayMode ? "text-gray-600" : "text-gray-400";
+
+    return (
+        <div className={`border rounded-lg p-4 ${bgClass} transition-all duration-300 cursor-pointer relative group hover:scale-[1.02] hover:shadow-lg`}
+             onClick={onToggle}>
+            <button 
+                className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-200
+                    ${isVisible 
+                        ? (isDayMode ? "bg-emerald-100 text-emerald-700" : "bg-emerald-900 text-emerald-300")
+                        : (isDayMode ? "bg-gray-200 text-gray-500" : "bg-gray-600 text-gray-400")}`}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                }}
+            >
+                {isVisible ? "✓" : "✕"}
+            </button>
+            <div className={`text-xs font-semibold ${secondaryTextClass} uppercase tracking-wider mb-2 pr-6`}>{label}</div>
+            <div className={`space-y-2 ${!isVisible ? 'opacity-50' : ''}`}>
+                <div className="flex justify-between items-center">
+                    <span className={`text-xs ${secondaryTextClass}`}>M1</span>
+                    <span className={`text-sm font-bold ${textClass} transition-all duration-300`}>{value1}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                    <span className={`text-xs ${secondaryTextClass}`}>M2</span>
+                    <span className={`text-sm font-bold ${textClass} transition-all duration-300`}>{value2}</span>
+                </div>
+                <div className="flex justify-end items-center pt-1 border-t border-gray-200 dark:border-gray-600">
+                    <span className={`text-xs font-bold ${isVisible ? changeColor : secondaryTextClass} transition-all duration-300`}>
+                        {isPositive ? "+" : ""}{change.toFixed(1)}%
+                    </span>
+                </div>
+            </div>
+        </div>
     );
 }

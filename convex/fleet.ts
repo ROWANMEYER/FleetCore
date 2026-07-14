@@ -9,10 +9,10 @@ export const listTrucks = query({
        const activeTrucks = trucks.filter(
            (t) => (t as { status?: string }).status !== "inactive"
        );
-       return activeTrucks.map((t) => ({ 
-            label: `${t.truckFleetNo} (${t.registration})`, 
-            value: t.truckFleetNo, 
-        })); 
+        return activeTrucks.map((t) => ({ 
+            label: `${t.truckFleetNo || t.fleetNumber || ""}${t.registration ? ` (${t.registration})` : ""}`, 
+            value: t.truckFleetNo || t.fleetNumber || "", 
+        })).filter((t) => t.value); 
     }, 
 }); 
 
@@ -98,10 +98,10 @@ export const listDrivers = query({
         const status = (d as { status?: string }).status;
         return status !== "inactive";
       });
-       return activeDrivers.map((d) => ({ 
-            label: d.driverName, 
-            value: d.driverName, // Storing name as requested by prompt 
-        })); 
+        return activeDrivers.map((d) => ({ 
+            label: d.driverName || d.name || "", 
+            value: d.driverName || d.name || "", // Storing name as requested by prompt 
+        })).filter((d) => d.value); 
     }, 
 });
 

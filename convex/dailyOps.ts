@@ -51,8 +51,8 @@ export const getDailyOpsSnapshot = query({
     ]);
 
     // Filter down to only the assets marked as available for today
-    const drivers = allDrivers.filter(d => availDriverIds.has(d.driverId));
-    const trucks = allTrucks.filter(t => availTruckNos.has(t.truckFleetNo));
+    const drivers = allDrivers.filter(d => d.driverId && availDriverIds.has(d.driverId));
+    const trucks = allTrucks.filter(t => t.truckFleetNo && availTruckNos.has(t.truckFleetNo));
     const trailers = allTrailers.filter(t => availTrailerNos.has(t.trailerFleetNoStr));
     const openDamageLogs = allDamageLogs.filter(d => d.status === "open");
 

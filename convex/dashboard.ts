@@ -623,3 +623,110 @@ export const getOperationalEfficiency = query({
         };
     },
 });
+
+/**
+ * Month-to-Month Comparison: Compare two selected months
+ */
+export const getMonthToMonthComparison = query({
+    args: {
+        month1: v.string(), // Format: "YYYY-MM"
+        month2: v.string(), // Format: "YYYY-MM"
+    },
+    handler: async (ctx, args) => {
+        // Get today's date
+        const today = new Date();
+        const todayIso = today.toISOString().split("T")[0];
+        const todayMonth = todayIso.slice(0, 7);
+        const todayDay = parseInt(todayIso.slice(8, 10), 10);
+
+        // Check if month2 is the current month
+        const isCurrentMonth = args.month2 === todayMonth;
+
+        const getMonthRange = (monthStr: string) => {
+            const date = new Date(monthStr + "-01");
+            const year = date.getUTCFullYear();
+            const month = date.getUTCMonth();
+            const start = new Date(Date.UTC(year, month, 1)).toISOString().split("T")[0];
+            const end = new Date(Date.UTC(year, month + 1, 0)).toISOString().split("T")[0];
+            return { start, end };
+        };
+
+        const range1 = getMonthRange(args.month1);
+        const range2 = getMonthRange(args.month2);
+
+        // If month2 is current month, clamp month1 to same day count
+        let clampedRange1 = range1;
+        if (isCurrentMonth) {
+            const month1Date = new Date(args.month1 + "-01");
+            const year1 = month1Date.getUTCFullYear();
+            const month1 = month1Date.getUTCMonth();
+            clampedRange1 = {
+                start: range1.start,
+                end: new Date(Date.UTC(year1, month1, todayDay)).toISOString().split("T")[0],
+            };
+        }
+
+        const getMonthData = async (range: { start: string; end: string }) => {
+            const routes = await ctx.db
+                .query("dailyRoutes")
+                .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                    q.gte("routeDate", range.start).lte("routeDate", range.end)
+                )
+                .collect();
+
+            const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+
+            let totalRevenue = 0;
+            let totalKm = 0;
+            let totalLoads = 0;
+            let completedCount = 0;
+
+            activeRoutes.forEach((route) => {
+                totalRevenue += route.rate || 0;
+                totalKm += (route as any).kilometers || 0;
+                totalLoads += route.loads?.length || 0;
+                if ((route as any).status === "completed" || (route as any).status === "locked") {
+                    completedCount++;
+                }
+            });
+
+            return {
+                month: range.start.slice(0, 7),
+                totalRevenue,
+                totalRoutes: activeRoutes.length,
+                totalLoads,
+                totalKm,
+                completedRoutes: completedCount,
+                revenuePerKm: totalKm > 0 ? totalRevenue / totalKm : 0,
+                revenuePerLoad: totalLoads > 0 ? totalRevenue / totalLoads : 0,
+                revenuePerRoute: activeRoutes.length > 0 ? totalRevenue / activeRoutes.length : 0,
+                completionRate: activeRoutes.length > 0 ? (completedCount / activeRoutes.length) * 100 : 0,
+            };
+        };
+
+        const [data1, data2] = await Promise.all([
+            getMonthData(clampedRange1),
+            getMonthData(range2),
+        ]);
+
+        const calculateChange = (value1: number, value2: number) => {
+            if (value1 === 0) return value2 > 0 ? 100 : 0;
+            return ((value2 - value1) / value1) * 100;
+        };
+
+        return {
+            month1: data1,
+            month2: data2,
+            changes: {
+                revenue: calculateChange(data1.totalRevenue, data2.totalRevenue),
+                routes: calculateChange(data1.totalRoutes, data2.totalRoutes),
+                loads: calculateChange(data1.totalLoads, data2.totalLoads),
+                km: calculateChange(data1.totalKm, data2.totalKm),
+                completed: calculateChange(data1.completedRoutes, data2.completedRoutes),
+                revenuePerKm: calculateChange(data1.revenuePerKm, data2.revenuePerKm),
+            },
+            isMtdComparison: isCurrentMonth,
+            mtdDayCount: isCurrentMonth ? todayDay : null,
+        };
+    },
+});

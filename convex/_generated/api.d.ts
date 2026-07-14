@@ -37,6 +37,7 @@ import type * as finance_lib_parseAgeAnalysis from "../finance/lib/parseAgeAnaly
 import type * as finance_lib_validateAgeRows from "../finance/lib/validateAgeRows.js";
 import type * as finance_payments from "../finance/payments.js";
 import type * as fleet from "../fleet.js";
+import type * as fleetImport from "../fleetImport.js";
 import type * as fleetSetup from "../fleetSetup.js";
 import type * as fleetStatus from "../fleetStatus.js";
 import type * as health from "../health.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   "finance/lib/validateAgeRows": typeof finance_lib_validateAgeRows;
   "finance/payments": typeof finance_payments;
   fleet: typeof fleet;
+  fleetImport: typeof fleetImport;
   fleetSetup: typeof fleetSetup;
   fleetStatus: typeof fleetStatus;
   health: typeof health;

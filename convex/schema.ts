@@ -153,16 +153,18 @@ export default defineSchema({
     .index("by_assetType_assetUnit", ["assetType", "assetUnit"])
     .index("by_assetUnit", ["assetUnit"]),
   drivers: defineTable({
-    driverId: v.string(),
-    driverName: v.string(),
-    idNumber: v.string(),
+    createdAt: v.optional(v.float64()),
+    driverId: v.optional(v.string()),
+    driverName: v.optional(v.string()),
+    idNumber: v.optional(v.string()),
     licenseExpiryDate: v.optional(v.string()),
+    name: v.optional(v.string()),
     pdpExpiryDate: v.optional(v.string()),
-    phone: v.string(),
+    phone: v.optional(v.string()),
     photoStorageId: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
-    status: v.string(),
-  }),
+    status: v.optional(v.string()),
+  }).index("by_driverId", ["driverId"]),
   fleetSetupBaseline: defineTable({
     assignments: v.array(
       v.object({
@@ -401,19 +403,21 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_truckId", ["truckId"]),
   trucks: defineTable({
+    createdAt: v.optional(v.float64()),
     currentKm: v.optional(v.float64()),
     currentTrailerId: v.optional(v.id("trailers")),
+    fleetNumber: v.optional(v.string()),
     lastRenewalDate: v.optional(v.string()),
     licenseExpiryDate: v.optional(v.string()),
-    make: v.string(),
-    model: v.string(),
+    make: v.optional(v.string()),
+    model: v.optional(v.string()),
     receiptPhotoUrl: v.optional(v.string()),
-    registration: v.string(),
+    registration: v.optional(v.string()),
     renewalNotes: v.optional(v.string()),
     serviceDueDate: v.optional(v.string()),
     serviceDueKm: v.optional(v.float64()),
     status: v.optional(v.string()),
-    truckFleetNo: v.string(),
+    truckFleetNo: v.optional(v.string()),
   })
     .index("by_currentTrailerId", ["currentTrailerId"])
     .index("by_truckFleetNo", ["truckFleetNo"]),

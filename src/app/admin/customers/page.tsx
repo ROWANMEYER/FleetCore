@@ -269,6 +269,8 @@ export default function CustomersPage() {
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         customer.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}>
+                        {customer.isActive ? "Active" : "Inactive"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                       <button onClick={() => openEditModal(customer)} className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>

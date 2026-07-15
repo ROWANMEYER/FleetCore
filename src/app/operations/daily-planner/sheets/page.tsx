@@ -2426,7 +2426,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                             <CartesianGrid strokeDasharray="3 3" stroke="#d1d5db" vertical={false} />
                             <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#6b7280" }} axisLine={false} tickLine={false} />
                             <YAxis hide />
-                            <Tooltip formatter={(value: number) => formatZAR(Number(value || 0))} />
+                            <Tooltip formatter={((value: number | undefined) => formatZAR(Number(value ?? 0))) as any} />
                             <Area type="monotone" dataKey="revenue" stroke="#2563eb" fill="url(#sheetsRevenueFill)" strokeWidth={2} activeDot={{ r: 5, fill: "#2563eb", stroke: "#ffffff", strokeWidth: 2 }} />
                           </AreaChart>
                         </ResponsiveContainer>
@@ -2461,7 +2461,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                           >
                             <XAxis dataKey="label" tick={{ fontSize: 8, fill: "#6b7280" }} axisLine={false} tickLine={false} />
                             <YAxis hide />
-                            <Tooltip formatter={(value: number) => `${Number(value || 0).toFixed(0)} km`} />
+                            <Tooltip formatter={((value: number | undefined) => `${Number(value ?? 0).toFixed(0)} km`) as any} />
                             <Bar dataKey="distance" fill="#10b981" radius={[3, 3, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -2545,7 +2545,7 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
                                       <Cell key={entry.label} fill={entry.color} onClick={() => handleRiskDistributionClick(entry.label)} style={{ cursor: "pointer" }} />
                                     ))}
                                   </Pie>
-                                  <Tooltip formatter={(value: number, _name, props: any) => [`${value} routes`, props?.payload?.label || ""]} />
+                                  <Tooltip formatter={((_value: number | undefined, _name: string, props: any) => [`${_value ?? 0} routes`, props?.payload?.label || ""]) as any} />
                                 </PieChart>
                               </ResponsiveContainer>
                             ) : null}

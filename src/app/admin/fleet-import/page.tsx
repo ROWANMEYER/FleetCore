@@ -351,12 +351,12 @@ export default function FleetImportPage() {
 
   const toggleRow = (entity: "trucks" | "trailers" | "drivers", id: string) => {
     const setter = entity === "trucks" ? setTruckRows : entity === "trailers" ? setTrailerRows : setDriverRows;
-    setter((prev) => prev.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)));
+    setter((prev: PreviewRow<any>[]) => prev.map((r) => (r.id === id ? { ...r, selected: !r.selected } : r)));
   };
 
   const selectAll = (entity: "trucks" | "trailers" | "drivers", checked: boolean) => {
     const setter = entity === "trucks" ? setTruckRows : entity === "trailers" ? setTrailerRows : setDriverRows;
-    setter((prev) => prev.map((r) => (r.status !== "unchanged" && r.status !== "skipped" ? { ...r, selected: checked } : r)));
+    setter((prev: PreviewRow<any>[]) => prev.map((r) => (r.status !== "unchanged" && r.status !== "skipped" ? { ...r, selected: checked } : r)));
   };
 
   const selectedCount = (rows: PreviewRow<any>[]) =>
@@ -428,7 +428,7 @@ export default function FleetImportPage() {
           </div>
         </div>
 
-        {rows.some((r) => r.status !== "unchanged" || r.status !== "skipped") && (
+        {rows.some((r) => r.status !== "unchanged" && r.status !== "skipped") && (
           <div className="px-4 py-2 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950/20">
             <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
               <input

@@ -1549,7 +1549,7 @@ export default function DashboardPage() {
                                                         }}
                                                     />
                                                     <Tooltip
-                                                        formatter={(val: number) => [`${val.toFixed(1)}%`, "Index"]}
+                                                        formatter={((val: number | undefined) => [`${val?.toFixed(1) ?? "0.0"}%`, "Index"]) as any}
                                                         contentStyle={{
                                                             backgroundColor: isDayMode ? "#ffffff" : "#1f2937",
                                                             border: `1px solid ${isDayMode ? "#e5e7eb" : "#4b5563"}`,

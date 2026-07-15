@@ -1,6 +1,6 @@
  "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Link from "next/link";
@@ -40,7 +40,7 @@ interface PaymentWithStatus {
   hasOnAccount?: boolean;
 }
 
-export default function PaymentsPage() {
+function PaymentsPageContent() {
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") === "on_account" ? "onAccount" : "all";
 
@@ -821,4 +821,12 @@ function parseLine(line: string, defaultDate: string) {
     source: "manual-paste",
     flags,
   };
+}
+
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsPageContent />
+    </Suspense>
+  );
 }

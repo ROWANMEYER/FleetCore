@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -30,7 +30,7 @@ const REQUIRED_FIELDS = [
   { key: "totalDue", label: "Total Due" },
 ] as const;
 
-export default function AgeAnalysisPage() {
+function AgeAnalysisPageContent() {
   const importSnapshot = useAction(api.finance.importAgeSnapshot.importSnapshot);
   const snapshots = useQuery(api.finance.getAgeSnapshots.getAgeSnapshots);
 
@@ -530,5 +530,13 @@ export default function AgeAnalysisPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AgeAnalysisPage() {
+  return (
+    <Suspense fallback={null}>
+      <AgeAnalysisPageContent />
+    </Suspense>
   );
 }

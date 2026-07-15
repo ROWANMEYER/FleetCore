@@ -3,7 +3,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
@@ -53,19 +53,15 @@ const rateTypeOptions = [
 
 import WarningIcon from "@/src/components/common/WarningIcon";
 
-export default function DailyPlannerInputPage() {
-  return (
-    <Suspense fallback={null}>
-      <DailyPlannerInputContent />
-    </Suspense>
-  );
-}
-
-function DailyPlannerInputContent() {
-  const searchParams = useSearchParams();
+function DailyPlannerInputForm() {
   const router = useRouter();
-  const routeId = searchParams.get("id") as Id<"dailyRoutes"> | null;
-  const urlDate = searchParams.get("date");
+  const [routeId, setRouteId] = useState<Id<"dailyRoutes"> | null>(null);
+  const [urlDate, setUrlDate] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setRouteId(params.get("id") as Id<"dailyRoutes"> | null);
+    setUrlDate(params.get("date"));
+  }, []);
 
   // Explicit mode state as requested
   // REMOVED: const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(routeId);
@@ -208,7 +204,7 @@ function DailyPlannerInputContent() {
       setDate(existingRoute.routeDate);
 
       // Sync URL for Sheets side-by-side view
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       if (params.get("date") !== existingRoute.routeDate) {
         params.set("date", existingRoute.routeDate);
         router.replace(`?${params.toString()}`, { scroll: false });
@@ -238,7 +234,7 @@ function DailyPlannerInputContent() {
         setLoads(mappedLoads);
       }
     }
-  }, [existingRoute, routeId, searchParams, router]);
+  }, [existingRoute, routeId, router]);
 
   // Helper to update specific location in draft
   const updateDraftLocation = (type: "from" | "to", index: number, value: string) => {
@@ -786,5 +782,13 @@ function DailyPlannerInputContent() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DailyPlannerInputContent() {
+  return (
+    <Suspense fallback={null}>
+      <DailyPlannerInputForm />
+    </Suspense>
   );
 }

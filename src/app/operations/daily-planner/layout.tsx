@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import InputPage from "./input/page";
 import SheetsPage from "./sheets/page";
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import EditRouteForm from "@/src/components/operations/daily-planner/EditRouteForm";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -31,7 +31,7 @@ const ViewIcon = {
   ),
 };
 
-export default function DailyPlannerLayout({ children }: { children: React.ReactNode }) {
+function DailyPlannerLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -185,5 +185,13 @@ export default function DailyPlannerLayout({ children }: { children: React.React
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DailyPlannerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <DailyPlannerLayoutInner>{children}</DailyPlannerLayoutInner>
+    </Suspense>
   );
 }

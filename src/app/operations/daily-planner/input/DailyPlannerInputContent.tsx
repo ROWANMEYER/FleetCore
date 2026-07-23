@@ -1,5 +1,5 @@
 ﻿"use client";
-/* eslint-disable react-hooks/set-state-in-effect */
+ 
 
 import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation } from "convex/react";
@@ -88,7 +88,7 @@ function DailyPlannerInputForm() {
 
   // Sync state with URL param (handle initial load or navigation)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     if (routeId) setHeaderComplete(true);
   }, [routeId]);
 
@@ -218,7 +218,7 @@ function DailyPlannerInputForm() {
 
       // Map existing loads to UI format
       if (existingRoute.loads) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const mappedLoads: Load[] = existingRoute.loads.map((l: any, index: number) => ({
           id: crypto.randomUUID(),
           clientName: l.client ?? "",

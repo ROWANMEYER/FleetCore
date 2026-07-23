@@ -6,7 +6,7 @@ const fmtCurrencyRaw = (n: number) => {
   return `R${int},${parts[1]}`;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export const buildInvoiceData = (route: any, customers: any[] | undefined): InvoiceData => {
   // 1. Resolve customer
   const clientName = route.client || "";
@@ -23,7 +23,7 @@ export const buildInvoiceData = (route: any, customers: any[] | undefined): Invo
   const truckReg = route.truckFleetNoStr || route.truckFleetNo?.toString() || "";
 
   // 4. Build line items — one per load for multi-load routes (#5)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const loads: any[] = route.loads ?? [];
 
   const lineItems = loads.length > 0

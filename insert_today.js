@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ConvexHttpClient } = require("convex/server");
 
 const client = new ConvexHttpClient("https://quixotic-gopher-969.convex.cloud");

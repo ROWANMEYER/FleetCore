@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { query } from "./_generated/server";
 import { calculateLoadAmount } from "./utils";
 import { v } from "convex/values";
@@ -510,73 +510,6 @@ export const getFleetPerformance = query({
             topTrucks: topPerformers,
             totalTrucksActive: Object.keys(truckMetrics).length,
             avgRevenuePerKm,
-        };
-    },
-});
-
-/**
- * Financial Health: Receivables and payment metrics
- */
-export const getFinancialHealth = query({
-    args: {},
-    handler: async (ctx) => {
-        // Get latest age snapshot
-        const snapshots = await ctx.db
-            .query("ageSnapshots")
-            .withIndex("by_month")
-            .order("desc")
-            .take(2);
-
-        const latest = snapshots[0];
-        const previous = snapshots[1];
-
-        if (!latest) {
-            return {
-                totalOutstanding: 0,
-                overdue30Plus: 0,
-                overdue60Plus: 0,
-                overdue90Plus: 0,
-                critical120Plus: 0,
-                daysOutstanding: 0,
-                collectionTrend: 0,
-                riskLevel: "unknown",
-            };
-        }
-
-        const overdue30Plus = latest.days30 + latest.days60 + latest.days90 + latest.days120;
-        const overdue60Plus = latest.days60 + latest.days90 + latest.days120;
-        const overdue90Plus = latest.days90 + latest.days120;
-
-        // Calculate trend
-        let collectionTrend = 0;
-        if (previous) {
-            collectionTrend = latest.totalDue - previous.totalDue;
-        }
-
-        // Risk level assessment
-        let riskLevel: "healthy" | "caution" | "risk" | "critical" = "healthy";
-        if (latest.days120 > latest.totalDue * 0.2) riskLevel = "critical";
-        else if (overdue60Plus > latest.totalDue * 0.3) riskLevel = "risk";
-        else if (overdue30Plus > latest.totalDue * 0.4) riskLevel = "caution";
-
-        return {
-            totalOutstanding: latest.totalDue,
-            overdue30Plus,
-            overdue60Plus,
-            overdue90Plus,
-            critical120Plus: latest.days120,
-            daysOutstanding:
-                latest.totalDue > 0
-                    ? ((latest.current * 0 +
-                        latest.days30 * 15 +
-                        latest.days60 * 45 +
-                        latest.days90 * 75 +
-                        latest.days120 * 150) /
-                        latest.totalDue) |
-                      0
-                    : 0,
-            collectionTrend,
-            riskLevel,
         };
     },
 });

@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useSearchParams, useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";

@@ -38,19 +38,6 @@ export default function AdminLayout({
           <NavLink href="/admin/drivers" label="Drivers" active={isActive("/admin/drivers")} />
         </div>
 
-        {/* Separator */}
-        <div className="w-px h-5 bg-gray-300 mx-3 dark:bg-slate-700"></div>
-
-        {/* Finance Group */}
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-2 select-none dark:text-slate-400">
-            Finance
-          </span>
-          <NavLink href="/admin/customers" label="Customers" active={isActive("/admin/customers")} />
-          <NavLink href="/admin/age-analysis" label="Age Analysis" active={isActive("/admin/age-analysis")} />
-          <NavLink href="/admin/payments" label="Payments" active={isActive("/admin/payments")} />
-          <NavLink href="/admin/reconciliation" label="Reconciliation" active={isActive("/admin/reconciliation")} />
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto relative min-h-0">

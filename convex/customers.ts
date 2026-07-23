@@ -1,68 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-export const seedFromSnapshots = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // 1. Fetch all snapshot rows (this might be large, but for migration it's okay)
-    const rows = await ctx.db.query("ageSnapshotRows").collect();
-    
-    // 2. Deduplicate
-    const uniqueCustomers = new Map<string, { name: string; accountNumber?: string }>();
-    
-    for (const row of rows) {
-      // Create a key for uniqueness
-      // Prefer account number if available, otherwise use normalized name
-      const cleanName = row.clientName.trim();
-      const cleanAccount = row.accountNumber?.trim();
-      
-      const key = cleanAccount 
-        ? `ACC:${cleanAccount.toLowerCase()}` 
-        : `NAME:${cleanName.toLowerCase()}`;
-        
-      if (!uniqueCustomers.has(key)) {
-        uniqueCustomers.set(key, {
-          name: cleanName,
-          accountNumber: cleanAccount || undefined,
-        });
-      }
-    }
-
-    // 3. Insert unique customers
-    let count = 0;
-    const existingCustomers = await ctx.db.query("customers").collect();
-    const existingKeys = new Set(existingCustomers.map(c => 
-        c.accountNumber 
-            ? `ACC:${c.accountNumber.toLowerCase()}` 
-            : `NAME:${c.normalizedName}`
-    ));
-
-    for (const [key, data] of uniqueCustomers.entries()) {
-        // Double check against already inserted in DB (idempotency)
-        const dbKey = data.accountNumber 
-            ? `ACC:${data.accountNumber.toLowerCase()}` 
-            : `NAME:${data.name.toLowerCase()}`;
-            
-        if (existingKeys.has(dbKey)) continue;
-
-        await ctx.db.insert("customers", {
-            name: data.name,
-            normalizedName: data.name.toLowerCase(),
-            accountNumber: data.accountNumber,
-            isActive: true,
-            createdAt: Date.now(),
-        });
-        count++;
-    }
-
-    return { 
-      processedRows: rows.length, 
-      uniqueFound: uniqueCustomers.size,
-      inserted: count 
-    };
-  },
-});
-
 export const search = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {

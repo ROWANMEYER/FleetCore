@@ -9,31 +9,6 @@ export default defineSchema({
   invoiceCounter: defineTable({
     lastNumber: v.float64(),
   }),
-  ageSnapshotRows: defineTable({
-    accountNumber: v.string(),
-    clientName: v.string(),
-    current: v.float64(),
-    days120: v.float64(),
-    days30: v.float64(),
-    days60: v.float64(),
-    days90: v.float64(),
-    originalRowIndex: v.float64(),
-    snapshotId: v.id("ageSnapshots"),
-    totalDue: v.float64(),
-  }).index("by_snapshotId", ["snapshotId"]),
-  ageSnapshots: defineTable({
-    current: v.float64(),
-    days120: v.float64(),
-    days30: v.float64(),
-    days60: v.float64(),
-    days90: v.float64(),
-    fileName: v.string(),
-    importedAt: v.float64(),
-    importedBy: v.string(),
-    month: v.string(),
-    status: v.string(),
-    totalDue: v.float64(),
-  }).index("by_month", ["month"]),
   appSettings: defineTable({
     expiryReminder30: v.boolean(),
     expiryReminder60: v.boolean(),
@@ -197,33 +172,6 @@ export default defineSchema({
     selectedDate: v.string(),
     completed: v.optional(v.boolean()),
   }).index("by_selectedDate", ["selectedDate"]),
-  paymentAllocations: defineTable({
-    accountNumber: v.optional(v.string()),
-    allocatedAmount: v.float64(),
-    allocatedAt: v.float64(),
-    allocatedBy: v.string(),
-    allocationType: v.optional(v.string()),
-    clientName: v.optional(v.string()),
-    notes: v.optional(v.string()),
-    paymentId: v.id("payments"),
-    snapshotId: v.optional(v.id("ageSnapshots")),
-    snapshotRowId: v.optional(v.id("ageSnapshotRows")),
-  })
-    .index("by_accountNumber", ["accountNumber"])
-    .index("by_paymentId", ["paymentId"])
-    .index("by_snapshotRowId", ["snapshotRowId"]),
-  payments: defineTable({
-    amount: v.float64(),
-    flags: v.array(v.string()),
-    importedAt: v.float64(),
-    notes: v.optional(v.string()),
-    paymentDate: v.string(),
-    rawDescription: v.string(),
-    reference: v.optional(v.string()),
-    source: v.string(),
-  })
-    .index("by_importedAt", ["importedAt"])
-    .index("by_paymentDate", ["paymentDate"]),
   pdpApplicationLogs: defineTable({
     action: v.string(),
     applicationId: v.id("pdpApplications"),

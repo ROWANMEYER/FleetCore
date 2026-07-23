@@ -93,7 +93,7 @@ export function ParticleBackground() {
       y: -9999,
     });
 
-    let particles: P[] = Array.from({ length: COUNT }, (_, i) => mkParticle(i));
+    const particles: P[] = Array.from({ length: COUNT }, (_, i) => mkParticle(i));
 
     // ── Visibility pause ──────────────────────────────────────────────────────
     let paused = false;

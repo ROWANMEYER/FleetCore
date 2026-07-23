@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import EditRouteForm from "@/src/components/operations/daily-planner/EditRouteForm";
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Dot, AreaChart, Area } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,6 @@ function FilterBar({
     const tabActiveClass = isDayMode ? "bg-gray-400 text-white" : "bg-gray-600 text-white";
     const tabInactiveClass = isDayMode ? "text-gray-600 hover:text-gray-800" : "text-gray-400 hover:text-white";
     const inputBgClass = isDayMode ? "bg-gray-100 border-gray-300 text-gray-900" : "bg-gray-800 border-gray-700 text-gray-200";
-    const labelTextClass = isDayMode ? "text-gray-700" : "text-gray-500";
 
     return (
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -242,12 +241,6 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 
     const totalKm = filteredData.reduce((sum, r) => sum + (r.kilometers ?? 0), 0);
 
-    const statusColour: Record<string, string> = {
-        planned: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
-        completed: "text-green-400 bg-green-500/10 border-green-500/30",
-        locked: "text-blue-400 bg-blue-500/10 border-blue-500/30",
-    };
-
     const handleDeleteRoute = async () => {
         if (!deletingRouteId) return;
         try {
@@ -341,63 +334,6 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
         return null;
     };
 
-    // Custom Tooltip Component for Routes Chart
-    const RoutesToolip = ({ active, payload }: any) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div style={{
-                    backgroundColor: isDayMode ? "#ffffff" : "#111827",
-                    border: `1px solid ${isDayMode ? "#d1d5db" : "#4b5563"}`,
-                    borderRadius: "12px",
-                    padding: "16px",
-                    boxShadow: isDayMode ? "0 10px 15px -3px rgb(0,0,0,0.1)" : "0 20px 25px -5px rgb(0,0,0,0.5)",
-                    backdropFilter: "blur(4px)",
-                    minWidth: "200px"
-                }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
-                        <div>
-                            <p style={{
-                                fontSize: "12px",
-                                fontWeight: "bold",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                color: isDayMode ? "#6b7280" : "#9ca3af",
-                                margin: "0"
-                            }}>Date</p>
-                            <p style={{
-                                fontSize: "14px",
-                                fontWeight: "600",
-                                color: isDayMode ? "#111827" : "#ffffff",
-                                margin: "4px 0 0 0"
-                            }}>{data.date}</p>
-                        </div>
-                    </div>
-                    <div style={{
-                        marginTop: "12px",
-                        paddingTop: "12px",
-                        borderTop: `1px solid ${isDayMode ? "#e5e7eb" : "#374151"}`
-                    }}>
-                        <p style={{
-                            fontSize: "12px",
-                            fontWeight: "bold",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: isDayMode ? "#6b7280" : "#9ca3af",
-                            margin: "0"
-                        }}>Routes</p>
-                        <p style={{
-                            fontSize: "18px",
-                            fontWeight: "900",
-                            color: "#60a5fa",
-                            margin: "8px 0 0 0"
-                        }}>{data.count}</p>
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
 
     return (
         <div className="fixed inset-0 z-50 flex">
@@ -493,9 +429,6 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 
                                 const gridColor = isDayMode ? "#e5e7eb" : "#374151";
                                 const axisColor = isDayMode ? "#6b7280" : "#9CA3AF";
-                                const tooltipBg = isDayMode ? "#f3f4f6" : "#111827";
-                                const tooltipBorder = isDayMode ? "#d1d5db" : "#374151";
-                                const tooltipText = isDayMode ? "#1f2937" : "#fff";
 
                                 const handleChartClick = (data: any) => {
                                     if (onDrill && data && data.date) {
@@ -664,9 +597,6 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 
                                 const gridColor = isDayMode ? "#e5e7eb" : "#374151";
                                 const axisColor = isDayMode ? "#6b7280" : "#9CA3AF";
-                                const tooltipBg = isDayMode ? "#f3f4f6" : "#111827";
-                                const tooltipBorder = isDayMode ? "#d1d5db" : "#374151";
-                                const tooltipText = isDayMode ? "#1f2937" : "#fff";
 
                                 const handleBarClick = (data: any) => {
                                     if (onDrill) {
@@ -1163,7 +1093,8 @@ export default function DashboardPage() {
     const isDayMode = mounted ? resolvedTheme !== "dark" : true;
 
     useEffect(() => {
-        setMounted(true);
+        const id = setTimeout(() => setMounted(true), 0);
+        return () => clearTimeout(id);
     }, []);
     
     // Theme colors
@@ -1588,7 +1519,6 @@ function ComparisonMetricCard({
     isDayMode,
     isVisible,
     onToggle,
-    metric,
 }: {
     label: string;
     value1: string;

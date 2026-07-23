@@ -257,6 +257,19 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
         }
     };
 
+    useEffect(() => {
+        if (!showDeleteConfirm && !editingRouteId) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setShowDeleteConfirm(false);
+                setDeletingRouteId(null);
+                setEditingRouteId(null);
+            }
+        };
+        document.addEventListener("keydown", handler);
+        return () => document.removeEventListener("keydown", handler);
+    }, [showDeleteConfirm, editingRouteId]);
+
     const handleEditClick = (routeId: Id<"dailyRoutes">) => {
         setEditingRouteId(routeId);
     };
@@ -929,6 +942,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
             
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
                     <div className={`${panelTheme.bg.primary} border ${panelTheme.border} rounded-lg shadow-2xl p-6 max-w-sm mx-4`}>
                         <h2 className={`text-lg font-bold ${panelTheme.text.primary} mb-4`}>Delete Route</h2>

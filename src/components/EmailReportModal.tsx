@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { ModalShell } from "./common/ModalShell";
 
 interface EmailReportModalProps {
   isOpen: boolean;
@@ -31,8 +32,6 @@ export default function EmailReportModal({
     }
   }, [isOpen, initialSubject]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedRecipientIds.length === 0) {
@@ -59,8 +58,7 @@ export default function EmailReportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+    <ModalShell open={isOpen} onClose={onClose}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
           <h3 className="text-lg font-medium text-gray-900">Send Report</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
@@ -127,7 +125,6 @@ export default function EmailReportModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

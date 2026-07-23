@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { useEscapeToClose } from "../../../components/common/useKeyboardShortcut";
 
 interface EditRouteModalProps {
     routeId: Id<"dailyRoutes">;
@@ -65,6 +66,8 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
+
+    useEscapeToClose(onClose, true);
 
     if (!route) {
         return (

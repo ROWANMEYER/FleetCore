@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
 import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
 import { EmptyState } from "@/src/components/common/EmptyState";
+import { useEscapeToClose } from "@/src/components/common/useKeyboardShortcut";
 import { SheetExportRow } from "@/src/types/sheetExport";
 import { exportCSV } from "@/src/lib/exports/exportCSV";
 import { exportJSON } from "@/src/lib/exports/exportJSON";
@@ -282,6 +283,8 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
   const closeConfirm = () => {
     setConfirmDialog(prev => ({ ...prev, isOpen: false }));
   };
+
+  useEscapeToClose(closeConfirm, confirmDialog.isOpen);
 
   // Mutations for lifecycle
   const markRouteCompleted = useMutation(api.dailyRoutes.markRouteCompleted);

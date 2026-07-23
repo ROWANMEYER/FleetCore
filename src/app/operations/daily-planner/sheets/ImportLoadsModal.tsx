@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useEscapeToClose } from "@/src/components/common/useKeyboardShortcut";
 
 interface ImportLoadsModalProps {
   onClose: () => void;
@@ -43,6 +44,8 @@ export default function ImportLoadsModal({ onClose, onSuccess }: ImportLoadsModa
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createBulkDailyRoutes = useMutation(api.dailyRoutes.createBulkDailyRoutes);
+
+  useEscapeToClose(onClose, true);
 
   // Parse raw paste into rows
   const handleParse = () => {

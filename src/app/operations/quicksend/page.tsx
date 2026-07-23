@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import EmailReportModal from "@/src/components/EmailReportModal";
 import { renderTransportReport } from "@/convex/templates/TransportReport";
+import { SkeletonCard } from "@/src/components/common/Skeleton";
 
 type ColumnKey = "date" | "truck" | "trailer" | "driver" | "client" | "from" | "to" | "rate" | "distance" | "notes";
 
@@ -263,7 +264,10 @@ export default function QuickSendPage() {
 
         <div className="flex-1 bg-gray-50 dark:bg-white/5 dark:backdrop-blur-lg p-8 overflow-auto">
           {isLoading ? (
-            <div className="p-12 text-center text-gray-500 dark:text-slate-400">Loading report data...</div>
+            <div className="space-y-6 p-12">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
           ) : !hasData ? (
             <div className="p-12 text-center text-gray-500 dark:text-slate-400">
               No loads found for the selected period.

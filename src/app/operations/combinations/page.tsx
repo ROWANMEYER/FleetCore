@@ -2,12 +2,13 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { SkeletonPage } from "@/src/components/common/Skeleton";
 
 export default function CombinationsScreen() {
   const combinations = useQuery(api.trailerSwaps.getCurrentCombinations, {});
 
   if (!combinations) {
-    return <div className="p-8 text-gray-500">Loading combinations...</div>;
+    return <SkeletonPage />;
   }
 
   return (

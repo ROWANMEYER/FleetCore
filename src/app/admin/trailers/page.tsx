@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { SkeletonPage } from "@/src/components/common/Skeleton";
 
 type SortDir = "asc" | "desc";
 
@@ -13,7 +14,37 @@ export default function AdminTrailersPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [includeInactive, setIncludeInactive] = useState(true);
 
-  const trailersRaw = useQuery(api.fleet.getTrailers, {}) || [];
+  const trailersQuery = useQuery(api.fleet.getTrailers, {});
+  const statsQuery = useQuery(api.fleet.getTrailerStats);
+  const createTrailer = useMutation(api.fleet.createTrailer);
+  const updateTrailerComponent = useMutation(api.fleet.updateTrailerComponent);
+  const deleteTrailerComponent = useMutation(api.fleet.deleteTrailerComponent);
+
+  const [newTrailer, setNewTrailer] = useState({
+    trailerFleetNo: "",
+    trailerFleetNoStr: "",
+    length: "",
+    registration: "",
+    type: "",
+  });
+
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  
+  // Edit state now includes original values to identify the component
+  const [editingId, setEditingId] = useState<string | null>(null); // Parent ID
+  const [editingState, setEditingState] = useState<any | null>(null);
+  const updateTrailerStatus = useMutation(api.fleet.updateTrailerStatus);
+
+  useEffect(() => {
+    if (successMsg) {
+      const t = setTimeout(() => setSuccessMsg(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [successMsg]);
+
+  const trailersRaw = trailersQuery || [];
+
   const trailers = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = trailersRaw.filter((t: any) => {
@@ -42,34 +73,10 @@ export default function AdminTrailersPage() {
     });
     return filtered;
   }, [trailersRaw, includeInactive, search, sortBy, sortDir]);
-  const stats = useQuery(api.fleet.getTrailerStats) || { total: 0, active: 0, inactive: 0 };
 
-  const createTrailer = useMutation(api.fleet.createTrailer);
-  const updateTrailerComponent = useMutation(api.fleet.updateTrailerComponent);
-  const deleteTrailerComponent = useMutation(api.fleet.deleteTrailerComponent);
+  const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
 
-  const [newTrailer, setNewTrailer] = useState({
-    trailerFleetNo: "",
-    trailerFleetNoStr: "",
-    length: "",
-    registration: "",
-    type: "",
-  });
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  
-  // Edit state now includes original values to identify the component
-  const [editingId, setEditingId] = useState<string | null>(null); // Parent ID
-  const [editingState, setEditingState] = useState<any | null>(null);
-  const updateTrailerStatus = useMutation(api.fleet.updateTrailerStatus);
-
-  useEffect(() => {
-    if (successMsg) {
-      const t = setTimeout(() => setSuccessMsg(null), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [successMsg]);
+  if (trailersQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
   const handleSort = (col: typeof sortBy) => {
     if (sortBy === col) {

@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import EditRouteForm from "@/src/components/operations/daily-planner/EditRouteForm";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { SkeletonLine, SkeletonKpiGrid, SkeletonCard } from "@/src/components/common/Skeleton";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -815,7 +816,11 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                 {/* route list */}
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                     {!routes ? (
-                        <p className={`${panelTheme.text.tertiary} text-sm text-center py-12`}>Loading…</p>
+                        <div className="px-4 py-6 space-y-3">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <SkeletonLine key={i} className="w-full h-16" />
+                            ))}
+                        </div>
                     ) : filteredData.length === 0 ? (
                         <p className={`${panelTheme.text.tertiary} text-sm text-center py-12`}>No routes found.</p>
                     ) : (
@@ -1149,7 +1154,11 @@ export default function DashboardPage() {
                     </div>
 
                     {loading ? (
-                        <div className={`flex items-center justify-center py-32 ${themeClasses.text.secondary} text-sm`}>Loading…</div>
+                        <div className="space-y-6 p-6">
+                            <SkeletonKpiGrid count={4} />
+                            <SkeletonCard />
+                            <SkeletonCard />
+                        </div>
                     ) : (
                         <>
                             {/* ── Today ── */}
@@ -1376,7 +1385,14 @@ export default function DashboardPage() {
                                 )}
 
                                 {!monthComparison ? (
-                                    <div className={`text-center py-8 ${themeClasses.text.secondary}`}>Loading comparison data...</div>
+                                    <div className="space-y-4 p-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                            {Array.from({ length: 3 }).map((_, i) => (
+                                                <SkeletonCard key={i} />
+                                            ))}
+                                        </div>
+                                        <SkeletonCard />
+                                    </div>
                                 ) : (
                                     <>
                                         {/* Metrics comparison cards */}

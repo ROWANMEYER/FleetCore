@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
+import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
 import { SheetExportRow } from "@/src/types/sheetExport";
 import { exportCSV } from "@/src/lib/exports/exportCSV";
 import { exportJSON } from "@/src/lib/exports/exportJSON";
@@ -3247,8 +3248,13 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
 
         {/* Loading State */}
         {!isMounted || isLoading ? (
-          <div className="p-8 text-center text-gray-500 text-xs">
-            Loading...
+          <div className="p-6 space-y-6">
+            <SkeletonKpiGrid count={4} />
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <SkeletonLine key={i} className="w-full h-10 rounded" />
+              ))}
+            </div>
           </div>
         ) : filteredRoutes.length === 0 ? (
           /* Empty State */

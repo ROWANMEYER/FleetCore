@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { SkeletonPage } from "@/src/components/common/Skeleton";
 
 type SortDir = "asc" | "desc";
 
@@ -14,15 +15,8 @@ export default function AdminDriversPage() {
   const [includeInactive, setIncludeInactive] = useState(true);
   const [kpiFilter, setKpiFilter] = useState<"total" | "active" | "inactive">("total");
 
-  const drivers = useQuery(api.fleet.getDrivers, { search, sortBy, sortDir, includeInactive }) || [];
-  const filteredDrivers =
-    kpiFilter === "total"
-      ? drivers
-      : drivers.filter((d: any) =>
-          kpiFilter === "active" ? d.status !== "inactive" : d.status === "inactive"
-        );
-  const stats = useQuery(api.fleet.getDriverStats) || { total: 0, active: 0, inactive: 0 };
-
+  const driversQuery = useQuery(api.fleet.getDrivers, { search, sortBy, sortDir, includeInactive });
+  const statsQuery = useQuery(api.fleet.getDriverStats);
   const createDriver = useMutation(api.fleet.createDriver);
   const updateDriver = useMutation(api.fleet.updateDriver);
   const updateDriverStatus = useMutation(api.fleet.updateDriverStatus);
@@ -47,6 +41,17 @@ export default function AdminDriversPage() {
       return () => clearTimeout(t);
     }
   }, [successMsg]);
+
+  const drivers = driversQuery || [];
+  const filteredDrivers =
+    kpiFilter === "total"
+      ? drivers
+      : drivers.filter((d: any) =>
+          kpiFilter === "active" ? d.status !== "inactive" : d.status === "inactive"
+        );
+  const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
+
+  if (driversQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
   const handleSort = (col: typeof sortBy) => {
     if (sortBy === col) {

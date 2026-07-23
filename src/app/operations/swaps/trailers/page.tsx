@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { SkeletonPage } from "@/src/components/common/Skeleton";
 
 const kpiColor = (count: number) => {
   if (count <= 3) return "text-green-700";
@@ -43,7 +44,7 @@ export default function TrailerActivityScreen() {
   }, [swaps]);
 
   if (!swaps) {
-    return <div className="p-6 text-sm text-gray-500">Loading trailer activity...</div>;
+    return <SkeletonPage />;
   }
 
   return (

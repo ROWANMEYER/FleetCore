@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { SkeletonPage } from "@/src/components/common/Skeleton";
 
 type QuickFilter = "today" | "week" | "month";
 
@@ -103,7 +104,7 @@ export default function SwapHistoryScreen() {
   }, [swaps]);
 
   if (!swaps) {
-    return <div className="p-6 text-sm text-gray-500">Loading swap history...</div>;
+    return <SkeletonPage />;
   }
 
   return (

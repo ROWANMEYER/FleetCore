@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
+import { Pagination } from "@/src/components/common/Pagination";
 
 type SortDir = "asc" | "desc";
 
@@ -45,6 +46,13 @@ export default function AdminDriversPage() {
           kpiFilter === "active" ? d.status !== "inactive" : d.status === "inactive"
         );
   const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
+
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const totalPages = Math.max(1, Math.ceil(filteredDrivers.length / pageSize));
+  const pagedItems = filteredDrivers.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter]);
 
   if (driversQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
@@ -218,7 +226,7 @@ export default function AdminDriversPage() {
             </div>
           </div>
 
-          {filteredDrivers.map((d: any) => {
+          {pagedItems.map((d: any) => {
             const isEditing = editingId === (d._id as string);
             return (
               <div key={d._id} className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
@@ -260,6 +268,8 @@ export default function AdminDriversPage() {
           })}
         </div>
       </div>
+
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 
       <ConfirmDialog
         open={deletingId !== null}

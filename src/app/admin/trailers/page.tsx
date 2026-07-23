@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
+import { Pagination } from "@/src/components/common/Pagination";
 
 type SortDir = "asc" | "desc";
 
@@ -70,6 +71,13 @@ export default function AdminTrailersPage() {
   }, [trailersRaw, includeInactive, search, sortBy, sortDir]);
 
   const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
+
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const totalPages = Math.max(1, Math.ceil(trailers.length / pageSize));
+  const pagedItems = trailers.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive]);
 
   if (trailersQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
@@ -235,7 +243,7 @@ export default function AdminTrailersPage() {
             </div>
           </div>
 
-          {trailers.map((t: any, index: number) => {
+          {pagedItems.map((t: any, index: number) => {
             console.log("TRAILER ROW", t);
             const uniqueKey = t._id + "_" + t.originalRegistration;
             const isEditing = editingId === uniqueKey;
@@ -289,6 +297,8 @@ export default function AdminTrailersPage() {
           })}
         </div>
       </div>
+
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 
       <ConfirmDialog
         open={deletingTrailer !== null}

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
+import { Pagination } from "@/src/components/common/Pagination";
 
 type SortDir = "asc" | "desc";
 
@@ -37,6 +38,13 @@ export default function AdminTrucksPage() {
 
   const trucks = trucksQuery || [];
   const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
+
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+  const totalPages = Math.max(1, Math.ceil(trucks.length / pageSize));
+  const pagedTrucks = trucks.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive]);
 
   if (trucksQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
@@ -206,7 +214,7 @@ export default function AdminTrucksPage() {
             </div>
           </div>
 
-          {trucks.map((t: any) => {
+          {pagedTrucks.map((t: any) => {
             console.log("TRUCK ROW", t);
             const isEditing = editingId === (t._id as string);
             return (
@@ -256,6 +264,8 @@ export default function AdminTrucksPage() {
           })}
         </div>
       </div>
+
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 
       <ConfirmDialog
         open={deletingId !== null}

@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function DailyPlannerPage() {
-  redirect("/operations/daily-planner/input");
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function DailyPlannerIndexPage() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/operations/daily-planner/input"); }, [router]);
+  return null;
 }

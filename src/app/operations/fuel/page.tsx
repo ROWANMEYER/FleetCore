@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function FuelPage() {
-  redirect("/operations");
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function FuelRedirectPage() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/operations"); }, [router]);
+  return null;
 }

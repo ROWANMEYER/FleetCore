@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { EmptyState } from "@/src/components/common/EmptyState";
 
 export default function CombinationsScreen() {
   const combinations = useQuery(api.trailerSwaps.getCurrentCombinations, {});
@@ -30,9 +31,7 @@ export default function CombinationsScreen() {
 
           <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
             {combinations.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 italic">
-                No trucks are currently assigned to trailers.
-              </div>
+              <EmptyState icon="empty" title="No current combinations" description="No trucks are currently assigned to trailers." />
             ) : (
               <ul className="divide-y divide-gray-100">
                 {combinations.map(item => {

@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import EditRouteForm from "@/src/components/operations/daily-planner/EditRouteForm";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard } from "@/src/components/common/Skeleton";
+import { EmptyState } from "@/src/components/common/EmptyState";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -822,7 +823,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                             ))}
                         </div>
                     ) : filteredData.length === 0 ? (
-                        <p className={`${panelTheme.text.tertiary} text-sm text-center py-12`}>No routes found.</p>
+                        <EmptyState icon="search" title="No routes found" description="No routes match the current date range or filters." />
                     ) : (
                         filteredData.map((r) => {
                             const status = (r as any).status ?? "planned";
@@ -1217,7 +1218,15 @@ export default function DashboardPage() {
                                 <section className={`${themeClasses.bg.secondary} border ${themeClasses.border} rounded-xl p-5`}>
                                     <SectionHeader title="Revenue by Day — tap a row" isDayMode={isDayMode} />
                                     {!revenueOverTime || revenueOverTime.length === 0 ? (
-                                        <p className="text-gray-500 text-sm">No data for this period.</p>
+                                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-gray-400 dark:text-slate-500 mb-2">
+                                                <rect x="3" y="4" width="18" height="18" rx="2" />
+                                                <line x1="3" y1="10" x2="21" y2="10" />
+                                                <line x1="8" y1="2" x2="8" y2="6" />
+                                                <line x1="16" y1="2" x2="16" y2="6" />
+                                            </svg>
+                                            <p className="text-xs text-gray-500 dark:text-slate-400">No data for this period.</p>
+                                        </div>
                                     ) : (
                                         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                                             {revenueOverTime.map((d) => (
@@ -1240,7 +1249,15 @@ export default function DashboardPage() {
                                 <section className={`${themeClasses.bg.secondary} border ${themeClasses.border} rounded-xl p-5`}>
                                     <SectionHeader title="Top Clients — tap to drill down" isDayMode={isDayMode} />
                                     {(topClients.topCustomers ?? []).length === 0 ? (
-                                        <p className={`text-sm ${isDayMode ? "text-gray-600" : "text-gray-500"}`}>No data.</p>
+                                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-gray-400 dark:text-slate-500 mb-2">
+                                                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                                                <circle cx="9" cy="7" r="4" />
+                                                <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                                                <path d="M16 3.13a4 4 0 010 7.75" />
+                                            </svg>
+                                            <p className="text-xs text-gray-500 dark:text-slate-400">No client data available.</p>
+                                        </div>
                                     ) : (
                                         <div className="space-y-3">
                                             {topClients.topCustomers.slice(0, 8).map((c, i) => {
@@ -1276,7 +1293,15 @@ export default function DashboardPage() {
                                 <section className={`${themeClasses.bg.secondary} border ${themeClasses.border} rounded-xl p-5`}>
                                     <SectionHeader title="Top Trucks — tap to drill down" isDayMode={isDayMode} />
                                     {(fleetPerf.topTrucks ?? []).length === 0 ? (
-                                        <p className={`text-sm ${isDayMode ? "text-gray-600" : "text-gray-500"}`}>No data.</p>
+                                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-gray-400 dark:text-slate-500 mb-2">
+                                                <rect x="1" y="3" width="15" height="13" rx="2" />
+                                                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                                                <circle cx="5.5" cy="18.5" r="2.5" />
+                                                <circle cx="18.5" cy="18.5" r="2.5" />
+                                            </svg>
+                                            <p className="text-xs text-gray-500 dark:text-slate-400">No truck data available.</p>
+                                        </div>
                                     ) : (
                                         <div className="space-y-3">
                                             {fleetPerf.topTrucks.slice(0, 8).map((t, i) => {

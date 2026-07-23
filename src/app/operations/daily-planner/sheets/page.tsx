@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
 import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
+import { EmptyState } from "@/src/components/common/EmptyState";
 import { SheetExportRow } from "@/src/types/sheetExport";
 import { exportCSV } from "@/src/lib/exports/exportCSV";
 import { exportJSON } from "@/src/lib/exports/exportJSON";
@@ -3257,13 +3258,12 @@ function DailyPlannerSheetsContent({ mode = "primary" }: { mode?: "primary" | "s
             </div>
           </div>
         ) : filteredRoutes.length === 0 ? (
-          /* Empty State */
-          <div className="p-8 text-center">
-            <p className="text-gray-500 font-medium text-sm">No routes</p>
-            <p className="text-gray-400 text-xs mt-1">
-              {routes.length > 0 ? 'No routes match your filters.' : 'Select a date or add routes.'}
-            </p>
-          </div>
+          <EmptyState
+            icon={routes.length > 0 ? "filter" : "calendar"}
+            title={routes.length > 0 ? "No routes match your filters" : "No routes yet"}
+            description={routes.length > 0 ? "Try adjusting your search or filter criteria." : "Select a date and add routes to get started."}
+            action={routes.length > 0 ? undefined : { label: "Add Routes", onClick: () => router.push("/operations/daily-planner/input") }}
+          />
         ) : (
           /* Route Rows */
           <div

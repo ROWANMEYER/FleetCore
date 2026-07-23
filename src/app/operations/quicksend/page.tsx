@@ -7,6 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import EmailReportModal from "@/src/components/EmailReportModal";
 import { renderTransportReport } from "@/convex/templates/TransportReport";
 import { SkeletonCard } from "@/src/components/common/Skeleton";
+import { EmptyState } from "@/src/components/common/EmptyState";
 
 type ColumnKey = "date" | "truck" | "trailer" | "driver" | "client" | "from" | "to" | "rate" | "distance" | "notes";
 
@@ -269,9 +270,7 @@ export default function QuickSendPage() {
               <SkeletonCard />
             </div>
           ) : !hasData ? (
-            <div className="p-12 text-center text-gray-500 dark:text-slate-400">
-              No loads found for the selected period.
-            </div>
+            <EmptyState icon="search" title="No loads found" description="No loads were found for the selected period. Try a different date range." />
           ) : (
             <div className="bg-white dark:bg-gray-100 shadow-lg mx-auto max-w-[800px] min-h-[1000px]">
               <iframe 

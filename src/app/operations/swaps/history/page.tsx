@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { EmptyState } from "@/src/components/common/EmptyState";
 
 type QuickFilter = "today" | "week" | "month";
 
@@ -249,7 +250,7 @@ export default function SwapHistoryScreen() {
         })}
 
         {filteredSwaps.length === 0 && (
-          <div className="text-xs text-gray-500 italic mt-8">No swaps match the current filters.</div>
+          <EmptyState icon="filter" title="No swaps match the current filters" description="Try changing your search or date range." />
         )}
       </div>
     </div>

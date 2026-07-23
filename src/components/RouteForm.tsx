@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ConfirmDialog } from "./common/ConfirmDialog";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -52,6 +53,8 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
   const [trailerFleetNoStr, setTrailerFleetNoStr] = useState(initialValues?.trailerFleetNoStr || "");
   const [kilometers, setKilometers] = useState(initialValues?.kilometers || 0);
   const [notes, setNotes] = useState(initialValues?.notes || "");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [loads, setLoads] = useState<(Load & { tempId: string })[]>(
     (initialValues?.loads || [
@@ -114,6 +117,7 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="p-6 max-w-4xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold">Daily Planner</h1>
 
@@ -302,11 +306,7 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         {onDelete && (
           <button
             type="button"
-            onClick={() => {
-              if (confirm("Are you sure you want to delete this route?")) {
-                onDelete();
-              }
-            }}
+            onClick={() => setShowDeleteConfirm(true)}
             className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
           >
             Delete Route
@@ -320,5 +320,16 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         </button>
       </div>
     </form>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Route"
+        message="Are you sure you want to delete this route?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { setShowDeleteConfirm(false); onDelete?.(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+    </>
   );
 }

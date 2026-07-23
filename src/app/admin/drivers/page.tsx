@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 
 type SortDir = "asc" | "desc";
 
@@ -34,6 +35,7 @@ export default function AdminDriversPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (successMsg) {
@@ -119,16 +121,17 @@ export default function AdminDriversPage() {
     }
   };
 
-  const removeDriver = async (id: string) => {
+  const confirmRemoveDriver = async () => {
+    if (!deletingId) return;
     setErrorMsg(null);
     setSuccessMsg(null);
-    const ok = confirm("Delete this driver? This cannot be undone.");
-    if (!ok) return;
     try {
-      await deleteDriver({ id: id as Id<"drivers"> });
+      await deleteDriver({ id: deletingId as Id<"drivers"> });
       setSuccessMsg("Driver deleted");
     } catch (e: any) {
       setErrorMsg(e.message || String(e));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -266,7 +269,7 @@ export default function AdminDriversPage() {
                     <div className="col-span-1 text-right space-x-3">
                       <button onClick={() => startEdit(d)} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Edit</button>
                       <button onClick={() => toggleStatus(d)} className="text-xs font-medium text-yellow-600 hover:text-yellow-800 hover:underline">{d.status === "inactive" ? "Activate" : "Deactivate"}</button>
-                      <button onClick={() => removeDriver(d._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
+                      <button onClick={() => setDeletingId(d._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
                     </div>
                   </>
                 )}
@@ -275,6 +278,16 @@ export default function AdminDriversPage() {
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete Driver"
+        message="Delete this driver? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmRemoveDriver}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

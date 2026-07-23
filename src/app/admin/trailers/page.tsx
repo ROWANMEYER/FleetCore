@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 
 type SortDir = "asc" | "desc";
 
@@ -34,6 +35,7 @@ export default function AdminTrailersPage() {
   // Edit state now includes original values to identify the component
   const [editingId, setEditingId] = useState<string | null>(null); // Parent ID
   const [editingState, setEditingState] = useState<any | null>(null);
+  const [deletingTrailer, setDeletingTrailer] = useState<{ id: string; length: string; registration: string } | null>(null);
   const updateTrailerStatus = useMutation(api.fleet.updateTrailerStatus);
 
   useEffect(() => {
@@ -161,20 +163,21 @@ export default function AdminTrailersPage() {
     }
   };
 
-  const removeTrailer = async (id: string, length: string, registration: string) => {
+  const confirmRemoveTrailer = async () => {
+    if (!deletingTrailer) return;
     setErrorMsg(null);
     setSuccessMsg(null);
-    const ok = confirm("Delete this physical trailer? If it's the last one, the fleet number will be removed.");
-    if (!ok) return;
     try {
       await deleteTrailerComponent({ 
-          id: id as Id<"trailers">,
-          length,
-          registration
+          id: deletingTrailer.id as Id<"trailers">,
+          length: deletingTrailer.length,
+          registration: deletingTrailer.registration
       });
       setSuccessMsg("Trailer deleted");
     } catch (e: any) {
       setErrorMsg(e.message || String(e));
+    } finally {
+      setDeletingTrailer(null);
     }
   };
 
@@ -295,7 +298,7 @@ export default function AdminTrailersPage() {
                       >
                         {t.status === "inactive" ? "Activate" : "Deactivate"}
                       </button>
-                      <button onClick={() => removeTrailer(t._id as string, t.originalLength, t.originalRegistration)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
+                      <button onClick={() => setDeletingTrailer({ id: t._id as string, length: t.originalLength, registration: t.originalRegistration })} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
                     </div>
                   </>
                 )}
@@ -304,6 +307,16 @@ export default function AdminTrailersPage() {
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deletingTrailer !== null}
+        title="Delete Trailer"
+        message="Delete this physical trailer? If it's the last one, the fleet number will be removed."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmRemoveTrailer}
+        onCancel={() => setDeletingTrailer(null)}
+      />
     </div>
   );
 }

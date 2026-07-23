@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 
 type SortDir = "asc" | "desc";
 
@@ -32,6 +33,7 @@ export default function AdminTrucksPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (successMsg) {
@@ -110,16 +112,17 @@ export default function AdminTrucksPage() {
     }
   };
 
-  const removeTruck = async (id: string) => {
+  const confirmRemoveTruck = async () => {
+    if (!deletingId) return;
     setErrorMsg(null);
     setSuccessMsg(null);
-    const ok = confirm("Delete this truck? This cannot be undone.");
-    if (!ok) return;
     try {
-      await deleteTruck({ id: id as Id<"trucks"> });
+      await deleteTruck({ id: deletingId as Id<"trucks"> });
       setSuccessMsg("Truck deleted");
     } catch (e: any) {
       setErrorMsg(e.message || String(e));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -260,7 +263,7 @@ export default function AdminTrucksPage() {
                       >
                         {t.status === "inactive" ? "Activate" : "Deactivate"}
                       </button>
-                      <button onClick={() => removeTruck(t._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
+                      <button onClick={() => setDeletingId(t._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
                     </div>
                   </>
                 )}
@@ -269,6 +272,16 @@ export default function AdminTrucksPage() {
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete Truck"
+        message="Delete this truck? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmRemoveTruck}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

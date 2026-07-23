@@ -43,9 +43,9 @@ interface RouteFormProps {
 }
 
 export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLabel }: RouteFormProps) {
-  const trucks = useQuery(api.fleet.listTrucks);
-  const drivers = useQuery(api.fleet.listDrivers);
-  const trailers = useQuery(api.fleet.listTrailers);
+  const trucks = useQuery(api.fleet.listTrucks, {});
+  const drivers = useQuery(api.fleet.listDrivers, {});
+  const trailers = useQuery(api.fleet.listTrailers, {});
 
   const [routeDate, setRouteDate] = useState(initialValues?.routeDate || new Date().toISOString().split('T')[0]);
   const [truckFleetNoStr, setTruckFleetNoStr] = useState(initialValues?.truckFleetNoStr || "");

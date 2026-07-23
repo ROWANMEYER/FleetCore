@@ -57,9 +57,9 @@ const rateTypeOptions = [
 export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode = true }: EditRouteFormProps) {
   // --- Queries ---
   const route = useQuery(api.dailyRoutes.getById, { id: routeId });
-  const trucks = useQuery(api.fleet.listTrucks) || [];
-  const trailers = useQuery(api.fleet.listTrailers) || [];
-  const drivers = useQuery(api.fleet.listDrivers) || [];
+  const trucks = useQuery(api.fleet.listTrucks, {}) || [];
+  const trailers = useQuery(api.fleet.listTrailers, {}) || [];
+  const drivers = useQuery(api.fleet.listDrivers, {}) || [];
 
   if (!route) {
     return <div className={`p-4 ${isDayMode ? "text-gray-500" : "text-gray-400"}`}>Loading route...</div>;

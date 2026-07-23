@@ -99,6 +99,8 @@ export default defineSchema({
         quantityType: v.string(),
         rate: v.string(),
         rateType: v.string(),
+        subcontractorRate: v.optional(v.string()),
+        subcontractorRateType: v.optional(v.string()),
         toLocations: v.array(v.string()),
       })
     ),
@@ -139,6 +141,7 @@ export default defineSchema({
     photoStorageId: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
     status: v.optional(v.string()),
+    subcontractorId: v.optional(v.id("subcontractors")),
   }).index("by_driverId", ["driverId"]),
   fleetSetupBaseline: defineTable({
     assignments: v.array(
@@ -164,6 +167,13 @@ export default defineSchema({
   })
     .index("by_invoiceNumber", ["invoiceNumber"])
     .index("by_routeId", ["routeId"]),
+  subcontractors: defineTable({
+    name: v.string(),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    status: v.optional(v.string()),
+    createdAt: v.float64(),
+  }),
   myDaySelections: defineTable({
     createdAt: v.float64(),
     itemId: v.string(),
@@ -312,6 +322,7 @@ export default defineSchema({
     status: v.optional(v.string()),
     trailerFleetNo: v.float64(),
     trailerFleetNoStr: v.string(),
+    subcontractorId: v.optional(v.id("subcontractors")),
     trailers: v.array(
       v.object({
         length: v.string(),
@@ -365,6 +376,7 @@ export default defineSchema({
     serviceDueDate: v.optional(v.string()),
     serviceDueKm: v.optional(v.float64()),
     status: v.optional(v.string()),
+    subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.string()),
   })
     .index("by_currentTrailerId", ["currentTrailerId"])

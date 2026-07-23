@@ -3,12 +3,18 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
 export const listTrucks = query({ 
-    args: {}, 
-    handler: async (ctx) => { 
+    args: { 
+      subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+    },
+    handler: async (ctx, args) => { 
        const trucks = await ctx.db.query("trucks").collect(); 
-       const activeTrucks = trucks.filter(
-           (t) => (t as { status?: string }).status !== "inactive"
-       );
+       const activeTrucks = trucks.filter((t) => {
+         if ((t as { status?: string }).status === "inactive") return false;
+         const sid = (t as { subcontractorId?: string }).subcontractorId;
+         if (args.subcontractorId === undefined) return !sid;
+         if (args.subcontractorId === null) return !!sid;
+         return sid === args.subcontractorId;
+       });
         return activeTrucks.map((t) => ({ 
             label: `${t.truckFleetNo || t.fleetNumber || ""}${t.registration ? ` (${t.registration})` : ""}`, 
             value: t.truckFleetNo || t.fleetNumber || "", 
@@ -17,12 +23,18 @@ export const listTrucks = query({
 }); 
 
 export const listTrailers = query({ 
-    args: {}, 
-    handler: async (ctx) => { 
+    args: {
+      subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+    },
+    handler: async (ctx, args) => { 
        const trailers = await ctx.db.query("trailers").collect(); 
-       const activeTrailers = trailers.filter(
-           (t) => (t as { status?: string }).status !== "inactive"
-       );
+       const activeTrailers = trailers.filter((t) => {
+         if ((t as { status?: string }).status === "inactive") return false;
+         const sid = (t as { subcontractorId?: string }).subcontractorId;
+         if (args.subcontractorId === undefined) return !sid;
+         if (args.subcontractorId === null) return !!sid;
+         return sid === args.subcontractorId;
+       });
        return activeTrailers.map((t) => { 
             // Use string field if available, else number 
             const fleetNo = t.trailerFleetNoStr || String(t.trailerFleetNo); 
@@ -91,12 +103,18 @@ export const getTrailers = query({
 }); 
 
 export const listDrivers = query({ 
-    args: {}, 
-    handler: async (ctx) => { 
+    args: {
+      subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+    },
+    handler: async (ctx, args) => { 
       const drivers = await ctx.db.query("drivers").collect();
       const activeDrivers = drivers.filter((d) => {
         const status = (d as { status?: string }).status;
-        return status !== "inactive";
+        if (status === "inactive") return false;
+        const sid = (d as { subcontractorId?: string }).subcontractorId;
+        if (args.subcontractorId === undefined) return !sid;
+        if (args.subcontractorId === null) return !!sid;
+        return sid === args.subcontractorId;
       });
         return activeDrivers.map((d) => ({ 
             label: d.driverName || d.name || "", 

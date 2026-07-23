@@ -43,6 +43,7 @@ import type * as resetFlags from "../resetFlags.js";
 import type * as routes from "../routes.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
+import type * as subcontractors from "../subcontractors.js";
 import type * as tasks from "../tasks.js";
 import type * as templates_TransportReport from "../templates/TransportReport.js";
 import type * as trailerRenewals from "../trailerRenewals.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   routes: typeof routes;
   seed: typeof seed;
   settings: typeof settings;
+  subcontractors: typeof subcontractors;
   tasks: typeof tasks;
   "templates/TransportReport": typeof templates_TransportReport;
   trailerRenewals: typeof trailerRenewals;

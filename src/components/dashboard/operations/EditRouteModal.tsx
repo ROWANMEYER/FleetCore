@@ -38,9 +38,9 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 
 export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRouteModalProps) {
     const route = useQuery(api.dailyRoutes.getById, { id: routeId });
-    const trucks = useQuery(api.fleet.listTrucks) || [];
-    const drivers = useQuery(api.fleet.listDrivers) || [];
-    const trailers = useQuery(api.fleet.listTrailers) || [];
+    const trucks = useQuery(api.fleet.listTrucks, {}) || [];
+    const drivers = useQuery(api.fleet.listDrivers, {}) || [];
+    const trailers = useQuery(api.fleet.listTrailers, {}) || [];
 
     const [formData, setFormData] = useState({
         routeDate: route?.routeDate || "",

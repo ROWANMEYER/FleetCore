@@ -4,6 +4,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "@/src/components/providers/ConvexClientProvider";
 import Navigation from "@/src/components/Navigation";
 import { ThemeProvider } from "@/src/components/ThemeProvider";
+import { ToastProvider } from "@/src/components/common/Toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,12 +33,14 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <ConvexClientProvider>
+            <ToastProvider>
             <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-slate-950">
               <Navigation />
               <main className="flex-1 min-h-0 w-full relative flex flex-col overflow-auto bg-gray-50 dark:bg-slate-950">
                 {children}
               </main>
             </div>
+          </ToastProvider>
           </ConvexClientProvider>
         </ThemeProvider>
       </body>

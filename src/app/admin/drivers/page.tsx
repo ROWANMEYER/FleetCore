@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
+import { useToast } from "@/src/components/common/Toast";
 
 type SortDir = "asc" | "desc";
 
@@ -31,18 +32,10 @@ export default function AdminDriversPage() {
     status: "active",
   });
 
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const { addToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (successMsg) {
-      const t = setTimeout(() => setSuccessMsg(null), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [successMsg]);
 
   const drivers = driversQuery || [];
   const filteredDrivers =
@@ -65,18 +58,16 @@ export default function AdminDriversPage() {
   };
 
   const handleCreate = async () => {
-    setErrorMsg(null);
-    setSuccessMsg(null);
     try {
       if (!newDriver.driverId || !newDriver.driverName || !newDriver.idNumber || !newDriver.phone) {
-        setErrorMsg("All fields are required");
+        addToast("All fields are required", "error");
         return;
       }
       await createDriver(newDriver);
       setNewDriver({ driverId: "", driverName: "", idNumber: "", phone: "", status: "active" });
-      setSuccessMsg("Driver created");
+      addToast("Driver created", "success");
     } catch (e: any) {
-      setErrorMsg(e.message || String(e));
+      addToast(e.message || String(e), "error");
     }
   };
 
@@ -92,8 +83,6 @@ export default function AdminDriversPage() {
 
   const saveEdit = async () => {
     if (!editingId || !editingState) return;
-    setErrorMsg(null);
-    setSuccessMsg(null);
     try {
       await updateDriver({ id: editingId as Id<"drivers">, patch: {
         driverId: editingState.driverId,
@@ -102,34 +91,30 @@ export default function AdminDriversPage() {
         phone: editingState.phone,
         status: editingState.status,
       } });
-      setSuccessMsg("Driver updated");
+      addToast("Driver updated", "success");
       cancelEdit();
     } catch (e: any) {
-      setErrorMsg(e.message || String(e));
+      addToast(e.message || String(e), "error");
     }
   };
 
   const toggleStatus = async (d: any) => {
-    setErrorMsg(null);
-    setSuccessMsg(null);
     try {
       const newStatus = d.status === "inactive" ? "active" : "inactive";
       await updateDriverStatus({ id: d._id as Id<"drivers">, status: newStatus });
-      setSuccessMsg(`Driver ${newStatus === "inactive" ? "deactivated" : "activated"}`);
+      addToast(`Driver ${newStatus === "inactive" ? "deactivated" : "activated"}`, "success");
     } catch (e: any) {
-      setErrorMsg(e.message || String(e));
+      addToast(e.message || String(e), "error");
     }
   };
 
   const confirmRemoveDriver = async () => {
     if (!deletingId) return;
-    setErrorMsg(null);
-    setSuccessMsg(null);
     try {
       await deleteDriver({ id: deletingId as Id<"drivers"> });
-      setSuccessMsg("Driver deleted");
+      addToast("Driver deleted", "success");
     } catch (e: any) {
-      setErrorMsg(e.message || String(e));
+      addToast(e.message || String(e), "error");
     } finally {
       setDeletingId(null);
     }
@@ -197,9 +182,6 @@ export default function AdminDriversPage() {
           Include inactive
         </label>
       </div>
-
-      {errorMsg && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 dark:bg-red-950/30 dark:border-red-900/40 dark:text-red-200">{errorMsg}</div>}
-      {successMsg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 dark:bg-emerald-950/30 dark:border-emerald-900/40 dark:text-emerald-200">{successMsg}</div>}
 
       <div className="bg-white dark:bg-slate-900/60 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 dark:bg-slate-950/40 px-3 py-2 border-b border-gray-200 dark:border-slate-800 text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center">

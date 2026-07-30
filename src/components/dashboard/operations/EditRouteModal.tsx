@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useEscapeToClose } from "../../../components/common/useKeyboardShortcut";
+import { useToast } from "../../common/Toast";
 
 interface EditRouteModalProps {
     routeId: Id<"dailyRoutes">;
@@ -66,14 +67,15 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
+    const { addToast } = useToast();
 
     useEscapeToClose(onClose, true);
 
     if (!route) {
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg p-6">
-                    <p className="text-gray-500">Loading route...</p>
+                <div className="bg-[var(--card-bg)] rounded-xl p-6">
+                    <p className="text-[var(--nav-text-color)]">Loading route...</p>
                 </div>
             </div>
         );
@@ -129,7 +131,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
             onClose();
         } catch (error) {
             console.error("Failed to update route:", error);
-            alert("Failed to update route.");
+            addToast("Failed to update route.", "error");
         } finally {
             setIsSubmitting(false);
         }
@@ -137,12 +139,12 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-gray-900">Edit Route</h2>
+            <div className="bg-[var(--card-bg)] rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="sticky top-0 bg-[var(--card-bg)] border-b border-[var(--card-border)] p-6 flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-[var(--foreground)]">Edit Route</h2>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700 text-2xl"
+                        className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-2xl"
                     >
                         ×
                     </button>
@@ -152,10 +154,10 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Route Details */}
                         <div>
-                            <h3 className="text-sm font-semibold text-gray-900 mb-4">Route Details</h3>
+                            <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">Route Details</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                         Date
                                     </label>
                                     <input
@@ -164,11 +166,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         onChange={(e) =>
                                             setFormData({ ...formData, routeDate: e.target.value })
                                         }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                         Truck
                                     </label>
                                     <select
@@ -176,7 +178,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         onChange={(e) =>
                                             setFormData({ ...formData, truckFleetNoStr: e.target.value })
                                         }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     >
                                         <option value="">Select Truck</option>
                                         {trucks.map((t) => (
@@ -187,7 +189,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                         Driver
                                     </label>
                                     <select
@@ -195,7 +197,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         onChange={(e) =>
                                             setFormData({ ...formData, driverName: e.target.value })
                                         }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     >
                                         <option value="">Select Driver</option>
                                         {drivers.map((d) => (
@@ -206,7 +208,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                         Trailer (Optional)
                                     </label>
                                     <select
@@ -214,7 +216,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         onChange={(e) =>
                                             setFormData({ ...formData, trailerFleetNoStr: e.target.value })
                                         }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     >
                                         <option value="">Select Trailer</option>
                                         {trailers.map((t) => (
@@ -225,7 +227,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                         Kilometers
                                     </label>
                                     <input
@@ -234,12 +236,12 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         onChange={(e) =>
                                             setFormData({ ...formData, kilometers: Number(e.target.value) })
                                         }
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     />
                                 </div>
                             </div>
                             <div className="mt-4">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                     Notes
                                 </label>
                                 <textarea
@@ -248,7 +250,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         setFormData({ ...formData, notes: e.target.value })
                                     }
                                     rows={2}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                 />
                             </div>
                         </div>
@@ -256,13 +258,13 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                         {/* Loads Section */}
                         <div>
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-semibold text-gray-900">
+                                <h3 className="text-sm font-semibold text-[var(--foreground)]">
                                     Loads ({loads.length})
                                 </h3>
                                 <button
                                     type="button"
                                     onClick={handleAddLoad}
-                                    className="px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+                                    className="px-3 py-1 text-xs font-semibold text-[#06B6D4] hover:bg-[var(--card-bg)] rounded border border-[var(--card-border)]"
                                 >
                                     + Add Load
                                 </button>
@@ -277,7 +279,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                     return (
                                         <div
                                             key={load.id}
-                                            className="border border-gray-200 rounded-lg p-4 bg-gray-50 relative"
+                                            className="border border-[var(--card-border)] rounded-lg p-4 bg-[var(--card-bg)]/60 relative"
                                         >
                                             <button
                                                 type="button"
@@ -288,7 +290,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                             </button>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         Client
                                                     </label>
                                                     <input
@@ -297,11 +299,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "client", e.target.value)
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         From Location
                                                     </label>
                                                     <input
@@ -310,11 +312,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "fromLocations", [e.target.value])
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         To Location
                                                     </label>
                                                     <input
@@ -323,11 +325,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "toLocations", [e.target.value])
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         Quantity
                                                     </label>
                                                     <input
@@ -336,11 +338,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "quantity", e.target.value)
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         Rate
                                                     </label>
                                                     <input
@@ -349,11 +351,11 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "rate", e.target.value)
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
                                                         Rate Type
                                                     </label>
                                                     <select
@@ -361,14 +363,14 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                                         onChange={(e) =>
                                                             handleLoadChange(load.id, "rateType", e.target.value as "per_unit" | "flat")
                                                         }
-                                                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                                                        className="w-full px-2 py-1 text-sm border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                                     >
                                                         <option value="per_unit">Per Unit</option>
                                                         <option value="flat">Flat Rate</option>
                                                     </select>
                                                 </div>
                                             </div>
-                                            <div className="mt-2 text-right text-xs font-semibold text-green-600">
+                                            <div className="mt-2 text-right text-xs font-semibold text-emerald-600">
                                                 Revenue: {formatZAR(revenue)}
                                             </div>
                                         </div>
@@ -378,18 +380,18 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                         </div>
 
                         {/* Actions */}
-                        <div className="flex gap-3 justify-end pt-6 border-t border-gray-200">
+                        <div className="flex gap-3 justify-end pt-6 border-t border-[var(--card-border)]">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-sm font-medium text-[var(--nav-text-color)] border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] rounded-lg hover:opacity-90 disabled:opacity-50 shadow-sm"
                             >
                                 {isSubmitting ? "Saving..." : "Save Changes"}
                             </button>

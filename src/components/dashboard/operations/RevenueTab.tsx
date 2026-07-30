@@ -6,6 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import KpiCard from "./KpiCard";
 import EditRouteModal from "./EditRouteModal";
+import { useToast } from "../../common/Toast";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface RevenueTabProps {
@@ -27,6 +28,7 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 };
 
 export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
+    const { addToast } = useToast();
     const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [deletingRouteId, setDeletingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -69,7 +71,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
             setDeletingRouteId(null);
         } catch (error) {
             console.error("Failed to delete route:", error);
-            alert("Failed to delete route. It might be locked.");
+            addToast("Failed to delete route. It might be locked.", "error");
         }
     };
 
@@ -84,7 +86,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
 
     if (isLoading) {
         return (
-            <div className="p-8 text-center text-gray-500 text-sm">
+            <div className="p-8 text-center text-[var(--nav-text-color)] text-sm">
                 Loading revenue intelligence...
             </div>
         );
@@ -128,8 +130,8 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
             {/* Charts */}
             <div className="grid grid-cols-2 gap-6">
                 {/* Revenue Over Time */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                <div className="glass-card rounded-xl p-6">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
                         Revenue Over Time
                     </h3>
                     <div className="w-full min-h-[300px]">
@@ -153,8 +155,8 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                 </div>
 
                 {/* Revenue by Truck */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                <div className="glass-card rounded-xl p-6">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
                         Revenue by Truck (Top 10)
                     </h3>
                     <div className="w-full min-h-[300px]">
@@ -173,14 +175,14 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
             </div>
 
             {/* Routes List */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">
+            <div className="glass-card rounded-xl p-6">
+                <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
                     Routes ({routes?.length || 0})
                 </h3>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-gray-200 text-gray-600 font-medium">
+                            <tr className="border-b border-[var(--card-border)] text-[var(--nav-text-color)] font-medium">
                                 <th className="text-left py-3 px-4">Date</th>
                                 <th className="text-left py-3 px-4">Truck</th>
                                 <th className="text-left py-3 px-4">Driver</th>
@@ -194,7 +196,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                         <tbody>
                             {!routes || routes.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="text-center py-8 text-gray-500">
+                                    <td colSpan={8} className="text-center py-8 text-[var(--nav-text-color)]">
                                         No routes found for this period.
                                     </td>
                                 </tr>
@@ -219,7 +221,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                                     return (
                                         <tr
                                             key={route._id}
-                                            className="border-b border-gray-100 hover:bg-gray-50"
+                                            className="border-b border-[var(--card-border)] hover:bg-[var(--table-row-hover)]"
                                         >
                                             <td className="py-3 px-4">{route.routeDate}</td>
                                             <td className="py-3 px-4 font-medium">{route.truckFleetNoStr}</td>
@@ -237,7 +239,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                                             <td className="py-3 px-4 text-right space-x-2">
                                                 <button
                                                     onClick={() => handleEditClick(route._id)}
-                                                    className="px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+                                                    className="px-3 py-1 text-xs font-semibold text-[#06B6D4] hover:bg-[var(--card-bg)] rounded border border-[var(--card-border)]"
                                                 >
                                                     Edit
                                                 </button>
@@ -260,9 +262,9 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm">
-                        <h2 className="text-lg font-bold text-gray-900 mb-4">Confirm Delete</h2>
-                        <p className="text-gray-600 mb-6">
+                    <div className="bg-[var(--card-bg)] rounded-xl shadow-2xl p-6 max-w-sm">
+                        <h2 className="text-lg font-bold text-[var(--foreground)] mb-4">Confirm Delete</h2>
+                        <p className="text-[var(--nav-text-color)] mb-6">
                             Are you sure you want to delete this route and all its loads? This action cannot be undone.
                         </p>
                         <div className="flex gap-3 justify-end">
@@ -271,7 +273,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
                                     setShowDeleteConfirm(false);
                                     setDeletingRouteId(null);
                                 }}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-sm font-medium text-[var(--foreground)] border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]"
                             >
                                 Cancel
                             </button>

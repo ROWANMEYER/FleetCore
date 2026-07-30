@@ -19,20 +19,30 @@ export default function DashboardCard({
   className = "",
 }: DashboardCardProps) {
   const trendColors = {
-    up: "text-green-600",
-    down: "text-red-600",
+    up: "text-emerald-600",
+    down: "text-red-500",
     neutral: "text-gray-500",
   };
 
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col ${className}`}>
+    <div
+      className={`glass-card-premium p-5 flex flex-col ${className}`}
+    >
       <div className="flex justify-between items-start mb-2">
-        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+        <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">
           {title}
         </h3>
         {trend && (
           <span
-            className={`text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-50 ${trendColors[trend.direction]}`}
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trendColors[trend.direction]}`}
+            style={{
+              background:
+                trend.direction === "up"
+                  ? "rgba(16,185,129,0.1)"
+                  : trend.direction === "down"
+                    ? "rgba(239,68,68,0.1)"
+                    : "rgba(107,114,128,0.1)",
+            }}
           >
             {trend.direction === "up" ? "↑" : trend.direction === "down" ? "↓" : "•"}{" "}
             {trend.value}
@@ -40,14 +50,12 @@ export default function DashboardCard({
         )}
       </div>
 
-      <div className="text-3xl font-bold text-gray-900 mb-4">{value}</div>
+      <div className="text-3xl font-black text-[var(--foreground)] mb-4">{value}</div>
 
       {children && (
         <>
-          <div className="h-px bg-gray-100 mb-3" />
-          <div className="flex-1">
-            {children}
-          </div>
+          <div className="h-px bg-[var(--card-border)] mb-3" />
+          <div className="flex-1">{children}</div>
         </>
       )}
     </div>

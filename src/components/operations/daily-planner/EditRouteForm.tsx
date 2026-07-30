@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
+import { useToast } from "../../../components/common/Toast";
 
 // --- Types ---
 interface EditRouteFormProps {
@@ -25,6 +26,8 @@ type Load = {
   rateType: "per_unit" | "flat";
   sequence: number;
   kilometers?: number;
+  subcontractorRate?: string;
+  subcontractorRateType?: "per_unit" | "flat";
 };
 
 // --- Helpers ---
@@ -57,9 +60,14 @@ const rateTypeOptions = [
 export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode = true }: EditRouteFormProps) {
   // --- Queries ---
   const route = useQuery(api.dailyRoutes.getById, { id: routeId });
-  const trucks = useQuery(api.fleet.listTrucks, {}) || [];
-  const trailers = useQuery(api.fleet.listTrailers, {}) || [];
-  const drivers = useQuery(api.fleet.listDrivers, {}) || [];
+  const appSettings = useQuery(api.settings.getAppSettings);
+  const subcontractors = useQuery(api.subcontractors.list, {}) || [];
+  const [isFleetMode, setIsFleetMode] = useState(true);
+  const [selectedSubId, setSelectedSubId] = useState<string>("");
+  const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
+  const trucks = useQuery(api.fleet.listTrucks, { subcontractorId: subcontractorIdFilter }) || [];
+  const trailers = useQuery(api.fleet.listTrailers, { subcontractorId: subcontractorIdFilter }) || [];
+  const drivers = useQuery(api.fleet.listDrivers, { subcontractorId: subcontractorIdFilter }) || [];
 
   if (!route) {
     return <div className={`p-4 ${isDayMode ? "text-gray-500" : "text-gray-400"}`}>Loading route...</div>;
@@ -68,10 +76,16 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode 
   return (
     <EditRouteFormInner
       route={route}
+      appSettings={appSettings}
       routeId={routeId}
       trucks={trucks}
       trailers={trailers}
       drivers={drivers}
+      subcontractors={subcontractors}
+      isFleetMode={isFleetMode}
+      selectedSubId={selectedSubId}
+      onFleetModeChange={setIsFleetMode}
+      onSubIdChange={setSelectedSubId}
       onSuccess={onSuccess}
       onCancel={onCancel}
       isDayMode={isDayMode}
@@ -81,10 +95,16 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode 
 
 type EditRouteFormInnerProps = {
   route: any;
+  appSettings: any;
   routeId: Id<"dailyRoutes">;
   trucks: any[];
   trailers: any[];
   drivers: any[];
+  subcontractors: any[];
+  isFleetMode: boolean;
+  selectedSubId: string;
+  onFleetModeChange: (v: boolean) => void;
+  onSubIdChange: (v: string) => void;
   onSuccess: () => void;
   onCancel: () => void;
   isDayMode?: boolean;
@@ -92,29 +112,36 @@ type EditRouteFormInnerProps = {
 
 function EditRouteFormInner({
   route,
+  appSettings,
   routeId,
   trucks,
   trailers,
   drivers,
+  subcontractors,
+  isFleetMode,
+  selectedSubId,
+  onFleetModeChange,
+  onSubIdChange,
   onSuccess,
   onCancel,
   isDayMode = true,
 }: EditRouteFormInnerProps) {
   const panelTheme = {
     bg: {
-        primary: isDayMode ? "bg-white" : "bg-gray-950",
-        secondary: isDayMode ? "bg-gray-50" : "bg-gray-900",
+        primary: "bg-[var(--card-bg)]",
+        secondary: "bg-[var(--card-bg)]/80",
     },
     text: {
-        primary: isDayMode ? "text-gray-900" : "text-white",
-        secondary: isDayMode ? "text-gray-700" : "text-gray-300",
-        tertiary: isDayMode ? "text-gray-500" : "text-gray-400",
+        primary: "text-[var(--foreground)]",
+        secondary: "text-[var(--nav-text-color)]",
+        tertiary: "text-[var(--nav-text-color)]/80",
     },
-    border: isDayMode ? "border-gray-300" : "border-gray-700",
-    input: isDayMode ? "bg-white border-gray-300 text-gray-900" : "bg-gray-900 border-gray-700 text-white focus:bg-gray-800",
+    border: "border-[var(--card-border)]",
+    input: "bg-[var(--card-bg)] border-[var(--card-border)] text-[var(--foreground)] focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]",
   };
 
   // --- Mutations ---
+  const { addToast } = useToast();
   const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
 
   // --- Form State ---
@@ -131,6 +158,42 @@ function EditRouteFormInner({
     route.routeKilometers?.toString() ?? ""
   );
 
+  // --- Settings defaults ---
+  const [showSubMargin, setShowSubMargin] = useState(true);
+  const [settingsDefaultsApplied, setSettingsDefaultsApplied] = useState(false);
+
+  // Apply sub defaults from settings to draft load
+  useEffect(() => {
+    if (appSettings && !settingsDefaultsApplied) {
+      const settings = appSettings as any;
+      const subRateType = settings.defaultSubRateType;
+      const showMargin = settings.showSubMarginOnCards;
+      if (subRateType) {
+        setDraftLoad(prev => ({
+          ...prev,
+          subcontractorRateType: subRateType as "per_unit" | "flat",
+        }));
+      }
+      if (showMargin !== undefined) {
+        setShowSubMargin(showMargin);
+      }
+      setSettingsDefaultsApplied(true);
+    }
+  }, [appSettings, settingsDefaultsApplied]);
+
+  // Sync subcontractor mode from existing route on mount
+  useEffect(() => {
+    const subId = (route as any).subcontractorId as string | undefined;
+    if (subId) {
+      onFleetModeChange(false);
+      onSubIdChange(subId);
+    } else {
+      onFleetModeChange(true);
+      onSubIdChange("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const initialLoads: Load[] = (route.loads ?? []).map((l: any, index: number) => ({
     id: crypto.randomUUID(),
     clientName: l.client ?? "",
@@ -142,6 +205,8 @@ function EditRouteFormInner({
     rateType: l.rateType === "flat" ? "flat" : "per_unit",
     sequence: index + 1,
     kilometers: l.kilometers || 0,
+    subcontractorRate: l.subcontractorRate,
+    subcontractorRateType: l.subcontractorRateType as "per_unit" | "flat" | undefined,
   }));
 
   const [loads, setLoads] = useState<Load[]>(initialLoads);
@@ -155,6 +220,8 @@ function EditRouteFormInner({
     quantityType: "tons",
     rate: "",
     rateType: "per_unit",
+    subcontractorRate: "",
+    subcontractorRateType: "per_unit",
   });
 
   // --- Inline Editing State ---
@@ -194,9 +261,9 @@ function EditRouteFormInner({
     const cleanFrom = draftLoad.fromLocations.filter((l) => l.trim() !== "");
     const cleanTo = draftLoad.toLocations.filter((l) => l.trim() !== "");
 
-    if (!draftLoad.clientName) return alert("Client name is required");
-    if (cleanFrom.length === 0) return alert("At least one Pickup location is required");
-    if (cleanTo.length === 0) return alert("At least one Drop location is required");
+    if (!draftLoad.clientName) return addToast("Client name is required", "error");
+    if (cleanFrom.length === 0) return addToast("At least one Pickup location is required", "error");
+    if (cleanTo.length === 0) return addToast("At least one Drop location is required", "error");
 
     const newLoad: Load = {
       id: crypto.randomUUID(),
@@ -210,7 +277,15 @@ function EditRouteFormInner({
       sequence: loads.length + 1,
     };
 
+    // Include subcontractor rate when in sub mode
+    if (!isFleetMode) {
+      newLoad.subcontractorRate = draftLoad.subcontractorRate;
+      newLoad.subcontractorRateType = draftLoad.subcontractorRateType as "per_unit" | "flat";
+    }
+
     setLoads([...loads, newLoad]);
+    // Reset draft, using settings default for sub rate type if available
+    const subDefault = appSettings ? (appSettings as any).defaultSubRateType : undefined;
     setDraftLoad({
       clientName: "",
       fromLocations: [""],
@@ -219,6 +294,8 @@ function EditRouteFormInner({
       quantityType: "tons",
       rate: "",
       rateType: "per_unit",
+      subcontractorRate: "",
+      subcontractorRateType: subDefault || "per_unit",
     });
   };
 
@@ -275,7 +352,7 @@ function EditRouteFormInner({
   const handleSaveEdit = () => {
     if (!editingLoadState) return;
     if (editingLoadState.fromLocations.length === 0 || editingLoadState.fromLocations[0] === "") {
-        alert("At least one Pickup location is required");
+        addToast("At least one Pickup location is required", "error");
         return;
     }
     setLoads(loads.map((l) => (l.id === editingLoadId ? editingLoadState : l)));
@@ -315,10 +392,12 @@ function EditRouteFormInner({
   // --- Save Handler ---
   const handleSave = async () => {
     if (!routeDate || !truckFleetNo || !driver) {
-      return alert("Missing required fields: Date, Truck, or Driver");
+      return addToast("Missing required fields: Date, Truck, or Driver", "error");
     }
 
     try {
+      const modeSubId = isFleetMode ? undefined : (selectedSubId || undefined) as Id<"subcontractors"> | undefined;
+
       const schemaLoads = loads.map((l) => ({
         client: l.clientName,
         quantity: l.quantity.toString(),
@@ -328,6 +407,8 @@ function EditRouteFormInner({
         fromLocations: l.fromLocations,
         toLocations: l.toLocations,
         kilometers: l.kilometers,
+        subcontractorRate: l.subcontractorRate,
+        subcontractorRateType: l.subcontractorRateType,
       }));
 
       await updateRoute({
@@ -336,17 +417,18 @@ function EditRouteFormInner({
         truckFleetNoStr: truckFleetNo.toString(),
         driverName: driver,
         trailerFleetNoStr: trailer || undefined,
+        subcontractorId: modeSubId,
         notes: notes || undefined,
         kilometers: totals.totalKm,
         routeKilometers: parseFloat(routeKilometers) || undefined,
         loads: schemaLoads,
       });
 
-      alert("Route updated successfully!");
+      addToast("Route updated successfully!", "success");
       onSuccess();
     } catch (err) {
       console.error("Failed to save:", err);
-      alert("Failed to save route.");
+      addToast("Failed to save route.", "error");
     }
   };
 
@@ -366,11 +448,59 @@ function EditRouteFormInner({
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+          className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] rounded-md hover:opacity-90 shadow-sm"
         >
           Save Changes
         </button>
       </div>
+
+      {/* Fleet / Subcontractor Toggle */}
+      <div className="flex items-center gap-4 mb-4">
+        <span className={`text-sm font-medium ${panelTheme.text.secondary}`}>Mode:</span>
+        <button
+          type="button"
+          onClick={() => onFleetModeChange(true)}
+          className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+            isFleetMode
+              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+              : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
+          }`}
+        >
+          Fleet
+        </button>
+        <button
+          type="button"
+          onClick={() => onFleetModeChange(false)}
+          className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+            !isFleetMode
+              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+              : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
+          }`}
+        >
+          Subcontractor
+        </button>
+      </div>
+
+      {/* Subcontractor dropdown */}
+      {!isFleetMode && (
+        <div className="mb-4">
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Subcontractor</label>
+          <select
+            value={selectedSubId}
+            onChange={(e) => onSubIdChange(e.target.value)}
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`}
+          >
+            <option value="">Select Subcontractor...</option>
+            {subcontractors
+              .filter((s: any) => s.status !== "inactive")
+              .map((s: any) => (
+                <option key={s._id} value={s._id}>
+                  {s.companyName}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
 
       {/* Main Fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -478,7 +608,7 @@ function EditRouteFormInner({
           {loads.length === 0 ? (
              <div className={`p-4 text-center text-sm ${panelTheme.text.tertiary}`}>No loads. Add one below.</div>
           ) : (
-            <div className={`divide-y ${isDayMode ? "divide-gray-200" : "divide-gray-800"}`}>
+            <div className={`divide-y divide-[var(--card-border)]`}>
               {loads.map((load) => (
                 <div key={load.id} className={`p-4 hover:${panelTheme.bg.secondary}`}>
                   {editingLoadId === load.id && editingLoadState ? (
@@ -529,6 +659,29 @@ function EditRouteFormInner({
                            </select>
                         </div>
                       </div>
+                      
+                      {/* Subcontractor Rate (only in sub mode) */}
+                      {!isFleetMode && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex gap-2">
+                            <input
+                              placeholder="Sub Rate"
+                              type="number"
+                              value={editingLoadState.subcontractorRate || ""}
+                              onChange={e => setEditingLoadState({...editingLoadState, subcontractorRate: e.target.value})}
+                              className={`rounded p-2 text-sm w-24 border border-orange-300 dark:border-orange-700/50 ${panelTheme.input}`}
+                            />
+                            <select
+                              value={editingLoadState.subcontractorRateType || "per_unit"}
+                              onChange={e => setEditingLoadState({...editingLoadState, subcontractorRateType: e.target.value as "per_unit" | "flat"})}
+                              className={`rounded p-2 text-sm flex-1 border border-orange-300 dark:border-orange-700/50 ${panelTheme.input}`}
+                            >
+                              <option value="per_unit">/ Unit</option>
+                              <option value="flat">Flat</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* From Locations */}
@@ -585,6 +738,14 @@ function EditRouteFormInner({
                         <div className={`text-xs ${panelTheme.text.tertiary} mt-1`}>
                            <span className={panelTheme.text.secondary}>{load.quantity} {load.quantityType}</span> @ <span className="font-semibold">{formatZAR(parseFloat(load.rate) || 0)}</span> ({load.rateType})
                         </div>
+                        {!isFleetMode && load.subcontractorRate && showSubMargin && (
+                          <div className={`text-xs mt-1 space-x-2`}>
+                            <span className="text-orange-500">Sub: {formatZAR(calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.subcontractorRate) || 0, load.subcontractorRateType || "per_unit"))}</span>
+                            <span className="text-emerald-500">
+                              Margin: {formatZAR(calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.rate) || 0, load.rateType) - calculateLoadAmount(parseFloat(load.quantity) || 0, parseFloat(load.subcontractorRate) || 0, load.subcontractorRateType || "per_unit"))}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleEditLoad(load)} className="text-blue-500 hover:text-blue-400 text-xs hover:underline">Edit</button>
@@ -686,7 +847,7 @@ function EditRouteFormInner({
           </div>
           <button
             onClick={handleAddLoad}
-            className={`w-full py-2 rounded text-sm transition-colors ${isDayMode ? "bg-gray-900 text-white hover:bg-black" : "bg-white text-gray-900 hover:bg-gray-100"}`}
+            className={`w-full py-2 rounded text-sm transition-colors bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm`}
           >
             Add Load
           </button>
@@ -707,7 +868,7 @@ function EditRouteFormInner({
         </button>
         <button
           onClick={handleSave}
-          className="px-6 py-2 font-medium text-white bg-black rounded-md hover:bg-gray-800"
+          className="px-6 py-2 font-medium text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] rounded-md hover:opacity-90 shadow-sm"
         >
           Save Route
         </button>

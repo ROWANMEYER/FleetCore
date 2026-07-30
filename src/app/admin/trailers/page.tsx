@@ -4,40 +4,86 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useKpiFilter } from "@/src/lib/useKpiFilter";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X } from "lucide-react";
 
 type SortDir = "asc" | "desc";
+
+function OwnerBadge({ sub, subStatus }: { sub?: { _id: string; companyName: string } | null; subStatus?: string }) {
+  if (sub) {
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+          style={{backgroundColor:"var(--color-accent-purple)", color:"#fff"}}>
+          {sub.companyName}
+        </span>
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold`}
+          style={{
+            backgroundColor: subStatus === "inactive" ? "var(--card-border)" : "var(--color-primary)",
+            color: "#fff",
+          }}>
+          {subStatus === "inactive" ? "Sub Inactive" : "Sub Active"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+      style={{backgroundColor:"var(--card-border)", color:"var(--nav-text-color)"}}>
+      Fleet
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold`}
+      style={{
+        backgroundColor: status === "inactive" ? "var(--card-border)" : "var(--color-accent-emerald)",
+        color: "#fff",
+      }}>
+      {status === "inactive" ? "Inactive" : "Active"}
+    </span>
+  );
+}
 
 export default function AdminTrailersPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"trailerFleetNoStr" | "type">("trailerFleetNoStr");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [includeInactive, setIncludeInactive] = useState(true);
+  const [kpiFilter, setKpiFilter] = useKpiFilter();
 
   const trailersQuery = useQuery(api.fleet.getTrailers, {});
   const statsQuery = useQuery(api.fleet.getTrailerStats);
+  const subcontractorsQuery = useQuery(api.subcontractors.list, {});
   const createTrailer = useMutation(api.fleet.createTrailer);
   const updateTrailerComponent = useMutation(api.fleet.updateTrailerComponent);
   const deleteTrailerComponent = useMutation(api.fleet.deleteTrailerComponent);
+  const updateTrailerStatus = useMutation(api.fleet.updateTrailerStatus);
 
+  const subcontractors = subcontractorsQuery || [];
+
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newTrailer, setNewTrailer] = useState({
     trailerFleetNo: "",
     trailerFleetNoStr: "",
     length: "",
     registration: "",
     type: "",
+    subcontractorId: "",
+    subStatus: "active",
   });
 
   const { addToast } = useToast();
-  
-  // Edit state now includes original values to identify the component
-  const [editingId, setEditingId] = useState<string | null>(null); // Parent ID
+
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
   const [deletingTrailer, setDeletingTrailer] = useState<{ id: string; length: string; registration: string } | null>(null);
-  const updateTrailerStatus = useMutation(api.fleet.updateTrailerStatus);
 
   const trailersRaw = trailersQuery || [];
 
@@ -53,14 +99,8 @@ export default function AdminTrailersPage() {
       const type = String(t?.type ?? "").toLowerCase();
       const length = String(t?.length ?? "").toLowerCase();
       const registration = String(t?.registration ?? "").toLowerCase();
-      return (
-        fleetNo.includes(q) ||
-        type.includes(q) ||
-        length.includes(q) ||
-        registration.includes(q)
-      );
+      return fleetNo.includes(q) || type.includes(q) || length.includes(q) || registration.includes(q);
     });
-
     filtered.sort((a: any, b: any) => {
       const av = String(a?.[sortBy] ?? "");
       const bv = String(b?.[sortBy] ?? "");
@@ -70,14 +110,45 @@ export default function AdminTrailersPage() {
     return filtered;
   }, [trailersRaw, includeInactive, search, sortBy, sortDir]);
 
+  const filteredTrailers =
+    kpiFilter === "total"
+      ? trailers
+      : trailers.filter((t: any) =>
+          kpiFilter === "active" ? t.status !== "inactive" : t.status === "inactive"
+        );
+
   const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
 
   const [page, setPage] = useState(1);
-  const pageSize = 15;
-  const totalPages = Math.max(1, Math.ceil(trailers.length / pageSize));
-  const pagedItems = trailers.slice((page - 1) * pageSize, page * pageSize);
+  const pageSize = 20;
 
-  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive]);
+  // Group the ENTIRE filtered list so we get an accurate total count for pagination
+  const allGroups = useMemo(() => {
+    const groups = new Map<string, { _id: string; trailerFleetNo: number; trailerFleetNoStr: string; type: string; status?: string; subStatus?: string; subcontractorId?: string; currentExpiry?: string; components: any[] }>();
+    for (const item of filteredTrailers) {
+      const key = item._id;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          _id: item._id,
+          trailerFleetNo: item.trailerFleetNo,
+          trailerFleetNoStr: item.trailerFleetNoStr,
+          type: item.type,
+          status: item.status,
+          subStatus: item.subStatus,
+          subcontractorId: item.subcontractorId,
+          currentExpiry: item.currentExpiry,
+          components: [],
+        });
+      }
+      groups.get(key)!.components.push(item);
+    }
+    return Array.from(groups.values());
+  }, [filteredTrailers]);
+
+  const totalPages = Math.max(1, Math.ceil(allGroups.length / pageSize));
+  const pagedGroups = allGroups.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter]);
 
   if (trailersQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
@@ -101,8 +172,11 @@ export default function AdminTrailersPage() {
         trailerFleetNoStr: newTrailer.trailerFleetNoStr || String(newTrailer.trailerFleetNo),
         trailers: [{ length: newTrailer.length || "", registration: newTrailer.registration || "" }],
         type: newTrailer.type,
+        subcontractorId: newTrailer.subcontractorId ? (newTrailer.subcontractorId as Id<"subcontractors">) : undefined,
+        subStatus: newTrailer.subcontractorId ? newTrailer.subStatus : undefined,
       });
-      setNewTrailer({ trailerFleetNo: "", trailerFleetNoStr: "", length: "", registration: "", type: "" });
+      setNewTrailer({ trailerFleetNo: "", trailerFleetNoStr: "", length: "", registration: "", type: "", subcontractorId: "", subStatus: "active" });
+      setShowAddForm(false);
       addToast("Trailer created/added", "success");
     } catch (e: any) {
       addToast(e.message || String(e), "error");
@@ -110,16 +184,18 @@ export default function AdminTrailersPage() {
   };
 
   const startEdit = (t: any) => {
-    setEditingId(t._id + "_" + t.originalRegistration); // Unique UI Key
+    setEditingId(t._id + "_" + t.originalRegistration);
     setEditingState({
-        _id: t._id,
-        originalLength: t.originalLength,
-        originalRegistration: t.originalRegistration,
-        trailerFleetNo: t.trailerFleetNo,
-        trailerFleetNoStr: t.trailerFleetNoStr,
-        length: t.length,
-        registration: t.registration,
-        type: t.type
+      _id: t._id,
+      originalLength: t.originalLength,
+      originalRegistration: t.originalRegistration,
+      trailerFleetNo: t.trailerFleetNo,
+      trailerFleetNoStr: t.trailerFleetNoStr,
+      length: t.length,
+      registration: t.registration,
+      type: t.type,
+      subcontractorId: t.subcontractorId || null,
+      subStatus: t.subStatus || "active",
     });
   };
 
@@ -140,6 +216,8 @@ export default function AdminTrailersPage() {
         newType: editingState.type,
         newTrailerFleetNo: Number(editingState.trailerFleetNo),
         newTrailerFleetNoStr: editingState.trailerFleetNoStr,
+        subcontractorId: editingState.subcontractorId || null,
+        subStatus: editingState.subStatus || undefined,
       });
       addToast("Trailer updated", "success");
       cancelEdit();
@@ -161,10 +239,10 @@ export default function AdminTrailersPage() {
   const confirmRemoveTrailer = async () => {
     if (!deletingTrailer) return;
     try {
-      await deleteTrailerComponent({ 
-          id: deletingTrailer.id as Id<"trailers">,
-          length: deletingTrailer.length,
-          registration: deletingTrailer.registration
+      await deleteTrailerComponent({
+        id: deletingTrailer.id as Id<"trailers">,
+        length: deletingTrailer.length,
+        registration: deletingTrailer.registration
       });
       addToast("Trailer deleted", "success");
     } catch (e: any) {
@@ -174,129 +252,231 @@ export default function AdminTrailersPage() {
     }
   };
 
+  const sortOptions: { key: typeof sortBy; label: string }[] = [
+    { key: "trailerFleetNoStr", label: "Fleet No" },
+    { key: "type", label: "Type" },
+  ];
+
   return (
-    <div className="w-full h-full p-6 space-y-6 overflow-y-auto text-gray-900 dark:text-slate-100">
-      <div>
-        <h1 className="text-xl font-bold">Admin — Trailers</h1>
-        <p className="text-xs text-gray-500 dark:text-slate-400">Manage trailer master data. Each row represents a physical trailer.</p>
+    <div className="w-full h-full p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Trailers</h1>
+          <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Manage trailer master data</p>
+        </div>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm"
+        >
+          {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+          {showAddForm ? "Cancel" : "Add Trailer"}
+        </button>
       </div>
 
-      <div className="flex gap-4">
-        <div className="bg-slate-50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-0.5">Total Trailers</div>
-          <div className="text-2xl font-bold text-slate-600 dark:text-slate-100">{stats.total}</div>
-        </div>
-        <div className="bg-green-50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600/80 mb-0.5">Active</div>
-          <div className="text-2xl font-bold text-green-700">{stats.active}</div>
-        </div>
-        <div className="bg-gray-100/50 dark:bg-slate-950/40 border border-transparent dark:border-slate-800 rounded-lg px-4 py-2 min-w-[120px]">
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Inactive</div>
-          <div className="text-2xl font-bold text-gray-500 dark:text-slate-200">{stats.inactive}</div>
-        </div>
+      <div className="flex gap-3">
+        {(["total", "active", "inactive"] as const).map((filter) => {
+          const isActive = kpiFilter === filter;
+          return (
+            <button key={filter} onClick={() => setKpiFilter(kpiFilter === filter ? "total" : filter)}
+              className={`glass-card rounded-xl px-5 py-3 min-w-[110px] text-left transition-all cursor-pointer ${isActive ? "ring-2 ring-[#06B6D4]/50" : ""}`}>
+              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{color:"var(--nav-text-color)"}}>{filter === "total" ? "Total" : filter === "active" ? "Active" : "Inactive"}</div>
+              <div className={`text-2xl font-black ${filter === "active" ? "text-emerald-500" : ""}`} style={{color: filter !== "active" ? "var(--foreground)" : undefined}}>{stats[filter]}</div>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex items-center gap-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search fleet no, type, length, registration"
-          className="border border-gray-300 dark:border-slate-700 rounded px-2 py-1 text-sm w-80 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={includeInactive}
-            onChange={(e) => setIncludeInactive(e.target.checked)}
-          />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search fleet no, type, registration..."
+            className="w-full pl-10 pr-3 py-1.5 rounded-lg text-xs settings-input" />
+        </div>
+        <select value={sortBy} onChange={(e) => handleSort(e.target.value as typeof sortBy)}
+          className="rounded-lg px-2.5 py-1.5 text-xs outline-none"
+          style={{
+            border: "1px solid var(--card-border)",
+            background: "var(--card-bg)",
+            color: "var(--foreground)",
+            backdropFilter: "blur(8px)",
+          }}>
+          {sortOptions.map((o) => (<option key={o.key} value={o.key}>{o.label}</option>))}
+        </select>
+        <button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+          className="px-2 py-1.5 rounded-lg text-xs transition-colors"
+          style={{
+            border: "1px solid var(--card-border)",
+            background: "var(--card-bg)",
+            color: "var(--nav-text-color)",
+            backdropFilter: "blur(8px)",
+          }}>
+          {sortDir === "asc" ? "↑ Asc" : "↓ Desc"}
+        </button>
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" style={{color:"var(--nav-text-color)"}}>
+          <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)}
+            className="rounded" style={{borderColor:"var(--card-border)"}} />
           Include inactive
         </label>
       </div>
 
-      <div className="bg-white dark:bg-slate-900/60 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[repeat(8,minmax(0,1fr))] gap-2 bg-gray-50 dark:bg-slate-950/40 px-3 py-2 border-b border-gray-200 dark:border-slate-800 text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center">
-          <div className="col-span-2 flex items-center gap-1">
-            <button onClick={() => handleSort("trailerFleetNoStr")} className="hover:text-black">Fleet No</button>
-            <span className="text-blue-600">{sortBy === "trailerFleetNoStr" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
+      {showAddForm && (
+        <div className="glass-card-premium p-5 space-y-4 border-dashed">
+          <h3 className="text-xs font-semibold uppercase tracking-wider" style={{color:"var(--nav-text-color)"}}>New Trailer</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Fleet No (str)" value={newTrailer.trailerFleetNoStr} onChange={(e) => setNewTrailer({ ...newTrailer, trailerFleetNoStr: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Fleet No (num)" value={newTrailer.trailerFleetNo} onChange={(e) => setNewTrailer({ ...newTrailer, trailerFleetNo: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Length" value={newTrailer.length} onChange={(e) => setNewTrailer({ ...newTrailer, length: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Registration" value={newTrailer.registration} onChange={(e) => setNewTrailer({ ...newTrailer, registration: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Type" value={newTrailer.type} onChange={(e) => setNewTrailer({ ...newTrailer, type: e.target.value })} />
+            <select value={newTrailer.subcontractorId} onChange={(e) => setNewTrailer({ ...newTrailer, subcontractorId: e.target.value })}
+              className="rounded-lg px-2 py-2 text-xs outline-none"
+              style={{
+                border: "1px solid var(--card-border)",
+                background: "var(--card-bg)",
+                color: "var(--foreground)",
+              }}>
+              <option value="">Fleet (own)</option>
+              {subcontractors.map((s: any) => (<option key={s._id} value={s._id}>{s.companyName}</option>))}
+            </select>
+            {newTrailer.subcontractorId && (
+              <select value={newTrailer.subStatus} onChange={(e) => setNewTrailer({ ...newTrailer, subStatus: e.target.value })}
+                className="rounded-lg px-2 py-2 text-xs outline-none"
+                style={{
+                  border: "1px solid var(--card-border)",
+                  background: "var(--card-bg)",
+                  color: "var(--foreground)",
+                }}>
+                <option value="active">Sub Active</option>
+                <option value="inactive">Sub Inactive</option>
+              </select>
+            )}
           </div>
-          <div className="col-span-1">Length</div>
-          <div className="col-span-1">Registration</div>
-          <div className="col-span-1 flex items-center gap-1">
-            <button onClick={() => handleSort("type")} className="hover:text-black">Type</button>
-            <span className="text-blue-600">{sortBy === "type" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs font-medium transition-colors" style={{color:"var(--nav-text-color)"}}>Cancel</button>
+            <button onClick={handleCreate} className="px-4 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Add Trailer</button>
           </div>
-          <div className="col-span-1">Fleet No (num)</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1 text-right">Actions</div>
         </div>
+      )}
 
-        <div className="divide-y divide-gray-200 dark:divide-slate-800">
-          {/* New row */}
-          <div className="grid grid-cols-[repeat(8,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center bg-blue-50/50 dark:bg-slate-950/30">
-            <input className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Fleet No (string)" value={newTrailer.trailerFleetNoStr} onChange={(e) => setNewTrailer({ ...newTrailer, trailerFleetNoStr: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Length" value={newTrailer.length} onChange={(e) => setNewTrailer({ ...newTrailer, length: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Registration" value={newTrailer.registration} onChange={(e) => setNewTrailer({ ...newTrailer, registration: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Type" value={newTrailer.type} onChange={(e) => setNewTrailer({ ...newTrailer, type: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Fleet No (numeric)" value={newTrailer.trailerFleetNo} onChange={(e) => setNewTrailer({ ...newTrailer, trailerFleetNo: e.target.value })} />
-            <div className="col-span-2 text-right">
-              <button onClick={handleCreate} className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">Add</button>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {pagedGroups.map((group: any) => {
+          const sub = subcontractors.find((s: any) => s._id === group.subcontractorId);
+          const isEditingGroup = editingId && group.components.some((c: any) => (group._id + "_" + c.originalRegistration) === editingId);
 
-          {pagedItems.map((t: any, index: number) => {
-            console.log("TRAILER ROW", t);
-            const uniqueKey = t._id + "_" + t.originalRegistration;
-            const isEditing = editingId === uniqueKey;
-            
+          // If editing one component in this group, show the editing card
+          if (isEditingGroup) {
             return (
-              <div key={uniqueKey} className="grid grid-cols-[repeat(8,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
-                {isEditing ? (
-                  <>
-                    <input className="col-span-2 border rounded px-2 py-1" value={editingState.trailerFleetNoStr ?? ""} onChange={(e) => setEditingState({ ...editingState, trailerFleetNoStr: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.length ?? ""} onChange={(e) => setEditingState({ ...editingState, length: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.registration ?? ""} onChange={(e) => setEditingState({ ...editingState, registration: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.type ?? ""} onChange={(e) => setEditingState({ ...editingState, type: e.target.value })} />
-                    <input className="col-span-1 border rounded px-2 py-1" value={editingState.trailerFleetNo ?? ""} onChange={(e) => setEditingState({ ...editingState, trailerFleetNo: e.target.value })} />
-                    <div className="col-span-2 text-right space-x-2">
-                      <button onClick={saveEdit} className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">Save</button>
-                      <button onClick={cancelEdit} className="text-xs font-medium text-gray-600 hover:text-black hover:underline">Cancel</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-2 font-medium text-gray-900 dark:text-gray-100">{t.trailerFleetNoStr ?? String(t.trailerFleetNo)}</div>
-                    <div className="col-span-1">{t.length}</div>
-                    <div className="col-span-1">{t.registration}</div>
-                    <div className="col-span-1">{t.type}</div>
-                    <div className="col-span-1">{t.trailerFleetNo}</div>
-                    <div className="col-span-1">
-                      <span
-                        className={
-                          t.status === "inactive"
-                            ? "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-500"
-                            : "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700"
-                        }
-                      >
-                        {t.status === "inactive" ? "Inactive" : "Active"}
-                      </span>
-                    </div>
-                    <div className="col-span-1 text-right space-x-3">
-                      <button onClick={() => startEdit(t)} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Edit</button>
-                      <button
-                        onClick={() => toggleStatus(t)}
-                        className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline"
-                      >
-                        {t.status === "inactive" ? "Activate" : "Deactivate"}
-                      </button>
-                      <button onClick={() => setDeletingTrailer({ id: t._id as string, length: t.originalLength, registration: t.originalRegistration })} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
-                    </div>
-                  </>
+              <div key={group._id + "_editing"} className="glass-card-premium p-5 space-y-3" style={{borderColor:"#06B6D4"}}>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{color:"#06B6D4"}}>Editing: {group.trailerFleetNoStr}</h3>
+                <input
+                  className="w-full rounded-lg px-3 py-2 text-xs settings-input"
+                  value={editingState.trailerFleetNoStr ?? ""} onChange={(e) => setEditingState({ ...editingState, trailerFleetNoStr: e.target.value })} placeholder="Fleet No" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.length ?? ""} onChange={(e) => setEditingState({ ...editingState, length: e.target.value })} placeholder="Length" />
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.registration ?? ""} onChange={(e) => setEditingState({ ...editingState, registration: e.target.value })} placeholder="Registration" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.type ?? ""} onChange={(e) => setEditingState({ ...editingState, type: e.target.value })} placeholder="Type" />
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.trailerFleetNo ?? ""} onChange={(e) => setEditingState({ ...editingState, trailerFleetNo: e.target.value })} placeholder="Fleet No (num)" />
+                </div>
+                <select value={editingState.subcontractorId || ""} onChange={(e) => setEditingState({ ...editingState, subcontractorId: e.target.value || null })}
+                  className="w-full rounded-lg px-2 py-2 text-xs outline-none"
+                  style={{ border: "1px solid var(--card-border)", background: "var(--card-bg)", color: "var(--foreground)" }}>
+                  <option value="">Fleet (own)</option>
+                  {subcontractors.map((s: any) => (<option key={s._id} value={s._id}>{s.companyName}</option>))}
+                </select>
+                {editingState.subcontractorId && (
+                  <select value={editingState.subStatus || "active"} onChange={(e) => setEditingState({ ...editingState, subStatus: e.target.value })}
+                    className="w-full rounded-lg px-2 py-2 text-xs outline-none"
+                    style={{ border: "1px solid var(--card-border)", background: "var(--card-bg)", color: "var(--foreground)" }}>
+                    <option value="active">Sub Active</option>
+                    <option value="inactive">Sub Inactive</option>
+                  </select>
                 )}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={saveEdit} className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Save</button>
+                  <button onClick={cancelEdit} className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ border: "1px solid var(--card-border)", color: "var(--nav-text-color)" }}>Cancel</button>
+                </div>
               </div>
             );
-          })}
-        </div>
+          }
+
+          return (
+            <div key={group._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+              {/* Header: fleet number + status toggle */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
+                  {group.trailerFleetNoStr ?? String(group.trailerFleetNo)}
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button onClick={() => toggleStatus(group)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={group.status === "inactive" ? "Activate" : "Deactivate"}>
+                    {group.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Components: one line per trailer (6m, 12m) */}
+              <div className="space-y-2 text-xs">
+                {group.components.map((comp: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-[var(--card-bg)] transition-colors" style={{borderBottom: idx < group.components.length - 1 ? "1px solid var(--card-border)" : "none"}}>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="font-semibold min-w-[32px]" style={{color:"var(--nav-text-color)"}}>{comp.length || "—"}</span>
+                      <span style={{color:"var(--foreground)"}}>{comp.registration || "—"}</span>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => startEdit(comp)} className="p-1 rounded hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => setDeletingTrailer({ id: group._id as string, length: comp.originalLength, registration: comp.originalRegistration })} className="p-1 rounded hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Type + badges */}
+              <div className="flex items-center gap-2 mt-3 text-xs" style={{color:"var(--nav-text-color)"}}>
+                <span className="font-medium">Type:</span>
+                <span style={{color:"var(--foreground)"}}>{group.type}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
+                <OwnerBadge sub={sub} subStatus={group.subStatus} />
+                <StatusBadge status={group.status} />
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {pagedGroups.length === 0 && (
+        <div className="text-center py-16 glass-card-premium rounded-xl border-dashed">
+          <div className="text-4xl mb-3 opacity-30">🛞</div>
+          <p className="text-sm font-medium" style={{color:"var(--nav-text-color)"}}>No trailers found</p>
+          <p className="text-xs mt-1" style={{color:"var(--nav-text-color)"}}>Try adjusting your search or filters</p>
+        </div>
+      )}
 
       <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 

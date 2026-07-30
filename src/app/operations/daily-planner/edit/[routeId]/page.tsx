@@ -18,9 +18,9 @@ export default function EditRoutePage() {
   };
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-gray-50">
+    <div className="h-full w-full overflow-y-auto" style={{backgroundColor:"var(--background)"}}>
       <div className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-xl font-semibold mb-4">
+        <h1 className="text-xl font-bold tracking-tight mb-4" style={{color:"var(--foreground)"}}>
           Edit Route
         </h1>
         <EditRouteForm 

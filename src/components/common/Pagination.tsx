@@ -23,21 +23,21 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage <= 1}
-        className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="px-3 py-1.5 text-xs font-medium text-[var(--nav-text-color)] bg-[var(--card-bg)] border border-[var(--card-border)] rounded-md hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Previous
       </button>
       {pages.map((p, i) =>
         p === "..." ? (
-          <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-gray-400">...</span>
+          <span key={`e-${i}`} className="px-2 py-1.5 text-xs text-[var(--nav-text-color)]">...</span>
         ) : (
           <button
             key={p}
             onClick={() => onPageChange(p)}
             className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
               p === currentPage
-                ? "bg-black text-white border-black dark:bg-white dark:text-black dark:border-white"
-                : "text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800"
+                ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white border-transparent"
+                : "text-[var(--nav-text-color)] bg-[var(--card-bg)] border-[var(--card-border)] hover:opacity-80"
             }`}
           >
             {p}
@@ -47,7 +47,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
-        className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="px-3 py-1.5 text-xs font-medium text-[var(--nav-text-color)] bg-[var(--card-bg)] border border-[var(--card-border)] rounded-md hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Next
       </button>

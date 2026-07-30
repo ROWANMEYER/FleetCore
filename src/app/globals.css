@@ -1,46 +1,190 @@
 @import "tailwindcss";
 
-/* Support dark: utilities via manual class toggle (next-themes injects .dark on <html>) */
+/* ─── Dark mode variant ────────────────────────────────────────────
+   next-themes injects .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ─── Design Tokens ──────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts (set via next/font) */
+  --font-heading: var(--font-space-grotesk);
+  --font-body: var(--font-inter);
+
+  /* Primary – Cyan-teal inspired by AgeTrack */
+  --color-primary: #06B6D4;
+  --color-primary-dark: #0891B2;
+  --color-primary-light: #22D3EE;
+  --color-primary-glow: rgba(6, 182, 212, 0.15);
+
+  /* Accents */
+  --color-accent-teal: #14B8A6;
+  --color-accent-emerald: #10B981;
+  --color-accent-amber: #F59E0B;
+  --color-accent-red: #EF4444;
+  --color-accent-purple: #8B5CF6;
+
+  /* Surfaces */
+  --color-surface: #F8FAFC;
+  --color-surface-dark: #0B1220;
+  --color-glass: rgba(255, 255, 255, 0.08);
+  --color-glass-hover: rgba(255, 255, 255, 0.12);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-glass-border-hover: rgba(255, 255, 255, 0.2);
+  --color-glass-light: rgba(255, 255, 255, 0.6);
+  --color-glass-light-hover: rgba(255, 255, 255, 0.8);
+
+  /* Sidebar dimensions */
+  --spacing-sidebar-w: 256px;
+  --spacing-sidebar-w-collapsed: 64px;
+
+  /* Animations */
+  --animate-fade-up: fade-up 0.5s ease-out forwards;
+  --animate-fade-up-sm: fade-up 0.35s ease-out forwards;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+  --animate-glow-soft: glow-soft 3s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+  --animate-blob-drift: blob-drift 20s ease-in-out infinite;
+  --animate-blob-drift-reverse: blob-drift-reverse 25s ease-in-out infinite;
+  --animate-blob-drift-slow: blob-drift 35s ease-in-out infinite;
+  --animate-sidebar-item: sidebar-item 0.2s ease-out;
+  --animate-pulse-indicator: pulse-indicator 2s ease-in-out infinite;
 }
 
-/* Dark mode: only activates when .dark class is present — never from OS preference */
+/* ─── Core body variables ────────────────────────────────────────── */
+:root {
+  --background: #F0F4F8;
+  --foreground: #0F172A;
+  --card-bg: rgba(255, 255, 255, 0.75);
+  --card-border: rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --card-shadow-hover: 0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.04);
+  --sidebar-bg: rgba(255, 255, 255, 0.85);
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --nav-item-active-bg: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(6, 182, 212, 0.04));
+  --nav-item-active-indicator: #06B6D4;
+  --nav-icon-color: #64748B;
+  --nav-icon-active-color: #06B6D4;
+  --nav-text-color: #475569;
+  --nav-text-active-color: #0F172A;
+  --blob-1: rgba(6, 182, 212, 0.08);
+  --blob-2: rgba(20, 184, 166, 0.06);
+  --blob-3: rgba(139, 92, 246, 0.05);
+  --bg-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E");
+  /* ─── Table tokens ──────────────────────────────────────── */
+  --table-row-even: #F1F5F9;
+  --table-row-odd: #E8ECF0;
+  --table-row-hover: rgba(6, 182, 212, 0.05);
+  --table-row-header: #E2E8F0;
+  --table-highlight-bg: rgba(200, 192, 0, 0.15);
+  --table-highlight-text: #7A7200;
+  /* ─── Chart tokens ──────────────────────────────────────── */
+  --chart-grid: #E2E8F0;
+  --chart-axis: #64748B;
+}
+
 .dark {
-  --background: #0b1220;
-  --foreground: #e5e7eb;
+  --background: #0B1220;
+  --foreground: #E2E8F0;
+  --card-bg: rgba(15, 23, 42, 0.65);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --card-shadow-hover: 0 10px 25px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.15);
+  --sidebar-bg: rgba(11, 18, 32, 0.88);
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --nav-item-active-bg: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(6, 182, 212, 0.05));
+  --nav-item-active-indicator: #06B6D4;
+  --nav-icon-color: #64748B;
+  --nav-icon-active-color: #22D3EE;
+  --nav-text-color: #94A3B8;
+  --nav-text-active-color: #F1F5F9;
+  --blob-1: rgba(6, 182, 212, 0.12);
+  --blob-2: rgba(20, 184, 166, 0.08);
+  --blob-3: rgba(139, 92, 246, 0.06);
+  /* ─── Table tokens ──────────────────────────────────────── */
+  --table-row-even: rgba(15, 23, 42, 0.3);
+  --table-row-odd: rgba(15, 23, 42, 0.55);
+  --table-row-hover: rgba(6, 182, 212, 0.08);
+  --table-row-header: #334155;
+  --table-highlight-bg: rgba(200, 192, 0, 0.18);
+  --table-highlight-text: #E8D44D;
+  /* ─── Chart tokens ──────────────────────────────────────── */
+  --chart-grid: #334155;
+  --chart-axis: #94A3B8;
+}
+
+/* ─── Base styles ────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html,
-body,
-#__next {
-  min-height: 100%;
+/* ─── Glass card utility ─────────────────────────────────────────── */
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-/* FleetCore: thin dark scrollbars for in-panel scrolling */
+.glass-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+
+.glass-card-premium {
+  background: var(--card-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  border-radius: 1rem;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.glass-card-premium:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-1px);
+}
+
+/* ─── Sidebar glass ──────────────────────────────────────────────── */
+.glass-sidebar {
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+/* ─── Ambient blob styles ────────────────────────────────────────── */
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* ─── Navigation item active pill ──────────────────────────────── */
+.nav-item-active {
+  background: linear-gradient(135deg, #06B6D4, #0891B2) !important;
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35), 0 1px 3px rgba(6, 182, 212, 0.2);
+}
+
+/* ─── Scrollbar styles ───────────────────────────────────────────── */
 .scrollbar-fleet {
   scrollbar-width: thin;
-  scrollbar-color: rgba(17, 24, 39, 0.85) rgba(0, 0, 0, 0);
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
 }
 
 .scrollbar-fleet::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .scrollbar-fleet::-webkit-scrollbar-track {
@@ -48,17 +192,16 @@ body,
 }
 
 .scrollbar-fleet::-webkit-scrollbar-thumb {
-  background-color: rgba(17, 24, 39, 0.85);
+  background-color: rgba(100, 116, 139, 0.4);
   border-radius: 9999px;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: content-box;
 }
 
 .scrollbar-fleet::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(17, 24, 39, 0.95);
+  background-color: rgba(100, 116, 139, 0.6);
 }
 
-/* FleetCore: hide scrollbar chrome while preserving scroll behavior */
 .scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none !important;
@@ -79,36 +222,168 @@ body,
   border: 0 !important;
 }
 
-/* ─── Light mode: override transparent/frosted-glass styles ─────────────────
-   In dark mode the wallpaper shows through bg-white/* and border-white/*.
-   In light mode those become invisible. These rules replace them with
-   solid, visible equivalents so the UI has proper depth and contrast.
-   ─────────────────────────────────────────────────────────────────────────── */
-
-html:not(.dark) {
-  /* Page background — soft blue-grey instead of plain white */
-  background-color: #f0f4f8 !important;
+/* ─── Keyframe Animations ────────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* ─── Visible thin scrollbar for sheets table ───────────────────────────── */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: #9ca3af transparent;
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
+@keyframes glow-soft {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #9ca3af;
-  border-radius: 9999px;
+@keyframes blob-drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  50% {
+    transform: translate(-20px, 30px) scale(0.9);
+  }
+  75% {
+    transform: translate(40px, 20px) scale(1.05);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: #6b7280;
+@keyframes blob-drift-reverse {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-30px, 40px) scale(0.95);
+  }
+  50% {
+    transform: translate(25px, -30px) scale(1.1);
+  }
+  75% {
+    transform: translate(-40px, -15px) scale(1);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes pulse-indicator {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--nav-item-active-indicator);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--nav-item-active-indicator), 0 0 20px rgba(6, 182, 212, 0.2);
+  }
+}
+
+@keyframes sidebar-item {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ─── Settings form input ──────────────────────────────────────────── */
+.settings-input {
+  border: 1px solid var(--card-border) !important;
+  background: var(--card-bg) !important;
+  color: var(--foreground) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-input:focus {
+  border-color: #06B6D4 !important;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2) !important;
+  outline: none !important;
+}
+
+/* ─── Shimmer loading skeleton ───────────────────────────────────── */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(148, 163, 184, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(148, 163, 184, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─── Gradient text utility ──────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #06B6D4, #22D3EE);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Noise overlay ──────────────────────────────────────────────── */
+.noise-overlay::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: var(--bg-noise);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* ─── Workspace split styles ─────────────────────────────────────── */
+.panel-resize-handle {
+  width: 4px;
+  background: var(--card-border);
+  transition: background 0.15s ease;
+  cursor: col-resize;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle[data-resize-handle-active] {
+  background: #06B6D4;
 }

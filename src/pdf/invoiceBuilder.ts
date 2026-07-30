@@ -7,16 +7,17 @@ const fmtCurrencyRaw = (n: number) => {
 };
 
  
-export const buildInvoiceData = (route: any, customers: any[] | undefined): InvoiceData => {
+export const buildInvoiceData = (route: any, customers: any[] | undefined, companySettings?: any): InvoiceData => {
   // 1. Resolve customer
   const clientName = route.client || "";
   const customer = customers?.find(
     (c) => c.name === clientName || c.normalizedName === clientName.toLowerCase()
   );
 
-  // 2. Financials
+  // 2. Financials (use VAT rate from settings, default 15%)
+  const vatRate = (companySettings?.defaultVatRate ?? 15) / 100;
   const rate = Number(route.rate) || 0;
-  const vatAmount = rate * 0.15;
+  const vatAmount = rate * vatRate;
   const totalAmount = rate + vatAmount;
 
   // 3. Truck registration (will be enriched by backend on save, use fleet no as fallback)
@@ -61,6 +62,20 @@ export const buildInvoiceData = (route: any, customers: any[] | undefined): Invo
         },
       ];
 
+  // Build company details from settings (fall back to hardcoded defaults)
+  const company = companySettings ? {
+    name: companySettings.companyName || "ANTON LE ROUX VERVOER",
+    pobox: companySettings.companyPobox || "POSBUS / BOX 132",
+    city: companySettings.companyCity || "GEORGE",
+    postal: companySettings.companyPostal || "6530",
+    tel: companySettings.companyPhone ? `Tel: ${companySettings.companyPhone}` : "Tel: 044 8742292",
+    fax: companySettings.companyFax ? `Fax: ${companySettings.companyFax}` : "Fax: 044 8746515",
+    vat: companySettings.vatNumber || "4130255724",
+    bank: companySettings.bankName || "ABSA GEORGE",
+    acc: companySettings.accountNumber || "0890000118",
+    branch: companySettings.branchCode || "630-114",
+  } : undefined;
+
   return {
     // invoiceNumber is a placeholder — replaced with sequential number by backend on save
     invoiceNumber: `PRO-${(route.routeDate || "").replace(/-/g, "")}-${route._id.slice(-4)}`,
@@ -80,5 +95,6 @@ export const buildInvoiceData = (route: any, customers: any[] | undefined): Invo
       vatAmount,
       totalAmount,
     },
+    company: company || undefined,
   };
 };

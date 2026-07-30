@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function FuelRedirectPage() {
+function FuelRedirect() {
   const router = useRouter();
   useEffect(() => { router.replace("/operations"); }, [router]);
   return null;
 }
+FuelRedirect.displayName = "FuelRedirect";
+export default FuelRedirect;

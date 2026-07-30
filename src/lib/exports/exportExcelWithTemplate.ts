@@ -80,7 +80,6 @@ export async function exportExcelWithTemplate(
 
   } catch (error) {
     console.error("Excel export failed:", error);
-    alert("Failed to export Excel file. See console for details.");
     throw error; // Re-throw for caller handling if needed
   }
 }

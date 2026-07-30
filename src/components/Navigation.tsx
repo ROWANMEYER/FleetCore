@@ -2,53 +2,197 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ThemeToggle } from "@/src/components/ThemeToggle";
+import { useState, useEffect, useCallback } from "react";
+import {
+  LayoutGrid,
+  BarChart3,
+  Shield,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Moon,
+} from "lucide-react";
+import { useTheme } from "next-themes";
 
+/* ─── Navigation items ─────────────────────────────────────────── */
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+  { href: "/operations", label: "Operations", icon: BarChart3 },
+  { href: "/admin", label: "Admin", icon: Shield },
+  { href: "/settings", label: "Settings", icon: Settings },
+] as const;
+
+/* ─── Custom hook for mounted check ────────────────────────────── */
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  return mounted;
+}
+
+/* ─── Main sidebar component ───────────────────────────────────── */
 export default function Navigation() {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const mounted = useMounted();
 
-  const isActive = (path: string) => {
-    if (path === "/") return pathname === "/";
-    return pathname.startsWith(path);
-  };
+  const isActive = useCallback(
+    (href: string) => {
+      if (href === "/dashboard") return pathname === href;
+      return pathname.startsWith(href);
+    },
+    [pathname]
+  );
 
   return (
-    <nav className="bg-black/95 dark:bg-black text-white h-16 flex items-center px-6 relative z-50 shadow-lg border-b border-white/10 backdrop-blur-sm">
-      <div className="w-full flex items-center justify-between">
-        <div className="font-bold text-xl tracking-tight">FleetCore</div>
-
-        <div className="flex items-center gap-6 text-sm font-medium">
-          <Link
-            href="/dashboard"
-            className={`hover:text-gray-300 transition-colors ${isActive('/dashboard') ? 'text-white border-b-2 border-white pb-1' : 'text-gray-400'}`}
+    <aside
+      className="relative z-30 flex flex-col h-full glass-sidebar shrink-0 select-none"
+      style={{
+        width: collapsed ? 64 : 256,
+        transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
+    >
+      {/* ─── Brand header ─────────────────────────────────── */}
+      <div className="flex items-center h-14 px-4 shrink-0">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+          {/* Logo mark — teal-to-blue gradient square with bar-chart icon */}
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-lg shadow-[rgba(6,182,212,0.3)] shrink-0">
+            <BarChart3 size={18} className="text-white" strokeWidth={2} />
+          </div>
+          {/* Brand text */}
+          <span
+            className="font-[var(--font-heading)] font-bold text-base tracking-tight whitespace-nowrap"
+            style={{
+              background: "linear-gradient(135deg, #06B6D4, #0891B2)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              transition: `opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+              opacity: collapsed ? 0 : 1,
+              maxWidth: collapsed ? 0 : 200,
+              overflow: "hidden",
+            }}
           >
-            Dashboards
-          </Link>
-
-          <Link
-            href="/operations"
-            className={`hover:text-gray-300 transition-colors ${isActive('/operations') ? 'text-white border-b-2 border-white pb-1' : 'text-gray-400'}`}
-          >
-            Operations
-          </Link>
-
-          <Link
-            href="/admin"
-            className={`hover:text-gray-300 transition-colors ${isActive('/admin') ? 'text-white border-b-2 border-white pb-1' : 'text-gray-400'}`}
-          >
-            Admin
-          </Link>
-
-          <Link
-            href="/settings"
-            className={`hover:text-gray-300 transition-colors ${isActive('/settings') ? 'text-white border-b-2 border-white pb-1' : 'text-gray-400'}`}
-          >
-            Settings
-          </Link>
-
-          <ThemeToggle />
+            FleetCore
+          </span>
         </div>
       </div>
-    </nav>
+
+      {/* ─── Divider ──────────────────────────────────────── */}
+      <div className="mx-4 h-px bg-[var(--sidebar-border)] shrink-0" />
+
+      {/* ─── Navigation items ─────────────────────────────── */}
+      <nav className="flex-1 flex flex-col gap-3 px-3 py-5 overflow-y-auto scrollbar-hidden">
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(item.href);
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`
+                group relative flex items-center gap-3 px-3 py-2.5 rounded-xl
+                transition-all duration-200
+                ${
+                  active
+                    ? "nav-item-active text-white font-bold"
+                    : "text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)]"
+                }
+              `}
+              title={collapsed ? item.label : undefined}
+            >
+              {/* Icon */}
+              <div className="flex items-center justify-center w-5 h-5 shrink-0">
+                <Icon
+                  size={18}
+                  strokeWidth={active ? 2.5 : 1.5}
+                  className={active ? "text-white" : "text-[var(--nav-icon-color)] group-hover:text-[var(--nav-icon-active-color)]"}
+                />
+              </div>
+
+              {/* Label */}
+              <span
+                className="text-sm whitespace-nowrap"
+                style={{
+                  transition: `opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)`,
+                  opacity: collapsed ? 0 : 1,
+                  maxWidth: collapsed ? 0 : 200,
+                  overflow: "hidden",
+                }}
+              >
+                {item.label}
+              </span>
+
+              {/* Collapsed tooltip */}
+              {collapsed && (
+                <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-[var(--foreground)] text-[var(--background)] text-xs font-medium whitespace-nowrap shadow-xl z-50 animate-fade-up-sm border border-[var(--card-border)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
+                  {item.label}
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-[var(--foreground)]" />
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* ─── Footer — Theme toggle + Collapse ─────────────── */}
+      <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
+        {mounted ? (
+          <div className="flex items-center justify-between">
+            {/* Theme toggle */}
+            <ThemeToggleButton collapsed={collapsed} />
+
+            {/* Collapse toggle */}
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <ChevronRight size={16} strokeWidth={1.5} />
+              ) : (
+                <ChevronLeft size={16} strokeWidth={1.5} />
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="h-8" />
+        )}
+      </div>
+    </aside>
+  );
+}
+
+/* ─── Theme toggle button (internal) ───────────────────────────── */
+function ThemeToggleButton({ collapsed }: { collapsed: boolean }) {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150"
+    >
+      {/* Icon */}
+      <div className="flex items-center justify-center w-5 h-5 shrink-0">
+        {isDark ? <Sun size={15} strokeWidth={1.5} /> : <Moon size={15} strokeWidth={1.5} />}
+      </div>
+
+      {/* Label */}
+      {!collapsed && (
+        <span className="text-xs font-medium whitespace-nowrap">{isDark ? "Light mode" : "Dark mode"}</span>
+      )}
+    </button>
   );
 }

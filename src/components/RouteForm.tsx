@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDialog } from "./common/ConfirmDialog";
+import { useToast } from "./common/Toast";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -87,12 +88,12 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
   const removeLoad = (index: number) => {
     const updatedLoads = loads.filter((_, i) => i !== index);
     setLoads(updatedLoads);
-  };
+  };    const { addToast } = useToast();
 
-  async function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!routeDate || !truckFleetNoStr || !driverName) {
-      alert("Please fill in Date, Truck, and Driver.");
+      addToast("Please fill in Date, Truck, and Driver.", "error");
       return;
     }
 
@@ -122,23 +123,23 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
       <h1 className="text-2xl font-bold">Daily Planner</h1>
 
       {/* Route Details Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-lg">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[var(--card-bg)] p-6 rounded-xl border border-[var(--card-border)]">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Date</label>
+          <label className="block text-sm font-medium text-[var(--nav-text-color)]">Date</label>
           <input
             type="date"
             value={routeDate}
             onChange={(e) => setRouteDate(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Truck</label>
+          <label className="block text-sm font-medium text-[var(--nav-text-color)]">Truck</label>
           <select
             value={truckFleetNoStr}
             onChange={(e) => setTruckFleetNoStr(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
           >
             <option value="">Select Truck</option>
             {trucks?.map((t) => (
@@ -150,11 +151,11 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Driver</label>
+          <label className="block text-sm font-medium text-[var(--nav-text-color)]">Driver</label>
           <select
             value={driverName}
             onChange={(e) => setDriverName(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
           >
             <option value="">Select Driver</option>
             {drivers?.map((d) => (
@@ -166,11 +167,11 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Trailer (Optional)</label>
+          <label className="block text-sm font-medium text-[var(--nav-text-color)]">Trailer (Optional)</label>
           <select
             value={trailerFleetNoStr}
             onChange={(e) => setTrailerFleetNoStr(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
           >
             <option value="">Select Trailer</option>
             {trailers?.map((t) => (
@@ -182,23 +183,23 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Total Kilometers</label>
+          <label className="block text-sm font-medium text-[var(--nav-text-color)]">Total Kilometers</label>
           <input
             type="number"
             value={kilometers}
             onChange={(e) => setKilometers(Number(e.target.value))}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Notes</label>
+        <label className="block text-sm font-medium text-[var(--nav-text-color)]">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
         />
       </div>
 
@@ -209,14 +210,14 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
           <button
             type="button"
             onClick={addLoad}
-            className="px-4 py-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+            className="px-4 py-2 bg-[var(--card-bg)] text-[#06B6D4] rounded-lg hover:bg-[var(--card-bg)]/80 border border-[var(--card-border)]"
           >
             + Add Load
           </button>
         </div>
 
         {loads.map((load, index) => (
-          <div key={load.tempId} className="border p-4 rounded-lg bg-gray-50 relative space-y-4">
+          <div key={load.tempId} className="border border-[var(--card-border)] p-4 rounded-xl bg-[var(--card-bg)]/60 relative space-y-4">
             <button
               type="button"
               onClick={() => removeLoad(index)}
@@ -226,51 +227,48 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
             </button>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500">Client</label>
+              <div>                  <label className="block text-xs font-medium text-[var(--nav-text-color)]">Client</label>
                 <input
                   type="text"
                   value={load.client}
                   onChange={(e) => updateLoad(index, "client", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500">From</label>
+              <div>                  <label className="block text-xs font-medium text-[var(--nav-text-color)]">From</label>
                 <input
                   type="text"
                   value={load.fromLocation}
                   onChange={(e) => updateLoad(index, "fromLocation", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500">To</label>
+              <div>                  <label className="block text-xs font-medium text-[var(--nav-text-color)]">To</label>
                 <input
                   type="text"
                   value={load.toLocation}
                   onChange={(e) => updateLoad(index, "toLocation", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500">Quantity</label>
+                <label className="block text-xs font-medium text-[var(--nav-text-color)]">Quantity</label>
                 <input
                   type="text"
                   value={load.quantity}
                   onChange={(e) => updateLoad(index, "quantity", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500">Type</label>
+                <label className="block text-xs font-medium text-[var(--nav-text-color)]">Type</label>
                 <select
                   value={load.quantityType}
                   onChange={(e) => updateLoad(index, "quantityType", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 >
                   <option value="ton">Ton</option>
                   <option value="pallet">Pallet</option>
@@ -278,20 +276,20 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500">Rate</label>
+                <label className="block text-xs font-medium text-[var(--nav-text-color)]">Rate</label>
                 <input
                   type="text"
                   value={load.rate}
                   onChange={(e) => updateLoad(index, "rate", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500">Rate Type</label>
+                <label className="block text-xs font-medium text-[var(--nav-text-color)]">Rate Type</label>
                 <select
                   value={load.rateType}
                   onChange={(e) => updateLoad(index, "rateType", e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
                 >
                   <option value="full">Full Load</option>
                   <option value="per_qty">Per Qty</option>
@@ -302,19 +300,19 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
         ))}
       </div>
 
-      <div className="flex justify-end gap-4 pt-4 border-t">
+      <div className="flex justify-end gap-4 pt-4 border-t border-[var(--card-border)]">
         {onDelete && (
           <button
             type="button"
             onClick={() => setShowDeleteConfirm(true)}
-            className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            className="px-6 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
           >
             Delete Route
           </button>
         )}
         <button
           type="submit"
-          className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="px-6 py-2 text-sm font-medium text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] rounded-md hover:opacity-90 shadow-sm"
         >
           {buttonLabel}
         </button>

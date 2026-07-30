@@ -54,7 +54,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
   const colors: Record<ToastType, string> = {
     success: "bg-emerald-600 border-emerald-700",
     error: "bg-red-600 border-red-700",
-    info: "bg-gray-800 border-gray-700",
+    info: "bg-[var(--foreground)] border-[var(--card-border)]",
   };
 
   const icons: Record<ToastType, ReactNode> = {

@@ -195,16 +195,16 @@ export default function DrillDownPanel({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 w-[600px] bg-white shadow-2xl border-l border-gray-200 transform transition-transform duration-300 ease-in-out flex flex-col h-full">
+    <div className="fixed inset-y-0 right-0 z-40 w-[600px] bg-[var(--card-bg)] shadow-2xl border-l border-[var(--card-border)] transform transition-transform duration-300 ease-in-out flex flex-col h-full">
         {/* Header */}
-        <div className="px-6 py-6 border-b border-gray-200 bg-gray-50">
+        <div className="px-6 py-6 border-b border-[var(--card-border)] bg-[var(--card-bg)]/60">
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{config.title}</h2>
-                    {kpiValue && <div className="text-3xl font-bold text-blue-600 mt-1">{kpiValue}</div>}
-                    <p className="mt-2 text-sm text-gray-600 leading-relaxed max-w-md">{config.definition}</p>
+                    <h2 className="text-2xl font-bold text-[var(--foreground)]">{config.title}</h2>
+                    {kpiValue && <div className="text-3xl font-bold text-[#06B6D4] mt-1">{kpiValue}</div>}
+                    <p className="mt-2 text-sm text-[var(--nav-text-color)] leading-relaxed max-w-md">{config.definition}</p>
                 </div>
-                <button type="button" className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 border border-gray-200 shadow-sm" onClick={onClose}>
+                <button type="button" className="rounded-md bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] p-2 border border-[var(--card-border)] shadow-sm" onClick={onClose}>
                     <span className="sr-only">Close panel</span>
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -218,13 +218,13 @@ export default function DrillDownPanel({
                         {config.data.length} Contributing Rows
                     </span>
                     {snapshotRows && snapshotRows.length > 0 && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-[var(--nav-text-color)]">
                              • From Latest Snapshot
                         </span>
                     )}
                  </div>
-                 <button onClick={handleExport} className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
-                    <svg className="mr-1.5 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <button onClick={handleExport} className="inline-flex items-center px-3 py-1.5 border border-[var(--card-border)] shadow-sm text-xs font-medium rounded text-[var(--foreground)] bg-[var(--card-bg)] hover:bg-[var(--card-bg)]/80 focus:outline-none">
+                    <svg className="mr-1.5 h-4 w-4 text-[var(--nav-text-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Export CSV
@@ -233,23 +233,23 @@ export default function DrillDownPanel({
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-white">
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-300">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
+        <div className="flex-1 overflow-y-auto p-6 bg-[var(--card-bg)]">
+            <div className="overflow-hidden shadow ring-1 ring-[var(--card-border)] rounded-lg">
+                <table className="min-w-full divide-y divide-[var(--card-border)]">
+                    <thead className="bg-[var(--table-row-header)] sticky top-0 z-10">
                         <tr>
                             {config.columns.map((col: any, idx: number) => (
-                                <th key={idx} scope="col" className={`py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${col.className?.includes("text-right") ? "text-right" : ""}`}>
+                                <th key={idx} scope="col" className={`py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider ${col.className?.includes("text-right") ? "text-right" : ""}`}>
                                     {col.header}
                                 </th>
                             ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white">
+                    <tbody className="divide-y divide-[var(--card-border)] bg-[var(--card-bg)]">
                         {config.data.map((row: any, rowIdx: number) => (
-                            <tr key={rowIdx} className={`hover:bg-gray-50 transition-colors ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                            <tr key={rowIdx} className={`hover:bg-[var(--table-row-hover)] transition-colors ${rowIdx % 2 === 0 ? 'bg-[var(--table-row-even)]' : 'bg-[var(--table-row-odd)]'}`}>
                                  {config.columns.map((col: any, colIdx: number) => (
-                                    <td key={colIdx} className={`whitespace-nowrap py-3 pl-4 pr-3 text-sm text-gray-700 ${col.className || ""}`}>
+                                    <td key={colIdx} className={`whitespace-nowrap py-3 pl-4 pr-3 text-sm text-[var(--foreground)] ${col.className || ""}`}>
                                         {typeof col.accessor === 'function' ? col.accessor(row) : row[col.accessor]}
                                     </td>
                                  ))}
@@ -258,7 +258,7 @@ export default function DrillDownPanel({
                     </tbody>
                 </table>
             </div>
-            <div className="mt-8 text-center text-xs text-gray-400 pb-8">
+            <div className="mt-8 text-center text-xs text-[var(--nav-text-color)] pb-8">
                 End of list
             </div>
         </div>

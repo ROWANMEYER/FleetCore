@@ -7,23 +7,23 @@ interface KpiCardProps {
 
 export default function KpiCard({ label, value, subtext, trend }: KpiCardProps) {
     const trendColors = {
-        up: "text-green-600",
-        down: "text-red-600",
-        neutral: "text-gray-500",
+        up: "text-emerald-500",
+        down: "text-red-500",
+        neutral: "text-[var(--nav-text-color)]",
     };
 
     const trendColor = trend ? trendColors[trend] : "";
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+        <div className="glass-card rounded-xl p-4">
+            <div className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider mb-2">
                 {label}
             </div>
-            <div className={`text-3xl font-bold ${trendColor || "text-gray-900"}`}>
+            <div className={`text-3xl font-black ${trendColor || "text-[var(--foreground)]"}`}>
                 {value}
             </div>
             {subtext && (
-                <div className="text-xs text-gray-400 mt-1">{subtext}</div>
+                <div className="text-xs text-[var(--nav-text-color)] mt-1 opacity-70">{subtext}</div>
             )}
         </div>
     );

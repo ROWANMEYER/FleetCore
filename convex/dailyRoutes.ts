@@ -54,6 +54,62 @@ function deriveTripAggregates(loads: any[]) {
 }
 
 // Helper: Auto-complete Logic
+// Helper: Generate auto-notes for subcontractor routes
+async function generateSubNotes(
+  ctx: any,
+  subcontractorId: string | undefined,
+  truckFleetNoStr: string | undefined,
+  driverName: string | undefined,
+  loads?: any[]
+): Promise<string | undefined> {
+  if (!subcontractorId) return undefined;
+
+  const parts: string[] = [];
+
+  // Look up subcontractor company name
+  const sub = await ctx.db.get(subcontractorId);
+  if (sub?.companyName) parts.push(sub.companyName);
+
+  // Look up truck registration by fleet number string
+  if (truckFleetNoStr) {
+    const truck = await ctx.db
+      .query("trucks")
+      .filter((q: any) => q.eq(q.field("truckFleetNoStr"), truckFleetNoStr))
+      .first();
+    if (truck?.registration) parts.push(truck.registration);
+  }
+
+  // Look up driver phone
+  if (driverName) {
+    const driver = await ctx.db
+      .query("drivers")
+      .filter((q: any) => q.eq(q.field("driverName"), driverName))
+      .first();
+    if (driver?.phone) parts.push(driver.phone);
+  }
+
+  // Calculate total subcontractor cost from loads
+  if (loads && loads.length > 0) {
+    let totalSubCost = 0;
+    for (const load of loads) {
+      if (load.subcontractorRate) {
+        const q = parseFloat(load.quantity) || 0;
+        const r = parseFloat(load.subcontractorRate) || 0;
+        const rateType = load.subcontractorRateType || "per_unit";
+        totalSubCost += calculateLoadAmount(q, r, rateType);
+      }
+    }
+    if (totalSubCost > 0) {
+      // Use simple ZAR formatting (avoid toLocaleString which can be unreliable in Convex runtime)
+      const formatted = `R ${totalSubCost.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")}`;
+      parts.push(`Sub cost: ${formatted}`);
+    }
+  }
+
+  if (parts.length === 0) return undefined;
+  return parts.join(" / ").toUpperCase();
+}
+
 function shouldAutoComplete(loads: any[]) {
   if (!loads || loads.length === 0) return false;
 
@@ -92,6 +148,7 @@ export const createDailyRoute = mutation({
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
+    subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.string()), // Canonical
     truckFleetNoStr: v.optional(v.string()), // Legacy
     trailerFleetNoStr: v.optional(v.string()),
@@ -107,6 +164,9 @@ export const createDailyRoute = mutation({
         fromLocations: v.array(v.string()),
         toLocations: v.array(v.string()),
         kilometers: v.optional(v.number()),
+        loadId: v.optional(v.string()),
+        subcontractorRate: v.optional(v.string()),
+        subcontractorRateType: v.optional(v.string()),
       })
     ),
 
@@ -167,6 +227,7 @@ export const createDailyRoute = mutation({
       fromLocations: aggregates.fromLocations,
       toLocations: aggregates.toLocations,
 
+      subcontractorId: args.subcontractorId,
       kilometers: finalKilometers,
       routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
@@ -186,6 +247,18 @@ export const createDailyRoute = mutation({
       // Auto-complete if all loads are valid
       status: shouldAutoComplete(normalizedLoads) ? "completed" : "planned",
     });
+
+    // Auto-generate notes for subcontractor routes (only if not manually set and autoSubNotes enabled)
+    if (args.subcontractorId && !args.notes) {
+      const appSettings = await ctx.db.query("appSettings").first();
+      const autoSubNotes = (appSettings as any)?.autoSubNotes;
+      if (autoSubNotes !== false) {
+        const subNotes = await generateSubNotes(ctx, args.subcontractorId, truckIdentifier, args.driverName, normalizedLoads);
+        if (subNotes) {
+          await ctx.db.patch(id, { notes: subNotes });
+        }
+      }
+    }
 
     return id;
   },
@@ -214,6 +287,7 @@ export const createBulkDailyRoutes = mutation({
             fromLocations: v.array(v.string()),
             toLocations: v.array(v.string()),
             kilometers: v.optional(v.number()),
+            loadId: v.optional(v.string()),
           })
         ),
       })
@@ -440,6 +514,7 @@ export const updateDailyRoute = mutation({
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
+    subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.string()), // Canonical
     truckFleetNoStr: v.string(),
     trailerFleetNoStr: v.optional(v.string()),
@@ -453,6 +528,9 @@ export const updateDailyRoute = mutation({
         fromLocations: v.array(v.string()),
         toLocations: v.array(v.string()),
         kilometers: v.optional(v.number()),
+        loadId: v.optional(v.string()),
+        subcontractorRate: v.optional(v.string()),
+        subcontractorRateType: v.optional(v.string()),
       })
     ),
     legs: v.optional(v.array(
@@ -524,6 +602,7 @@ export const updateDailyRoute = mutation({
       rate: aggregates.rate,
       fromLocations: aggregates.fromLocations,
       toLocations: aggregates.toLocations,
+      subcontractorId: args.subcontractorId,
       kilometers: finalKilometers,
       routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
@@ -536,6 +615,18 @@ export const updateDailyRoute = mutation({
       fromLocation: aggregates.fromLocations[0],
       status: newStatus,
     });
+
+    // Auto-generate notes for subcontractor routes (only if not manually set and autoSubNotes enabled)
+    if (args.subcontractorId && !args.notes) {
+      const appSettings = await ctx.db.query("appSettings").first();
+      const autoSubNotes = (appSettings as any)?.autoSubNotes;
+      if (autoSubNotes !== false) {
+        const subNotes = await generateSubNotes(ctx, args.subcontractorId, args.truckFleetNoStr, args.driverName, normalizedLoads);
+        if (subNotes) {
+          await ctx.db.patch(args.id, { notes: subNotes });
+        }
+      }
+    }
   },
 });
 
@@ -796,5 +887,53 @@ export const getRecentRoutesByTruck = query({
       .filter((r) => !(r as any).isDeleted && r.truckFleetNoStr === args.truckFleetNoStr)
       .slice(0, limit)
       .reverse(); // oldest first for chart
+  },
+});
+
+export const updateLoadFields = mutation({
+  args: {
+    routeId: v.id("dailyRoutes"),
+    loadIndex: v.number(),
+    patch: v.object({
+      client: v.optional(v.string()),
+      quantity: v.optional(v.string()),
+      rate: v.optional(v.string()),
+      fromLocations: v.optional(v.array(v.string())),
+      toLocations: v.optional(v.array(v.string())),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const route = await ctx.db.get(args.routeId);
+    if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const currentStatus = (route as any).status || "planned";
+    if (currentStatus === "locked") {
+      throw new Error("Cannot edit a locked route.");
+    }
+
+    const loads = [...(route.loads || [])];
+    if (args.loadIndex < 0 || args.loadIndex >= loads.length) {
+      throw new Error("Invalid load index");
+    }
+
+    // Update the specific load
+    loads[args.loadIndex] = {
+      ...loads[args.loadIndex],
+      ...args.patch,
+    };
+
+    // Recalculate aggregates
+    const aggregates = deriveTripAggregates(loads);
+
+    await ctx.db.patch(args.routeId, {
+      loads,
+      client: aggregates.client,
+      rate: aggregates.rate,
+      fromLocations: aggregates.fromLocations,
+      toLocations: aggregates.toLocations,
+      fromLocation: aggregates.fromLocations[0],
+    });
   },
 });

@@ -28,18 +28,19 @@ export const generateInvoicePDF = (data: InvoiceData): jsPDF => {
   y+=3; doc.setLineWidth(1.5); doc.line(ML,y,MR,y); y+=6;
 
   // SECTION 3: Company block
-  const cx=ML+sw(CO.name,"bolditalic",13)/2,rC=y,rP=y+6,rG=y+12,rZ=y+18;
-  sf("bolditalic",13); doc.text(CO.name,ML,rC);
-  sf("italic",9); doc.text(CO.pobox,cx-sw(CO.pobox,"italic",9)/2,rP);
-  sf("bolditalic",11); doc.text(CO.city,cx-sw(CO.city,"bolditalic",11)/2,rG);
-  sf("italic",9); doc.text(CO.postal,cx-sw(CO.postal,"italic",9)/2,rZ);
+  const co = data.company || CO;
+  const cx=ML+sw(co.name,"bolditalic",13)/2,rC=y,rP=y+6,rG=y+12,rZ=y+18;
+  sf("bolditalic",13); doc.text(co.name,ML,rC);
+  sf("italic",9); doc.text(co.pobox,cx-sw(co.pobox,"italic",9)/2,rP);
+  sf("bolditalic",11); doc.text(co.city,cx-sw(co.city,"bolditalic",11)/2,rG);
+  sf("italic",9); doc.text(co.postal,cx-sw(co.postal,"italic",9)/2,rZ);
   const mx=W/2-10;
   sf("bolditalic",11); doc.text("DATUM:",mx,rC); sf("bolditalic",13); doc.text(fmtShort(data.date),mx+20,rC);
-  sf("normal",9); doc.text(CO.tel,mx,rP); doc.text(CO.fax,mx,rG);
+  sf("normal",9); doc.text(co.tel,mx,rP); doc.text(co.fax,mx,rG);
   const vbX=MR-42,vbY=rP-4;
   doc.setLineWidth(0.5); doc.rect(vbX,vbY,42,15);
   sf("bold",8); doc.text("V.A.T Regd No.",vbX+2,vbY+4.5); doc.text("B.T.W Gereg Nr.",vbX+2,vbY+9);
-  sf("bold",9); doc.text(CO.vat,vbX+2,vbY+13.5);
+  sf("bold",9); doc.text(co.vat,vbX+2,vbY+13.5);
   y=rZ+7; doc.setLineWidth(0.5); doc.line(ML,y,MR,y); y+=5;
 
   // SECTION 4: TO/AAN + Driver block
@@ -92,7 +93,7 @@ export const generateInvoicePDF = (data: InvoiceData): jsPDF => {
   const sY=H-MB-bsH+4,rH=8;
   doc.setLineWidth(0.5); doc.rect(ML,sY,58,24);
   sf("bolditalic",8); doc.text("ACCOUNT DETAILS:",ML+2,sY+5); doc.text("REKENING BESONDERHEDE:",ML+2,sY+10);
-  sf("normal",8); doc.text(CO.bank,ML+2,sY+15); doc.text(CO.acc,ML+2,sY+19); doc.text(CO.branch,ML+2,sY+23);
+  sf("normal",8); doc.text(co.bank,ML+2,sY+15); doc.text(co.acc,ML+2,sY+19); doc.text(co.branch,ML+2,sY+23);
   const ccX=ML+63;
   sf("bold",8); doc.text("V.A.T",ccX,sY+5); doc.text("B.T.W",ccX,sY+13);
   sf("normal",8); doc.text("@ 15% /",ccX+8,sY+5); doc.text("inclusive",ccX+8,sY+10); doc.text("ingesluit",ccX+8,sY+15);

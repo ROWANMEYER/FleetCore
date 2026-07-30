@@ -70,3 +70,50 @@ The **current** truck-trailer combination is stored in `trucks.currentTrailerId`
 - Convex deployment: `dev:quixotic-gopher-969`
 - Env vars in `.env.local` (not committed)
 - React Compiler enabled (`babel-plugin-react-compiler`)
+
+## Theme Tokens — Quick Reference
+
+All theme tokens are defined in `src/app/globals.css` and use CSS custom properties with Tailwind arbitrary value syntax. Dark mode is automatic via `.dark` class injected by `next-themes`. See `docs/THEME_TOKENS.md` for full documentation.
+
+### Core CSS Variables
+
+| Token | Usage | Example Tailwind Class |
+|---|---|---|
+| `--foreground` | Primary text | `text-[var(--foreground)]` |
+| `--nav-text-color` | Secondary text, labels, placeholders | `text-[var(--nav-text-color)]` |
+| `--card-bg` | Card/panel backgrounds | `bg-[var(--card-bg)]` |
+| `--card-border` | Borders, dividers, input borders | `border-[var(--card-border)]` |
+
+### Utility Classes
+
+| Class | Purpose |
+|---|---|
+| `.glass-card` | Standard glass panel (blur + border + shadow) |
+| `.glass-card-premium` | Premium glass panel (rounded + hover lift) |
+| `.glass-sidebar` | Sidebar-specific glass with sidebar vars |
+| `.nav-item-active` | Active nav pill (teal gradient + glow) |
+| `.settings-input` | Settings form input (glass + teal focus) |
+| `.skeleton-shimmer` | Loading skeleton shimmer animation |
+
+### Teal Accent Patterns
+
+```tsx
+// Primary buttons
+className="bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm"
+
+// Active toggle / tab
+className="bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+
+// Focus rings
+focus:ring-[#06B6D4] focus:border-[#06B6D4]
+
+// Form inputs
+border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]
+  focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none
+```
+
+### Migration Rules
+
+- **NEVER** use `text-gray-*`, `bg-white`, `border-gray-*` — replace with CSS vars above
+- **NEVER** use `dark:text-*`, `dark:bg-*` — CSS vars handle dark mode automatically
+- **Keep** semantic badges (`bg-green-100 text-green-800`, etc.) — they carry meaning

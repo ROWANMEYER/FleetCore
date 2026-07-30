@@ -4,33 +4,79 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useKpiFilter } from "@/src/lib/useKpiFilter";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X } from "lucide-react";
 
 type SortDir = "asc" | "desc";
+
+function OwnerBadge({ sub, subStatus }: { sub?: { _id: string; companyName: string } | null; subStatus?: string }) {
+  if (sub) {
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+          style={{backgroundColor:"var(--color-accent-purple)", color:"#fff"}}>
+          {sub.companyName}
+        </span>
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold`}
+          style={{
+            backgroundColor: subStatus === "inactive" ? "var(--card-border)" : "var(--color-primary)",
+            color: "#fff",
+          }}>
+          {subStatus === "inactive" ? "Sub Inactive" : "Sub Active"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+      style={{backgroundColor:"var(--card-border)", color:"var(--nav-text-color)"}}>
+      Fleet
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold`}
+      style={{
+        backgroundColor: status === "inactive" ? "var(--card-border)" : "var(--color-accent-emerald)",
+        color: "#fff",
+      }}>
+      {status === "inactive" ? "Inactive" : "Active"}
+    </span>
+  );
+}
 
 export default function AdminDriversPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"driverName" | "driverId" | "status">("driverName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [includeInactive, setIncludeInactive] = useState(true);
-  const [kpiFilter, setKpiFilter] = useState<"total" | "active" | "inactive">("total");
+  const [kpiFilter, setKpiFilter] = useKpiFilter();
 
   const driversQuery = useQuery(api.fleet.getDrivers, { search, sortBy, sortDir, includeInactive });
   const statsQuery = useQuery(api.fleet.getDriverStats);
+  const subcontractorsQuery = useQuery(api.subcontractors.list, {});
   const createDriver = useMutation(api.fleet.createDriver);
   const updateDriver = useMutation(api.fleet.updateDriver);
   const updateDriverStatus = useMutation(api.fleet.updateDriverStatus);
   const deleteDriver = useMutation(api.fleet.deleteDriver);
 
+  const subcontractors = subcontractorsQuery || [];
+
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newDriver, setNewDriver] = useState({
     driverId: "",
     driverName: "",
     idNumber: "",
     phone: "",
     status: "active",
+    subcontractorId: "",
+    subStatus: "active",
   });
 
   const { addToast } = useToast();
@@ -48,7 +94,7 @@ export default function AdminDriversPage() {
   const stats = statsQuery || { total: 0, active: 0, inactive: 0 };
 
   const [page, setPage] = useState(1);
-  const pageSize = 15;
+  const pageSize = 20;
   const totalPages = Math.max(1, Math.ceil(filteredDrivers.length / pageSize));
   const pagedItems = filteredDrivers.slice((page - 1) * pageSize, page * pageSize);
 
@@ -71,8 +117,13 @@ export default function AdminDriversPage() {
         addToast("All fields are required", "error");
         return;
       }
-      await createDriver(newDriver);
-      setNewDriver({ driverId: "", driverName: "", idNumber: "", phone: "", status: "active" });
+      await createDriver({
+        ...newDriver,
+        subcontractorId: newDriver.subcontractorId ? (newDriver.subcontractorId as Id<"subcontractors">) : undefined,
+        subStatus: newDriver.subcontractorId ? newDriver.subStatus : undefined,
+      });
+      setNewDriver({ driverId: "", driverName: "", idNumber: "", phone: "", status: "active", subcontractorId: "", subStatus: "active" });
+      setShowAddForm(false);
       addToast("Driver created", "success");
     } catch (e: any) {
       addToast(e.message || String(e), "error");
@@ -98,6 +149,8 @@ export default function AdminDriversPage() {
         idNumber: editingState.idNumber,
         phone: editingState.phone,
         status: editingState.status,
+        subcontractorId: editingState.subcontractorId || null,
+        subStatus: editingState.subStatus || undefined,
       } });
       addToast("Driver updated", "success");
       cancelEdit();
@@ -128,146 +181,232 @@ export default function AdminDriversPage() {
     }
   };
 
+  const sortOptions: { key: typeof sortBy; label: string }[] = [
+    { key: "driverName", label: "Name" },
+    { key: "driverId", label: "Driver ID" },
+    { key: "status", label: "Status" },
+  ];
+
   return (
-    <div className="w-full h-full p-6 space-y-6 overflow-y-auto text-gray-900 dark:text-slate-100">
-      <div>
-        <h1 className="text-xl font-bold">Admin — Drivers</h1>
-        <p className="text-xs text-gray-500 dark:text-slate-400">Manage driver master data. Inactive drivers are hidden from dropdowns.</p>
-      </div>
-
-      <div className="flex gap-4">
+    <div className="w-full h-full p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Drivers</h1>
+          <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Manage driver master data</p>
+        </div>
         <button
-          type="button"
-          onClick={() => setKpiFilter("total")}
-          className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
-            kpiFilter === "total"
-              ? "bg-slate-100 border-slate-400 dark:bg-slate-900/60 dark:border-slate-700"
-              : "bg-slate-50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
-          }`}
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm"
         >
-           <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-0.5">Total Drivers</div>
-           <div className="text-2xl font-bold text-slate-600 dark:text-slate-100">{stats.total}</div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setKpiFilter("active")}
-          className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
-            kpiFilter === "active"
-              ? "bg-green-100 border-green-500 dark:bg-slate-900/60 dark:border-slate-700"
-              : "bg-green-50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
-          }`}
-        >
-           <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600/80 mb-0.5">Active</div>
-           <div className="text-2xl font-bold text-green-700">{stats.active}</div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setKpiFilter("inactive")}
-          className={`rounded-lg px-4 py-2 min-w-[120px] text-left border ${
-            kpiFilter === "inactive"
-              ? "bg-gray-200 border-gray-500 dark:bg-slate-900/60 dark:border-slate-700"
-              : "bg-gray-100/50 border-transparent dark:bg-slate-950/40 dark:border-slate-800"
-          }`}
-        >
-           <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">Inactive</div>
-           <div className="text-2xl font-bold text-gray-500 dark:text-slate-200">{stats.inactive}</div>
+          {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+          {showAddForm ? "Cancel" : "Add Driver"}
         </button>
       </div>
 
-      <div className="flex items-center gap-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, id, phone, status"
-          className="border border-gray-300 dark:border-slate-700 rounded px-2 py-1 text-sm w-80 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100"
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={includeInactive}
-            onChange={(e) => setIncludeInactive(e.target.checked)}
-          />
+      <div className="flex gap-3">
+        {(["total", "active", "inactive"] as const).map((filter) => {
+          const isActive = kpiFilter === filter;
+          return (
+            <button key={filter} onClick={() => setKpiFilter(kpiFilter === filter ? "total" : filter)}
+              className={`glass-card rounded-xl px-5 py-3 min-w-[110px] text-left transition-all cursor-pointer ${isActive ? "ring-2 ring-[#06B6D4]/50" : ""}`}>
+              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{color:"var(--nav-text-color)"}}>{filter === "total" ? "Total" : filter === "active" ? "Active" : "Inactive"}</div>
+              <div className={`text-2xl font-black ${filter === "active" ? "text-[var(--color-accent-emerald)]" : ""}`} style={{color: filter !== "active" ? "var(--foreground)" : undefined}}>{stats[filter]}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, id, phone..."              className="w-full pl-10 pr-3 py-1.5 rounded-lg text-xs outline-none transition-all focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4]"
+            style={{
+              border: "1px solid var(--card-border)",
+              background: "var(--card-bg)",
+              color: "var(--foreground)",
+              backdropFilter: "blur(8px)",
+            }} />
+        </div>
+        <select value={sortBy} onChange={(e) => handleSort(e.target.value as typeof sortBy)}
+          className="rounded-lg px-2.5 py-1.5 text-xs outline-none"
+          style={{
+            border: "1px solid var(--card-border)",
+            background: "var(--card-bg)",
+            color: "var(--foreground)",
+            backdropFilter: "blur(8px)",
+          }}>
+          {sortOptions.map((o) => (<option key={o.key} value={o.key}>{o.label}</option>))}
+        </select>
+        <button onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+          className="px-2 py-1.5 rounded-lg text-xs transition-colors"
+          style={{
+            border: "1px solid var(--card-border)",
+            background: "var(--card-bg)",
+            color: "var(--nav-text-color)",
+            backdropFilter: "blur(8px)",
+          }}>
+          {sortDir === "asc" ? "↑ Asc" : "↓ Desc"}
+        </button>
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" style={{color:"var(--nav-text-color)"}}>
+          <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)}
+            className="rounded" style={{borderColor:"var(--card-border)"}} />
           Include inactive
         </label>
       </div>
 
-      <div className="bg-white dark:bg-slate-900/60 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 bg-gray-50 dark:bg-slate-950/40 px-3 py-2 border-b border-gray-200 dark:border-slate-800 text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider items-center">
-          <div className="col-span-2 flex items-center gap-1">
-            <button onClick={() => handleSort("driverName")} className="hover:text-black">Name</button>
-            <span className="text-blue-600">{sortBy === "driverName" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
-          </div>
-          <div className="col-span-1 flex items-center gap-1">
-            <button onClick={() => handleSort("driverId")} className="hover:text-black">Driver ID</button>
-            <span className="text-blue-600">{sortBy === "driverId" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
-          </div>
-          <div className="col-span-1">ID Number</div>
-          <div className="col-span-1">Phone</div>
-          <div className="col-span-1 flex items-center gap-1">
-            <button onClick={() => handleSort("status")} className="hover:text-black">Status</button>
-            <span className="text-blue-600">{sortBy === "status" ? (sortDir === "asc" ? "↑" : "↓") : ""}</span>
-          </div>
-          <div className="col-span-1 text-right">Actions</div>
-        </div>
-
-        <div className="divide-y divide-gray-200 dark:divide-slate-800">
-          {/* New row */}
-          <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
-            <input className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Name" value={newDriver.driverName} onChange={(e) => setNewDriver({ ...newDriver, driverName: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Driver ID" value={newDriver.driverId} onChange={(e) => setNewDriver({ ...newDriver, driverId: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="ID Number" value={newDriver.idNumber} onChange={(e) => setNewDriver({ ...newDriver, idNumber: e.target.value })} />
-            <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" placeholder="Phone" value={newDriver.phone} onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })} />
-            <select className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={newDriver.status} onChange={(e) => setNewDriver({ ...newDriver, status: e.target.value })}>
-              <option value="active">active</option>
-              <option value="inactive">inactive</option>
+      {showAddForm && (
+        <div className="glass-card-premium p-5 space-y-4 border-dashed">
+          <h3 className="text-xs font-semibold uppercase tracking-wider" style={{color:"var(--nav-text-color)"}}>New Driver</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Driver Name" value={newDriver.driverName} onChange={(e) => setNewDriver({ ...newDriver, driverName: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Driver ID" value={newDriver.driverId} onChange={(e) => setNewDriver({ ...newDriver, driverId: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="ID Number" value={newDriver.idNumber} onChange={(e) => setNewDriver({ ...newDriver, idNumber: e.target.value })} />
+            <input
+              className="rounded-lg px-3 py-2 text-xs settings-input"
+              placeholder="Phone" value={newDriver.phone} onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })} />
+            <select value={newDriver.subcontractorId} onChange={(e) => setNewDriver({ ...newDriver, subcontractorId: e.target.value })}
+              className="rounded-lg px-2 py-2 text-xs outline-none"
+              style={{
+                border: "1px solid var(--card-border)",
+                background: "var(--card-bg)",
+                color: "var(--foreground)",
+              }}>
+              <option value="">Fleet (own)</option>
+              {subcontractors.map((s: any) => (<option key={s._id} value={s._id}>{s.companyName}</option>))}
             </select>
-            <div className="col-span-1 text-right">
-              <button onClick={handleCreate} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Add</button>
-            </div>
+            {newDriver.subcontractorId && (
+              <select value={newDriver.subStatus} onChange={(e) => setNewDriver({ ...newDriver, subStatus: e.target.value })}
+                className="rounded-lg px-2 py-2 text-xs outline-none"
+                style={{
+                  border: "1px solid var(--card-border)",
+                  background: "var(--card-bg)",
+                  color: "var(--foreground)",
+                }}>
+                <option value="active">Sub Active</option>
+                <option value="inactive">Sub Inactive</option>
+              </select>
+            )}
           </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs font-medium transition-colors" style={{color:"var(--nav-text-color)"}}>Cancel</button>
+            <button onClick={handleCreate} className="px-4 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Add Driver</button>
+          </div>
+        </div>
+      )}
 
-          {pagedItems.map((d: any) => {
-            const isEditing = editingId === (d._id as string);
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {pagedItems.map((d: any) => {
+          const sub = subcontractors.find((s: any) => s._id === d.subcontractorId);
+          const isEditing = editingId === (d._id as string);
+
+          if (isEditing) {
             return (
-              <div key={d._id} className="grid grid-cols-[repeat(7,minmax(0,1fr))] gap-2 px-3 py-2 text-xs items-center">
-                {isEditing ? (
-                  <>
-                    <input className="col-span-2 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.driverName} onChange={(e) => setEditingState({ ...editingState, driverName: e.target.value })} />
-                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.driverId} onChange={(e) => setEditingState({ ...editingState, driverId: e.target.value })} />
-                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.idNumber} onChange={(e) => setEditingState({ ...editingState, idNumber: e.target.value })} />
-                    <input className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.phone} onChange={(e) => setEditingState({ ...editingState, phone: e.target.value })} />
-                    <select className="col-span-1 border border-gray-300 dark:border-slate-700 rounded px-2 py-1 bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100" value={editingState.status} onChange={(e) => setEditingState({ ...editingState, status: e.target.value })}>
-                      <option value="active">active</option>
-                      <option value="inactive">inactive</option>
-                    </select>
-                    <div className="col-span-1 text-right space-x-2">
-                      <button onClick={saveEdit} className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">Save</button>
-                      <button onClick={cancelEdit} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Cancel</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="col-span-2 font-medium text-gray-900 dark:text-gray-100">{d.driverName}</div>
-                    <div className="col-span-1">{d.driverId}</div>
-                    <div className="col-span-1">{d.idNumber}</div>
-                    <div className="col-span-1">{d.phone}</div>
-                    <div className="col-span-1">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${d.status === "inactive" ? "bg-gray-100 text-gray-700" : "bg-green-100 text-green-800"}`}>
-                        {d.status || "active"}
-                      </span>
-                    </div>
-                    <div className="col-span-1 text-right space-x-3">
-                      <button onClick={() => startEdit(d)} className="text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-black dark:hover:text-white hover:underline">Edit</button>
-                      <button onClick={() => toggleStatus(d)} className="text-xs font-medium text-yellow-600 hover:text-yellow-800 hover:underline">{d.status === "inactive" ? "Activate" : "Deactivate"}</button>
-                      <button onClick={() => setDeletingId(d._id as string)} className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline">Delete</button>
-                    </div>
-                  </>
+              <div key={d._id} className="glass-card-premium p-5 space-y-3" style={{borderColor:"#06B6D4"}}>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{color:"#06B6D4"}}>Editing</h3>
+                <input
+                  className="w-full rounded-lg px-3 py-2 text-xs settings-input"
+                  value={editingState.driverName} onChange={(e) => setEditingState({ ...editingState, driverName: e.target.value })} placeholder="Name" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.driverId} onChange={(e) => setEditingState({ ...editingState, driverId: e.target.value })} placeholder="Driver ID" />
+                  <input
+                    className="rounded-lg px-3 py-2 text-xs settings-input"
+                    value={editingState.idNumber} onChange={(e) => setEditingState({ ...editingState, idNumber: e.target.value })} placeholder="ID Number" />
+                </div>
+                <input
+                  className="w-full rounded-lg px-3 py-2 text-xs settings-input"
+                  value={editingState.phone} onChange={(e) => setEditingState({ ...editingState, phone: e.target.value })} placeholder="Phone" />
+                <select value={editingState.subcontractorId || ""} onChange={(e) => setEditingState({ ...editingState, subcontractorId: e.target.value || null })}
+                  className="w-full rounded-lg px-2 py-2 text-xs outline-none"
+                  style={{
+                    border: "1px solid var(--card-border)",
+                    background: "var(--card-bg)",
+                    color: "var(--foreground)",
+                  }}>
+                  <option value="">Fleet (own)</option>
+                  {subcontractors.map((s: any) => (<option key={s._id} value={s._id}>{s.companyName}</option>))}
+                </select>
+                {editingState.subcontractorId && (
+                  <select value={editingState.subStatus || "active"} onChange={(e) => setEditingState({ ...editingState, subStatus: e.target.value })}
+                    className="w-full rounded-lg px-2 py-2 text-xs outline-none"
+                    style={{
+                      border: "1px solid var(--card-border)",
+                      background: "var(--card-bg)",
+                      color: "var(--foreground)",
+                    }}>
+                    <option value="active">Sub Active</option>
+                    <option value="inactive">Sub Inactive</option>
+                  </select>
                 )}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={saveEdit} className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Save</button>
+                  <button onClick={cancelEdit} className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{
+                      border: "1px solid var(--card-border)",
+                      color: "var(--nav-text-color)",
+                    }}>Cancel</button>
+                </div>
               </div>
             );
-          })}
-        </div>
+          }
+
+          return (
+            <div key={d._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
+                    {d.driverName}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
+                </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button onClick={() => startEdit(d)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => toggleStatus(d)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={d.status === "inactive" ? "Activate" : "Deactivate"}>
+                    {d.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => setDeletingId(d._id as string)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
+                  <span className="font-medium min-w-[80px]" style={{color:"var(--nav-text-color)"}}>ID Number</span>
+                  <span style={{color:"var(--foreground)"}}>{d.idNumber}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium min-w-[80px] text-xs" style={{color:"var(--nav-text-color)"}}>Phone</span>
+                  <span style={{color:"var(--foreground)"}}>{d.phone}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
+                <OwnerBadge sub={sub} subStatus={d.subStatus} />
+                <StatusBadge status={d.status} />
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {pagedItems.length === 0 && (
+        <div className="text-center py-16 glass-card-premium rounded-xl border-dashed">
+          <div className="text-4xl mb-3 opacity-30">👤</div>
+          <p className="text-sm font-medium" style={{color:"var(--nav-text-color)"}}>No drivers found</p>
+          <p className="text-xs mt-1" style={{color:"var(--nav-text-color)"}}>Try adjusting your search or filters</p>
+        </div>
+      )}
 
       <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 

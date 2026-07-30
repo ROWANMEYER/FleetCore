@@ -13,27 +13,27 @@ export default function CombinationsScreen() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-      <div className="flex-none p-6 border-b bg-white">
-        <h1 className="text-2xl font-bold text-gray-900">Combinations</h1>
-        <p className="text-sm text-gray-500 mt-1">Read-only view of current Truck-Trailer assignments</p>
+    <div className="h-full flex flex-col overflow-hidden" style={{backgroundColor:"var(--background)"}}>
+      <div className="flex-none p-6" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Combinations</h1>
+        <p className="text-sm mt-1" style={{color:"var(--nav-text-color)"}}>Read-only view of current Truck-Trailer assignments</p>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-8">
         
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-green-800">Current Combinations</h2>
-            <span className="text-sm font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+            <h2 className="text-lg font-semibold" style={{color:"var(--color-accent-emerald)"}}>Current Combinations</h2>
+            <span className="text-sm font-medium rounded-full px-2.5 py-0.5" style={{backgroundColor:"var(--color-accent-emerald)", color:"#fff"}}>
               {combinations.length}
             </span>
           </div>
 
-          <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+          <div className="glass-card rounded-xl overflow-hidden">
             {combinations.length === 0 ? (
               <EmptyState icon="empty" title="No current combinations" description="No trucks are currently assigned to trailers." />
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul style={{borderTop:"1px solid var(--card-border)"}}>
                 {combinations.map(item => {
                   const last = item.lastSwapDate
                     ? new Date(item.lastSwapDate)
@@ -55,18 +55,19 @@ export default function CombinationsScreen() {
                   return (
                     <li
                       key={`${item.truckId}-${item.trailerId}`}
-                      className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors"
+                      className="p-4 flex items-center gap-4 transition-colors"
+                      style={{borderBottom:"1px solid var(--card-border)"}}
                     >
                       <div className="flex-1">
-                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">
+                        <div className="text-xs uppercase tracking-wider mb-0.5" style={{color:"var(--nav-text-color)"}}>
                           Truck
                         </div>
-                        <div className="font-semibold text-gray-900 text-lg">
+                        <div className="font-bold text-lg" style={{color:"var(--foreground)"}}>
                           {item.truckNumber}
                         </div>
                       </div>
 
-                      <div className="flex-none text-gray-300">
+                      <div className="flex-none" style={{color:"var(--nav-text-color)"}}>
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
@@ -82,13 +83,13 @@ export default function CombinationsScreen() {
                       </div>
 
                       <div className="flex-1 text-right">
-                        <div className="text-xs text-gray-500 uppercase tracking-wider mb-0.5">
+                        <div className="text-xs uppercase tracking-wider mb-0.5" style={{color:"var(--nav-text-color)"}}>
                           Trailer
                         </div>
-                        <div className="font-semibold text-gray-900 text-lg">
+                        <div className="font-bold text-lg" style={{color:"var(--foreground)"}}>
                           {item.trailerNumber}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs mt-1" style={{color:"var(--nav-text-color)"}}>
                           {lastLabel}
                         </div>
                       </div>

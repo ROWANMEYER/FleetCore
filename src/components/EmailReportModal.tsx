@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { ModalShell } from "./common/ModalShell";
+import { useToast } from "./common/Toast";
 
 interface EmailReportModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function EmailReportModal({
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<Id<"recipients">[]>([]);
   const [subject, setSubject] = useState(initialSubject);
   const [isSending, setIsSending] = useState(false);
+  const { addToast } = useToast();
   
   const recipients = useQuery(api.recipients.list);
 
@@ -35,7 +37,7 @@ export default function EmailReportModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedRecipientIds.length === 0) {
-        alert("Please select at least one recipient.");
+        addToast("Please select at least one recipient.", "error");
         return;
     }
 
@@ -45,7 +47,7 @@ export default function EmailReportModal({
       onClose();
     } catch (error) {
       console.error("Failed to send email:", error);
-      alert("Failed to send email. Please try again.");
+      addToast("Failed to send email. Please try again.", "error");
     } finally {
       setIsSending(false);
     }

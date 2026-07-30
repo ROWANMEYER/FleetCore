@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
+import { BarChart3 } from "lucide-react";
 
 const kpiColor = (count: number) => {
   if (count <= 3) return "text-green-700";
@@ -48,30 +49,30 @@ export default function TrailerActivityScreen() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
-        <h1 className="text-xl font-bold text-gray-900">Trailer Activity</h1>
+    <div className="h-full flex flex-col" style={{backgroundColor:"var(--background)"}}>
+      <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
+        <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Trailer Activity</h1>
       </div>
 
-      <div className="flex-1 overflow-auto bg-gray-50 px-6 py-4 space-y-3">
+      <div className="flex-1 overflow-auto px-6 py-4 space-y-3" style={{backgroundColor:"var(--background)"}}>
         {trailerCounts.map(item => (
           <div
             key={item.number}
-            className="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-3 flex flex-col gap-1"
+            className="glass-card rounded-xl px-4 py-3 flex flex-col gap-1"
           >
-            <div className="text-xs font-medium text-gray-500">TRAILER</div>
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-xs font-medium" style={{color:"var(--nav-text-color)"}}>TRAILER</div>
+            <div className="text-lg font-bold" style={{color:"var(--foreground)"}}>
               {item.number}
             </div>
             <div className={`mt-1 text-xs font-medium flex items-center gap-1 ${kpiColor(item.count)}`}>
-              <span>📊</span>
+              <BarChart3 className="w-4 h-4" />
               <span>{item.count} swaps this month</span>
             </div>
           </div>
         ))}
 
         {trailerCounts.length === 0 && (
-          <div className="text-xs text-gray-500 italic mt-8">No trailer swaps this month.</div>
+          <div className="text-xs italic mt-8" style={{color:"var(--nav-text-color)"}}>No trailer swaps this month.</div>
         )}
       </div>
     </div>

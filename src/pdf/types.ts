@@ -23,4 +23,16 @@ export interface InvoiceData {
     vatAmount: number;
     totalAmount: number;
   };
+  company?: {
+    name: string;
+    pobox: string;
+    city: string;
+    postal: string;
+    tel: string;
+    fax: string;
+    vat: string;
+    bank: string;
+    acc: string;
+    branch: string;
+  };
 }

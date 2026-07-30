@@ -9,9 +9,15 @@ export const listTrucks = query({
     handler: async (ctx, args) => { 
        const trucks = await ctx.db.query("trucks").collect(); 
        const activeTrucks = trucks.filter((t) => {
-         if ((t as { status?: string }).status === "inactive") return false;
-         const sid = (t as { subcontractorId?: string }).subcontractorId;
-         if (args.subcontractorId === undefined) return !sid;
+         const tbl = t as { status?: string; subStatus?: string; subcontractorId?: string };
+         const sid = tbl.subcontractorId;
+         // Fleet mode: filter by fleet status, show fleet-owned only
+         if (args.subcontractorId === undefined) {
+           if (tbl.status === "inactive") return false;
+           return !sid;
+         }
+         // Sub mode: filter by subStatus
+         if (tbl.subStatus === "inactive") return false;
          if (args.subcontractorId === null) return !!sid;
          return sid === args.subcontractorId;
        });
@@ -29,14 +35,19 @@ export const listTrailers = query({
     handler: async (ctx, args) => { 
        const trailers = await ctx.db.query("trailers").collect(); 
        const activeTrailers = trailers.filter((t) => {
-         if ((t as { status?: string }).status === "inactive") return false;
-         const sid = (t as { subcontractorId?: string }).subcontractorId;
-         if (args.subcontractorId === undefined) return !sid;
+         const tbl = t as { status?: string; subStatus?: string; subcontractorId?: string };
+         const sid = tbl.subcontractorId;
+         // Fleet mode: filter by fleet status, show fleet-owned only
+         if (args.subcontractorId === undefined) {
+           if (tbl.status === "inactive") return false;
+           return !sid;
+         }
+         // Sub mode: filter by subStatus
+         if (tbl.subStatus === "inactive") return false;
          if (args.subcontractorId === null) return !!sid;
          return sid === args.subcontractorId;
        });
        return activeTrailers.map((t) => { 
-            // Use string field if available, else number 
             const fleetNo = t.trailerFleetNoStr || String(t.trailerFleetNo); 
             return { 
                 label: `${fleetNo} (${t.type})`, 
@@ -52,11 +63,27 @@ export const getTrailers = query({
     sortBy: v.optional(v.string()),
     sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     includeInactive: v.optional(v.boolean()),
+    subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
   },
   handler: async (ctx, args) => {
     const data = await ctx.db.query("trailers").collect();
     const includeInactive = Boolean(args.includeInactive);
-    let rows = includeInactive ? data : data.filter((t) => (t as { status?: string }).status !== "inactive");
+    let rows = data;
+    if (!includeInactive) {
+      if (args.subcontractorId === undefined) {
+        // Fleet mode: filter by fleet status
+        rows = data.filter((t) => (t as { status?: string }).status !== "inactive");
+      } else {
+        // Sub mode: filter by subStatus
+        rows = data.filter((t) => (t as { subStatus?: string }).subStatus !== "inactive");
+      }
+    }
+    rows = rows.filter((t) => {
+        const sid = (t as { subcontractorId?: string }).subcontractorId;
+        if (args.subcontractorId === undefined) return !sid;
+        if (args.subcontractorId === null) return !!sid;
+        return sid === args.subcontractorId;
+    });
     const search = args.search;
     if (search && search.trim() !== "") {
       const q = search.toLowerCase();
@@ -83,6 +110,8 @@ export const getTrailers = query({
         trailerFleetNoStr: t.trailerFleetNoStr,
         type: t.type,
         status: (t as { status?: string }).status,
+        subStatus: (t as { subStatus?: string }).subStatus,
+        subcontractorId: (t as { subcontractorId?: string }).subcontractorId,
         length: item.length,
         registration: item.registration,
         originalLength: item.length,
@@ -109,16 +138,21 @@ export const listDrivers = query({
     handler: async (ctx, args) => { 
       const drivers = await ctx.db.query("drivers").collect();
       const activeDrivers = drivers.filter((d) => {
-        const status = (d as { status?: string }).status;
-        if (status === "inactive") return false;
-        const sid = (d as { subcontractorId?: string }).subcontractorId;
-        if (args.subcontractorId === undefined) return !sid;
+        const tbl = d as { status?: string; subStatus?: string; subcontractorId?: string };
+        const sid = tbl.subcontractorId;
+        // Fleet mode: filter by fleet status, show fleet-owned only
+        if (args.subcontractorId === undefined) {
+          if (tbl.status === "inactive") return false;
+          return !sid;
+        }
+        // Sub mode: filter by subStatus
+        if (tbl.subStatus === "inactive") return false;
         if (args.subcontractorId === null) return !!sid;
         return sid === args.subcontractorId;
       });
         return activeDrivers.map((d) => ({ 
             label: d.driverName || d.name || "", 
-            value: d.driverName || d.name || "", // Storing name as requested by prompt 
+            value: d.driverName || d.name || "", 
         })).filter((d) => d.value); 
     }, 
 });
@@ -174,11 +208,27 @@ export const getTrucks = query({
         sortBy: v.optional(v.string()), // "truckFleetNo" | "registration" | "make" | "model"
         sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         includeInactive: v.optional(v.boolean()),
+        subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
     },
     handler: async (ctx, args) => {
         const data = await ctx.db.query("trucks").collect();
         const includeInactive = Boolean(args.includeInactive);
-        let rows = includeInactive ? data : data.filter((t) => (t as any).status !== "inactive");
+        let rows = data;
+        if (!includeInactive) {
+          if (args.subcontractorId === undefined) {
+            // Fleet mode: filter by fleet status
+            rows = data.filter((t) => (t as { status?: string }).status !== "inactive");
+          } else {
+            // Sub mode: filter by subStatus
+            rows = data.filter((t) => (t as { subStatus?: string }).subStatus !== "inactive");
+          }
+        }
+        rows = rows.filter((t) => {
+            const sid = (t as { subcontractorId?: string }).subcontractorId;
+            if (args.subcontractorId === undefined) return !sid;
+            if (args.subcontractorId === null) return !!sid;
+            return sid === args.subcontractorId;
+        });
         const search = args.search;
         if (search && search.trim() !== "") {
             const q = search.toLowerCase();
@@ -218,11 +268,27 @@ export const getDrivers = query({
         sortBy: v.optional(v.string()), // "driverName" | "driverId" | "status"
         sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         includeInactive: v.optional(v.boolean()),
+        subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
     },
     handler: async (ctx, args) => {
         const data = await ctx.db.query("drivers").collect();
         const includeInactive = Boolean(args.includeInactive);
-        let rows = includeInactive ? data : data.filter((d) => (d as { status?: string }).status !== "inactive");
+        let rows = data;
+        if (!includeInactive) {
+          if (args.subcontractorId === undefined) {
+            // Fleet mode: filter by fleet status
+            rows = data.filter((d) => (d as { status?: string }).status !== "inactive");
+          } else {
+            // Sub mode: filter by subStatus
+            rows = data.filter((d) => (d as { subStatus?: string }).subStatus !== "inactive");
+          }
+        }
+        rows = rows.filter((d) => {
+            const sid = (d as { subcontractorId?: string }).subcontractorId;
+            if (args.subcontractorId === undefined) return !sid;
+            if (args.subcontractorId === null) return !!sid;
+            return sid === args.subcontractorId;
+        });
         const search = args.search;
         if (search && search.trim() !== "") {
             const q = search.toLowerCase();
@@ -259,6 +325,8 @@ export const updateTruck = mutation({
             make: v.optional(v.string()),
             model: v.optional(v.string()),
             currentTrailerId: v.optional(v.id("trailers")),
+            subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+            subStatus: v.optional(v.string()),
             status: v.optional(v.string()),
             licenseExpiryDate: v.optional(v.string()),
             serviceDueDate: v.optional(v.string()),
@@ -279,7 +347,10 @@ export const updateTruck = mutation({
                 .first();
             if (exists) throw new Error("Another truck already has this fleet number");
         }
-        await ctx.db.patch(args.id, args.patch);
+        // Sanitize null to undefined for optional ID fields (DB schema doesn't accept null)
+        const sanitizedPatch = { ...args.patch } as any;
+        if (sanitizedPatch.subcontractorId === null) sanitizedPatch.subcontractorId = undefined;
+        await ctx.db.patch(args.id, sanitizedPatch);
     },
 });
 
@@ -290,6 +361,8 @@ export const createTruck = mutation({
         make: v.string(),
         model: v.string(),
         currentTrailerId: v.optional(v.id("trailers")),
+        subcontractorId: v.optional(v.id("subcontractors")),
+        subStatus: v.optional(v.string()),
         status: v.string(), // "active" | "inactive"
         licenseExpiryDate: v.optional(v.string()),
         serviceDueDate: v.optional(v.string()),
@@ -346,6 +419,8 @@ export const createDriver = mutation({
         driverName: v.string(),
         idNumber: v.string(),
         phone: v.string(),
+        subcontractorId: v.optional(v.id("subcontractors")),
+        subStatus: v.optional(v.string()),
         status: v.string(), // "active" | "inactive"
         photoStorageId: v.optional(v.string()),
         photoUrl: v.optional(v.string()),
@@ -373,6 +448,8 @@ export const updateDriver = mutation({
             driverName: v.optional(v.string()),
             idNumber: v.optional(v.string()),
             phone: v.optional(v.string()),
+            subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+            subStatus: v.optional(v.string()),
             status: v.optional(v.string()),
             photoStorageId: v.optional(v.string()),
             photoUrl: v.optional(v.string()),
@@ -391,7 +468,10 @@ export const updateDriver = mutation({
                 .first();
             if (exists) throw new Error("Another driver already has this driverId");
         }
-        await ctx.db.patch(args.id, args.patch);
+        // Sanitize null to undefined for optional ID fields (DB schema doesn't accept null)
+        const sanitizedPatch = { ...args.patch } as any;
+        if (sanitizedPatch.subcontractorId === null) sanitizedPatch.subcontractorId = undefined;
+        await ctx.db.patch(args.id, sanitizedPatch);
     },
 });
 
@@ -436,6 +516,8 @@ export const createTrailer = mutation({
             })
         ),
         type: v.string(),
+        subcontractorId: v.optional(v.id("subcontractors")),
+        subStatus: v.optional(v.string()),
         status: v.optional(v.string()),
         licenseExpiryDate: v.optional(v.string()),
         serviceDueDate: v.optional(v.string()),
@@ -493,6 +575,7 @@ export const updateTrailer = mutation({
         patch: v.object({
             trailerNumber: v.optional(v.string()),
             trailerFleetNoStr: v.optional(v.string()),
+            subStatus: v.optional(v.string()),
             type: v.optional(v.string()),
             trailers: v.optional(v.array(
                 v.object({
@@ -554,6 +637,8 @@ export const updateTrailerComponent = mutation({
         newType: v.string(),
         newTrailerFleetNo: v.optional(v.number()),
         newTrailerFleetNoStr: v.optional(v.string()),
+        subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+        subStatus: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
@@ -598,6 +683,12 @@ export const updateTrailerComponent = mutation({
         }
         if (resolvedFleetNoStr) {
             patch.trailerFleetNoStr = resolvedFleetNoStr;
+        }
+        if (args.subcontractorId !== undefined) {
+            patch.subcontractorId = args.subcontractorId ?? undefined;
+        }
+        if (args.subStatus !== undefined) {
+            patch.subStatus = args.subStatus;
         }
 
         await ctx.db.patch(args.id, patch);

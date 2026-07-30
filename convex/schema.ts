@@ -95,6 +95,7 @@ export default defineSchema({
         client: v.string(),
         fromLocations: v.array(v.string()),
         kilometers: v.optional(v.float64()),
+        loadId: v.optional(v.string()),
         quantity: v.string(),
         quantityType: v.string(),
         rate: v.string(),
@@ -112,6 +113,7 @@ export default defineSchema({
     toLocations: v.array(v.string()),
     trailerFleetNo: v.float64(),
     trailerFleetNoStr: v.optional(v.string()),
+    subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.float64()),
     truckFleetNoStr: v.optional(v.string()),
   })
@@ -142,6 +144,7 @@ export default defineSchema({
     photoUrl: v.optional(v.string()),
     status: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
+    subStatus: v.optional(v.string()),
   }).index("by_driverId", ["driverId"]),
   fleetSetupBaseline: defineTable({
     assignments: v.array(
@@ -168,7 +171,7 @@ export default defineSchema({
     .index("by_invoiceNumber", ["invoiceNumber"])
     .index("by_routeId", ["routeId"]),
   subcontractors: defineTable({
-    name: v.string(),
+    companyName: v.string(),
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     status: v.optional(v.string()),
@@ -320,6 +323,7 @@ export default defineSchema({
     serviceDueDate: v.optional(v.string()),
     serviceDueKm: v.optional(v.float64()),
     status: v.optional(v.string()),
+    subStatus: v.optional(v.string()),
     trailerFleetNo: v.float64(),
     trailerFleetNoStr: v.string(),
     subcontractorId: v.optional(v.id("subcontractors")),
@@ -376,6 +380,7 @@ export default defineSchema({
     serviceDueDate: v.optional(v.string()),
     serviceDueKm: v.optional(v.float64()),
     status: v.optional(v.string()),
+    subStatus: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.string()),
   })

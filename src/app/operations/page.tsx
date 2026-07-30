@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function OperationsPage() {
+function OperationsRedirectPage() {
   const router = useRouter();
   useEffect(() => { router.replace("/operations/daily-planner/input"); }, [router]);
   return null;
 }
+OperationsRedirectPage.displayName = "OperationsRedirect";
+export default OperationsRedirectPage;

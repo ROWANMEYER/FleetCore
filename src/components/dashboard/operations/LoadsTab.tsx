@@ -39,7 +39,7 @@ export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
 
     if (isLoading) {
         return (
-            <div className="p-8 text-center text-gray-500 text-sm">
+            <div className="p-8 text-center text-[var(--nav-text-color)] text-sm">
                 Loading loads intelligence...
             </div>
         );
@@ -89,8 +89,8 @@ export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
             {/* Charts */}
             <div className="grid grid-cols-2 gap-6">
                 {/* Loads Over Time */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                <div className="glass-card rounded-xl p-6">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
                         Loads Over Time
                     </h3>
                     <div className="w-full min-h-[300px]">
@@ -114,8 +114,8 @@ export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
                 </div>
 
                 {/* Routes by Status */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                <div className="glass-card rounded-xl p-6">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4">
                         Routes by Status
                     </h3>
                     <div className="w-full min-h-[300px]">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { InvoiceData } from "@/src/pdf/types";
 import { formatCurrency, formatDate } from "@/src/pdf/formatters";
+import { X, Download, ClipboardList, MessageSquare } from "lucide-react";
 
 interface InvoiceDeliveryPanelProps {
   invoiceData: InvoiceData;
@@ -71,7 +72,7 @@ Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
             className="text-gray-400 hover:text-gray-600 p-1 text-lg leading-none"
             aria-label="Close"
         >
-            ✕
+            <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -80,7 +81,7 @@ Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
           onClick={handleDownload}
           className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
         >
-          <span className="text-sm">⬇️</span>
+          <Download className="w-4 h-4" />
           Download PDF
         </button>
         
@@ -88,7 +89,7 @@ Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
           onClick={handleCopySummary}
           className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded transition-colors relative"
         >
-          <span className="text-sm">📋</span>
+          <ClipboardList className="w-4 h-4" />
           {copyFeedback || "Copy Summary"}
         </button>
 
@@ -96,7 +97,7 @@ Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
           onClick={handleWhatsApp}
           className="flex items-center justify-center gap-2 px-3 py-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium rounded transition-colors"
         >
-          <span className="text-sm">💬</span>
+          <MessageSquare className="w-4 h-4" />
           WhatsApp
         </button>
       </div>

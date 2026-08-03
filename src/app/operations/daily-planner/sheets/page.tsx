@@ -311,6 +311,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  const openPanel = (route: any) => setSelectedRoute(route);
  const closePanel = () => setSelectedRoute(null);
+ useEscapeToClose(closePanel, !!selectedRoute);
 
  // Sort and Filter State
  const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc'}>({
@@ -3085,11 +3086,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
     router.replace(`?${p.toString()}`, { scroll: false });
   }}
   onLoadClick={(routeId) => {
+    // Open the route detail panel ONLY. Setting editRouteId here also triggered
+    // the Edit Route overlay in layout.tsx — two full-screen panels stacking on
+    // top of each other caused the glitch. The panel's own EDIT button handles
+    // opening the edit form.
     const route = routes?.find((r: any) => r._id === routeId);
     if (route) openPanel(route);
-    const p = new URLSearchParams(searchParams.toString());
-    p.set("editRouteId", routeId);
-    router.replace(`?${p.toString()}`, { scroll: false });
   }}
   />
 
@@ -3123,12 +3125,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div className="fixed inset-0 z-50 flex pointer-events-none">
  {/* backdrop — blurs the background, click to close */}
  <div
- className="flex-1 pointer-events-auto backdrop-blur-sm bg-black/20"
+ className="flex-1 pointer-events-auto backdrop-blur-sm bg-black/20 animate-in fade-in duration-200"
  onClick={closePanel}
  />
 
  {/* panel — solid background */}
- <div className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden">
+ <div className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
  {/* header */}
  <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
  <div>

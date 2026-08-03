@@ -10,13 +10,7 @@
  * Env:   AUDIT_EMAIL / AUDIT_PASSWORD (optional, defaults to seed admin)
  */
 import { spawn } from "node:child_process";
-import {
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-  existsSync,
-  readFileSync,
-} from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 

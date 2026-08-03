@@ -1186,6 +1186,11 @@ export default function SettingsPage() {
  className="flex-1 h-10 px-3 rounded-lg text-sm placeholder-[var(--nav-text-color)] outline-none transition-all settings-input"
  placeholder="At least 6 characters"
  />
+ {pwNew && pwNew.length > 0 && pwNew.length < 6 && (
+ <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+ <AlertTriangle className="w-3.5 h-3.5" /> New password must be at least 6 characters
+ </div>
+ )}
  </div>
  <div>
  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Confirm new password</label>
@@ -1208,9 +1213,9 @@ export default function SettingsPage() {
  </p>
  <button
  onClick={handleChangePassword}
- disabled={pwStatus === "saving" || !pwCurrent || !pwNew || pwNew !== pwConfirm}
+ disabled={pwStatus === "saving" || !pwCurrent || !pwNew || pwNew.length < 6 || pwNew !== pwConfirm}
  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm ${
- pwStatus === "saving" || !pwCurrent || !pwNew || pwNew !== pwConfirm
+ pwStatus === "saving" || !pwCurrent || !pwNew || pwNew.length < 6 || pwNew !== pwConfirm
  ? "bg-[var(--card-bg)] text-[var(--nav-text-color)] cursor-not-allowed"
  : "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm"
  }`}

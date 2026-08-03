@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "@/src/components/providers/ConvexClientProvider";
-import Navigation from "@/src/components/Navigation";
 import { ThemeProvider } from "@/src/components/ThemeProvider";
 import { ToastProvider } from "@/src/components/common/Toast";
-import { AmbientBackground } from "@/src/components/AmbientBackground";
+import { AuthProvider } from "@/src/components/auth/AuthProvider";
+import { AppShell } from "@/src/components/auth/AppShell";
 import { PwaInstaller } from "@/src/components/PwaInstaller";
 
 const spaceGrotesk = Space_Grotesk({
@@ -63,18 +63,9 @@ export default function RootLayout({
         <ThemeProvider>
           <ConvexClientProvider>
             <ToastProvider>
-              <div className="flex h-dvh overflow-hidden bg-[var(--background)]">
-                {/* Ambient background blobs */}
-                <AmbientBackground />
-
-                {/* Sidebar (drawer on mobile) */}
-                <Navigation />
-
-                {/* Main content area */}
-                <main className="flex-1 min-w-0 relative flex flex-col overflow-auto scrollbar-fleet pt-14 md:pt-0">
-                  {children}
-                </main>
-              </div>
+              <AuthProvider>
+                <AppShell>{children}</AppShell>
+              </AuthProvider>
 
               {/* PWA install prompt + service worker registration */}
               <PwaInstaller />

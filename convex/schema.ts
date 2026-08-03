@@ -386,6 +386,18 @@ export default defineSchema({
   })
     .index("by_currentTrailerId", ["currentTrailerId"])
     .index("by_truckFleetNo", ["truckFleetNo"]),
+  // Multi-user auth: one row per person who can sign in.
+  // role: admin sees everything; regional sees only their region (Stage 3+).
+  users: defineTable({
+    email: v.string(),
+    passwordHash: v.string(),
+    role: v.union(v.literal("admin"), v.literal("regional")),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    sessionToken: v.optional(v.string()),
+    sessionExpiresAt: v.optional(v.float64()),
+  })
+    .index("by_email", ["email"])
+    .index("by_sessionToken", ["sessionToken"]),
   // Web push (PWA) subscriptions — one per installed device/browser
   webPushSubscriptions: defineTable({
     endpoint: v.string(),

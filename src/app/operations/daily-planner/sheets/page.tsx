@@ -332,17 +332,41 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  direction: 'asc',
 });
 
- const [filters, setFilters] = useState({
- date: '',
- truck: '',
- trailer: '',
- client: '',
- driver: '',
- from: '',
- to: '',
- status: [] as string[],
- amountMin: '',
- amountMax: '',
+ const [filters, setFilters] = useState<{
+ date: string;
+ truck: string;
+ trailer: string;
+ client: string;
+ driver: string;
+ from: string;
+ to: string;
+ status: string[];
+ amountMin: string;
+ amountMax: string;
+}>(() => {
+ if (typeof window === "undefined") return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.filters) {
+ const f = parsed.filters;
+ return {
+ date: typeof f.date === 'string' ? f.date : '',
+ truck: typeof f.truck === 'string' ? f.truck : '',
+ trailer: typeof f.trailer === 'string' ? f.trailer : '',
+ client: typeof f.client === 'string' ? f.client : '',
+ driver: typeof f.driver === 'string' ? f.driver : '',
+ from: typeof f.from === 'string' ? f.from : '',
+ to: typeof f.to === 'string' ? f.to : '',
+ status: Array.isArray(f.status) ? f.status : [],
+ amountMin: typeof f.amountMin === 'string' ? f.amountMin : '',
+ amountMax: typeof f.amountMax === 'string' ? f.amountMax : '',
+ };
+ }
+ }
+ } catch { /* ignore */ }
+ return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
 });
  const [dashboardDrilldown, setDashboardDrilldown] = useState({
  date: null as { label: string; date: string} | null,
@@ -358,10 +382,71 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   const [isFullscreenExiting, setIsFullscreenExiting] = useState(false);
   const [isFullscreenEntered, setIsFullscreenEntered] = useState(false);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [tableDensity, setTableDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [quickSearch, setQuickSearch] = useState('');
-  const [tableColumnWidths, setTableColumnWidths] = useState<Record<TableColumnKey, number>>(DEFAULT_TABLE_COLUMN_WIDTHS);
- const [tableColumnVisibility, setTableColumnVisibility] = useState<Record<ResizableTableColumnKey, boolean>>(DEFAULT_TABLE_COLUMN_VISIBILITY);
+ // Persisted UI state: density, search, filters survive page lifecycle
+ const SHEETS_UI_KEY = "fleetcore-sheets-ui-v1";
+ const [tableDensity, setTableDensity] = useState<'comfortable' | 'compact'>(() => {
+ if (typeof window === "undefined") return 'compact';
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.density === 'compact' || parsed.density === 'comfortable') return parsed.density;
+ }
+ } catch { /* ignore */ }
+ return 'compact';
+ });
+ const [quickSearch, setQuickSearch] = useState(() => {
+ if (typeof window === "undefined") return '';
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (typeof parsed.search === 'string') return parsed.search;
+ }
+ } catch { /* ignore */ }
+ return '';
+ });
+
+  const [tableColumnWidths, setTableColumnWidths] = useState<Record<TableColumnKey, number>>(() => {
+ if (typeof window === "undefined") return DEFAULT_TABLE_COLUMN_WIDTHS;
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.columnWidths && typeof parsed.columnWidths === 'object') {
+ return { ...DEFAULT_TABLE_COLUMN_WIDTHS, ...parsed.columnWidths };
+ }
+ }
+ } catch { /* ignore */ }
+ return DEFAULT_TABLE_COLUMN_WIDTHS;
+ });
+ const [tableColumnVisibility, setTableColumnVisibility] = useState<Record<ResizableTableColumnKey, boolean>>(() => {
+ if (typeof window === "undefined") return DEFAULT_TABLE_COLUMN_VISIBILITY;
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.columnVisibility && typeof parsed.columnVisibility === 'object') {
+ return { ...DEFAULT_TABLE_COLUMN_VISIBILITY, ...parsed.columnVisibility };
+ }
+ }
+ } catch { /* ignore */ }
+ return DEFAULT_TABLE_COLUMN_VISIBILITY;
+ });
+
+ // Persist density, search, filters, column widths, and column visibility to localStorage
+ useEffect(() => {
+ try {
+ const existing = localStorage.getItem(SHEETS_UI_KEY);
+ const parsed = existing ? JSON.parse(existing) : {};
+ parsed.density = tableDensity;
+ parsed.search = quickSearch;
+ parsed.filters = filters;
+ parsed.columnWidths = tableColumnWidths;
+ parsed.columnVisibility = tableColumnVisibility;
+ localStorage.setItem(SHEETS_UI_KEY, JSON.stringify(parsed));
+ } catch { /* ignore */ }
+ }, [tableDensity, quickSearch, filters, tableColumnWidths, tableColumnVisibility]);
  const resizingColumnRef = useRef<{ key: ResizableTableColumnKey; startX: number; startWidth: number} | null>(null);
  const tableHeaderScrollRef = useRef<HTMLDivElement | null>(null);
  const tableBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -521,32 +606,15 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 };
 }, []);
 
- useEffect(() => {
- if (!isMounted) return;
- try {
- const savedWidthsRaw = window.localStorage.getItem(TABLE_WIDTHS_STORAGE_KEY);
- if (savedWidthsRaw) {
- const savedWidths = JSON.parse(savedWidthsRaw) as Partial<Record<TableColumnKey, number>>;
- setTableColumnWidths((prev) => ({ ...prev, ...savedWidths}));
-}
- const savedVisibilityRaw = window.localStorage.getItem(TABLE_VISIBILITY_STORAGE_KEY);
- if (savedVisibilityRaw) {
- const savedVisibility = JSON.parse(savedVisibilityRaw) as Partial<Record<ResizableTableColumnKey, boolean>>;
- setTableColumnVisibility((prev) => ({ ...prev, ...savedVisibility}));
-}
-} catch {
- // Ignore malformed local storage values and keep defaults.
-}
-}, [isMounted]);
+ // Column widths/visibility are now restored via lazy useState initializers from SHEETS_UI_KEY.
+ // The old separate restore from TABLE_WIDTHS_STORAGE_KEY / TABLE_VISIBILITY_STORAGE_KEY
+ // has been removed. Migration: the next time the user changes a column, the unified key
+ // writes the full state.
 
- useEffect(() => {
- if (!isMounted) return;
- window.localStorage.setItem(TABLE_WIDTHS_STORAGE_KEY, JSON.stringify(tableColumnWidths));
-}, [isMounted, tableColumnWidths]);
-
- useEffect(() => {
- if (!isMounted) return;    window.localStorage.setItem(TABLE_VISIBILITY_STORAGE_KEY, JSON.stringify(tableColumnVisibility));
-}, [isMounted, tableColumnVisibility]);
+ // Column widths/visibility are now persisted via the unified SHEETS_UI_KEY effect above;
+ // the old separate TABLE_WIDTHS_STORAGE_KEY / TABLE_VISIBILITY_STORAGE_KEY effects
+ // have been removed to avoid conflicting writes. Migration: the next time the user
+ // changes a column, the unified key writes the full state (including the old values).
 
  // Escape key exits fullscreen mode
  useEffect(() => {
@@ -651,7 +719,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  // Clear all filters
  const clearFilters = () => {
- // 1. Reset generic filters
+ // 1. Reset generic filters (preserves tableDensity/compact mode)
  setFilters({
  date: '',
  truck: '',
@@ -684,6 +752,22 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 });  // 3. Clear URL params
   syncDateToUrl("");
   setQuickSearch('');
+
+  // 4. Reset column widths and visibility to defaults
+ setTableColumnWidths(DEFAULT_TABLE_COLUMN_WIDTHS);
+ setTableColumnVisibility(DEFAULT_TABLE_COLUMN_VISIBILITY);
+
+ // 5. Persist cleared filters to localStorage (density is preserved separately)
+  try {
+ const existing = localStorage.getItem(SHEETS_UI_KEY);
+ const parsed = existing ? JSON.parse(existing) : {};
+ parsed.search = '';
+ parsed.filters = { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
+ parsed.columnWidths = DEFAULT_TABLE_COLUMN_WIDTHS;
+ parsed.columnVisibility = DEFAULT_TABLE_COLUMN_VISIBILITY;
+ // density is intentionally left untouched
+ localStorage.setItem(SHEETS_UI_KEY, JSON.stringify(parsed));
+ } catch { /* ignore */ }
  };
  
   const summarizeRoutes = (routesList: any[]) => {
@@ -2508,8 +2592,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   {/* ── Table Controls Toolbar ── */}
   {isMounted && !isLoading && (
   <div className="mb-3 flex flex-col gap-2">
-  {/* Quick Search */}
-  <div className="relative">
+  {/* Quick Search + Clear Filters */}
+  <div className="flex items-center gap-2">
+  <div className="relative flex-1">
   <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--nav-text-color)] pointer-events-none" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
   <circle cx="11" cy="11" r="8"></circle>
   <path d="M21 21l-4.35-4.35"></path>
@@ -2532,6 +2617,19 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   </svg>
   </button>
   )}
+  </div>
+  <button
+  onClick={clearFilters}
+  title="Clear all filters, search, and date range"
+  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 px-2.5 text-xs font-medium text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#06B6D4]"
+  >
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <path d="M3 6h18"></path>
+  <path d="M7 12h10"></path>
+  <path d="M10 18h4"></path>
+  </svg>
+  <span className="hidden sm:inline">Clear</span>
+  </button>
   </div>
   
   {/* Action Buttons */}

@@ -51,6 +51,8 @@ import type * as trailerSwaps from "../trailerSwaps.js";
 import type * as trailers from "../trailers.js";
 import type * as truckRenewals from "../truckRenewals.js";
 import type * as trucks from "../trucks.js";
+import type * as userSessions from "../userSessions.js";
+import type * as users from "../users.js";
 import type * as utils from "../utils.js";
 import type * as vehicleLicences from "../vehicleLicences.js";
 import type * as webPush from "../webPush.js";
@@ -106,6 +108,8 @@ declare const fullApi: ApiFromModules<{
   trailers: typeof trailers;
   truckRenewals: typeof truckRenewals;
   trucks: typeof trucks;
+  userSessions: typeof userSessions;
+  users: typeof users;
   utils: typeof utils;
   vehicleLicences: typeof vehicleLicences;
   webPush: typeof webPush;

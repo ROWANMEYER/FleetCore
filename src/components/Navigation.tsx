@@ -14,8 +14,10 @@ import {
   Moon,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/src/components/auth/AuthProvider";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -38,6 +40,7 @@ function useMounted() {
 /* ─── Main sidebar component ───────────────────────────────────── */
 export default function Navigation() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [open, setOpen] = useState(false); // mobile drawer state
   const mounted = useMounted();
@@ -218,6 +221,38 @@ export default function Navigation() {
             );
           })}
         </nav>
+
+        {/* ─── User block ──────────────────────────────────── */}
+        {user && (
+          <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
+            <div
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
+                effectiveCollapsed ? "justify-center" : "justify-between"
+              }`}
+            >
+              {!effectiveCollapsed && (
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[var(--foreground)] truncate">
+                    {user.email}
+                  </p>
+                  <p className="text-[10px] text-[var(--nav-text-color)] capitalize">
+                    {user.role}
+                    {user.role === "regional" && user.region
+                      ? ` · ${user.region.replace("_", " ")}`
+                      : ""}
+                  </p>
+                </div>
+              )}
+              <button
+                onClick={() => logout()}
+                title="Log out"
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-red-500 hover:bg-[var(--card-bg)] transition-all duration-150 shrink-0"
+              >
+                <LogOut size={16} strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ─── Footer — Theme toggle + Collapse ─────────────── */}
         <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">

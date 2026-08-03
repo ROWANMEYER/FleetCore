@@ -1367,7 +1367,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  COMPLETE
  </button>
 )}
- <button onClick={() => { const p = new URLSearchParams(searchParams.toString()); p.set("editRouteId", route._id); router.push(`?${p.toString()}`);}}
+ <button onClick={() => { closePanel(); const p = new URLSearchParams(searchParams.toString()); p.set("editRouteId", route._id); router.push(`?${p.toString()}`);}}
  className="px-3 py-1.5 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  EDIT
  </button>

@@ -90,7 +90,9 @@ function DailyPlannerInputForm() {
  const [driverName, setDriverName] = useState("");
  const [notes, setNotes] = useState("");
  const [routeKilometers, setRouteKilometers] = useState("");
- const [region, setRegion] = useState<string>("garden_route");
+ const [region, setRegion] = useState<string>(
+ user?.role === "regional" ? (user.region ?? "garden_route") : "garden_route"
+ );
  const [headerComplete, setHeaderComplete] = useState(true);
 
  // Subcontractor mode
@@ -290,7 +292,16 @@ function DailyPlannerInputForm() {
  setLoads(mappedLoads);
 }
 }
-}, [existingRoute, routeId, router]);
+}, [existingRoute, routeId, router, user]);
+
+ // Regional users: keep the new-route region locked to their own region
+ // (the populate effect above only runs for existing routes).
+ useEffect(() => {
+ const ownRegion = user?.role === "regional" ? user?.region : null;
+ if (!routeId && ownRegion) {
+ setRegion(ownRegion);
+ }
+}, [routeId, user]);
 
  // Helper to update specific location in draft
  const updateDraftLocation = (type:"from" |"to", index: number, value: string) => {

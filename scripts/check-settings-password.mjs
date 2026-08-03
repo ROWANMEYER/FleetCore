@@ -155,16 +155,33 @@ async function main() {
   }
   console.log("logged in as admin");
 
-  // Navigate to settings (via the nav drawer on mobile, or direct URL)
+  // Navigate to settings. The AppShell guard can bounce us to /login then
+  // /dashboard while the session query resolves (slow on a cold dev deployment),
+  // so retry the navigation once the session is warm.
   await send("Page.navigate", { url: BASE + "/settings" });
-  await waitFor(async () => {
-    const ready = await evalJs("document.readyState");
-    return ready === "complete" ? true : null;
-  }, 20000);
-  await sleep(3000);
+  let section = null;
+  for (let attempt = 0; attempt < 4 && !section; attempt++) {
+    await waitFor(async () => {
+      const ready = await evalJs("document.readyState");
+      return ready === "complete" ? true : null;
+    }, 20000);
+    await sleep(2000);
+    section = await evalJs(`(() => {
+      const heading = [...document.querySelectorAll("h2")].find((h) => h.textContent.trim() === "Sign-in Password");
+      return heading ? true : null;
+    })()`);
+    if (!section) {
+      const path = await evalJs("location.pathname");
+      if (path !== "/settings") {
+        console.log("bounced to", path, "- retrying navigation");
+        await send("Page.navigate", { url: BASE + "/settings" });
+        await sleep(1500);
+      }
+    }
+  }
 
   // Section presence
-  const section = await evalJs(`(() => {
+  section = await evalJs(`(() => {
     const headings = [...document.querySelectorAll("h2")].map((h) => h.textContent.trim());
     const inputs = [...document.querySelectorAll('input[type="password"]')].map((i) => i.placeholder || "");
     const btn = [...document.querySelectorAll("button")].find((b) => b.textContent.includes("Update Password"));
@@ -184,14 +201,22 @@ async function main() {
     process.exit(1);
   }
 
-  // Client-side validation: mismatched confirm shows an error and disables submit
+  // Client-side validation: mismatched confirm shows an error and disables submit.
+  // NOTE: scope inputs to the Sign-in Password section — the legacy Admin
+  // Password section also has a password input earlier in the DOM.
+  const scopeInputs = `(() => {
+    const heading = [...document.querySelectorAll("h2")].find((h) => h.textContent.trim() === "Sign-in Password");
+    const section = heading ? heading.closest(".glass-card-premium") : null;
+    return section ? [...section.querySelectorAll('input[type="password"]')] : [];
+  })()`;
   const mismatch = await evalJs(`(async () => {
     const setNative = (el, value) => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
       setter.call(el, value);
       el.dispatchEvent(new Event("input", { bubbles: true }));
     };
-    const inputs = [...document.querySelectorAll('input[type="password"]')];
+    const inputs = ${scopeInputs};
+    if (inputs.length < 3) return { error: "section inputs not found: " + inputs.length };
     // inputs are ordered: current, new, confirm
     setNative(inputs[0], "whatever1");
     setNative(inputs[1], "BrandNewPass1!");
@@ -212,7 +237,8 @@ async function main() {
       setter.call(el, value);
       el.dispatchEvent(new Event("input", { bubbles: true }));
     };
-    const inputs = [...document.querySelectorAll('input[type="password"]')];
+    const inputs = ${scopeInputs};
+    if (inputs.length < 3) return { error: "section inputs not found: " + inputs.length };
     setNative(inputs[2], "BrandNewPass1!");
     await new Promise((r) => setTimeout(r, 400));
     const btn = [...document.querySelectorAll("button")].find((b) => b.textContent.includes("Update Password"));

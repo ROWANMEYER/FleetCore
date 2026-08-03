@@ -5,6 +5,7 @@ import { useQuery, useMutation, useAction} from"convex/react";
 import { api} from"@/convex/_generated/api";
 import {
  Bell,
+ BellRing,
  Sliders,
  Palette,
  Truck,
@@ -19,6 +20,7 @@ import {
  AlertTriangle,
  RefreshCw,
 } from"lucide-react";
+import { PushNotificationSettings } from"@/src/components/PushNotificationSettings";
 
 function SettingsSection({
  icon,
@@ -446,6 +448,15 @@ export default function SettingsPage() {
 )}
  </button>
  </div>
+ </SettingsSection>
+
+ {/* Section 1b: Mobile Push Notifications */}
+ <SettingsSection
+ icon={<BellRing className="w-5 h-5" />}
+ title="Mobile Push Notifications"
+ description="Get notified on your phone — daily dispatch summary and alerts (works with the installed app)"
+ >
+ <PushNotificationSettings />
  </SettingsSection>
 
  {/* Section 2: Display & Theme */}

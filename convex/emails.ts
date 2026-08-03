@@ -31,7 +31,7 @@ export const sendLoadReportEmail = action({
     const validEmails: string[] = [];
 
     for (const id of args.recipientIds) {
-      const match = allRecipients.find((r) => r._id === id);
+      const match = allRecipients.find((r: any) => r._id === id);
       if (match && match.email) {
         validEmails.push(match.email);
       }

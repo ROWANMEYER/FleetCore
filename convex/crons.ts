@@ -7,5 +7,7 @@ crons.daily("pdp-stage-reminders", { hourUTC: 5, minuteUTC: 0 }, internal.notifi
 
 crons.monthly("pdp-expiry-reminders", { day: 1, hourUTC: 5, minuteUTC: 0 }, internal.notifications.checkExpiryReminders);
 
+crons.daily("web-push-daily-dispatch", { hourUTC: 6, minuteUTC: 0 }, internal.webPush.sendDailyDispatch);
+
 export default crons;
 

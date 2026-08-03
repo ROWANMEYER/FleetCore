@@ -146,7 +146,10 @@ function makeClient(wsUrl) {
         if (entry.level === "error") errors.push({ kind: "log", text: entry.text, url: entry.url });
         else if (entry.level === "warning") warnings.push({ kind: "log", text: entry.text, url: entry.url });
       } else if (msg.method === "Runtime.exceptionThrown") {
-        errors.push({ kind: "exception", text: msg.params.exceptionDetails.text || "Unknown exception" });
+        const d = msg.params.exceptionDetails || {};
+        const desc =
+          (d.exception && (d.exception.description || d.exception.value)) || d.text || "Unknown exception";
+        errors.push({ kind: "exception", text: String(desc).slice(0, 500) });
       } else if (msg.method === "Runtime.consoleAPICalled") {
         const text = msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ");
         if (msg.params.type === "error") errors.push({ kind: "console", text });
@@ -246,6 +249,63 @@ async function main() {
       return { ok: openOk && linksOk && !!closeBtn && closedOk, openOk, linksOk, closedOk, hasCloseBtn: !!closeBtn, links };
     })()`);
 
+    // Route-detail flow (sheets page only): tap a load no -> detail panel opens
+    // -> EDIT swaps to the in-panel edit form -> Cancel returns to detail -> close.
+    // This is the regression guard for the double-overlay glitch class.
+    let routeFlow = null;
+    if (path === "/operations/daily-planner/sheets") {
+      routeFlow = await evalJs(`(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const waitFor = async (fn, timeout = 15000) => {
+          const start = Date.now();
+          for (;;) {
+            const v = await fn();
+            if (v) return v;
+            if (Date.now() - start >= timeout) return null;
+            await sleep(400);
+          }
+        };
+        const PANEL = '[data-testid="route-detail-panel"]';
+        const inPanel = (text) =>
+          [...document.querySelectorAll(PANEL + ' button')].find((b) => b.textContent.trim() === text);
+        const loadLink = await waitFor(() => document.querySelector('span[title^="View details for Load"]'));
+        if (!loadLink) {
+          return { ok: false, skipped: true, reason: "no load rows rendered (data-dependent)" };
+        }
+        loadLink.click();
+        const panel = await waitFor(() => document.querySelector(PANEL));
+        if (!panel) return { ok: false, skipped: false, reason: "detail panel did not open" };
+        await sleep(500);
+        const hasDetail = panel.textContent.includes("Route Detail");
+        const editBtn = inPanel("EDIT");
+        if (!editBtn) return { ok: false, skipped: false, reason: "EDIT button missing in panel" };
+        editBtn.click();
+        const saveShown = await waitFor(() => inPanel("Save Changes"), 8000);
+        if (!saveShown) return { ok: false, skipped: false, reason: "edit form did not open in-panel" };
+        const panelStillOpen = !!document.querySelector(PANEL);
+        const backBtn = !!document.querySelector('[aria-label="Back to route details"]');
+        const cancelBtn = inPanel("Cancel");
+        if (!cancelBtn) return { ok: false, skipped: false, reason: "Cancel button missing in edit view" };
+        cancelBtn.click();
+        const backToDetail = await waitFor(
+          () => !document.querySelector('[aria-label="Back to route details"]') && panel.textContent.includes("Route Detail"),
+          6000
+        );
+        const closeBtn = document.querySelector('[aria-label="Close panel"]');
+        if (closeBtn) closeBtn.click();
+        await sleep(500);
+        const panelClosed = !document.querySelector(PANEL);
+        return {
+          ok: true,
+          skipped: false,
+          hasDetail: !!hasDetail,
+          editInPanel: panelStillOpen && backBtn,
+          backToDetail: !!backToDetail,
+          panelClosed,
+        };
+      })()`);
+    }
+
     report.pages.push({
       requested: path,
       path: info.path,
@@ -255,6 +315,7 @@ async function main() {
       hasHamburger: info.hasHamburger,
       h1: info.h1,
       drawer,
+      routeFlow,
     });
   }
 
@@ -268,6 +329,9 @@ async function main() {
     if (!p.hasHamburger) failures.push(`${p.path}: mobile header/hamburger missing`);
     if (p.drawer && !p.drawer.ok) {
       failures.push(`${p.path}: drawer check failed -> ${p.drawer.reason || JSON.stringify(p.drawer)}`);
+    }
+    if (p.routeFlow && !p.routeFlow.ok && !p.routeFlow.skipped) {
+      failures.push(`${p.path}: route-detail flow failed -> ${p.routeFlow.reason || JSON.stringify(p.routeFlow)}`);
     }
   }
   for (const w of warnings) {

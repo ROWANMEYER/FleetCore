@@ -386,4 +386,15 @@ export default defineSchema({
   })
     .index("by_currentTrailerId", ["currentTrailerId"])
     .index("by_truckFleetNo", ["truckFleetNo"]),
+  // Web push (PWA) subscriptions — one per installed device/browser
+  webPushSubscriptions: defineTable({
+    endpoint: v.string(),
+    keys: v.object({
+      p256dh: v.string(),
+      auth: v.string(),
+    }),
+    userAgent: v.optional(v.string()),
+    lastSeenAt: v.float64(),
+  })
+    .index("by_endpoint", ["endpoint"]),
 });

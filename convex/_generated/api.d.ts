@@ -53,6 +53,8 @@ import type * as truckRenewals from "../truckRenewals.js";
 import type * as trucks from "../trucks.js";
 import type * as utils from "../utils.js";
 import type * as vehicleLicences from "../vehicleLicences.js";
+import type * as webPush from "../webPush.js";
+import type * as webPushSubscriptions from "../webPushSubscriptions.js";
 
 import type {
   ApiFromModules,
@@ -106,6 +108,8 @@ declare const fullApi: ApiFromModules<{
   trucks: typeof trucks;
   utils: typeof utils;
   vehicleLicences: typeof vehicleLicences;
+  webPush: typeof webPush;
+  webPushSubscriptions: typeof webPushSubscriptions;
 }>;
 
 /**

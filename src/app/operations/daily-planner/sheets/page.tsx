@@ -17,11 +17,14 @@ import { exportExcelWithTemplate} from"@/src/lib/exports/exportExcelWithTemplate
 import { exportPDF} from"@/src/lib/exports/exportPDF";
 import { generateInvoicePDF} from"@/src/pdf/invoiceTemplate";
 import { buildInvoiceData} from"@/src/pdf/invoiceBuilder";
-import { InvoiceData} from"@/src/pdf/types";
-import InvoiceDeliveryPanel from"@/src/components/operations/invoice/InvoiceDeliveryPanel";
-import ImportLoadsModal from"./ImportLoadsModal";
+import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/src/components/operations/invoice/InvoiceDeliveryPanel";
+ import ImportLoadsModal from"./ImportLoadsModal";
+ import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import SpreadsheetDataTable from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
 import { gradients } from"@/src/lib/design-tokens";
+
+// Offline cache key — last-fetched sheets data for read-only offline viewing
+const OFFLINE_CACHE_KEY = "fleetcore-sheets-cache-v1";
 import {
  ResponsiveContainer,
  AreaChart,
@@ -308,10 +311,20 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  // Side panel state (replaces inline expand/collapse)
  const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
+ const [panelView, setPanelView] = useState<"detail" | "edit">("detail");
 
- const openPanel = (route: any) => setSelectedRoute(route);
+ const openPanel = (route: any) => {
+ setSelectedRoute(route);
+ setPanelView("detail");
+ };
  const closePanel = () => setSelectedRoute(null);
- useEscapeToClose(closePanel, !!selectedRoute);
+ const openEditView = () => setPanelView("edit");
+ const backToDetail = () => setPanelView("detail");
+ // Escape: step back from the edit view first, then close the panel
+ useEscapeToClose(() => {
+ if (panelView === "edit") backToDetail();
+ else closePanel();
+ }, !!selectedRoute);
 
  // Sort and Filter State
  const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc'}>({
@@ -1029,13 +1042,60 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  const { start: startDate, end: endDate} = calculateDates();
  const isRangeInvalid = dateMode ==="range" && fromDate > toDate;
- const isDatesReady = startDate && endDate; // Ensure dates are initialized
-
- // Fetch routes (using new range-capable query)
- const routes = useQuery(api.dailyRoutes.getForSheets, isDatesReady ? {
+ const isDatesReady = startDate && endDate; // Ensure dates are initialized // Fetch routes (using new range-capable query)
+ const liveRoutes = useQuery(api.dailyRoutes.getForSheets, isDatesReady ? {
  startDate,
  endDate
-} :"skip");
+ } :"skip");
+
+ // ── Offline support: cache the last-fetched routes and fall back to them
+ // when the device is offline and Convex can't deliver fresh data.
+ const [isOffline, setIsOffline] = useState(false);
+ const [cachedRoutes, setCachedRoutes] = useState<any[] | null>(null);
+ const [offlineCachedAt, setOfflineCachedAt] = useState<number | null>(null);
+ const [offlineCachedRange, setOfflineCachedRange] = useState<string | null>(null);
+
+ useEffect(() => {
+ if (typeof navigator === "undefined") return;
+ const on = () => setIsOffline(false);
+ const off = () => setIsOffline(true);
+ setIsOffline(!navigator.onLine);
+ window.addEventListener("online", on);
+ window.addEventListener("offline", off);
+ return () => {
+ window.removeEventListener("online", on);
+ window.removeEventListener("offline", off);
+ };
+ }, []);
+
+ // Persist the freshest data for offline viewing (capped to stay under quota)
+ useEffect(() => {
+ if (liveRoutes && liveRoutes.length > 0) {
+ try {
+ const payload = JSON.stringify({ at: Date.now(), startDate, endDate, routes: liveRoutes });
+ if (payload.length < 4 * 1024 * 1024) {
+ localStorage.setItem(OFFLINE_CACHE_KEY, payload);
+ }
+ } catch { /* storage full / private mode */ }
+ }
+ }, [liveRoutes, startDate, endDate]);
+
+ // Hydrate the cache on mount
+ useEffect(() => {
+ try {
+ const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
+ if (raw) {
+ const parsed = JSON.parse(raw);
+ if (parsed && Array.isArray(parsed.routes)) {
+ setCachedRoutes(parsed.routes);
+ setOfflineCachedAt(parsed.at ?? null);
+ setOfflineCachedRange(parsed.startDate ? `${parsed.startDate} → ${parsed.endDate}` : null);
+ }
+ }
+ } catch { /* corrupted cache */ }
+ }, []);
+
+ const routes = liveRoutes ?? (isOffline ? cachedRoutes : undefined);
 
  // Sync selectedRoute with updated data from routes query after edits
  useEffect(() => {
@@ -1354,39 +1414,38 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </p>
  </div>
  {!isLocked && mode ==="primary" && (
- <div className="flex gap-2 shrink-0">
+ <div className="flex flex-wrap gap-2 shrink-0">
  {status ==="completed" && (
  <button onClick={() => handleStatusChange(route._id,"lock")}
- className="px-3 py-1.5 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  LOCK ROUTE
  </button>
 )}
  {status ==="planned" && (
  <button onClick={() => handleStatusChange(route._id,"complete")}
- className="px-3 py-1.5 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  COMPLETE
  </button>
 )}
- <button onClick={() => { closePanel(); const p = new URLSearchParams(searchParams.toString()); p.set("editRouteId", route._id); router.push(`?${p.toString()}`);}}
- className="px-3 py-1.5 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ <button onClick={() => openEditView()}
+ className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  EDIT
  </button>
  <button onClick={() => handleDelete(route._id)} disabled={actionLoading === route._id}
- className="px-3 py-1.5 text-xs font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+ className="px-3.5 py-2 text-xs font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
  DELETE
  </button>
  </div>
-)}
- {isLocked && (
+)} {isLocked && (
  <button onClick={() => handleStatusChange(route._id,"unlock")}
- className="px-3 py-1.5 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] shrink-0">
+ className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] shrink-0">
  UNLOCK
  </button>
-)}
+ )}
  </div>
 
  {/* ── KPI strip ── */}
- <div className="grid grid-cols-4 gap-3">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
  {[  { label:"TOTAL REVENUE", value: formatZAR(totalRevenue), sub: null, accent:"border-l-cyan-500"},
  { label:"DISTANCE", value:`${routeKm} km`, sub: allFroms[0] && allTos[0] ?`${allFroms[0]} → ${allTos[0]}` : null, accent:"border-l-green-500"},
  { label:"LOAD WEIGHT", value:`${totalQty} ${unitMap[qtyUnit] || qtyUnit}`, sub: route.loads?.[0]?.rateType ==="flat" ?"Flat rate" : null, accent:"border-l-orange-400"},
@@ -1401,7 +1460,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 
  {/* ── Revenue chart + Load gauge ── */}
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  {/* Revenue last 7 routes */}
  <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
  <div className="flex items-center justify-between mb-3">
@@ -2240,6 +2299,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
    className={`h-full min-h-0 flex flex-col ${isFullscreenActive ? 'fixed inset-0 z-50 bg-[var(--card-bg)] overflow-y-auto' : 'relative'}`}
    style={fullscreenTransitionStyle}
  >
+ {isOffline && (
+ <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">
+ <span aria-hidden>📴</span>
+ <span>
+ Offline — {cachedRoutes ? `showing cached routes${offlineCachedRange ? ` for ${offlineCachedRange}` : ""}${offlineCachedAt ? ` (synced ${new Date(offlineCachedAt).toLocaleTimeString()})` : ""}` : "no cached data available"}
+ </span>
+ </div>
+ )}
  <div className="flex-shrink-0 space-y-4 relative">
  {/* Sticky Header Wrapper */}
  <div className={`${isHeaderCompact ?"sticky top-0 z-10" :"relative"} bg-[var(--card-bg)]/60 -mx-4 px-4 pt-4 pb-2 border-b border-[var(--card-border)] shadow-sm mb-4 rounded-b-xl`}>
@@ -3130,25 +3197,39 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  />
 
  {/* panel — solid background */}
- <div className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
+ <div data-testid="route-detail-panel" className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
  {/* header */}
  <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
- <div>
- <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)]">
- Truck {selectedRoute.truckFleetNoStr ??"—"} · {selectedRoute.routeDate}
+ <div className="flex items-center gap-2 min-w-0">
+ {panelView === "edit" && (
+ <button
+ onClick={backToDetail}
+ aria-label="Back to route details"
+ className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
+ >
+ ←
+ </button>
+ )}
+ <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] truncate">
+ {panelView === "edit" ? "Edit Route" : `Truck ${selectedRoute.truckFleetNoStr ?? "—"} · ${selectedRoute.routeDate}`}
  </h2>
  </div>
  <button
  onClick={closePanel}
- className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors"
+ aria-label="Close panel"
+ className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
  >
  ✕
  </button>
  </div>
 
- {/* scrollable body — reuse RouteDetailsCard */}
+ {/* scrollable body — detail or edit view */}
  <div className="flex-1 overflow-y-auto">
+ {panelView === "edit" ? (
+ <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
+ ) : (
  <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ??"planned") ==="locked"} mode="primary" onDrillDown={openPanel} />
+ )}
  </div>
  </div>
  </div>

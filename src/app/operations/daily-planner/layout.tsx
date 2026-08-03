@@ -1,13 +1,10 @@
 "use client";
 
 import Link from"next/link";
-import { usePathname, useRouter, useSearchParams} from"next/navigation";
+import { usePathname } from"next/navigation";
 import InputPage from"./input/page";
 import SheetsPage from"./sheets/page";
 import { Suspense, useEffect, useState, useRef} from"react";
-import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
-import { Id} from"@/convex/_generated/dataModel";
-import { X} from"lucide-react";
 import { tokens } from"@/src/lib/design-tokens";
 
 type ViewMode ="split" |"input" |"sheets";
@@ -35,11 +32,7 @@ const ViewIcon = {
 
 function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  const pathname = usePathname();
- const searchParams = useSearchParams();
- const router = useRouter();
  const [viewMode, setViewMode] = useState<ViewMode>("split");
-
- const editRouteId = searchParams.get("editRouteId");
  const [leftWidth, setLeftWidth] = useState(65);
  const isDraggingRef = useRef(false);
 
@@ -60,18 +53,10 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  window.removeEventListener("mousemove", onMouseMove);
  window.removeEventListener("mouseup", onMouseUp);
 };
-}, []);
-
- const startResize = () => {
+}, []); const startResize = () => {
  isDraggingRef.current = true;
  document.body.style.cursor ="col-resize";
-};
-
- const closeEditPanel = () => {
- const params = new URLSearchParams(searchParams.toString());
- params.delete("editRouteId");
- router.push(`?${params.toString()}`);
-};
+ };
 
  const paneBg ="glass-card-premium";
  const paneWrap ="glass-card";
@@ -85,21 +70,6 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
 
  return (
  <div className="h-full min-h-0 flex flex-col relative overflow-hidden">
-
- {/* Edit slide-over */}
- {editRouteId && (
- <div className="absolute inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
- <div className="w-full max-w-[600px] sm:w-[600px] h-full shadow-2xl border-l flex flex-col animate-in slide-in-from-right duration-300 bg-[var(--card-bg)] border-[var(--card-border)] ">
- <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border)] bg-[var(--card-bg)]">
- <h2 className={`text-lg font-semibold ${textBase}`}>Edit Route</h2>
- <button onClick={closeEditPanel} className="text-[var(--nav-text-color)] hover:text-[var(--nav-text-color)] p-1 rounded-full hover:bg-[var(--card-bg)] transition-colors"><X className="w-5 h-5" /></button>
- </div>
- <div className="flex-1 overflow-y-auto scrollbar-hidden p-6">
- <EditRouteForm routeId={editRouteId as Id<"dailyRoutes">} onSuccess={closeEditPanel} onCancel={closeEditPanel} />
- </div>
- </div>
- </div>
-)}
 
  {/* Mobile header */}
  <div className="lg:hidden flex-shrink-0">

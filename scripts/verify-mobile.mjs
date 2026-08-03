@@ -217,7 +217,7 @@ async function main() {
   // redirect to /login, which has no hamburger/drawer. Sign in with the admin
   // seed credentials so every audited page runs in an authenticated session.
   const AUDIT_EMAIL = process.env.AUDIT_EMAIL || "admin@fleetcore.app";
-  const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "admin123";
+  const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "Fleetcore2026!";
 
   await send("Page.navigate", { url: BASE + "/login" });
   await waitFor(async () => {

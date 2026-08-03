@@ -7,6 +7,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import KpiCard from "./KpiCard";
 import EditRouteModal from "./EditRouteModal";
 import { useToast } from "../../common/Toast";
+import { useAuth } from "../../auth/AuthProvider";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface RevenueTabProps {
@@ -29,6 +30,7 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 
 export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
     const { addToast } = useToast();
+    const { token } = useAuth();
     const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [deletingRouteId, setDeletingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -37,22 +39,26 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
     const revenueSummary = useQuery(api.dashboard.getDashboardRevenueSummary, {
         startDate,
         endDate,
+        token,
     });
 
     const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, {
         startDate,
         endDate,
+        token,
     });
 
     const revenueByTruck = useQuery(api.dashboard.getRevenueByTruck, {
         startDate,
         endDate,
         limit: 10,
+        token,
     });
 
     const routes = useQuery(api.dailyRoutes.getForSheets, {
         startDate,
         endDate,
+        token,
     });
 
     const deleteDailyRoute = useMutation(api.dailyRoutes.deleteDailyRoute);
@@ -66,7 +72,7 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
     const handleDeleteRoute = async () => {
         if (!deletingRouteId) return;
         try {
-            await deleteDailyRoute({ id: deletingRouteId });
+            await deleteDailyRoute({ id: deletingRouteId, token });
             setShowDeleteConfirm(false);
             setDeletingRouteId(null);
         } catch (error) {

@@ -3,6 +3,7 @@ import { mutation, query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { calculateLoadAmount } from "./utils";
+import { resolveUserScope, scopedRegion } from "./userSessions";
 
 // Helper to Centralize logic 
 function deriveTripAggregates(loads: any[]) {
@@ -134,9 +135,11 @@ function shouldAutoComplete(loads: any[]) {
 }
 
 export const listAllRoutes = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db.query("dailyRoutes").collect();
+  args: { token: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const routes = await ctx.db.query("dailyRoutes").collect();
+    return region ? routes.filter((r) => r.region === region) : routes;
   },
 });
 
@@ -144,6 +147,8 @@ export const createDailyRoute = mutation({
   args: {
     routeDate: v.string(),
     driverName: v.string(),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())),
     // fromLocations/toLocations removed from args, calculated from loads 
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
@@ -183,6 +188,10 @@ export const createDailyRoute = mutation({
   handler: async (ctx, args) => {
     console.log("📥 MUTATION HIT", args); // DEBUG LOG 
 
+    const scope = await resolveUserScope(ctx, args.token);
+    // Regional users are forced to their own region (never trusted from client)
+    const region = scope?.role === "regional" ? (scope.region ?? "garden_route") : (args.region ?? "garden_route");
+
     const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
     if (!truckIdentifier || truckIdentifier.trim().length === 0) {
       throw new Error("truckFleetNo must be a non-empty string");
@@ -220,6 +229,7 @@ export const createDailyRoute = mutation({
     const id = await ctx.db.insert("dailyRoutes", {
       routeDate: args.routeDate,
       driverName: args.driverName,
+      region,
 
       // 🔐 derived, never trusted from UI 
       client: aggregates.client,
@@ -266,6 +276,8 @@ export const createDailyRoute = mutation({
 
 export const createBulkDailyRoutes = mutation({
   args: {
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())),
     routes: v.array(
       v.object({
         routeDate: v.string(),
@@ -294,6 +306,9 @@ export const createBulkDailyRoutes = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const scope = await resolveUserScope(ctx, args.token);
+    // Regional users are forced to their own region
+    const region = scope?.role === "regional" ? (scope.region ?? "garden_route") : (args.region ?? "garden_route");
     const now = Date.now();
     const createdIds = [];
 
@@ -317,6 +332,7 @@ export const createBulkDailyRoutes = mutation({
       const id = await ctx.db.insert("dailyRoutes", {
         routeDate: route.routeDate,
         driverName: route.driverName,
+        region,
         client: aggregates.client,
         rate: aggregates.rate,
         fromLocations: aggregates.fromLocations,
@@ -343,8 +359,10 @@ export const createBulkDailyRoutes = mutation({
 export const getRoutesByDate = query({
   args: {
     routeDate: v.string(),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -352,8 +370,8 @@ export const getRoutesByDate = query({
       )
       .collect();
 
-    // Filter out deleted routes
-    const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+    // Filter out deleted routes + region scope
+    const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
     activeRoutes.sort((a, b) => {
       const aTruck = a.truckFleetNoStr ?? "";
@@ -373,8 +391,10 @@ export const getForSheets = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -382,8 +402,8 @@ export const getForSheets = query({
       )
       .collect();
 
-    // Filter out deleted routes
-    const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+    // Filter out deleted routes + region scope
+    const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
     // Sort by Date -> Truck -> CreatedAt
     activeRoutes.sort((a, b) => {
@@ -404,10 +424,15 @@ export const getForSheets = query({
 });
 
 export const getById = query({
-  args: { id: v.id("dailyRoutes") },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const doc = await ctx.db.get(args.id);
     if (!doc) {
+      throw new Error("Document not found");
+    }
+    // Regional users can only read routes in their own region
+    if (region && doc.region !== region) {
       throw new Error("Document not found");
     }
     return doc;
@@ -419,8 +444,10 @@ export const getRoutesByTruckAndDate = query({
     routeDate: v.string(),
     truckFleetNoStr: v.optional(v.string()),
     truckFleetNo: v.optional(v.string()),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
     if (!truckIdentifier) {
       // If neither is provided, return empty list (or handle error)
@@ -436,8 +463,8 @@ export const getRoutesByTruckAndDate = query({
       )
       .collect();
 
-    // Filter out deleted routes
-    const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+    // Filter out deleted routes + region scope
+    const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
     activeRoutes.sort((a, b) => a.createdAt - b.createdAt);
 
@@ -446,25 +473,33 @@ export const getRoutesByTruckAndDate = query({
 });
 
 export const listRecentRoutes = query({
-  args: { limit: v.optional(v.number()) },
+  args: { limit: v.optional(v.number()), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const limit = args.limit ?? 50;
     const routes = await ctx.db
       .query("dailyRoutes")
       .order("desc")
-      .take(limit);
+      .take(limit * 4); // over-fetch so regional filtering doesn't starve the limit
 
-    // Filter out deleted routes
-    return routes.filter((r) => !(r as any).isDeleted);
+    // Filter out deleted routes + region scope
+    return routes
+      .filter((r) => !(r as any).isDeleted && (!region || r.region === region))
+      .slice(0, limit);
   },
 });
 
 
 export const markRouteCompleted = mutation({
-  args: { id: v.id("dailyRoutes") },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const route = await ctx.db.get(args.id);
     if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
       throw new Error("Route not found");
     }
 
@@ -484,10 +519,15 @@ export const markRouteCompleted = mutation({
 });
 
 export const lockRoute = mutation({
-  args: { id: v.id("dailyRoutes") },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const route = await ctx.db.get(args.id);
     if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
       throw new Error("Route not found");
     }
 
@@ -511,6 +551,8 @@ export const updateDailyRoute = mutation({
     id: v.id("dailyRoutes"),
     routeDate: v.string(),
     driverName: v.string(),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())),
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
@@ -557,6 +599,13 @@ export const updateDailyRoute = mutation({
       throw new Error("Route not found");
     }
 
+    const scope = await resolveUserScope(ctx, args.token);
+    // Regional users can only edit routes in their own region; region is immutable for them
+    if (scope?.role === "regional" && existingRoute.region !== scope.region) {
+      throw new Error("Route not found");
+    }
+    const region = scope?.role === "regional" ? existingRoute.region : (args.region ?? existingRoute.region ?? "garden_route");
+
     const currentStatus = (existingRoute as any).status || "planned";
     if (currentStatus === "locked") {
       throw new Error("Cannot edit a locked route.");
@@ -598,6 +647,7 @@ export const updateDailyRoute = mutation({
     await ctx.db.patch(args.id, {
       routeDate: args.routeDate,
       driverName: args.driverName,
+      region,
       client: aggregates.client,
       rate: aggregates.rate,
       fromLocations: aggregates.fromLocations,
@@ -631,10 +681,15 @@ export const updateDailyRoute = mutation({
 });
 
 export const deleteDailyRoute = mutation({
-  args: { id: v.id("dailyRoutes") },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const route = await ctx.db.get(args.id);
     if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
       throw new Error("Route not found");
     }
 
@@ -648,11 +703,13 @@ export const deleteDailyRoute = mutation({
 });
 
 export const deleteBulkDailyRoutes = mutation({
-  args: { ids: v.array(v.id("dailyRoutes")) },
+  args: { ids: v.array(v.id("dailyRoutes")), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
+    const scope = await resolveUserScope(ctx, args.token);
     for (const id of args.ids) {
       const route = await ctx.db.get(id);
       if (!route) continue;
+      if (scope?.role === "regional" && route.region !== scope.region) continue;
 
       const status = (route as any).status;
       if (status === "locked") {
@@ -665,10 +722,15 @@ export const deleteBulkDailyRoutes = mutation({
 });
 
 export const unlockRoute = mutation({
-  args: { id: v.id("dailyRoutes") },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const route = await ctx.db.get(args.id);
     if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
       throw new Error("Route not found");
     }
 
@@ -688,8 +750,10 @@ export const getLoadsForEmailReport = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     // 1) Fetch routes where date >= startDate AND date <= endDate
     // Using index "by_routeDate_truckFleetNoStr"
     const routes = await ctx.db
@@ -705,8 +769,9 @@ export const getLoadsForEmailReport = query({
     const flattenedLoads: any[] = [];
 
     for (const route of routes) {
-      // Exclude deleted routes
+      // Exclude deleted routes + out-of-region routes
       if ((route as any).isDeleted) continue;
+      if (region && route.region !== region) continue;
 
       // Check Status: Must be "completed" or "locked"
       const status = (route as any).status || "planned";
@@ -771,8 +836,10 @@ export const getQuickSendReport = query({
     startDate: v.string(),
     endDate: v.string(),
     completedOnly: v.optional(v.boolean()),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     // 1. Validation (MANDATORY)
     const isValidDate = (d: string) => !isNaN(Date.parse(d));
     if (!isValidDate(args.startDate) || !isValidDate(args.endDate)) {
@@ -795,8 +862,9 @@ export const getQuickSendReport = query({
     const processedRouteIds = new Set<string>();
 
     for (const route of routes) {
-      // Exclude deleted routes
+      // Exclude deleted routes + out-of-region routes
       if ((route as any).isDeleted) continue;
+      if (region && route.region !== region) continue;
 
       const status = (route as any).status || "planned";
 
@@ -874,8 +942,10 @@ export const getRecentRoutesByTruck = query({
   args: {
     truckFleetNoStr: v.string(),
     limit: v.optional(v.number()),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const region = scopedRegion(await resolveUserScope(ctx, args.token));
     const limit = args.limit ?? 7;
     const all = await ctx.db
       .query("dailyRoutes")
@@ -884,7 +954,12 @@ export const getRecentRoutesByTruck = query({
       .collect();
 
     return all
-      .filter((r) => !(r as any).isDeleted && r.truckFleetNoStr === args.truckFleetNoStr)
+      .filter(
+        (r) =>
+          !(r as any).isDeleted &&
+          r.truckFleetNoStr === args.truckFleetNoStr &&
+          (!region || r.region === region)
+      )
       .slice(0, limit)
       .reverse(); // oldest first for chart
   },
@@ -894,6 +969,7 @@ export const updateLoadFields = mutation({
   args: {
     routeId: v.id("dailyRoutes"),
     loadIndex: v.number(),
+    token: v.optional(v.union(v.string(), v.null())),
     patch: v.object({
       client: v.optional(v.string()),
       quantity: v.optional(v.string()),
@@ -905,6 +981,11 @@ export const updateLoadFields = mutation({
   handler: async (ctx, args) => {
     const route = await ctx.db.get(args.routeId);
     if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
       throw new Error("Route not found");
     }
 

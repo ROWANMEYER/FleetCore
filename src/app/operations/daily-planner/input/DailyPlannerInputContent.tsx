@@ -7,6 +7,7 @@ import { useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
 import { calculateLoadAmount} from"@/convex/utils";
+import { useAuth} from"@/src/components/auth/AuthProvider";
 
 import { WizardRouteHeader} from"@/src/components/operations/daily-planner/WizardRouteHeader";
 
@@ -58,6 +59,7 @@ import { PackageOpen, Plus, X, CheckCircle, Loader2} from"lucide-react";
 
 function DailyPlannerInputForm() {
  const router = useRouter();
+ const { user, token } = useAuth();
  const [routeId, setRouteId] = useState<Id<"dailyRoutes"> | null>(null);
  const [urlDate, setUrlDate] = useState<string | null>(null);
  useEffect(() => {
@@ -87,6 +89,7 @@ function DailyPlannerInputForm() {
  const [driverName, setDriverName] = useState("");
  const [notes, setNotes] = useState("");
  const [routeKilometers, setRouteKilometers] = useState("");
+ const [region, setRegion] = useState<string>("garden_route");
  const [headerComplete, setHeaderComplete] = useState(true);
 
  // Subcontractor mode
@@ -194,7 +197,7 @@ function DailyPlannerInputForm() {
 });
 
  // Queries
- const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId} :"skip");
+ const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId, token} :"skip");
  const appSettings = useQuery(api.settings.getAppSettings);
  const subcontractors = useQuery(api.subcontractors.getAll, {}) || [];
  const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
@@ -254,6 +257,7 @@ function DailyPlannerInputForm() {
  setDriverName(existingRoute.driverName ??"");
  setNotes(existingRoute.notes ??"");
  setRouteKilometers(existingRoute.routeKilometers?.toString() ??"");
+ setRegion((existingRoute as any).region ?? (user?.role ==="regional" ? (user.region ??"garden_route") :"garden_route"));
 
  // Restore subcontractor mode + selection
  const existingSubId = (existingRoute as any).subcontractorId as string | undefined;
@@ -456,19 +460,20 @@ function DailyPlannerInputForm() {
 
 
  try {
- if (mode ==="edit" && routeId) {
- await updateRoute({
- id: routeId,
- routeDate: date,
- truckFleetNo: truckFleetNo, // Canonical
- truckFleetNoStr: truckFleetNo, // Legacy
- driverName: driverName,
- trailerFleetNoStr: trailerFleetNo || undefined,
- subcontractorId: modeSubId,
- notes: notes || undefined,
- kilometers: totals.totalKm, // Legacy field (effective)
- routeKilometers: parseFloat(routeKilometers) || undefined,
- loads: schemaLoads,
+ if (mode ==="edit" && routeId) {    await updateRoute({
+      id: routeId,
+      routeDate: date,
+      truckFleetNo: truckFleetNo, // Canonical
+      truckFleetNoStr: truckFleetNo, // Legacy
+      driverName: driverName,
+      trailerFleetNoStr: trailerFleetNo || undefined,
+      subcontractorId: modeSubId,
+      notes: notes || undefined,
+      kilometers: totals.totalKm, // Legacy field (effective)
+      routeKilometers: parseFloat(routeKilometers) || undefined,
+      region: region as"garden_route" |"eastern_cape",
+      token,
+      loads: schemaLoads,
 });
 
  // EXIT EDIT MODE & RESET FORM
@@ -483,18 +488,19 @@ function DailyPlannerInputForm() {
  setEditingLoadId(null);
  setEditingLoadState(null);
  router.push("/operations/daily-planner/input"); // Clear URL param
-} else {
- await createRoute({
- routeDate: date,
- truckFleetNo: truckFleetNo, // Canonical
- truckFleetNoStr: truckFleetNo, // Legacy
- driverName: driverName,
- trailerFleetNoStr: trailerFleetNo || undefined,
- subcontractorId: modeSubId,
- notes: notes || undefined,
- kilometers: totals.totalKm, // Legacy field (effective)
- routeKilometers: parseFloat(routeKilometers) || undefined,
- loads: schemaLoads,
+} else {    await createRoute({
+      routeDate: date,
+      truckFleetNo: truckFleetNo, // Canonical
+      truckFleetNoStr: truckFleetNo, // Legacy
+      driverName: driverName,
+      trailerFleetNoStr: trailerFleetNo || undefined,
+      subcontractorId: modeSubId,
+      notes: notes || undefined,
+      kilometers: totals.totalKm, // Legacy field (effective)
+      routeKilometers: parseFloat(routeKilometers) || undefined,
+      region: region as"garden_route" |"eastern_cape",
+      token,
+      loads: schemaLoads,
 
 });
 
@@ -547,6 +553,8 @@ function DailyPlannerInputForm() {
  setRouteKilometers={setRouteKilometers}
  notes={notes}
  setNotes={setNotes}
+ region={region}
+ setRegion={setRegion}
  trucks={trucks || []}
  trailers={trailers || []}
  drivers={drivers || []}

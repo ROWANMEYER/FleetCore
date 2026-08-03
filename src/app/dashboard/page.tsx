@@ -5,6 +5,7 @@ import { useQuery, useMutation} from"convex/react";
 import { useTheme} from"next-themes";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
+import { useAuth} from"@/src/components/auth/AuthProvider";
 import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer} from"recharts";
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard} from"@/src/components/common/Skeleton";
@@ -184,6 +185,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 
  // Mutations
  const deleteDailyRoute = useMutation(api.dailyRoutes.deleteDailyRoute);
+ const { token } = useAuth();
  const { addToast } = useToast();
 
  // Track the original period/range when drilling down to a date
@@ -211,7 +213,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
    border: "var(--card-border)",
 };
 
- const routes = useQuery(api.dailyRoutes.getForSheets, { startDate: start, endDate: end});
+ const routes = useQuery(api.dailyRoutes.getForSheets, { startDate: start, endDate: end, token});
 
  const filtered = (routes ?? []).filter((r) => {
  if (drill.kind ==="status") return ((r as any).status ??"planned") === drill.status;
@@ -241,7 +243,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  const handleDeleteRoute = async () => {
  if (!deletingRouteId) return;
  try {
- await deleteDailyRoute({ id: deletingRouteId});
+ await deleteDailyRoute({ id: deletingRouteId, token});
  setShowDeleteConfirm(false);
  setDeletingRouteId(null);
 } catch (error) {
@@ -1038,6 +1040,7 @@ function ProgressBar({ pct, colour}: { pct: number; colour: string}) {
 // ─── main page ───────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+ const { token } = useAuth();
  const [startDate, setStartDate] = useState(monthStart());
  const [endDate, setEndDate] = useState(monthEnd());
  const [drill, setDrill] = useState<DrillDown | null>(null);
@@ -1093,13 +1096,13 @@ export default function DashboardPage() {
 
  const todayStr = today();
 
- const summary = useQuery(api.dashboard.getExecutiveSummary, { startDate, endDate});
- const todaySummary = useQuery(api.dashboard.getDashboardLoadsSummary, { startDate: todayStr, endDate: todayStr});
- const statusBreakdown = useQuery(api.dashboard.getRoutesByStatus, { startDate, endDate});
- const topClients = useQuery(api.dashboard.getCustomerAnalytics, { startDate, endDate});
- const fleetPerf = useQuery(api.dashboard.getFleetPerformance, { startDate, endDate});
- const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, { startDate, endDate});
- const monthComparison = useQuery(api.dashboard.getMonthToMonthComparison, { month1, month2});
+ const summary = useQuery(api.dashboard.getExecutiveSummary, { startDate, endDate, token});
+ const todaySummary = useQuery(api.dashboard.getDashboardLoadsSummary, { startDate: todayStr, endDate: todayStr, token});
+ const statusBreakdown = useQuery(api.dashboard.getRoutesByStatus, { startDate, endDate, token});
+ const topClients = useQuery(api.dashboard.getCustomerAnalytics, { startDate, endDate, token});
+ const fleetPerf = useQuery(api.dashboard.getFleetPerformance, { startDate, endDate, token});
+ const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, { startDate, endDate, token});
+ const monthComparison = useQuery(api.dashboard.getMonthToMonthComparison, { month1, month2, token});
 
  const loading = !summary || !todaySummary || !statusBreakdown || !topClients || !fleetPerf;
  const maxRevDay = revenueOverTime ? Math.max(...revenueOverTime.map((d) => d.revenue), 1) : 1;

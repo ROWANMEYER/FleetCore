@@ -212,6 +212,53 @@ async function main() {
     );
   };
 
+  // ── Authenticate ────────────────────────────────────────────────────────
+  // The app is now auth-gated (multi-user Stage 1): unauthenticated navigations
+  // redirect to /login, which has no hamburger/drawer. Sign in with the admin
+  // seed credentials so every audited page runs in an authenticated session.
+  const AUDIT_EMAIL = process.env.AUDIT_EMAIL || "admin@fleetcore.app";
+  const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "admin123";
+
+  await send("Page.navigate", { url: BASE + "/login" });
+  await waitFor(async () => {
+    const ready = await evalJs("document.readyState");
+    return ready === "complete";
+  }, 20000);
+  const loggedIn = await waitFor(async () => {
+    const hasForm = await evalJs(`!!document.querySelector('input[type="email"]')`);
+    if (!hasForm) {
+      // If the session already exists, we may have been redirected to the app.
+      return (await evalJs(`location.pathname !== "/login"`)) ? true : null;
+    }
+    const filled = await evalJs(`(async () => {
+      const setNative = (el, value) => {
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+        setter.call(el, value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      };
+      const email = document.querySelector('input[type="email"]');
+      const password = document.querySelector('input[type="password"]');
+      if (!email || !password) return false;
+      setNative(email, ${JSON.stringify(AUDIT_EMAIL)});
+      setNative(password, ${JSON.stringify(AUDIT_PASSWORD)});
+      const btn = document.querySelector('button[type="submit"]');
+      if (btn) btn.click();
+      return true;
+    })()`);
+    if (!filled) return null;
+    await sleep(1500);
+    return (await evalJs(
+      `location.pathname !== "/login" && !!document.querySelector('[aria-label="Open navigation"]')`
+    ))
+      ? true
+      : null;
+  }, 25000);
+
+  if (!loggedIn) {
+    errors.push({ kind: "auth", text: "Audit login failed — check AUDIT_EMAIL/AUDIT_PASSWORD or the login page." });
+  }
+
   const report = { base: BASE, viewport: "375x812 (mobile emulation)", pages: [] };
 
   for (const path of PAGES) {

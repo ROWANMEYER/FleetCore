@@ -194,6 +194,9 @@ export default function SettingsPage() {
  // Load settings from backend
  useEffect(() => {
  if (appSettings) {
+ // Defer to a microtask so the state updates aren't synchronous inside the effect.
+ const settings = appSettings as any;
+ Promise.resolve().then(() => {
  setReminders({
  stage1AlertDays: appSettings.stage1AlertDays ?? 3,
  stage2AlertDays: appSettings.stage2AlertDays ?? 2,
@@ -202,7 +205,6 @@ export default function SettingsPage() {
  expiryReminder60: appSettings.expiryReminder60 ?? true,
  expiryReminder30: appSettings.expiryReminder30 ?? true,
 });
- const settings = appSettings as any;
  setFleetDefaults({
  defaultQuantityType: settings.defaultQuantityType ||"tons",
  defaultRateType: settings.defaultRateType ||"per_unit",
@@ -241,6 +243,7 @@ export default function SettingsPage() {
  setSecurityDefaults({
  sessionTimeoutMinutes: settings.sessionTimeoutMinutes || 60,
  enableAuditLog: settings.enableAuditLog !== undefined ? settings.enableAuditLog : true,
+});
 });
 }
 }, [appSettings]);

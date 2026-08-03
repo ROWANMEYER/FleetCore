@@ -23,6 +23,7 @@ type LoginResult = { ok: boolean; error?: string };
 
 type AuthContextValue = {
   user: AuthUser | null;
+  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
@@ -30,6 +31,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
+  token: null,
   loading: true,
   login: async () => ({ ok: false, error: "Auth not ready" }),
   logout: async () => {},
@@ -118,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, logoutMutation]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

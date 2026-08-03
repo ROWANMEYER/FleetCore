@@ -6,6 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useEscapeToClose } from "../../../components/common/useKeyboardShortcut";
 import { useToast } from "../../common/Toast";
+import { useAuth } from "../../auth/AuthProvider";
 
 interface EditRouteModalProps {
     routeId: Id<"dailyRoutes">;
@@ -38,7 +39,8 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 };
 
 export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRouteModalProps) {
-    const route = useQuery(api.dailyRoutes.getById, { id: routeId });
+    const { user, token } = useAuth();
+    const route = useQuery(api.dailyRoutes.getById, { id: routeId, token });
     const trucks = useQuery(api.fleet.listTrucks, {}) || [];
     const drivers = useQuery(api.fleet.listDrivers, {}) || [];
     const trailers = useQuery(api.fleet.listTrailers, {}) || [];
@@ -50,6 +52,7 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
         trailerFleetNoStr: route?.trailerFleetNoStr || "",
         kilometers: route?.kilometers || 0,
         notes: route?.notes || "",
+        region: (route as any)?.region || (user?.role === "regional" ? user.region : "garden_route") || "garden_route",
     });
 
     const [loads, setLoads] = useState<Load[]>(
@@ -117,6 +120,8 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                 trailerFleetNoStr: formData.trailerFleetNoStr,
                 kilometers: Number(formData.kilometers),
                 notes: formData.notes,
+                region: formData.region,
+                token,
                 loads: loads.map((l) => ({
                     client: l.client,
                     fromLocations: l.fromLocations,
@@ -238,6 +243,22 @@ export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRout
                                         }
                                         className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none"
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-[var(--nav-text-color)] mb-1">
+                                        Region
+                                    </label>
+                                    <select
+                                        value={formData.region}
+                                        disabled={user?.role === "regional"}
+                                        onChange={(e) =>
+                                            setFormData({ ...formData, region: e.target.value as any })
+                                        }
+                                        className="w-full px-3 py-2 border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg focus:ring-2 focus:ring-[#06B6D4] focus:border-[#06B6D4] outline-none disabled:opacity-60"
+                                    >
+                                        <option value="garden_route">Garden Route</option>
+                                        <option value="eastern_cape">Eastern Cape</option>
+                                    </select>
                                 </div>
                             </div>
                             <div className="mt-4">

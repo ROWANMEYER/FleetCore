@@ -5,6 +5,7 @@ import { useMutation} from"convex/react";
 import { api} from"@/convex/_generated/api";
 import { useEscapeToClose} from"@/src/components/common/useKeyboardShortcut";
 import { useToast } from"@/src/components/common/Toast";
+import { useAuth} from"@/src/components/auth/AuthProvider";
 import { X, Lightbulb} from"lucide-react";
 
 interface ImportLoadsModalProps {
@@ -58,6 +59,7 @@ function saveMapping(mapping: string[], numCols: number) {
 }
 
 export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModalProps) {
+ const { user, token } = useAuth();
  const [step, setStep] = useState<ImportStep>("paste");
  const [pasteContent, setPasteContent] = useState("");
  const [columnMapping, setColumnMapping] = useState<string[]>([]);
@@ -346,7 +348,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 };
 });
 
- await createBulkDailyRoutes({ routes});
+ await createBulkDailyRoutes({ routes, region: user?.role === "regional" ? (user.region ?? "garden_route") : undefined, token});
  // Auto-save the mapping on successful import
  saveMapping(columnMapping, columnMapping.length);
  setSavedMappingExists(true);

@@ -6,6 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
 import { useToast } from "../../../components/common/Toast";
+import { useAuth } from "../../../components/auth/AuthProvider";
 
 // --- Types ---
 interface EditRouteFormProps {
@@ -59,7 +60,8 @@ const rateTypeOptions = [
 
 export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode = true }: EditRouteFormProps) {
   // --- Queries ---
-  const route = useQuery(api.dailyRoutes.getById, { id: routeId });
+  const { user, token } = useAuth();
+  const route = useQuery(api.dailyRoutes.getById, { id: routeId, token });
   const appSettings = useQuery(api.settings.getAppSettings);
   const subcontractors = useQuery(api.subcontractors.list, {}) || [];
   const [isFleetMode, setIsFleetMode] = useState(true);
@@ -78,6 +80,8 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode 
       route={route}
       appSettings={appSettings}
       routeId={routeId}
+      token={token}
+      user={user}
       trucks={trucks}
       trailers={trailers}
       drivers={drivers}
@@ -97,6 +101,8 @@ type EditRouteFormInnerProps = {
   route: any;
   appSettings: any;
   routeId: Id<"dailyRoutes">;
+  token: string | null;
+  user: { role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null;
   trucks: any[];
   trailers: any[];
   drivers: any[];
@@ -114,6 +120,8 @@ function EditRouteFormInner({
   route,
   appSettings,
   routeId,
+  token,
+  user,
   trucks,
   trailers,
   drivers,
@@ -154,6 +162,9 @@ function EditRouteFormInner({
   );
   const [driver, setDriver] = useState(route.driverName ?? "");
   const [notes, setNotes] = useState(route.notes ?? "");
+  const [region, setRegion] = useState<string>(
+    (route as any).region ?? (user?.role === "regional" ? (user.region ?? "garden_route") : "garden_route")
+  );
   const [routeKilometers, setRouteKilometers] = useState(
     route.routeKilometers?.toString() ?? ""
   );
@@ -421,6 +432,8 @@ function EditRouteFormInner({
         notes: notes || undefined,
         kilometers: totals.totalKm,
         routeKilometers: parseFloat(routeKilometers) || undefined,
+        region: region as "garden_route" | "eastern_cape",
+        token,
         loads: schemaLoads,
       });
 
@@ -556,6 +569,18 @@ function EditRouteFormInner({
                 {d.label}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Region</label>
+          <select
+            value={region}
+            disabled={user?.role === "regional"}
+            onChange={(e) => setRegion(e.target.value)}
+            className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input} disabled:opacity-60`}
+          >
+            <option value="garden_route">Garden Route</option>
+            <option value="eastern_cape">Eastern Cape</option>
           </select>
         </div>
       </div>

@@ -6,7 +6,8 @@ export function AmbientBackground() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Defer to a microtask so the state update isn't synchronous inside the effect.
+    Promise.resolve().then(() => setMounted(true));
   }, []);
 
   if (!mounted) return null;

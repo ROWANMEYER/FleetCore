@@ -2,6 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { useAuth } from "../../auth/AuthProvider";
 import KpiCard from "./KpiCard";
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -17,19 +18,23 @@ const STATUS_COLORS = {
 };
 
 export default function LoadsTab({ startDate, endDate }: LoadsTabProps) {
+    const { token } = useAuth();
     const loadsSummary = useQuery(api.dashboard.getDashboardLoadsSummary, {
         startDate,
         endDate,
+        token,
     });
 
     const loadsOverTime = useQuery(api.dashboard.getLoadsOverTime, {
         startDate,
         endDate,
+        token,
     });
 
     const routesByStatus = useQuery(api.dashboard.getRoutesByStatus, {
         startDate,
         endDate,
+        token,
     });
 
     const isLoading =

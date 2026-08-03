@@ -2,6 +2,7 @@
 import { query } from "./_generated/server";
 import { calculateLoadAmount } from "./utils";
 import { v } from "convex/values";
+import { resolveUserScope } from "./userSessions";
 
 /**
  * Dashboard Queries — Read-Only Management Intelligence
@@ -18,8 +19,11 @@ export const getDashboardLoadsSummary = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -27,8 +31,8 @@ export const getDashboardLoadsSummary = query({
             )
             .collect();
 
-        // Filter active routes only
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        // Filter active routes only + region scope
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Calculate KPIs
         const totalRoutes = activeRoutes.length;
@@ -66,8 +70,11 @@ export const getLoadsOverTime = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -75,7 +82,7 @@ export const getLoadsOverTime = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group loads by date
         const loadsByDate: Record<string, number> = {};
@@ -102,8 +109,11 @@ export const getClientBreakdown = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -111,7 +121,7 @@ export const getClientBreakdown = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         const clientCounts: Record<string, number> = {};
 
@@ -135,8 +145,11 @@ export const getRoutesByStatus = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -144,7 +157,7 @@ export const getRoutesByStatus = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group by status
         const statusCounts: Record<string, number> = {
@@ -174,8 +187,11 @@ export const getDashboardRevenueSummary = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -183,7 +199,7 @@ export const getDashboardRevenueSummary = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         let totalRevenue = 0;
         let totalLoads = 0;
@@ -217,8 +233,11 @@ export const getRevenueOverTime = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -226,7 +245,7 @@ export const getRevenueOverTime = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group revenue by date
         const revenueByDate: Record<string, number> = {};
@@ -263,8 +282,11 @@ export const getRevenueByTruck = query({
         startDate: v.string(),
         endDate: v.string(),
         limit: v.optional(v.number()),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -272,7 +294,7 @@ export const getRevenueByTruck = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group revenue by truck
         const revenueByTruck: Record<string, number> = {};
@@ -321,8 +343,11 @@ export const getExecutiveSummary = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -330,7 +355,7 @@ export const getExecutiveSummary = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Revenue calculations
         let totalRevenue = 0;
@@ -373,8 +398,11 @@ export const getCustomerAnalytics = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -382,7 +410,7 @@ export const getCustomerAnalytics = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group by customer
         const customerMetrics: Record<
@@ -446,8 +474,11 @@ export const getFleetPerformance = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -455,7 +486,7 @@ export const getFleetPerformance = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         // Group by truck
         const truckMetrics: Record<
@@ -521,8 +552,11 @@ export const getOperationalEfficiency = query({
     args: {
         startDate: v.string(),
         endDate: v.string(),
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -530,7 +564,7 @@ export const getOperationalEfficiency = query({
             )
             .collect();
 
-        const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+        const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
         const completed = activeRoutes.filter(
             (r) => (r as any).status === "completed" || (r as any).status === "locked"
@@ -564,8 +598,11 @@ export const getMonthToMonthComparison = query({
     args: {
         month1: v.string(), // Format: "YYYY-MM"
         month2: v.string(), // Format: "YYYY-MM"
+        token: v.optional(v.union(v.string(), v.null())),
     },
     handler: async (ctx, args) => {
+        const scope = await resolveUserScope(ctx, args.token);
+        const region = scope?.role === "regional" ? scope.region : null;
         // Get today's date
         const today = new Date();
         const todayIso = today.toISOString().split("T")[0];
@@ -607,7 +644,7 @@ export const getMonthToMonthComparison = query({
                 )
                 .collect();
 
-            const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+            const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
             let totalRevenue = 0;
             let totalKm = 0;

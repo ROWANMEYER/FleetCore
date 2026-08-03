@@ -5,6 +5,7 @@ import { useQuery, useMutation} from"convex/react";
 import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
+import { useAuth} from"@/src/components/auth/AuthProvider";
 import { calculateLoadAmount} from"@/convex/utils";
 import { SkeletonLine, SkeletonKpiGrid} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
@@ -253,6 +254,7 @@ export default function DailyPlannerSheetsPage({ mode ="primary"}: { mode?:"prim
 }
 
 function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secondary"}) {
+ const { token } = useAuth();
  // TRAE-FIX: Hydration Mismatch Fix
  // 1. Track mount state (client-only enhancement)
  const [isMounted, setIsMounted] = useState(false);
@@ -956,7 +958,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  onConfirm: async () => {
  setActionLoading(routeId);
  try {
- await unlockRoute({ id: routeId});
+ await unlockRoute({ id: routeId, token});
  closeConfirm();
 } catch (error) {
  console.error("Failed to update status:", error);
@@ -973,9 +975,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  setActionLoading(routeId);
  try {
  if (action ==="complete") {
- await markRouteCompleted({ id: routeId});
+ await markRouteCompleted({ id: routeId, token});
 } else if (action ==="lock") {
- await lockRoute({ id: routeId});
+ await lockRoute({ id: routeId, token});
 }
 } catch (error) {
  console.error("Failed to update status:", error);
@@ -995,7 +997,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  onConfirm: async () => {
  setActionLoading(routeId);
  try {
- await deleteDailyRoute({ id: routeId});
+ await deleteDailyRoute({ id: routeId, token});
  setSelectedRouteIds(prev => {
  const next = new Set(prev);
  next.delete(routeId);
@@ -1025,7 +1027,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  confirmStyle:"danger",
  onConfirm: async () => {
  try {
- await deleteBulkDailyRoutes({ ids: idsToDelete});
+ await deleteBulkDailyRoutes({ ids: idsToDelete, token});
  setSelectedRouteIds(new Set());
  closeConfirm();
 } catch (error) {
@@ -1129,7 +1131,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const isDatesReady = startDate && endDate; // Ensure dates are initialized // Fetch routes (using new range-capable query)
  const liveRoutes = useQuery(api.dailyRoutes.getForSheets, isDatesReady ? {
  startDate,
- endDate
+ endDate,
+ token,
  } :"skip");
 
  // ── Offline support: cache the last-fetched routes and fall back to them
@@ -1426,6 +1429,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
  truckFleetNoStr: route.truckFleetNoStr ??"",
  limit: 7,
+ token,
 });
  const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
  const avgRevenue = recentRoutes && recentRoutes.length > 0
@@ -2809,7 +2813,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   onClick={async () => {
   const ids = Array.from(selectedRouteIds) as Id<"dailyRoutes">[];
   for (const id of ids) {
-  try { await lockRoute({ id }); } catch {}
+  try { await lockRoute({ id, token }); } catch {}
   }
   setSelectedRouteIds(new Set());
   }}
@@ -3243,7 +3247,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 )}  </div>  </div>  <SpreadsheetDataTable 
     routes={filteredRoutes || []} 
     density={tableDensity}
-   updateLoadFields={({ routeId, loadIndex, patch }: any) => updateLoadFields({ routeId, loadIndex, patch })}
+   updateLoadFields={({ routeId, loadIndex, patch }: any) => updateLoadFields({ routeId, loadIndex, patch, token })}
    onTruckClick={(truckNo) => {
     setFilters(prev => ({ ...prev, truck: truckNo }));
     const p = new URLSearchParams(searchParams.toString());

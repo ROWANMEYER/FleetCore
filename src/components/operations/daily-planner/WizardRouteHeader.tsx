@@ -2,6 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { useAuth } from "@/src/components/auth/AuthProvider";
 import WarningIcon from "@/src/components/common/WarningIcon";
 
 type Subcontractor = { _id: string; companyName: string; status?: string };
@@ -19,6 +20,8 @@ type Props = {
   setRouteKilometers: (v: string) => void;
   notes: string;
   setNotes: (v: string) => void;
+  region: string;
+  setRegion: (v: string) => void;
 
   trucks: any[];
   trailers: any[];
@@ -52,6 +55,8 @@ export function WizardRouteHeader({
   setRouteKilometers,
   notes,
   setNotes,
+  region,
+  setRegion,
   trucks,
   trailers,
   drivers,
@@ -67,9 +72,11 @@ export function WizardRouteHeader({
   // ---------------------------------------------------------------------------
 
   // A. Duplicate Check (Reactive Query)
+  const { token } = useAuth();
   const existingRoutes = useQuery(api.dailyRoutes.getRoutesByTruckAndDate, {
     routeDate: date,
     truckFleetNo: truckFleetNo,
+    token,
   });
   
   // Filter out current route if editing
@@ -269,6 +276,19 @@ export function WizardRouteHeader({
             rows={1}
             className="w-full p-2 settings-input rounded-md resize-none"
           />
+        </div>
+
+        {/* Region */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-[var(--foreground)]">Region</label>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="w-full p-2 settings-input rounded-md"
+          >
+            <option value="garden_route">Garden Route</option>
+            <option value="eastern_cape">Eastern Cape</option>
+          </select>
         </div>
       </div>
     </div>

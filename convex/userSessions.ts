@@ -102,3 +102,38 @@ export const logout = mutation({
     }
   },
 });
+
+/**
+ * Shared helper: resolve a session token to a user's role + region scope.
+ * Returns null when the token is absent/invalid/expired (treat as admin/system).
+ *
+ * Queries that read region-scoped data (dailyRoutes etc.) should call this and,
+ * when the resolved user is `regional`, hard-filter to `region === user.region`.
+ */
+export async function resolveUserScope(
+  ctx: any,
+  token?: string | null
+): Promise<{ role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null> {
+  if (!token) return null;
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_sessionToken", (q: any) => q.eq("sessionToken", token))
+    .first();
+  if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) return null;
+  return {
+    role: user.role,
+    region: user.region ?? null,
+  };
+}
+
+/**
+ * Convenience: given a resolved scope, return the region filter value or null.
+ * - regional users -> their own region (hard filter)
+ * - admin / unknown -> null (no filter)
+ */
+export function scopedRegion(
+  scope: { role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null
+): "garden_route" | "eastern_cape" | null {
+  if (scope?.role === "regional") return scope.region;
+  return null;
+}

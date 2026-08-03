@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { calculateLoadAmount } from "./utils";
+import { resolveUserScope } from "./userSessions";
 
 export const list = query({
   args: {},
@@ -112,8 +113,11 @@ export const getFinancialSummary = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const scope = await resolveUserScope(ctx, args.token);
+    const region = scope?.role === "regional" ? scope.region : null;
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -121,7 +125,7 @@ export const getFinancialSummary = query({
       )
       .collect();
 
-    const activeRoutes = routes.filter((r) => !(r as any).isDeleted);
+    const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
     // Group by subcontractor
     const subData: Record<

@@ -549,7 +549,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
     setSavingCell(cellKey);
 
     try {
-      let patch: Record<string, any> = {};
+      const patch: Record<string, any> = {};
       if (field === "customer") {
         patch.client = editValue;
       } else if (field === "origin") {

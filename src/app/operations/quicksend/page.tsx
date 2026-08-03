@@ -9,7 +9,7 @@ import { renderTransportReport} from"@/convex/templates/TransportReport";
 import { SkeletonCard} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
-import { useAuth} from"@/src/components/auth/AuthProvider";
+import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
 
 type ColumnKey ="date" |"truck" |"trailer" |"driver" |"client" |"from" |"to" |"rate" |"distance" |"notes";
 
@@ -32,11 +32,13 @@ export default function QuickSendPage() {
  const [completedOnly, setCompletedOnly] = useState(true);
 
  const { token } = useAuth();
+ const region = useRegionArg();
  const reportData = useQuery(api.dailyRoutes.getQuickSendReport, { 
  startDate: queryStartDate, 
  endDate: queryEndDate,
  completedOnly,
- token
+ token,
+ region
 });
  
  const sendLoadReportEmail = useAction(api.emails.sendLoadReportEmail);

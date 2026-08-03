@@ -6,7 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useEscapeToClose } from "../../../components/common/useKeyboardShortcut";
 import { useToast } from "../../common/Toast";
-import { useAuth } from "../../auth/AuthProvider";
+import { useAuth, useRegionArg } from "../../auth/AuthProvider";
 
 interface EditRouteModalProps {
     routeId: Id<"dailyRoutes">;
@@ -40,7 +40,8 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 
 export default function EditRouteModal({ routeId, onClose, onSuccess }: EditRouteModalProps) {
     const { user, token } = useAuth();
-    const route = useQuery(api.dailyRoutes.getById, { id: routeId, token });
+    const region = useRegionArg();
+    const route = useQuery(api.dailyRoutes.getById, { id: routeId, token, region });
     const trucks = useQuery(api.fleet.listTrucks, {}) || [];
     const drivers = useQuery(api.fleet.listDrivers, {}) || [];
     const trailers = useQuery(api.fleet.listTrailers, {}) || [];

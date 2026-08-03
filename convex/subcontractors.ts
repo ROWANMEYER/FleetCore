@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { calculateLoadAmount } from "./utils";
-import { resolveUserScope } from "./userSessions";
+import { resolveEffectiveRegion } from "./userSessions";
 
 export const list = query({
   args: {},
@@ -114,10 +114,10 @@ export const getFinancialSummary = query({
     startDate: v.string(),
     endDate: v.string(),
     token: v.optional(v.union(v.string(), v.null())),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const scope = await resolveUserScope(ctx, args.token);
-    const region = scope?.role === "regional" ? scope.region : null;
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>

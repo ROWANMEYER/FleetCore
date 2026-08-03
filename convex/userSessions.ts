@@ -137,3 +137,20 @@ export function scopedRegion(
   if (scope?.role === "regional") return scope.region;
   return null;
 }
+
+/**
+ * Stage 4 helper: resolve the effective region filter for a query.
+ *
+ * - regional users -> their own region, ALWAYS (never overridable from the client)
+ * - admin -> the requested `regionOverride` if provided, otherwise null (see all)
+ * - no/invalid token -> null (system-level, sees all)
+ */
+export async function resolveEffectiveRegion(
+  ctx: any,
+  token?: string | null,
+  regionOverride?: "garden_route" | "eastern_cape" | null
+): Promise<"garden_route" | "eastern_cape" | null> {
+  const scope = await resolveUserScope(ctx, token);
+  if (scope?.role === "regional") return scope.region;
+  return regionOverride ?? null;
+}

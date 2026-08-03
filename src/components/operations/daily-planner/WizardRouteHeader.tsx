@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useAuth } from "@/src/components/auth/AuthProvider";
+import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
 import WarningIcon from "@/src/components/common/WarningIcon";
 
 type Subcontractor = { _id: string; companyName: string; status?: string };
@@ -73,10 +73,12 @@ export function WizardRouteHeader({
 
   // A. Duplicate Check (Reactive Query)
   const { token } = useAuth();
+  const regionScopeArg = useRegionArg();
   const existingRoutes = useQuery(api.dailyRoutes.getRoutesByTruckAndDate, {
     routeDate: date,
     truckFleetNo: truckFleetNo,
     token,
+    region: regionScopeArg,
   });
   
   // Filter out current route if editing

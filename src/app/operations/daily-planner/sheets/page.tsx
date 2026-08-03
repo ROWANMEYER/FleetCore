@@ -5,7 +5,7 @@ import { useQuery, useMutation} from"convex/react";
 import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
-import { useAuth} from"@/src/components/auth/AuthProvider";
+import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
 import { calculateLoadAmount} from"@/convex/utils";
 import { SkeletonLine, SkeletonKpiGrid} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
@@ -255,6 +255,7 @@ export default function DailyPlannerSheetsPage({ mode ="primary"}: { mode?:"prim
 
 function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secondary"}) {
  const { token } = useAuth();
+ const region = useRegionArg();
  // TRAE-FIX: Hydration Mismatch Fix
  // 1. Track mount state (client-only enhancement)
  const [isMounted, setIsMounted] = useState(false);
@@ -1133,6 +1134,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  startDate,
  endDate,
  token,
+ region,
  } :"skip");
 
  // ── Offline support: cache the last-fetched routes and fall back to them
@@ -1430,6 +1432,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  truckFleetNoStr: route.truckFleetNoStr ??"",
  limit: 7,
  token,
+ region,
 });
  const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
  const avgRevenue = recentRoutes && recentRoutes.length > 0

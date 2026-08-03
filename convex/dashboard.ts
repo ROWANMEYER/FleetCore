@@ -2,7 +2,7 @@
 import { query } from "./_generated/server";
 import { calculateLoadAmount } from "./utils";
 import { v } from "convex/values";
-import { resolveUserScope } from "./userSessions";
+import { resolveEffectiveRegion } from "./userSessions";
 
 /**
  * Dashboard Queries — Read-Only Management Intelligence
@@ -20,10 +20,10 @@ export const getDashboardLoadsSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -71,10 +71,10 @@ export const getLoadsOverTime = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -110,10 +110,10 @@ export const getClientBreakdown = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -146,10 +146,10 @@ export const getRoutesByStatus = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -188,10 +188,10 @@ export const getDashboardRevenueSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -234,10 +234,10 @@ export const getRevenueOverTime = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -283,10 +283,10 @@ export const getRevenueByTruck = query({
         endDate: v.string(),
         limit: v.optional(v.number()),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -344,10 +344,10 @@ export const getExecutiveSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -399,10 +399,10 @@ export const getCustomerAnalytics = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -475,10 +475,10 @@ export const getFleetPerformance = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -553,10 +553,10 @@ export const getOperationalEfficiency = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         const routes = await ctx.db
             .query("dailyRoutes")
             .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -599,10 +599,10 @@ export const getMonthToMonthComparison = query({
         month1: v.string(), // Format: "YYYY-MM"
         month2: v.string(), // Format: "YYYY-MM"
         token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
     },
     handler: async (ctx, args) => {
-        const scope = await resolveUserScope(ctx, args.token);
-        const region = scope?.role === "regional" ? scope.region : null;
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
         // Get today's date
         const today = new Date();
         const todayIso = today.toISOString().split("T")[0];

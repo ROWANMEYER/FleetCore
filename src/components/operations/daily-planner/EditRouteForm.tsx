@@ -6,7 +6,7 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
 import { useToast } from "../../../components/common/Toast";
-import { useAuth } from "../../../components/auth/AuthProvider";
+import { useAuth, useRegionArg } from "../../../components/auth/AuthProvider";
 
 // --- Types ---
 interface EditRouteFormProps {
@@ -61,7 +61,8 @@ const rateTypeOptions = [
 export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode = true }: EditRouteFormProps) {
   // --- Queries ---
   const { user, token } = useAuth();
-  const route = useQuery(api.dailyRoutes.getById, { id: routeId, token });
+  const region = useRegionArg();
+  const route = useQuery(api.dailyRoutes.getById, { id: routeId, token, region });
   const appSettings = useQuery(api.settings.getAppSettings);
   const subcontractors = useQuery(api.subcontractors.list, {}) || [];
   const [isFleetMode, setIsFleetMode] = useState(true);

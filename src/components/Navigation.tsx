@@ -37,6 +37,33 @@ function useMounted() {
   return mounted;
 }
 
+/* ─── Admin region switcher (Stage 4) ──────────────────────────── */
+const REGION_OPTIONS: { value: "garden_route" | "eastern_cape" | "all"; label: string }[] = [
+  { value: "all", label: "All Regions" },
+  { value: "garden_route", label: "Garden Route" },
+  { value: "eastern_cape", label: "Eastern Cape" },
+];
+
+function RegionSwitcher({ compact = false }: { compact?: boolean }) {
+  const { user, regionFilter, setRegionFilter } = useAuth();
+  if (user?.role !== "admin") return null;
+  return (
+    <select
+      value={regionFilter}
+      onChange={(e) => setRegionFilter(e.target.value as any)}
+      title="View region"
+      aria-label="Region filter"
+      className={`settings-input rounded-md ${compact ? "max-w-[110px] text-xs" : "w-full text-xs"}`}
+    >
+      {REGION_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /* ─── Main sidebar component ───────────────────────────────────── */
 export default function Navigation() {
   const pathname = usePathname();
@@ -102,7 +129,8 @@ export default function Navigation() {
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-2">
+          <RegionSwitcher compact />
           {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
         </div>
       </header>
@@ -243,13 +271,16 @@ export default function Navigation() {
                   </p>
                 </div>
               )}
-              <button
-                onClick={() => logout()}
-                title="Log out"
-                className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-red-500 hover:bg-[var(--card-bg)] transition-all duration-150 shrink-0"
-              >
-                <LogOut size={16} strokeWidth={1.5} />
-              </button>
+              <div className="flex flex-col gap-1.5 shrink-0">
+                {!effectiveCollapsed && <RegionSwitcher />}
+                <button
+                  onClick={() => logout()}
+                  title="Log out"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-red-500 hover:bg-[var(--card-bg)] transition-all duration-150 shrink-0"
+                >
+                  <LogOut size={16} strokeWidth={1.5} />
+                </button>
+              </div>
             </div>
           </div>
         )}

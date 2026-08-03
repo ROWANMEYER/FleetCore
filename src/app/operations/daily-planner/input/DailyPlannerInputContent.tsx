@@ -7,7 +7,7 @@ import { useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
 import { calculateLoadAmount} from"@/convex/utils";
-import { useAuth} from"@/src/components/auth/AuthProvider";
+import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
 
 import { WizardRouteHeader} from"@/src/components/operations/daily-planner/WizardRouteHeader";
 
@@ -60,6 +60,7 @@ import { PackageOpen, Plus, X, CheckCircle, Loader2} from"lucide-react";
 function DailyPlannerInputForm() {
  const router = useRouter();
  const { user, token } = useAuth();
+ const regionArg = useRegionArg();
  const [routeId, setRouteId] = useState<Id<"dailyRoutes"> | null>(null);
  const [urlDate, setUrlDate] = useState<string | null>(null);
  useEffect(() => {
@@ -197,7 +198,7 @@ function DailyPlannerInputForm() {
 });
 
  // Queries
- const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId, token} :"skip");
+ const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId, token, region: regionArg} :"skip");
  const appSettings = useQuery(api.settings.getAppSettings);
  const subcontractors = useQuery(api.subcontractors.getAll, {}) || [];
  const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);

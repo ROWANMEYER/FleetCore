@@ -3,7 +3,7 @@ import { mutation, query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { calculateLoadAmount } from "./utils";
-import { resolveUserScope, scopedRegion } from "./userSessions";
+import { resolveUserScope, resolveEffectiveRegion } from "./userSessions";
 
 // Helper to Centralize logic 
 function deriveTripAggregates(loads: any[]) {
@@ -135,9 +135,12 @@ function shouldAutoComplete(loads: any[]) {
 }
 
 export const listAllRoutes = query({
-  args: { token: v.optional(v.union(v.string(), v.null())) },
+  args: {
+    token: v.optional(v.union(v.string(), v.null())),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+  },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const routes = await ctx.db.query("dailyRoutes").collect();
     return region ? routes.filter((r) => r.region === region) : routes;
   },
@@ -359,10 +362,10 @@ export const createBulkDailyRoutes = mutation({
 export const getRoutesByDate = query({
   args: {
     routeDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -391,10 +394,10 @@ export const getForSheets = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const routes = await ctx.db
       .query("dailyRoutes")
       .withIndex("by_routeDate_truckFleetNoStr", (q) =>
@@ -424,9 +427,9 @@ export const getForSheets = query({
 });
 
 export const getById = query({
-  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())) },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))) },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const doc = await ctx.db.get(args.id);
     if (!doc) {
       throw new Error("Document not found");
@@ -444,10 +447,10 @@ export const getRoutesByTruckAndDate = query({
     routeDate: v.string(),
     truckFleetNoStr: v.optional(v.string()),
     truckFleetNo: v.optional(v.string()),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
     if (!truckIdentifier) {
       // If neither is provided, return empty list (or handle error)
@@ -473,9 +476,9 @@ export const getRoutesByTruckAndDate = query({
 });
 
 export const listRecentRoutes = query({
-  args: { limit: v.optional(v.number()), token: v.optional(v.union(v.string(), v.null())) },
+  args: { limit: v.optional(v.number()), token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))) },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const limit = args.limit ?? 50;
     const routes = await ctx.db
       .query("dailyRoutes")
@@ -750,10 +753,10 @@ export const getLoadsForEmailReport = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     // 1) Fetch routes where date >= startDate AND date <= endDate
     // Using index "by_routeDate_truckFleetNoStr"
     const routes = await ctx.db
@@ -836,10 +839,10 @@ export const getQuickSendReport = query({
     startDate: v.string(),
     endDate: v.string(),
     completedOnly: v.optional(v.boolean()),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     // 1. Validation (MANDATORY)
     const isValidDate = (d: string) => !isNaN(Date.parse(d));
     if (!isValidDate(args.startDate) || !isValidDate(args.endDate)) {
@@ -942,10 +945,10 @@ export const getRecentRoutesByTruck = query({
   args: {
     truckFleetNoStr: v.string(),
     limit: v.optional(v.number()),
-    token: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
   },
   handler: async (ctx, args) => {
-    const region = scopedRegion(await resolveUserScope(ctx, args.token));
+    const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const limit = args.limit ?? 7;
     const all = await ctx.db
       .query("dailyRoutes")

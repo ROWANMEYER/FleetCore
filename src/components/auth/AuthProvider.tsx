@@ -21,12 +21,17 @@ export type AuthUser = {
 
 type LoginResult = { ok: boolean; error?: string };
 
+export type RegionFilter = "garden_route" | "eastern_cape" | "all";
+
 type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
+  /** Admin-only region override ("all" = no filter). Regional users are never overridable. */
+  regionFilter: RegionFilter;
+  setRegionFilter: (region: RegionFilter) => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -35,10 +40,24 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   login: async () => ({ ok: false, error: "Auth not ready" }),
   logout: async () => {},
+  regionFilter: "all",
+  setRegionFilter: () => {},
 });
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+/**
+ * Stage 4: derive the `region` query arg from the auth state.
+ * - admin + filter "all" -> undefined (no server filter)
+ * - admin + specific region -> that region
+ * - regional -> undefined (server always forces their own region)
+ */
+export function useRegionArg(): "garden_route" | "eastern_cape" | undefined {
+  const { user, regionFilter } = useAuth();
+  if (user?.role !== "admin") return undefined;
+  return regionFilter === "all" ? undefined : regionFilter;
 }
 
 function readToken(): string | null {
@@ -64,6 +83,7 @@ function generateToken(): string {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
 
   const loginAction = useAction(api.users.login);
   const logoutMutation = useMutation(api.userSessions.logout);
@@ -117,10 +137,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       /* ignore */
     }
     setToken(null);
+    setRegionFilter("all");
   }, [token, logoutMutation]);
 
+  // When the signed-in user changes, reset the admin override to "All" (Stage 4).
+  const userId = user?._id ?? null;
+  useEffect(() => {
+    Promise.resolve().then(() => setRegionFilter("all"));
+  }, [userId]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, login, logout, regionFilter, setRegionFilter }}
+    >
       {children}
     </AuthContext.Provider>
   );

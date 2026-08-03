@@ -7,7 +7,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import KpiCard from "./KpiCard";
 import EditRouteModal from "./EditRouteModal";
 import { useToast } from "../../common/Toast";
-import { useAuth } from "../../auth/AuthProvider";
+import { useAuth, useRegionArg } from "../../auth/AuthProvider";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface RevenueTabProps {
@@ -31,6 +31,7 @@ const calculateLoadAmount = (quantity: number, rate: number, rateType: "per_unit
 export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
     const { addToast } = useToast();
     const { token } = useAuth();
+    const region = useRegionArg();
     const [editingRouteId, setEditingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [deletingRouteId, setDeletingRouteId] = useState<Id<"dailyRoutes"> | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -40,12 +41,14 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
         startDate,
         endDate,
         token,
+        region,
     });
 
     const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, {
         startDate,
         endDate,
         token,
+        region,
     });
 
     const revenueByTruck = useQuery(api.dashboard.getRevenueByTruck, {
@@ -53,12 +56,14 @@ export default function RevenueTab({ startDate, endDate }: RevenueTabProps) {
         endDate,
         limit: 10,
         token,
+        region,
     });
 
     const routes = useQuery(api.dailyRoutes.getForSheets, {
         startDate,
         endDate,
         token,
+        region,
     });
 
     const deleteDailyRoute = useMutation(api.dailyRoutes.deleteDailyRoute);

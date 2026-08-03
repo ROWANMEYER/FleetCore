@@ -62,6 +62,11 @@ export default function AdminLayout({ children}: { children: React.ReactNode}) {
  Services
  </span>
  <NavLink href="/admin/subcontractors" label="Subcontractors" active={isActive("/admin/subcontractors")} />
+ <div className="border-t border-[var(--card-border)] my-2" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider px-2">
+ Access
+ </span>
+ <NavLink href="/admin/users" label="Users" active={isActive("/admin/users")} />
  </div>
 )}
 
@@ -78,6 +83,11 @@ export default function AdminLayout({ children}: { children: React.ReactNode}) {
  Services
  </span>
  <NavLink href="/admin/subcontractors" label="Subcontractors" active={isActive("/admin/subcontractors")} />
+ <div className="w-px h-5 bg-[var(--card-border)] mx-2" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider mr-2 select-none">
+ Access
+ </span>
+ <NavLink href="/admin/users" label="Users" active={isActive("/admin/users")} />
  </div>
  </div>
  </div>

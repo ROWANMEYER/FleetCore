@@ -21,10 +21,11 @@ import { useAuth } from "@/src/components/auth/AuthProvider";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/operations", label: "Operations", icon: BarChart3 },
-  { href: "/admin", label: "Admin", icon: Shield },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, adminOnly: false },
+  { href: "/operations", label: "Operations", icon: BarChart3, adminOnly: false },
+  { href: "/admin", label: "Admin", icon: Shield, adminOnly: false },
+  { href: "/all-regions", label: "All Regions", icon: BarChart3, adminOnly: true },
+  { href: "/settings", label: "Settings", icon: Settings, adminOnly: false },
 ] as const;
 
 /* ─── Custom hook for mounted check ────────────────────────────── */
@@ -196,7 +197,7 @@ export default function Navigation() {
 
         {/* ─── Navigation items ─────────────────────────────── */}
         <nav className="flex-1 flex flex-col gap-3 px-3 py-5 overflow-y-auto scrollbar-hidden">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
 

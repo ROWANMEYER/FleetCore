@@ -72,7 +72,8 @@ export function WizardRouteHeader({
   // ---------------------------------------------------------------------------
 
   // A. Duplicate Check (Reactive Query)
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isRegional = user?.role === "regional";
   const regionScopeArg = useRegionArg();
   const existingRoutes = useQuery(api.dailyRoutes.getRoutesByTruckAndDate, {
     routeDate: date,
@@ -280,17 +281,23 @@ export function WizardRouteHeader({
           />
         </div>
 
-        {/* Region */}
+        {/* Region — locked to the user's own region for regional roles (server-enforced) */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-[var(--foreground)]">Region</label>
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            className="w-full p-2 settings-input rounded-md"
+            disabled={isRegional}
+            className="w-full p-2 settings-input rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
+          {isRegional && (
+            <p className="text-xs text-[var(--nav-text-color)]">
+              Locked to your region ({region === "eastern_cape" ? "Eastern Cape" : "Garden Route"})
+            </p>
+          )}
         </div>
       </div>
     </div>

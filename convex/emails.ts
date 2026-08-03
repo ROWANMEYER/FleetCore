@@ -2,7 +2,6 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { api } from "./_generated/api";
-import { calculateLoadAmount } from "./utils";
 
 import { renderTransportReport } from "./templates/TransportReport";
 
@@ -18,6 +17,10 @@ export const sendLoadReportEmail = action({
       column: v.string(),
       note: v.string(),
     }))),
+    // Region scoping: the session token (and admin region override) flow through
+    // so the report data is scoped server-side exactly like the UI queries.
+    token: v.optional(v.union(v.string(), v.null())),
+    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"), v.null())),
   },
   handler: async (ctx, args) => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -46,6 +49,8 @@ export const sendLoadReportEmail = action({
       startDate: args.startDate,
       endDate: args.endDate,
       completedOnly: args.completedOnly,
+      token: args.token,
+      region: args.region ?? undefined,
     });
 
     if (data.loads.length === 0) {

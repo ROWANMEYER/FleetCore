@@ -79,7 +79,9 @@ export default function QuickSendPage() {
  subject,
  completedOnly,
  activeColumns,
- columnNotes
+ columnNotes,
+ token,
+ region
 });
  addToast("Email sent successfully!", "success");
 } catch (error) {

@@ -63,7 +63,6 @@ export default function AdminUsersPage() {
   const [deleting, setDeleting] = useState<UserRow | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
-  const isAdmin = me?.role === "admin";
   const sorted = useMemo(() => users ?? [], [users]);
 
   // ── Admin-only guard (defense in depth — backend enforces too) ────────────
@@ -184,7 +183,6 @@ export default function AdminUsersPage() {
     }
   };
 
-  if (!isAdmin) return null;
   if (users === undefined) return <SkeletonPage />;
 
   // ── Render ─────────────────────────────────────────────────────────────────

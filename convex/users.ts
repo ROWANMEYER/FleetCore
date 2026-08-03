@@ -55,10 +55,10 @@ async function runSeedAdmin(
 type UserRole = "admin" | "regional";
 type UserRegion = "garden_route" | "eastern_cape";
 
-/** Resolve the session user and enforce that they are an admin. */
+/** Resolve the session user and enforce that they are an admin with a live session. */
 async function requireAdmin(ctx: any, token: string): Promise<any | null> {
   const user = await ctx.runQuery(internal.userSessions.getUserBySessionToken, { token });
-  if (!user || user.role !== "admin") return null;
+  if (!user || user.role !== "admin" || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) return null;
   return user;
 }
 
@@ -214,7 +214,9 @@ export const changePassword = action({
     const user = await ctx.runQuery(internal.userSessions.getUserBySessionToken, {
       token: args.token,
     });
-    if (!user) return { ok: false, error: "You must be signed in to change your password." };
+    if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) {
+      return { ok: false, error: "Your session has expired. Please sign in again." };
+    }
     const valid = await bcrypt.compare(args.currentPassword, user.passwordHash);
     if (!valid) return { ok: false, error: "Current password is incorrect." };
     if (args.newPassword.length < 6) {

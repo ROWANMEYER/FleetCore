@@ -107,6 +107,9 @@ export default defineSchema({
     ),
     notes: v.string(),
     rate: v.float64(),
+    region: v.optional(
+      v.union(v.literal("garden_route"), v.literal("eastern_cape"))
+    ),
     routeDate: v.string(),
     routeKilometers: v.optional(v.float64()),
     status: v.optional(v.string()),

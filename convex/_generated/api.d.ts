@@ -11,6 +11,7 @@
 import type * as adminSettings from "../adminSettings.js";
 import type * as ai from "../ai.js";
 import type * as attachments from "../attachments.js";
+import type * as backfillRegion from "../backfillRegion.js";
 import type * as backfillStatus from "../backfillStatus.js";
 import type * as cleanupTrailerSwaps from "../cleanupTrailerSwaps.js";
 import type * as cleanup_trucks from "../cleanup_trucks.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
   ai: typeof ai;
   attachments: typeof attachments;
+  backfillRegion: typeof backfillRegion;
   backfillStatus: typeof backfillStatus;
   cleanupTrailerSwaps: typeof cleanupTrailerSwaps;
   cleanup_trucks: typeof cleanup_trucks;

@@ -258,7 +258,7 @@ export default function AdminTrailersPage() {
   ];
 
   return (
-    <div className="w-full h-full p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
+    <div className="w-full h-full p-4 sm:p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Trailers</h1>
@@ -273,7 +273,7 @@ export default function AdminTrailersPage() {
         </button>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         {(["total", "active", "inactive"] as const).map((filter) => {
           const isActive = kpiFilter === filter;
           return (
@@ -428,7 +428,7 @@ export default function AdminTrailersPage() {
                 <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
                   {group.trailerFleetNoStr ?? String(group.trailerFleetNo)}
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
                   <button onClick={() => toggleStatus(group)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={group.status === "inactive" ? "Activate" : "Deactivate"}>
                     {group.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
                   </button>

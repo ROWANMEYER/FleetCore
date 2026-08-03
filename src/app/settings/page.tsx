@@ -354,9 +354,9 @@ export default function SettingsPage() {
 
  return (
  <div className="h-full overflow-y-auto">
- <div className="max-w-3xl mx-auto space-y-6 p-8">
+ <div className="max-w-3xl mx-auto space-y-6 p-4 sm:p-8">
  {/* Page Header */}
- <div className="flex items-center justify-between">
+ <div className="flex items-center justify-between flex-wrap gap-3">
  <div>
  <h1 className="text-2xl font-black tracking-tight" style={{color:"var(--foreground)"}}>Settings</h1>
  <p className="text-sm mt-1" style={{color:"var(--nav-text-color)"}}>Configure FleetCore to your workflow</p>
@@ -528,7 +528,7 @@ export default function SettingsPage() {
  {/* Quantity Type */}
  <div>
  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Default Quantity Unit</label>
- <div className="grid grid-cols-4 gap-2">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
  {["tons","pallets","bales","bags"].map((unit) => (
  <button
  key={unit}
@@ -776,7 +776,7 @@ export default function SettingsPage() {
  {/* Banking */}
  <div className="border-t border-[var(--card-border)] pt-4">
  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Banking Details</label>
- <div className="grid grid-cols-3 gap-3">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
  <input
  type="text"
  value={invoiceDefaults.bankName}
@@ -854,7 +854,7 @@ export default function SettingsPage() {
  {/* Default Format */}
  <div>
  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Default Export Format</label>
- <div className="grid grid-cols-4 gap-2">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
  {[
  { value:"excel", label:"Excel", icon:"xlsx", color:"text-green-600"},
  { value:"csv", label:"CSV", icon:"csv", color:"text-blue-600"},
@@ -879,7 +879,7 @@ export default function SettingsPage() {
  {/* Date Range */}
  <div className="border-t border-[var(--card-border)] pt-4">
  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Default Date Range</label>
- <div className="grid grid-cols-4 gap-2">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
  {[
  { value:"today", label:"Today"},
  { value:"week", label:"Last 7 Days"},

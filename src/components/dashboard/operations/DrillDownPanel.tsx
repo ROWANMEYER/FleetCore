@@ -195,7 +195,7 @@ export default function DrillDownPanel({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 w-[600px] bg-[var(--card-bg)] shadow-2xl border-l border-[var(--card-border)] transform transition-transform duration-300 ease-in-out flex flex-col h-full">
+    <div className="fixed inset-y-0 right-0 z-40 w-full max-w-[600px] sm:w-[600px] bg-[var(--card-bg)] shadow-2xl border-l border-[var(--card-border)] transform transition-transform duration-300 ease-in-out flex flex-col h-full">
         {/* Header */}
         <div className="px-6 py-6 border-b border-[var(--card-border)] bg-[var(--card-bg)]/60">
             <div className="flex items-start justify-between mb-4">
@@ -233,7 +233,7 @@ export default function DrillDownPanel({
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[var(--card-bg)]">
+        <div className="flex-1 overflow-y-auto overflow-x-auto p-6 bg-[var(--card-bg)]">
             <div className="overflow-hidden shadow ring-1 ring-[var(--card-border)] rounded-lg">
                 <table className="min-w-full divide-y divide-[var(--card-border)]">
                     <thead className="bg-[var(--table-row-header)] sticky top-0 z-10">

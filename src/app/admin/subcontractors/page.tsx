@@ -142,7 +142,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  };
 
  return (
- <div className="w-full h-full p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
+ <div className="w-full h-full p-4 sm:p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
  {/* Header */}
  <div className="flex items-center justify-between">
  <div>
@@ -157,7 +157,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  {showAddForm ? "Cancel" : "Add Sub"}
  </button>
  </div>  {/* Stats */}
-  <div className="flex gap-3">
+  <div className="flex flex-wrap gap-3">
     {(["total", "active", "inactive"] as const).map((filter) => {
       const isActive = kpiFilter === filter;
       return (
@@ -360,7 +360,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
  {s.companyName}
  </div>
- <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+ <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
  <button onClick={() => startEdit(s)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
  <Pencil className="w-3.5 h-3.5" />
  </button>

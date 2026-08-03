@@ -1,0 +1,54 @@
+name: Mobile audit
+
+# Runs the automated 375px mobile-viewport audit (overflow, drawer,
+# console errors/warnings) against the production site.
+#
+# - On push to main: catches regressions the moment changes land
+# - Daily cron: acts as a production canary (catches issues that appear
+#   after deploys or with changing data)
+# - workflow_dispatch: run it any time from the Actions tab
+#
+# Point it at a different environment via the AUDIT_URL repo variable,
+# e.g. a preview deployment URL.
+#
+# Note: the audit runs against the live site, whose data layer is a Convex
+# DEV deployment (dev:quixotic-gopher-969). Convex dev deployments pause
+# when idle — if that happens the dashboard will log backend errors and this
+# check will go red for infrastructure reasons, not code regressions. If that
+# becomes a nuisance, deploy a production Convex deployment and update
+# NEXT_PUBLIC_CONVEX_URL.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * *" # 05:00 UTC daily
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-audit:
+    name: Mobile viewport audit (375px)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AUDIT_URL: ${{ vars.AUDIT_URL || 'https://fleetcore-mu.vercel.app' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run mobile audit
+        run: node scripts/verify-mobile.mjs "$AUDIT_URL"
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-audit-report
+          path: mobile-audit-report.json
+          if-no-files-found: error

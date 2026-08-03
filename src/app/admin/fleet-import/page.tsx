@@ -653,7 +653,7 @@ export default function FleetImportPage() {
 
  // ── Render ──
  return (
- <div className="w-full h-full p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
+ <div className="w-full h-full p-4 sm:p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
  <div>
  <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Admin — Fleet Import</h1>
  <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Upload a Fleet Master Data workbook to bulk-import Trucks, Trailers, and Drivers.</p>

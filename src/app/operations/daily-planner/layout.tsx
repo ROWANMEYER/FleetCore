@@ -89,7 +89,7 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  {/* Edit slide-over */}
  {editRouteId && (
  <div className="absolute inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
- <div className="w-[600px] h-full shadow-2xl border-l flex flex-col animate-in slide-in-from-right duration-300 bg-[var(--card-bg)] border-[var(--card-border)] ">
+ <div className="w-full max-w-[600px] sm:w-[600px] h-full shadow-2xl border-l flex flex-col animate-in slide-in-from-right duration-300 bg-[var(--card-bg)] border-[var(--card-border)] ">
  <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border)] bg-[var(--card-bg)]">
  <h2 className={`text-lg font-semibold ${textBase}`}>Edit Route</h2>
  <button onClick={closeEditPanel} className="text-[var(--nav-text-color)] hover:text-[var(--nav-text-color)] p-1 rounded-full hover:bg-[var(--card-bg)] transition-colors"><X className="w-5 h-5" /></button>
@@ -103,7 +103,7 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
 
  {/* Mobile header */}
  <div className="lg:hidden flex-shrink-0">
- <div className="border-b px-8 pt-6 bg-[var(--card-bg)] border-[var(--card-border)] ">
+ <div className="border-b px-4 sm:px-8 pt-4 sm:pt-6 bg-[var(--card-bg)] border-[var(--card-border)] ">
  <h2 className={`text-lg font-semibold mb-4 ${textBase}`}>Daily Planner</h2>
  <div className="flex gap-6">
  {[
@@ -125,7 +125,7 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  </div>
 
  {/* Mobile content */}
- <div className="lg:hidden p-8 flex-1 overflow-y-auto scrollbar-hidden bg-[var(--card-bg)]">
+ <div className="lg:hidden p-4 sm:p-8 flex-1 overflow-y-auto scrollbar-hidden bg-[var(--card-bg)]">
  {children}
  </div>
 

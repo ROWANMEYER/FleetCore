@@ -344,13 +344,13 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 
 
  return (
- <div className="fixed inset-0 z-50 flex">      {/* backdrop - fills remaining space, clickable to close */}
-      <div className="flex-1 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+ <div className="fixed inset-0 z-50 flex flex-col md:flex-row">      {/* backdrop - fills remaining space, clickable to close (desktop) */}
+      <div className="hidden md:block flex-1 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
 
- {/* panels container - side by side */}
- <div className="flex h-full">
+ {/* panels container - side by side on desktop, full-screen on mobile */}
+ <div className="relative flex flex-col md:flex-row w-full md:w-auto h-full">
  {/* analytics panel - shown on left when active */}
- {showAnalytics && (          <div className={`w-full max-w-4xl ${panelTheme.bg.primary} backdrop-blur-md border-r ${panelTheme.border} flex flex-col h-full shadow-2xl`}>
+ {showAnalytics && (          <div className={`absolute inset-0 z-10 md:static w-full max-w-4xl ${panelTheme.bg.primary} backdrop-blur-md border-r ${panelTheme.border} flex flex-col h-full shadow-2xl`}>
  {/* header */}
  <div className={`flex items-start justify-between px-6 py-5 border-b ${panelTheme.border}`}>
  <div>
@@ -1109,7 +1109,7 @@ export default function DashboardPage() {
  {drill && <DrillDownPanel drill={drill} onClose={() => setDrill(null)} onAnalyticsClick={() => setShowAnalytics(true)} onAnalyticsClose={() => setShowAnalytics(false)} showAnalytics={showAnalytics} isDayMode={isDayMode} onDrill={(newDrill) => setDrill(newDrill)} />}
 
  <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>
- <div className="max-w-7xl mx-auto px-6 py-8 space-y-10">
+ <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-10">
 
  {/* ── Header ── */}
  <div className="flex flex-col gap-4">

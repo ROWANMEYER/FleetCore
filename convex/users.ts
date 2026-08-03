@@ -57,3 +57,32 @@ export const seedAdmin = action({
   args: { email: v.string(), password: v.string() },
   handler: (ctx, args) => runSeedAdmin(ctx, args),
 });
+
+/**
+ * Change the signed-in user's password from the UI.
+ * Verifies the current password first, then stores a fresh bcrypt hash.
+ */
+export const changePassword = action({
+  args: {
+    token: v.string(),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.runQuery(internal.userSessions.getUserBySessionToken, {
+      token: args.token,
+    });
+    if (!user) return { ok: false, error: "You must be signed in to change your password." };
+    const valid = await bcrypt.compare(args.currentPassword, user.passwordHash);
+    if (!valid) return { ok: false, error: "Current password is incorrect." };
+    if (args.newPassword.length < 6) {
+      return { ok: false, error: "New password must be at least 6 characters." };
+    }
+    const hashed = await bcrypt.hash(args.newPassword, 10);
+    await ctx.runMutation(internal.userSessions.updateUserInternal, {
+      userId: user._id,
+      passwordHash: hashed,
+    });
+    return { ok: true, error: undefined };
+  },
+});

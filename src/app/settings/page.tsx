@@ -6,7 +6,6 @@ import { api} from"@/convex/_generated/api";
 import {
  Bell,
  BellRing,
- Sliders,
  Palette,
  Truck,
  Users,
@@ -17,10 +16,12 @@ import {
  CheckCircle,
  RotateCcw,
  KeyRound,
+ Lock,
  AlertTriangle,
  RefreshCw,
 } from"lucide-react";
 import { PushNotificationSettings } from"@/src/components/PushNotificationSettings";
+import { useAuth } from"@/src/components/auth/AuthProvider";
 
 function SettingsSection({
  icon,
@@ -119,6 +120,15 @@ export default function SettingsPage() {
  const setAdminMode = useMutation(api.adminSettings.setMode);
  const verifyPassword = useAction(api.adminSettings.verifyAdminPassword);
  const hardResetAdmin = useAction(api.adminSettings.hardResetAdmin);
+
+ // Sign-in password change (multi-user auth)
+ const { token } = useAuth();
+ const changePassword = useAction(api.users.changePassword);
+ const [pwCurrent, setPwCurrent] = useState("");
+ const [pwNew, setPwNew] = useState("");
+ const [pwConfirm, setPwConfirm] = useState("");
+ const [pwStatus, setPwStatus] = useState<"idle" | "saving" | "saved">("idle");
+ const [pwError, setPwError] = useState<string | null>(null);
 
  const [reminders, setReminders] = useState({
  stage1AlertDays: 3,
@@ -354,6 +364,32 @@ export default function SettingsPage() {
 } catch (e) {
  console.error("Hard reset failed:", e);
  setResetStatus("idle");
+}
+};
+
+ const handleChangePassword = async () => {
+ if (!token) {
+ setPwError("You must be signed in to change your password.");
+ return;
+}
+ setPwStatus("saving");
+ setPwError(null);
+ try {
+ const result = await changePassword({ token, currentPassword: pwCurrent, newPassword: pwNew});
+ if (result.ok) {
+ setPwStatus("saved");
+ setPwCurrent("");
+ setPwNew("");
+ setPwConfirm("");
+ setTimeout(() => setPwStatus("idle"), 3000);
+} else {
+ setPwError(result.error || "Failed to update password");
+ setPwStatus("idle");
+}
+} catch (e) {
+ console.error("Password change failed:", e);
+ setPwError("Failed to update password. Please try again.");
+ setPwStatus("idle");
 }
 };
 
@@ -1115,13 +1151,87 @@ export default function SettingsPage() {
  <><Save className="w-4 h-4" /> Save Security Settings</>
 )}
  </button>
- </div>
- {securitySaveStatus ==="saved" && (
+ </div> {securitySaveStatus === "saved" && (
  <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 justify-end animate-in fade-in">
  <CheckCircle className="w-3.5 h-3.5" />
  Security settings saved
  </div>
-)}
+ )}
+ </div>
+ </SettingsSection>
+
+ {/* Section 8: Sign-in Password (multi-user auth) */}
+ <SettingsSection
+ icon={<Lock className="w-5 h-5" />}
+ title="Sign-in Password"
+ description="Change the password used to log in to FleetCore"
+ >
+ <div className="space-y-4">
+ <div>
+ <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Current password</label>
+ <input
+ type="password"
+ value={pwCurrent}
+ onChange={(e) => setPwCurrent(e.target.value)}
+ className="flex-1 h-10 px-3 rounded-lg text-sm placeholder-[var(--nav-text-color)] outline-none transition-all settings-input"
+ placeholder="Enter current password"
+ />
+ </div>
+ <div>
+ <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">New password</label>
+ <input
+ type="password"
+ value={pwNew}
+ onChange={(e) => setPwNew(e.target.value)}
+ className="flex-1 h-10 px-3 rounded-lg text-sm placeholder-[var(--nav-text-color)] outline-none transition-all settings-input"
+ placeholder="At least 6 characters"
+ />
+ </div>
+ <div>
+ <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">Confirm new password</label>
+ <input
+ type="password"
+ value={pwConfirm}
+ onChange={(e) => setPwConfirm(e.target.value)}
+ className="flex-1 h-10 px-3 rounded-lg text-sm placeholder-[var(--nav-text-color)] outline-none transition-all settings-input"
+ placeholder="Re-enter new password"
+ />
+ {pwNew && pwConfirm && pwNew !== pwConfirm && (
+ <div className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+ <AlertTriangle className="w-3.5 h-3.5" /> Passwords do not match
+ </div>
+ )}
+ </div>
+ <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
+ <p className="text-xs text-[var(--nav-text-color)]">
+ Use at least 6 characters. A mix of letters, numbers, and symbols is stronger.
+ </p>
+ <button
+ onClick={handleChangePassword}
+ disabled={pwStatus === "saving" || !pwCurrent || !pwNew || pwNew !== pwConfirm}
+ className={`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm ${
+ pwStatus === "saving" || !pwCurrent || !pwNew || pwNew !== pwConfirm
+ ? "bg-[var(--card-bg)] text-[var(--nav-text-color)] cursor-not-allowed"
+ : "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm"
+ }`}
+ >
+ {pwStatus === "saving" ? (
+ <><RotateCcw className="w-4 h-4 animate-spin" /> Updating...</>
+ ) : (
+ "Update Password"
+ )}
+ </button>
+ </div>
+ {pwStatus === "saved" && (
+ <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+ <CheckCircle className="w-3.5 h-3.5" /> Password updated successfully
+ </div>
+ )}
+ {pwError && (
+ <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+ <AlertTriangle className="w-3.5 h-3.5" /> {pwError}
+ </div>
+ )}
  </div>
  </SettingsSection>
  </div>

@@ -58,7 +58,7 @@ export default function TrailerActivityScreen() {
         {trailerCounts.map(item => (
           <div
             key={item.number}
-            className="glass-card rounded-xl px-4 py-3 flex flex-col gap-1"
+            className="glass-card rounded-xl px-5 py-4 flex flex-col gap-1"
           >
             <div className="text-xs font-medium" style={{color:"var(--nav-text-color)"}}>TRAILER</div>
             <div className="text-lg font-bold" style={{color:"var(--foreground)"}}>

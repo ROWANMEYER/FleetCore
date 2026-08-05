@@ -789,14 +789,14 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
   return (
     <div className="w-full overflow-auto border border-[var(--card-border)] bg-[var(--card-bg)]">
       {/* ── Toolbar: resize hint + Columns toggle + Layout profiles ── */}
-      <div className="flex items-center justify-between px-3 py-1 text-[10px] text-[var(--nav-text-color)]">
+      <div className="flex items-center justify-between px-4 py-2 text-xs text-[var(--nav-text-color)]">
         <span>Drag column edges to resize · double-click to auto-fit · drag headers to reorder</span>
         <div className="flex items-center gap-1">
           {/* Columns toggle */}
           <div className="relative" ref={columnMenuRef}>
             <button
               onClick={(e) => { e.stopPropagation(); setShowColumnMenu((s) => !s); }}
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+              className="flex items-center gap-1.5 px-3 min-h-10 rounded text-xs font-medium text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -831,7 +831,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
           <div className="relative" ref={layoutMenuRef}>
             <button
               onClick={(e) => { e.stopPropagation(); setShowLayoutMenu((s) => !s); setLayoutSaving(false); setNewLayoutName(""); }}
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+              className="flex items-center gap-1.5 px-3 min-h-10 rounded text-xs font-medium text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>

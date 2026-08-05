@@ -1342,7 +1342,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <button
  onClick={() => handleStatusChange(routeId,"lock")}
  disabled={isActionLoading}
- className="text-[10px] text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline disabled:opacity-50"
+ className="inline-flex items-center min-h-9 px-1.5 text-xs text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline disabled:opacity-50"
  >
  {isActionLoading ?"Locking..." :"Lock Route"}
  </button>
@@ -1359,7 +1359,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <button
  onClick={() => handleStatusChange(routeId,"unlock")}
  disabled={isActionLoading}
- className="text-[10px] text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline disabled:opacity-50"
+ className="inline-flex items-center min-h-9 px-1.5 text-xs text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline disabled:opacity-50"
  >
  {isActionLoading ?"Unlocking..." :"Unlock Route"}
  </button>
@@ -1377,7 +1377,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <button
  onClick={() => handleStatusChange(routeId,"complete")}
  disabled={isActionLoading}
- className="text-[10px] text-[#06B6D4] hover:text-[#0891B2] underline disabled:opacity-50"
+ className="inline-flex items-center min-h-9 px-1.5 text-xs text-[#06B6D4] hover:text-[#0891B2] underline disabled:opacity-50"
  >
  {isActionLoading ?"Saving..." :"Mark Completed"}
  </button>
@@ -1508,28 +1508,28 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div className="flex flex-wrap gap-2 shrink-0">
  {status ==="completed" && (
  <button onClick={() => handleStatusChange(route._id,"lock")}
- className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  LOCK ROUTE
  </button>
 )}
  {status ==="planned" && (
  <button onClick={() => handleStatusChange(route._id,"complete")}
- className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  COMPLETE
  </button>
 )}
  <button onClick={() => openEditView()}
- className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  EDIT
  </button>
  <button onClick={() => handleDelete(route._id)} disabled={actionLoading === route._id}
- className="px-3.5 py-2 text-xs font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+ className="px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
  DELETE
  </button>
  </div>
 )} {isLocked && (
  <button onClick={() => handleStatusChange(route._id,"unlock")}
- className="px-3.5 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] shrink-0">
+ className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] shrink-0">
  UNLOCK
  </button>
  )}
@@ -1755,7 +1755,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }, [filteredRoutes]);
 
  const BASE_CONTAINER_CLASS ="bg-[var(--card-bg)] border border-[var(--card-border)] shadow-sm overflow-hidden relative";
- const compactDateInputClass ="h-8 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-2 text-xs text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent";
+ const compactDateInputClass ="h-11 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent";
 
  const formatCompactCurrency = (value: number) => {
  if (value >= 1000) return`${formatZAR(value / 1000)}k`;
@@ -1782,7 +1782,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  key={option.id}
  type="button"
  onClick={() => setDateMode(option.id as"single" |"range" |"month")}
- className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ${
+ className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-all ${
  dateMode === option.id
  ?`${gradients.primary} text-white shadow-sm shadow-[rgba(6,182,212,0.3)]`
  :"text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
@@ -2420,7 +2420,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {/* Fullscreen toggle */}
  <button
    onClick={() => showFocusMode ? exitFullscreen() : setShowFocusMode(true)}
-   className={`p-2 rounded-md transition-colors ${
+   className={`p-3 rounded-md transition-colors ${
      showFocusMode
        ? 'bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm'
        : 'text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]'
@@ -2447,7 +2447,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {!showFocusMode && (
    <button
      onClick={() => setIsHeaderCompact(!isHeaderCompact)}
-     className="p-2 rounded-md text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
+     className="p-3 rounded-md text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
      title={isHeaderCompact ?"Expand" :"Collapse"}
    >
      {isHeaderCompact ? (
@@ -2574,15 +2574,15 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  type="button"
  onClick={() => handleInsightClick(item.title)}
  title={item.title ==="Best Day" ?"Focus this day" :"Click to focus, click again to clear"}
- className={`flex min-w-0 flex-col justify-center rounded-md border px-2 py-1.5 text-left transition ${
+ className={`flex min-w-0 flex-col justify-center rounded-md border px-3 py-2.5 text-left transition ${
  isActive
  ?"border-blue-300 bg-blue-50/70 ring-1 ring-blue-300"
  :"border-[var(--card-border)] bg-[var(--card-bg)] hover:bg-[var(--card-bg)] /40 "
 }`}
  >
  <div className="flex items-center justify-between gap-2">
- <div className="text-[9px] uppercase tracking-[0.18em] text-[var(--nav-text-color)]">{item.title}</div>
- <div className="rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--nav-text-color)]">
+ <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--nav-text-color)]">{item.title}</div>
+ <div className="rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-2 py-1 text-[10px] font-semibold text-[var(--nav-text-color)]">
  {item.badge}
  </div>
  </div>
@@ -2611,7 +2611,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   placeholder="Search across all fields..."
   value={quickSearch}
   onChange={(e) => setQuickSearch(e.target.value)}
-  className="w-full pl-9 pr-3 h-9 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-xs text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent transition-all"
+  className="w-full pl-9 pr-3 h-11 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent transition-all"
   />
   {quickSearch && (
   <button
@@ -2778,7 +2778,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   return (
   <div className="flex flex-wrap items-center gap-1.5 mb-4 px-0.5">
   {activeFilters.map(f => (
-  <span key={f.key} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[rgba(6,182,212,0.08)] text-[#06B6D4] border border-[rgba(6,182,212,0.15)] shadow-sm">
+  <span key={f.key} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[rgba(6,182,212,0.08)] text-[#06B6D4] border border-[rgba(6,182,212,0.15)] shadow-sm">
   {f.label}
   <button onClick={f.onClear} className="hover:text-white transition-colors" title={`Clear ${f.key} filter`}>
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2789,7 +2789,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   </span>
   ))}
   {activeFilters.length > 1 && (
-  <button onClick={clearFilters} className="text-[11px] text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline ml-0.5">
+  <button onClick={clearFilters} className="text-xs text-[var(--nav-text-color)] hover:text-[var(--foreground)] underline ml-1">
   Clear all
   </button>
   )}
@@ -2806,7 +2806,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   <div className="h-5 w-px bg-white/20" />
   <button
   onClick={() => setSelectedRouteIds(new Set())}
-  className="text-xs text-white/50 hover:text-white transition-colors"
+  className="text-sm text-white/50 hover:text-white transition-colors"
   >
   Deselect all
   </button>
@@ -2821,14 +2821,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   setSelectedRouteIds(new Set());
   }}
   title="Lock all selected routes"
-  className="px-3 py-1.5 text-xs font-bold rounded-lg border border-white/20 text-white/80 hover:text-white hover:bg-white/5 transition-all"
+  className="px-4 py-2.5 text-sm font-bold rounded-lg border border-white/20 text-white/80 hover:text-white hover:bg-white/5 transition-all"
   >
   🔒 Lock All
   </button>
   <button
   onClick={handleBulkDelete}
   title="Delete all selected routes"
-  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-all"
+  className="px-4 py-2.5 text-sm font-bold rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-all"
   >
   🗑 Delete
   </button>

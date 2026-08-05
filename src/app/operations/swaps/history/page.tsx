@@ -119,7 +119,7 @@ export default function SwapHistoryScreen() {
  setShowSearch(s => !s);
  if (!showSearch) setShowFilter(false);
 }}
- className="p-2 rounded-lg transition-colors" style={{color:"var(--nav-text-color)"}}
+ className="p-3 rounded-lg transition-colors" style={{color:"var(--nav-text-color)"}}
  >
  <span className="sr-only">Search</span>
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -132,7 +132,7 @@ export default function SwapHistoryScreen() {
  setShowFilter(f => !f);
  if (!showFilter) setShowSearch(false);
 }}
- className="p-2 rounded-lg transition-colors" style={{color:"var(--nav-text-color)"}}
+ className="p-3 rounded-lg transition-colors" style={{color:"var(--nav-text-color)"}}
  >
  <span className="sr-only">Filter</span>
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -147,7 +147,7 @@ export default function SwapHistoryScreen() {
  <button
  key={key}
  onClick={() => setQuickFilter(key)}
- className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+ className={`px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
  quickFilter === key
  ?"text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-sm"
  :"glass-card"
@@ -161,31 +161,31 @@ export default function SwapHistoryScreen() {
  </div>
 
  {showSearch && (
- <div className="px-6 py-3 flex gap-3 items-center" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
+ <div className="px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
  <input
  value={truckSearch}
  onChange={e => setTruckSearch(e.target.value)}
  placeholder="Search Truck Number"
- className="settings-input rounded-lg px-3 py-1.5 text-xs w-48"
+ className="settings-input rounded-lg px-3 py-2.5 text-sm w-full sm:w-48"
  />
  <input
  value={trailerSearch}
  onChange={e => setTrailerSearch(e.target.value)}
  placeholder="Search Trailer Number"
- className="settings-input rounded-lg px-3 py-1.5 text-xs w-48"
+ className="settings-input rounded-lg px-3 py-2.5 text-sm w-full sm:w-48"
  />
  </div>
 )}
 
  {showFilter && (
- <div className="px-6 py-3 flex gap-3 items-end" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
+ <div className="px-6 py-3 flex flex-col sm:flex-row sm:items-end gap-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>From Date</span>
  <input
  type="date"
  value={fromDate ??""}
  onChange={e => setFromDate(e.target.value || undefined)}
- className="settings-input rounded-lg px-3 py-1.5 text-xs"
+ className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>
  <div className="flex flex-col gap-1">
@@ -194,12 +194,12 @@ export default function SwapHistoryScreen() {
  type="date"
  value={toDate ??""}
  onChange={e => setToDate(e.target.value || undefined)}
- className="settings-input rounded-lg px-3 py-1.5 text-xs"
+ className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>
  <button
  onClick={() => {}}
- className="ml-auto px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 shadow-sm"
+ className="ml-auto px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 shadow-sm"
  >
  Apply
  </button>

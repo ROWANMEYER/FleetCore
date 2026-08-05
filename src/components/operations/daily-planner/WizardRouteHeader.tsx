@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
 import WarningIcon from "@/src/components/common/WarningIcon";
+import { ChevronDown, Truck } from "lucide-react";
 
 type Subcontractor = { _id: string; companyName: string; status?: string };
 
@@ -40,6 +41,8 @@ type Props = {
   step?: number;
   setStep?: (step: number) => void;
   onSaveShortcut?: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 };
 
 export function WizardRouteHeader({
@@ -66,6 +69,8 @@ export function WizardRouteHeader({
   onFleetModeChange,
   onSubIdChange,
   isEditMode,
+  collapsed,
+  onToggleCollapse,
 }: Props) {
   // ---------------------------------------------------------------------------
   // WARNING LOGIC (Preserved)
@@ -109,16 +114,49 @@ export function WizardRouteHeader({
   // RENDER (Flat Form)
   // ---------------------------------------------------------------------------
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 glass-card border border-[var(--card-border)] rounded-xl space-y-6">
+    <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 glass-card border border-[var(--card-border)] rounded-xl space-y-5 sm:space-y-6">
+      {/* Mobile collapse toggle — hidden on desktop (form is always open there) */}
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        className="lg:hidden w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm transition-colors"
+        aria-expanded={!collapsed}
+      >
+        <span className="min-w-0 text-left">
+          <span className="flex items-center gap-2 text-base font-bold text-[var(--foreground)]">
+            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm shrink-0">
+              <Truck size={14} strokeWidth={2.5} />
+            </span>
+            Route details
+            {collapsed && (!truckFleetNo || !driverName) && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                ● fields missing
+              </span>
+            )}
+          </span>
+          <span className="block mt-1 text-sm text-[var(--nav-text-color)] truncate">
+            {collapsed
+              ? `${truckFleetNo || "No truck"} · ${driverName || "No driver"} · ${date || "No date"}`
+              : `Date: ${date} · Truck: ${truckFleetNo || "—"} · Driver: ${driverName || "—"}`}
+          </span>
+        </span>
+        <span className="flex items-center gap-1 shrink-0 text-sm font-semibold text-[#06B6D4]">
+          {collapsed ? "Edit" : "Collapse"}
+          <ChevronDown size={16} className={`transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} />
+        </span>
+      </button>
+
+      {/* Body — hidden on mobile when collapsed, always visible on desktop */}
+      <div className={collapsed ? "hidden lg:block" : ""}>
       {/* Fleet / Subcontractor Toggle */}
-      <div className="flex items-center gap-4 mb-4">
-        <span className="text-sm font-semibold text-[var(--foreground)]">Mode:</span>
+      <div className="flex items-center gap-3 sm:gap-4 mb-4">
+        <span className="text-base font-semibold text-[var(--foreground)]">Mode:</span>
         <button
           type="button"
           onClick={() => onFleetModeChange(true)}
-          className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+          className={`px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
             isFleetMode
-              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white"
+              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]"
               : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
           }`}
         >
@@ -127,9 +165,9 @@ export function WizardRouteHeader({
         <button
           type="button"
           onClick={() => onFleetModeChange(false)}
-          className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+          className={`px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
             !isFleetMode
-              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white"
+              ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]"
               : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
           }`}
         >
@@ -142,16 +180,16 @@ export function WizardRouteHeader({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 
         {/* Subcontractor dropdown (only in sub mode) */}
         {!isFleetMode && (
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Subcontractor</label>
+            <label className="text-base font-semibold text-[var(--foreground)]">Subcontractor</label>
             <select
               value={selectedSubId}
               onChange={(e) => onSubIdChange(e.target.value)}
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             >
               <option value="">Select Subcontractor...</option>
               {subcontractors
@@ -167,13 +205,13 @@ export function WizardRouteHeader({
 
         {/* Date */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Date</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Date</label>
             <div className="flex items-center gap-2">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             />
             {isWeekend && (
               <div className="text-blue-600 flex-shrink-0">
@@ -185,12 +223,12 @@ export function WizardRouteHeader({
 
         {/* Truck */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Truck</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Truck</label>
             <div className="flex items-center gap-2">
             <select
               value={truckFleetNo}
               onChange={(e) => setTruckFleetNo(e.target.value)}
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             >
               <option value="">Select Truck...</option>
               {uniqueTrucks.map((t) => (
@@ -204,12 +242,12 @@ export function WizardRouteHeader({
 
         {/* Trailer */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Trailer</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Trailer</label>
             <div className="flex items-center gap-2">
             <select
               value={trailerFleetNo}
               onChange={(e) => setTrailerFleetNo(e.target.value)}
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             >
               <option value="">Select Trailer...</option>
               {uniqueTrailers.map((t) => (
@@ -228,12 +266,12 @@ export function WizardRouteHeader({
 
         {/* Driver */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Driver</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Driver</label>
             <div className="flex items-center gap-2">
             <select
               value={driverName}
               onChange={(e) => setDriverName(e.target.value)}
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             >
               <option value="">Select Driver...</option>
               {uniqueDrivers.map((d) => (
@@ -252,14 +290,14 @@ export function WizardRouteHeader({
 
         {/* Route KM */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Route KM</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Route KM</label>
             <div className="flex items-center gap-2">
             <input
               type="number"
               value={routeKilometers}
               onChange={(e) => setRouteKilometers(e.target.value)}
               placeholder="0"
-              className="w-full p-2 settings-input rounded-md"
+              className="w-full h-12 px-4 text-base settings-input rounded-md"
             />
             {missingFields.includes("KM") && (
                <div className="text-blue-600 flex-shrink-0">
@@ -271,19 +309,19 @@ export function WizardRouteHeader({
 
         {/* Notes */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Notes</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional notes..."
             rows={1}
-            className="w-full p-2 settings-input rounded-md resize-none"
+            className="w-full h-12 px-4 py-3 text-base settings-input rounded-md resize-none"
           />
         </div>
 
         {/* Region — locked to the user's own region for regional roles (server-enforced) */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Region</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">Region</label>
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
@@ -299,6 +337,7 @@ export function WizardRouteHeader({
             </p>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

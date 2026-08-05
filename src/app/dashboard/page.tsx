@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect} from"react";
+import { useState, useRef, useEffect, useId, type ReactNode} from"react";
 import { useQuery, useMutation} from"convex/react";
 import { useTheme} from"next-themes";
 import { api} from"@/convex/_generated/api";
@@ -11,6 +11,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
+import { ChevronDown } from "lucide-react";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ function FilterBar({
  if (t.key ==="month") setMonth(new Date().toISOString().slice(0, 7));
  if (t.key ==="range") onChange(monthStart(), monthEnd());
 }}
- className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all
+ className={`px-5 py-3 rounded-lg text-sm font-semibold transition-all
  ${mode === t.key
  ? tabActiveClass
  : tabInactiveClass}`}
@@ -105,7 +106,7 @@ function FilterBar({
  <input
  type="date"
  value={startDate}
- onChange={(e) => setDay(e.target.value)} className="bg-transparent text-sm focus:outline-none text-[var(--foreground)]"
+ onChange={(e) => setDay(e.target.value)} className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
                 />
               )}
               {mode ==="month" && (
@@ -116,7 +117,7 @@ function FilterBar({
                       d.setMonth(d.getMonth() - 1);
                       setMonth(d.toISOString().slice(0, 7));
                     }}
-                    className="px-1 font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
+                    className="w-11 h-11 flex items-center justify-center font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
                     >‹</button>
                   <span className="text-sm font-semibold min-w-[140px] text-center text-[var(--foreground)]">
                     {monthLabel(currentMonth)}
@@ -127,7 +128,7 @@ function FilterBar({
                       d.setMonth(d.getMonth() + 1);
                       setMonth(d.toISOString().slice(0, 7));
                     }}
-                    className="px-1 font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
+                    className="w-11 h-11 flex items-center justify-center font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
                     >›</button>
  </>
 )}
@@ -136,14 +137,14 @@ function FilterBar({
  <input
  type="date"
  value={startDate}
- onChange={(e) => onChange(e.target.value, endDate)}                  className="bg-transparent text-sm focus:outline-none text-[var(--foreground)]"
+ onChange={(e) => onChange(e.target.value, endDate)}                  className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
                   />
                   <span className="text-[var(--nav-text-color)]">→</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => onChange(startDate, e.target.value)}
-                    className="bg-transparent text-sm focus:outline-none text-[var(--foreground)]"
+                    className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
  />
  </>
 )}
@@ -359,7 +360,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  <div>
  <h2 className={`text-lg font-black ${panelTheme.text.primary}`}>Analytics Dashboard</h2>
  <p className={`text-xs ${panelTheme.text.secondary} mt-1`}>{start} → {end}</p>
- </div>          <button onClick={onAnalyticsClose} className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-xl font-bold leading-none mt-1">✕</button>
+ </div>          <button onClick={onAnalyticsClose} className="p-2 -m-2 text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-xl font-bold leading-none">✕</button>
  </div>
 
  {/* analytics content */}
@@ -488,7 +489,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  onClick={() => {
  setShowRevenueFilters(!showRevenueFilters);
  if (!showRevenueFilters) setRevenueSelectedClient(null);
-}}              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+}}              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                 showRevenueFilters 
                   ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                   : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:bg-[var(--card-bg)]"
@@ -504,7 +505,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  <p className={`text-xs font-semibold ${panelTheme.text.secondary} mb-2`}>Filter by Client</p>
  <div className="flex flex-wrap gap-2">
  <button
- onClick={() => setRevenueSelectedClient(null)}                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+ onClick={() => setRevenueSelectedClient(null)}                  className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                     revenueSelectedClient === null
                       ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                       : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
@@ -516,7 +517,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                   <button
                     key={client}
                     onClick={() => setRevenueSelectedClient(client)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                    className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                       revenueSelectedClient === client
                         ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                         : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
@@ -653,7 +654,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                     setShowRoutesFilters(!showRoutesFilters);
                     if (!showRoutesFilters) setRoutesSelectedClient(null);
                   }}
-                  className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     showRoutesFilters 
                       ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                       : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:bg-[var(--card-bg)]"
@@ -670,7 +671,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setRoutesSelectedClient(null)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                      className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                         routesSelectedClient === null
                           ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                           : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
@@ -682,7 +683,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                       <button
                         key={client}
                         onClick={() => setRoutesSelectedClient(client)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                        className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                           routesSelectedClient === client
                             ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                             : "bg-[var(--card-bg)] text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
@@ -772,7 +773,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  if (onDrill) {
  onDrill(parentDrill);
 }
-}}            className="text-xs font-semibold text-[#06B6D4] hover:text-[#0891B2] transition-colors flex items-center gap-1"
+}}            className="text-sm font-semibold text-[#06B6D4] hover:text-[#0891B2] transition-colors flex items-center gap-1 py-2"
                 >
                   <span>←</span> Back to {parentDrill.kind ==="period" ?"Range" : parentDrill.kind}
  </button>
@@ -782,10 +783,10 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  <p className={`text-xs ${panelTheme.text.secondary} mt-1`}>
  {drill.kind ==="date" ? drill.date :`${drill.startDate} → ${drill.endDate}`}
  </p>
- </div>          <button onClick={onClose} className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-xl font-bold leading-none mt-1 shrink-0">✕</button>
+ </div>          <button onClick={onClose} className="p-2 -m-2 shrink-0 text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-xl font-bold leading-none">✕</button>
  </div>
 
- {/* summary strip */}          <div className="grid grid-cols-4 gap-px bg-[var(--card-bg)] border-b border-[var(--card-border)]">
+ {/* summary strip */}          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[var(--card-bg)] border-b border-[var(--card-border)]">
  {[
  { label:"Routes", value: String(filteredData.length)},
  { label:"Revenue", value: fmt(totalRevenue)},
@@ -834,19 +835,19 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  </div>
  <div className="flex items-center gap-1">
  <button
- onClick={() => handleEditClick(r._id)}            className="p-1.5 rounded transition-all text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"
+ onClick={() => handleEditClick(r._id)}            className="w-11 h-11 flex items-center justify-center rounded-lg transition-all text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"
                     title="Edit Route"
  >
  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
  </button>
  <button
- onClick={() => handleDeleteClick(r._id)}            className="p-1.5 rounded transition-all text-[var(--color-accent-red)] hover:text-red-400 hover:bg-red-500/10"
+ onClick={() => handleDeleteClick(r._id)}            className="w-11 h-11 flex items-center justify-center rounded-lg transition-all text-[var(--color-accent-red)] hover:text-red-400 hover:bg-red-500/10"
                     title="Delete Route"
  >
  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
  </button>
  <div 
- className={`p-1.5 rounded-full flex items-center justify-center transition-all cursor-help
+ className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-help
  ${status ==="completed" ? (isDayMode ?"text-emerald-600 bg-emerald-50 hover:bg-emerald-100" :"text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20") 
  : status ==="locked" ? (isDayMode ?"text-blue-600 bg-blue-50 hover:bg-blue-100" :"text-blue-400 bg-blue-500/10 hover:bg-blue-500/20") 
  : (isDayMode ?"text-yellow-600 bg-yellow-50 hover:bg-yellow-100" :"text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20")}`}
@@ -917,7 +918,6 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  
  {/* Delete Confirmation Modal */}
  {showDeleteConfirm && (
- // eslint-disable-next-line jsx-a11y/no-static-element-interactions
  <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
  <div className={`${panelTheme.bg.primary} border ${panelTheme.border} rounded-lg shadow-2xl p-6 max-w-sm mx-4`}>
  <h2 className={`text-lg font-bold ${panelTheme.text.primary} mb-4`}>Delete Route</h2>
@@ -930,13 +930,13 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  setShowDeleteConfirm(false);
  setDeletingRouteId(null);
 }}
- className={`px-4 py-2 text-sm font-medium ${panelTheme.text.secondary} border ${panelTheme.border} rounded-lg hover:${panelTheme.bg.secondary} transition-all`}
+ className={`px-5 py-3 text-sm font-medium ${panelTheme.text.secondary} border ${panelTheme.border} rounded-lg hover:${panelTheme.bg.secondary} transition-all`}
  >
  Cancel
  </button>
  <button
  onClick={handleDeleteRoute}
- className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all"
+ className="px-5 py-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all"
  >
  Delete Route
  </button>
@@ -984,11 +984,11 @@ function KpiCard({
  return (
  <button
  onClick={onClick}
- className={`glass-card rounded-xl p-5 flex flex-col gap-1 text-left w-full transition-all duration-200 group
+ className={`glass-card rounded-xl p-4 sm:p-5 flex flex-col gap-1 text-left w-full transition-all duration-200 group
  ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"}`}
  >
  <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{label}</span>
- <span className={`text-2xl font-black ${valueClass}`}>{value}</span>
+ <span className={`text-xl sm:text-2xl font-black leading-tight break-words ${valueClass}`}>{value}</span>
  {sub && <span className="text-xs text-[var(--nav-text-color)] opacity-60">{sub}</span>}
  {onClick && <span className="text-xs text-[var(--nav-text-color)] opacity-40 mt-1 group-hover:opacity-60 transition-opacity">Tap to drill down →</span>}
  </button>
@@ -997,6 +997,60 @@ function KpiCard({
 
 function SectionHeader({ title}: { title: string}) {
  return <h2 className="text-sm font-bold text-[var(--nav-text-color)] uppercase tracking-widest mb-3">{title}</h2>;
+}
+
+/* Mobile-only collapsible section — on phones each dashboard section is a
+   tappable card (title + summary + chevron). Desktop is unchanged: the toggle
+   is hidden and the body is always open. */
+function CollapsibleSection({
+ title,
+ summary,
+ defaultOpen = false,
+ carded = false,
+ children,
+}: {
+ title: string;
+ summary?: ReactNode;
+ defaultOpen?: boolean;
+ carded?: boolean;
+ children: ReactNode;
+}) {  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
+
+  return (
+    <section className={carded ? "glass-card rounded-xl overflow-hidden animate-fade-up" : ""}>
+      {/* Mobile-only toggle header */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+ className={`lg:hidden w-full flex items-center justify-between gap-3 text-left transition-colors ${
+ carded
+ ? "px-4 sm:px-5 py-4"
+ : "px-4 py-3.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
+ }`}
+ >
+ <span className="min-w-0">
+ <span className="block text-sm font-bold text-[var(--nav-text-color)] uppercase tracking-widest">{title}</span>
+ {summary && !open && (
+ <span className="block mt-0.5 text-sm font-semibold text-[var(--foreground)] truncate">{summary}</span>
+ )}
+ </span>
+ <span className="flex items-center justify-center w-9 h-9 rounded-full shrink-0 text-[var(--nav-text-color)]">
+ <ChevronDown size={20} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+ </span>
+ </button>
+
+ {/* Desktop header — toggle hidden, section always open */}
+ <div className={`hidden lg:block ${carded ? "px-5 pt-5" : ""}`}>
+ <SectionHeader title={title} />
+ </div>      {/* Body */}
+      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-3 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-4 sm:px-5 pb-5 lg:px-5 lg:pb-5" : ""}`}>
+        {children}
+      </div>
+ </section>
+);
 }
 
 function StatusPill({
@@ -1120,7 +1174,7 @@ export default function DashboardPage() {
  <div className="flex flex-col gap-4">
  <div className="flex items-start justify-between">
  <div>
- <h1 className="text-3xl font-black tracking-tight">Dashboard</h1>
+ <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
  <p className={`${themeClasses.text.secondary} text-sm mt-1`}>Fleet operations overview · tap any card to drill down</p>
  </div>
  </div>            <FilterBar
@@ -1139,7 +1193,7 @@ export default function DashboardPage() {
 ) : (
  <>
  {/* ── Today ── */}
- <section>              <SectionHeader title="Today" />
+ <CollapsibleSection title="Today" defaultOpen summary={`${todaySummary.totalRoutes} routes · ${todaySummary.completedRoutes} completed`}>
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">              <KpiCard label="Routes today" value={String(todaySummary.totalRoutes)}
                 onClick={() => setDrill({ kind:"date", date: todayStr, label:"All routes today"})} />
               <KpiCard label="Completed" value={String(todaySummary.completedRoutes)} accent="text-green-400"
@@ -1149,10 +1203,10 @@ export default function DashboardPage() {
               <KpiCard label="KM today" value={fmtNum(todaySummary.totalKm)} sub="kilometres"
                 onClick={() => setDrill({ kind:"date", date: todayStr, label:"KM breakdown — today"})} />
  </div>
- </section>
+ </CollapsibleSection>
 
  {/* ── Period KPIs ── */}
- <section>            <SectionHeader title={`Period ${startDate} → ${endDate}`} />
+ <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>
  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue — all routes"})} />
               <KpiCard label="Routes" value={fmtNum(summary.totalRoutes)}
@@ -1172,19 +1226,19 @@ export default function DashboardPage() {
               <KpiCard label="Rev / KM" value={`R ${summary.revenuePerKm.toFixed(2)}`} sub="average"
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per KM detail"})} />
  </div>
- </section>
+ </CollapsibleSection>
 
  {/* ── Status + Revenue chart ── */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- <section className="glass-card rounded-xl p-5 animate-fade-up">              <SectionHeader title="Route Status" />
+ <CollapsibleSection title="Route Status" carded summary={statusBreakdown?.map((s) => `${s.count} ${s.status}`).join(" · ")}>
  <div className="space-y-3">
  {(statusBreakdown ?? []).map((s) => (              <StatusPill key={s.status} status={s.status} count={s.count}
                 onClick={() => setDrill({ kind:"status", status: s.status, startDate, endDate, label:`${s.status.charAt(0).toUpperCase() + s.status.slice(1)} routes`})} />
 ))}
  </div>
- </section>
+ </CollapsibleSection>
 
- <section className="glass-card rounded-xl p-5 animate-fade-up">              <SectionHeader title="Revenue by Day — tap a row" />
+ <CollapsibleSection title="Revenue by Day — tap a row" carded summary={`${revenueOverTime?.length ?? 0} days`}>
  {!revenueOverTime || revenueOverTime.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
@@ -1199,7 +1253,7 @@ export default function DashboardPage() {
  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
  {revenueOverTime.map((d) => (
  <button key={d.date} onClick={() => setDrill({ kind:"date", date: d.date, label:`Routes on ${d.date}`})}
- className="flex items-center gap-3 w-full hover:bg-[var(--card-bg)]/60 rounded-lg px-1 py-1 transition-colors group">              <span className="text-xs text-[var(--nav-text-color)] w-24 shrink-0 group-hover:text-[var(--foreground)]">{d.date}</span>
+ className="flex items-center gap-3 w-full hover:bg-[var(--card-bg)]/60 rounded-lg px-2 py-2.5 transition-colors group">              <span className="text-xs text-[var(--nav-text-color)] w-24 shrink-0 group-hover:text-[var(--foreground)]">{d.date}</span>
  <div className="flex-1">
  <ProgressBar pct={(d.revenue / maxRevDay) * 100} colour="bg-emerald-500" />
  </div>
@@ -1208,12 +1262,12 @@ export default function DashboardPage() {
 ))}
  </div>
 )}
- </section>
+ </CollapsibleSection>
  </div>
 
  {/* ── Top clients + Top trucks ── */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- <section className="glass-card rounded-xl p-5 animate-fade-up">              <SectionHeader title="Top Clients — tap to drill down" />
+ <CollapsibleSection title="Top Clients — tap to drill down" carded summary={`${topClients.topCustomers?.length ?? 0} clients`}>
  {(topClients.topCustomers ?? []).length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
@@ -1229,7 +1283,7 @@ export default function DashboardPage() {
  {topClients.topCustomers.slice(0, 8).map((c, i) => {
  const pct = summary.totalRevenue > 0 ? (c.revenue / summary.totalRevenue) * 100 : 0;
  return (
- <button key={c.name} onClick={() => setDrill({ kind:"client", client: c.name, startDate, endDate, label:`${c.name} — routes`})}              className="w-full space-y-1 rounded-lg px-2 py-1.5 transition-colors text-left group hover:bg-[var(--card-bg)] text-[var(--foreground)]">
+ <button key={c.name} onClick={() => setDrill({ kind:"client", client: c.name, startDate, endDate, label:`${c.name} — routes`})}              className="w-full space-y-1 rounded-lg px-3 py-2.5 transition-colors text-left group hover:bg-[var(--card-bg)] text-[var(--foreground)]">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold truncate max-w-[60%] group-hover:text-[var(--foreground)]">
                     <span className="mr-2 text-[var(--nav-text-color)]">#{i + 1}</span>{c.name}
@@ -1245,9 +1299,9 @@ export default function DashboardPage() {
 })}
  </div>
 )}
- </section>
+ </CollapsibleSection>
 
- <section className="glass-card rounded-xl p-5 animate-fade-up">              <SectionHeader title="Top Trucks — tap to drill down" />
+ <CollapsibleSection title="Top Trucks — tap to drill down" carded summary={`${fleetPerf.topTrucks?.length ?? 0} trucks`}>
  {(fleetPerf.topTrucks ?? []).length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
@@ -1264,7 +1318,7 @@ export default function DashboardPage() {
  const pct = summary.totalRevenue > 0 ? (t.revenue / summary.totalRevenue) * 100 : 0;
  return (
  <button key={t.truckNumber} onClick={() => setDrill({ kind:"truck", truck: t.truckNumber, startDate, endDate, label:`Truck ${t.truckNumber} — routes`})}
- className={`w-full space-y-1 rounded-lg px-2 py-1.5 transition-colors text-left group ${
+ className={`w-full space-y-1 rounded-lg px-3 py-2.5 transition-colors text-left group ${
  isDayMode
  ?"hover:bg-[var(--card-bg)] text-[var(--foreground)]"
  :"hover:bg-[var(--card-bg)]/50 text-gray-200"
@@ -1288,11 +1342,11 @@ export default function DashboardPage() {
 })}
  </div>
 )}
- </section>
+ </CollapsibleSection>
  </div>
 
  {/* ── Fleet summary ── */}
- <section className="glass-card rounded-xl p-5 animate-fade-up">  <SectionHeader title="Fleet Summary" />
+ <CollapsibleSection title="Fleet Summary" carded summary={`${fleetPerf.totalTrucksActive} active trucks`}>
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
  <KpiCard label="Active trucks" value={String(fleetPerf.totalTrucksActive)}
  onClick={() => setDrill({ kind:"period", startDate, endDate, label:"All active trucks this period"})} />
@@ -1303,10 +1357,10 @@ export default function DashboardPage() {
  <KpiCard label="Rev / KM fleet" value={`R ${fleetPerf.avgRevenuePerKm.toFixed(2)}`} sub="per kilometre" accent="text-emerald-400"
  onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per KM — all routes"})} />
  </div>
- </section>
+ </CollapsibleSection>
 
  {/* ── Month-to-Month Comparison ── */}
- <section className="glass-card rounded-xl p-5 animate-fade-up">  <SectionHeader title="Month-to-Month Comparison" />
+ <CollapsibleSection title="Month-to-Month Comparison" carded summary={`M1 ${monthLabel(month1)} → M2 ${monthLabel(month2)}`}>
  
  {/* Month selectors */}
  <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -1494,7 +1548,7 @@ export default function DashboardPage() {
  </div>
  </>
 )}
- </section>
+ </CollapsibleSection>
  </>
 )}
  </div>
@@ -1537,7 +1591,7 @@ function ComparisonMetricCard({
  <div className={`border rounded-lg p-4 ${bgClass} transition-all duration-300 cursor-pointer relative group hover:scale-[1.02] hover:shadow-lg`}
  onClick={onToggle}>
  <button 
- className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-200
+ className={`absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center text-xs transition-all duration-200
  ${isVisible      ? "bg-emerald-500/20 text-emerald-400"
       : "bg-[var(--card-bg)] text-[var(--nav-text-color)]"}`}
  onClick={(e) => {
@@ -1551,11 +1605,11 @@ function ComparisonMetricCard({
  <div className={`space-y-2 ${!isVisible ? 'opacity-50' : ''}`}>
  <div className="flex justify-between items-center">
  <span className={`text-xs ${secondaryTextClass}`}>M1</span>
- <span className={`text-sm font-bold ${textClass} transition-all duration-300`}>{value1}</span>
+ <span className={`text-base font-bold ${textClass} transition-all duration-300`}>{value1}</span>
  </div>
  <div className="flex justify-between items-center">
  <span className={`text-xs ${secondaryTextClass}`}>M2</span>
- <span className={`text-sm font-bold ${textClass} transition-all duration-300`}>{value2}</span>
+ <span className={`text-base font-bold ${textClass} transition-all duration-300`}>{value2}</span>
  </div>
  <div className="flex justify-end items-center pt-1 border-t border-[var(--card-border)]">
  <span className={`text-xs font-bold ${isVisible ? changeColor : secondaryTextClass} transition-all duration-300`}>

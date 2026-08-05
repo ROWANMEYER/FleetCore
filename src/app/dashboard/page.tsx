@@ -14,6 +14,7 @@ import { useToast} from"@/src/components/common/Toast";
 import { Cake, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useBirthdays } from "@/src/lib/useBirthdays";
+import { ageThisYear } from "@/src/lib/birthdays";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -1210,7 +1211,13 @@ export default function DashboardPage() {
               {todayBirthdays.length > 0 && (
                 <KpiCard label="Birthdays today" value={String(todayBirthdays.length)} accent="text-pink-400"
                   icon={<Cake size={16} className="text-[#EC4899]" />}
-                  sub={todayBirthdays.map((b) => b.name.split(" ")[0]).join(", ")}
+                  sub={
+                    todayBirthdays.length === 1
+                      ? `${todayBirthdays[0].name.split(" ")[0]} turns ${ageThisYear(todayBirthdays[0].birthYear)} today`
+                      : todayBirthdays
+                          .map((b) => `${b.name.split(" ")[0]} turns ${ageThisYear(b.birthYear)}`)
+                          .join(" · ")
+                  }
                   onClick={() => router.push("/calendar")} />
               )}
  </div>

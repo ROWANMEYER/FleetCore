@@ -5,7 +5,7 @@ import { calculateLoadAmount } from "@/convex/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface SpreadsheetRow {
+export interface SpreadsheetRow {
   routeId: string;
   loadIndex: number;
   truckNo: string;
@@ -18,6 +18,21 @@ interface SpreadsheetRow {
   customer: string;
   amount: number;
   notes: string;
+  /** Optional extra column value (e.g. region badge key). */
+  region: string;
+}
+
+/**
+ * Optional caller-supplied column appended to the base column set.
+ * Rendered right after the Date column; participates in resize,
+ * visibility toggling, and layout profiles like any built-in column.
+ */
+export interface SpreadsheetExtraColumn {
+  key: string;
+  label: string;
+  defaultWidth: number;
+  minWidth: number;
+  render: (row: SpreadsheetRow) => React.ReactNode;
 }
 
 interface EditingCell {
@@ -36,6 +51,10 @@ interface Props {
   onTruckClick?: (truckNo: string) => void;
   onLoadClick?: (routeId: string, loadNo: string) => void;
   density?: 'comfortable' | 'compact';
+  /** Optional caller-supplied column (e.g. Region) shown after Date. */
+  extraColumn?: SpreadsheetExtraColumn;
+  /** Namespaces the localStorage layout keys so instances keep separate layouts. */
+  storageNamespace?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -115,11 +134,54 @@ interface LayoutProfile {
 
 const MIN_COLUMN_WIDTH = 60;
 
-const DEFAULT_COLUMN_ORDER = COLUMNS.map((c) => c.key);
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruckClick, onLoadClick, density = 'comfortable' }: Props) {
+export default function SpreadsheetDataTable({
+  routes,
+  updateLoadFields,
+  onTruckClick,
+  onLoadClick,
+  density = 'comfortable',
+  extraColumn,
+  storageNamespace,
+}: Props) {
+  // Base column set + optional caller-supplied extra column, inserted after
+  // Date so it is prominent in cross-region views. Stable per extraColumn.
+  const allColumns = useMemo<ColumnDef[]>(() => {
+    if (!extraColumn) return COLUMNS;
+    const dateIdx = COLUMNS.findIndex((c) => c.key === "date");
+    const extra: ColumnDef = {
+      key: extraColumn.key,
+      label: extraColumn.label,
+      defaultWidth: extraColumn.defaultWidth,
+      minWidth: extraColumn.minWidth,
+      sortable: false,
+      align: "left",
+    };
+    return [...COLUMNS.slice(0, dateIdx + 1), extra, ...COLUMNS.slice(dateIdx + 1)];
+  }, [extraColumn]);
+
+  const defaultOrder = useMemo(() => allColumns.map((c) => c.key), [allColumns]);
+
+  // Namespaced storage so the All Regions table keeps its own column layout.
+  const storageKeys = useMemo(
+    () =>
+      storageNamespace
+        ? {
+            widths: `fleetcore.${storageNamespace}.columnWidths`,
+            visibility: `fleetcore.${storageNamespace}.columnVisibility`,
+            order: `fleetcore.${storageNamespace}.columnOrder`,
+            profiles: `fleetcore.${storageNamespace}.layoutProfiles`,
+          }
+        : {
+            widths: STORAGE_KEY,
+            visibility: VISIBILITY_STORAGE_KEY,
+            order: ORDER_STORAGE_KEY,
+            profiles: PROFILES_STORAGE_KEY,
+          },
+    [storageNamespace]
+  );
+
   const [sortKey, setSortKey] = useState<ColumnKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
@@ -133,62 +195,62 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     if (typeof window === "undefined") {
       const initial: Record<string, number> = {};
-      for (const col of COLUMNS) initial[col.key] = col.defaultWidth;
+      for (const col of allColumns) initial[col.key] = col.defaultWidth;
       return initial;
     }
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
+      const saved = window.localStorage.getItem(storageKeys.widths);
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, number>;
         // Merge saved with defaults to ensure all columns exist
         const merged: Record<string, number> = {};
-        for (const col of COLUMNS) {
+        for (const col of allColumns) {
           merged[col.key] = parsed[col.key] ?? col.defaultWidth;
         }
         return merged;
       }
     } catch { /* ignore */ }
     const initial: Record<string, number> = {};
-    for (const col of COLUMNS) initial[col.key] = col.defaultWidth;
+    for (const col of allColumns) initial[col.key] = col.defaultWidth;
     return initial;
   });
 
   // Persist widths on change
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
+      window.localStorage.setItem(storageKeys.widths, JSON.stringify(columnWidths));
     } catch { /* ignore quota errors */ }
-  }, [columnWidths]);
+  }, [columnWidths, storageKeys]);
 
   // ── Column visibility state with localStorage persistence ─────────────────
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") {
       const initial: Record<string, boolean> = {};
-      for (const col of COLUMNS) initial[col.key] = true;
+      for (const col of allColumns) initial[col.key] = true;
       return initial;
     }
     try {
-      const saved = window.localStorage.getItem(VISIBILITY_STORAGE_KEY);
+      const saved = window.localStorage.getItem(storageKeys.visibility);
       if (saved) {
         const parsed = JSON.parse(saved) as Record<string, boolean>;
         const merged: Record<string, boolean> = {};
-        for (const col of COLUMNS) {
+        for (const col of allColumns) {
           merged[col.key] = parsed[col.key] ?? true;
         }
         return merged;
       }
     } catch { /* ignore */ }
     const initial: Record<string, boolean> = {};
-    for (const col of COLUMNS) initial[col.key] = true;
+    for (const col of allColumns) initial[col.key] = true;
     return initial;
   });
 
   // Persist visibility on change
   useEffect(() => {
     try {
-      window.localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(columnVisibility));
+      window.localStorage.setItem(storageKeys.visibility, JSON.stringify(columnVisibility));
     } catch { /* ignore quota errors */ }
-  }, [columnVisibility]);
+  }, [columnVisibility, storageKeys]);
 
   // Close column menu on outside click
   useEffect(() => {
@@ -204,36 +266,36 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
 
   // ── Column order state with localStorage persistence ──────────────────────
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [...DEFAULT_COLUMN_ORDER];
+    if (typeof window === "undefined") return [...defaultOrder];
     try {
-      const saved = window.localStorage.getItem(ORDER_STORAGE_KEY);
+      const saved = window.localStorage.getItem(storageKeys.order);
       if (saved) {
         const parsed = JSON.parse(saved) as string[];
         // Ensure all columns are present, append any missing at the end
         const existing = new Set(parsed);
-        for (const key of DEFAULT_COLUMN_ORDER) {
+        for (const key of defaultOrder) {
           if (!existing.has(key)) parsed.push(key);
         }
         // Filter out any invalid keys
-        const valid = new Set(DEFAULT_COLUMN_ORDER);
+        const valid = new Set(defaultOrder);
         return parsed.filter((k) => valid.has(k));
       }
     } catch { /* ignore */ }
-    return [...DEFAULT_COLUMN_ORDER];
+    return [...defaultOrder];
   });
 
   // Persist order on change
   useEffect(() => {
     try {
-      window.localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(columnOrder));
+      window.localStorage.setItem(storageKeys.order, JSON.stringify(columnOrder));
     } catch { /* ignore quota errors */ }
-  }, [columnOrder]);
+  }, [columnOrder, storageKeys]);
 
   // ── Layout profiles state ─────────────────────────────────────────────────
   const [profiles, setProfiles] = useState<LayoutProfile[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      const saved = window.localStorage.getItem(PROFILES_STORAGE_KEY);
+      const saved = window.localStorage.getItem(storageKeys.profiles);
       if (saved) {
         const parsed = JSON.parse(saved) as LayoutProfile[];
         return Array.isArray(parsed) ? parsed : [];
@@ -250,9 +312,9 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
   // Persist profiles on change
   useEffect(() => {
     try {
-      window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+      window.localStorage.setItem(storageKeys.profiles, JSON.stringify(profiles));
     } catch { /* ignore quota errors */ }
-  }, [profiles]);
+  }, [profiles, storageKeys]);
 
   // Close layout menu on outside click
   useEffect(() => {
@@ -303,17 +365,17 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
   }, []);
 
   const resetToDefaults = useCallback(() => {
-    setColumnOrder([...DEFAULT_COLUMN_ORDER]);
+    setColumnOrder(allColumns.map((c) => c.key));
     const defaultWidths: Record<string, number> = {};
     const defaultVisibility: Record<string, boolean> = {};
-    for (const col of COLUMNS) {
+    for (const col of allColumns) {
       defaultWidths[col.key] = col.defaultWidth;
       defaultVisibility[col.key] = true;
     }
     setColumnWidths(defaultWidths);
     setColumnVisibility(defaultVisibility);
     setShowLayoutMenu(false);
-  }, []);
+  }, [allColumns]);
 
   // ── Column drag-and-drop state ────────────────────────────────────────────
   const draggedColumnRef = useRef<string | null>(null);
@@ -388,7 +450,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
       if (!resizingColumnRef.current) return;
       const { key, startX, startWidth } = resizingColumnRef.current;
       const delta = e.clientX - startX;
-      const col = COLUMNS.find((c) => c.key === key);
+      const col = allColumns.find((c) => c.key === key);
       const minW = col?.minWidth ?? MIN_COLUMN_WIDTH;
       const nextWidth = Math.max(minW, startWidth + delta);
       setColumnWidths((prev) => ({ ...prev, [key]: nextWidth }));
@@ -407,16 +469,16 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, []);
+  }, [allColumns]);
 
   // Auto-fit a column to content (double-click on handle)
   const autoFitColumn = useCallback((key: string) => {
     // Simple auto-fit: set to default width
-    const col = COLUMNS.find((c) => c.key === key);
+    const col = allColumns.find((c) => c.key === key);
     if (col) {
       setColumnWidths((prev) => ({ ...prev, [key]: col.defaultWidth }));
     }
-  }, []);
+  }, [allColumns]);
 
   // Render resize handle
   const renderResizeHandle = useCallback((key: string) => (
@@ -465,6 +527,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
           customer: route.client || "",
           amount: Number(route.rate) || 0,
           notes: route.notes || "",
+          region: route.region || "",
         });
       } else {
         loads.forEach((load: any, index: number) => {
@@ -485,6 +548,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
             customer: (load.client || "").toUpperCase(),
             amount,
             notes: route.notes || "",
+            region: route.region || "",
           });
         });
       }
@@ -592,23 +656,23 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
 
   // Visible columns (filtered by visibility, then ordered)
   const visibleOrderedColumns = useMemo(() => {
-    const visibleSet = new Set(COLUMNS.filter((c) => columnVisibility[c.key] !== false).map((c) => c.key));
+    const visibleSet = new Set(allColumns.filter((c) => columnVisibility[c.key] !== false).map((c) => c.key));
     const result: ColumnDef[] = [];
     for (const key of columnOrder) {
       if (visibleSet.has(key)) {
-        const col = COLUMNS.find((c) => c.key === key);
+        const col = allColumns.find((c) => c.key === key);
         if (col) result.push(col);
       }
     }
     return result;
-  }, [columnVisibility, columnOrder]);
+  }, [columnVisibility, columnOrder, allColumns]);
 
   const toggleColumnVisibility = useCallback((key: string) => {
     // Prevent hiding ALL columns — at least one must remain visible
-    const visibleCount = COLUMNS.filter((c) => key !== c.key ? columnVisibility[c.key] !== false : true).length;
+    const visibleCount = allColumns.filter((c) => key !== c.key ? columnVisibility[c.key] !== false : true).length;
     if (visibleCount <= 1 && columnVisibility[key] !== false) return;
     setColumnVisibility((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }));
-  }, [columnVisibility]);
+  }, [columnVisibility, allColumns]);
 
   // ── Helper functions used by renderCell (defined before useCallback to avoid TDZ) ─
   const isEditing = (row: SpreadsheetRow, field: string) =>
@@ -622,6 +686,10 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
 
   // ── Cell renderer: maps column key to the appropriate cell content ──────────
   const renderCell = useCallback((col: ColumnDef, row: SpreadsheetRow, rowPad: string) => {
+    // Caller-supplied extra column (e.g. Region) — render via its custom renderer
+    if (extraColumn && col.key === extraColumn.key) {
+      return extraColumn.render(row);
+    }
     // Each case returns content styled for the grid cell
     switch (col.key) {
       case "truckNo":
@@ -772,7 +840,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
       default:
         return <div className={`px-2 ${rowPad} truncate flex items-center w-full h-full text-[var(--foreground)]`} />;
     }
-  }, [editValue, editingCell, savingCell, inputRef, onTruckClick, onLoadClick, isEditing, isSaving, startEditing, saveEdit, handleKeyDown]);
+  }, [editValue, editingCell, savingCell, inputRef, onTruckClick, onLoadClick, isEditing, isSaving, startEditing, saveEdit, handleKeyDown, extraColumn]);
 
   const gridTemplateColumns = visibleOrderedColumns.map((c) => `${columnWidths[c.key] || c.defaultWidth}px`).join(" ");
 
@@ -807,7 +875,7 @@ export default function SpreadsheetDataTable({ routes, updateLoadFields, onTruck
             </button>
             {showColumnMenu && (
               <div className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl backdrop-blur-xl py-1" style={{backgroundColor:"var(--card-bg)"}}>
-                {COLUMNS.map((col) => (
+                {allColumns.map((col) => (
                   <label
                     key={col.key}
                     className="flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer hover:bg-[var(--card-border)] transition-colors select-none"

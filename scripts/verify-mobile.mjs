@@ -4,8 +4,10 @@
  * Launches headless Chrome (auto-detected per platform), emulates a 375x812
  * phone, and asserts on every configured page:
  *   - no horizontal overflow
- *   - mobile top bar / hamburger present
- *   - drawer opens (with Dashboard/Operations/Admin/Settings links) and closes
+ *   - the two-screen Android UX is present: bottom tab bar with exactly
+ *     Dashboard + Input tabs, NO hamburger, NO drawer/sidebar
+ *   - the mobile route guard: non-allowed paths (Admin, Settings, Sheets,
+ *     ...) redirect to /dashboard
  *   - no console errors and no console warnings (except an allowlist of
  *     known-benign third-party/informational messages)
  *
@@ -28,15 +30,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const BASE = process.argv[2] || process.env.AUDIT_URL || "https://fleetcore-mu.vercel.app";
+// Pages the audit visits. `allowed: true` means the page is one of the two
+// mobile screens and must render as-is; `allowed: false` means the mobile
+// guard must redirect it to /dashboard.
 const PAGES = [
-  "/dashboard",
-  "/admin/trucks",
-  "/settings",
-  "/operations",
-  "/operations/daily-planner/sheets",
+  { path: "/dashboard", allowed: true },
+  { path: "/operations/daily-planner/input", allowed: true },
+  { path: "/settings", allowed: false },
+  { path: "/admin/trucks", allowed: false },
+  { path: "/operations/daily-planner/sheets", allowed: false },
 ];
 const REPORT_FILE = join(process.cwd(), "mobile-audit-report.json");
-const EXPECTED_NAV_LINKS = ["Dashboard", "Operations", "Admin", "Settings"];
+const TAB_BAR_SELECTOR = '[aria-label="Bottom navigation"]';
 
 /**
  * Warnings matching these are third-party/cosmetic, not app bugs.
@@ -51,7 +56,7 @@ const WARNING_ALLOWLIST = [
   // Recharts v3 ResponsiveContainer logs this once per mount when the chart
   // container is measured before CSS layout settles (width/height -1 or 0).
   // Charts render correctly afterward; the audit still catches layout
-  // regressions via the overflow and drawer assertions.
+  // regressions via the overflow and tab-bar assertions.
   /The width\(-?\d+\) and height\(-?\d+\) of chart should be greater than 0/i,
 ];
 
@@ -198,24 +203,25 @@ async function main() {
     return r.result.value;
   };
 
-  const navigate = async (path) => {
+  const navigate = async (path, allowed) => {
     await send("Page.navigate", { url: BASE + path });
-    // Wait for the document, then for the app to hydrate (hamburger present).
-    // Polling instead of a fixed sleep avoids flakiness on slow CDN/hydration.
+    // Wait for the document, then for the app to hydrate and settle on its
+    // final route: allowed pages render as-is, guarded pages are redirected
+    // to /dashboard by the mobile route guard. Waiting on the final path
+    // (instead of a fixed sleep) avoids racing the client-side redirect.
+    const expected = allowed ? path : "/dashboard";
     await waitFor(async () => {
       const ready = await evalJs("document.readyState");
       return ready === "complete";
     }, 20000);
-    await waitFor(
-      () => evalJs(`!!document.querySelector('[aria-label="Open navigation"]')`),
-      12000
-    );
+    await waitFor(() => evalJs(`location.pathname === ${JSON.stringify(expected)}`), 12000);
+    await waitFor(() => evalJs(`!!document.querySelector('${TAB_BAR_SELECTOR}')`), 12000);
   };
 
   // ── Authenticate ────────────────────────────────────────────────────────
   // The app is now auth-gated (multi-user Stage 1): unauthenticated navigations
-  // redirect to /login, which has no hamburger/drawer. Sign in with the admin
-  // seed credentials so every audited page runs in an authenticated session.
+  // redirect to /login. Sign in with the admin seed credentials so every
+  // audited page runs in an authenticated session.
   const AUDIT_EMAIL = process.env.AUDIT_EMAIL || "admin@fleetcore.app";
   const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "Fleetcore2026!";
 
@@ -249,7 +255,7 @@ async function main() {
     if (!filled) return null;
     await sleep(1500);
     return (await evalJs(
-      `location.pathname !== "/login" && !!document.querySelector('[aria-label="Open navigation"]')`
+      `location.pathname !== "/login" && !!document.querySelector('${TAB_BAR_SELECTOR}')`
     ))
       ? true
       : null;
@@ -261,108 +267,52 @@ async function main() {
 
   const report = { base: BASE, viewport: "375x812 (mobile emulation)", pages: [] };
 
-  for (const path of PAGES) {
-    await navigate(path);
+  for (const { path, allowed } of PAGES) {
+    await navigate(path, allowed);
     const info = await evalJs(`(() => {
       const d = document.documentElement;
+      const aside = document.querySelector('aside');
+      const asideVisible = aside
+        ? aside.getBoundingClientRect().width > 0 && aside.getBoundingClientRect().height > 0
+        : false;
       return {
         path: location.pathname,
         innerWidth: window.innerWidth,
         scrollWidth: d.scrollWidth,
+        hasTabBar: !!document.querySelector('${TAB_BAR_SELECTOR}'),
         hasHamburger: !!document.querySelector('[aria-label="Open navigation"]'),
+        hasAside: asideVisible,
         h1: document.querySelector('h1') ? document.querySelector('h1').textContent : null,
       };
     })()`);
 
-    // Drawer check on every page: open -> verify links -> close -> verify
-    const drawer = await evalJs(`(async () => {
-      const btn = document.querySelector('[aria-label="Open navigation"]');
-      if (!btn) return { ok: false, reason: "hamburger not found" };
-      btn.click();
-      await new Promise((r) => setTimeout(r, 600));
-      const aside = document.querySelector('aside');
-      if (!aside) return { ok: false, reason: "aside not found" };
-      const openOk = aside.className.includes('translate-x-0') && aside.getBoundingClientRect().width >= 200;
-      const links = [...document.querySelectorAll('aside a')]
-        .map((a) => a.textContent.trim())
-        .filter(Boolean);
-      const expected = ${JSON.stringify(EXPECTED_NAV_LINKS)};
-      const linkSet = new Set(links);
-      const linksOk = expected.every((l) => linkSet.has(l));
-      const closeBtn = document.querySelector('[aria-label="Close navigation"]');
-      if (closeBtn) closeBtn.click();
-      await new Promise((r) => setTimeout(r, 500));
-      const closedOk = aside.className.includes('-translate-x-full');
-      return { ok: openOk && linksOk && !!closeBtn && closedOk, openOk, linksOk, closedOk, hasCloseBtn: !!closeBtn, links };
+    // Two-screen tab bar check: exactly Dashboard + Input tabs
+    const tabs = await evalJs(`(() => {
+      const nav = document.querySelector('${TAB_BAR_SELECTOR}');
+      if (!nav) return { ok: false, reason: "tab bar not found" };
+      const links = [...nav.querySelectorAll('a')].map((a) => ({
+        text: a.textContent.trim(),
+        href: a.getAttribute('href'),
+      }));
+      const texts = links.map((l) => l.text).filter(Boolean);
+      return {
+        ok: links.length === 2 && texts.includes("Dashboard") && texts.includes("Input"),
+        links,
+      };
     })()`);
-
-    // Route-detail flow (sheets page only): tap a load no -> detail panel opens
-    // -> EDIT swaps to the in-panel edit form -> Cancel returns to detail -> close.
-    // This is the regression guard for the double-overlay glitch class.
-    let routeFlow = null;
-    if (path === "/operations/daily-planner/sheets") {
-      routeFlow = await evalJs(`(async () => {
-        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        const waitFor = async (fn, timeout = 15000) => {
-          const start = Date.now();
-          for (;;) {
-            const v = await fn();
-            if (v) return v;
-            if (Date.now() - start >= timeout) return null;
-            await sleep(400);
-          }
-        };
-        const PANEL = '[data-testid="route-detail-panel"]';
-        const inPanel = (text) =>
-          [...document.querySelectorAll(PANEL + ' button')].find((b) => b.textContent.trim() === text);
-        const loadLink = await waitFor(() => document.querySelector('span[title^="View details for Load"]'));
-        if (!loadLink) {
-          return { ok: false, skipped: true, reason: "no load rows rendered (data-dependent)" };
-        }
-        loadLink.click();
-        const panel = await waitFor(() => document.querySelector(PANEL));
-        if (!panel) return { ok: false, skipped: false, reason: "detail panel did not open" };
-        await sleep(500);
-        const hasDetail = panel.textContent.includes("Route Detail");
-        const editBtn = inPanel("EDIT");
-        if (!editBtn) return { ok: false, skipped: false, reason: "EDIT button missing in panel" };
-        editBtn.click();
-        const saveShown = await waitFor(() => inPanel("Save Changes"), 8000);
-        if (!saveShown) return { ok: false, skipped: false, reason: "edit form did not open in-panel" };
-        const panelStillOpen = !!document.querySelector(PANEL);
-        const backBtn = !!document.querySelector('[aria-label="Back to route details"]');
-        const cancelBtn = inPanel("Cancel");
-        if (!cancelBtn) return { ok: false, skipped: false, reason: "Cancel button missing in edit view" };
-        cancelBtn.click();
-        const backToDetail = await waitFor(
-          () => !document.querySelector('[aria-label="Back to route details"]') && panel.textContent.includes("Route Detail"),
-          6000
-        );
-        const closeBtn = document.querySelector('[aria-label="Close panel"]');
-        if (closeBtn) closeBtn.click();
-        await sleep(500);
-        const panelClosed = !document.querySelector(PANEL);
-        return {
-          ok: true,
-          skipped: false,
-          hasDetail: !!hasDetail,
-          editInPanel: panelStillOpen && backBtn,
-          backToDetail: !!backToDetail,
-          panelClosed,
-        };
-      })()`);
-    }
 
     report.pages.push({
       requested: path,
+      allowed,
       path: info.path,
       innerWidth: info.innerWidth,
       scrollWidth: info.scrollWidth,
       overflowPx: info.scrollWidth - info.innerWidth,
+      hasTabBar: info.hasTabBar,
       hasHamburger: info.hasHamburger,
+      hasAside: info.hasAside,
       h1: info.h1,
-      drawer,
-      routeFlow,
+      tabs,
     });
   }
 
@@ -372,13 +322,18 @@ async function main() {
   // ── Assertions ────────────────────────────────────────────────
   const failures = [];
   for (const p of report.pages) {
-    if (p.overflowPx > 0) failures.push(`${p.path}: horizontal overflow of ${p.overflowPx}px`);
-    if (!p.hasHamburger) failures.push(`${p.path}: mobile header/hamburger missing`);
-    if (p.drawer && !p.drawer.ok) {
-      failures.push(`${p.path}: drawer check failed -> ${p.drawer.reason || JSON.stringify(p.drawer)}`);
+    if (p.overflowPx > 0) failures.push(`${p.requested}: horizontal overflow of ${p.overflowPx}px`);
+    if (!p.hasTabBar) failures.push(`${p.requested}: bottom tab bar missing`);
+    if (p.hasHamburger) failures.push(`${p.requested}: hamburger button must not exist on mobile`);
+    if (p.hasAside) failures.push(`${p.requested}: sidebar/drawer must not render on mobile`);
+    if (p.tabs && !p.tabs.ok) {
+      failures.push(`${p.requested}: tab bar should have exactly Dashboard + Input -> ${JSON.stringify(p.tabs)}`);
     }
-    if (p.routeFlow && !p.routeFlow.ok && !p.routeFlow.skipped) {
-      failures.push(`${p.path}: route-detail flow failed -> ${p.routeFlow.reason || JSON.stringify(p.routeFlow)}`);
+    if (p.allowed && p.path !== p.requested) {
+      failures.push(`${p.requested}: expected to render (allowed screen) but landed on ${p.path}`);
+    }
+    if (!p.allowed && p.path !== "/dashboard") {
+      failures.push(`${p.requested}: mobile guard should redirect to /dashboard but landed on ${p.path}`);
     }
   }
   for (const w of warnings) {

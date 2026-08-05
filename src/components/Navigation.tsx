@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   LayoutGrid,
   BarChart3,
@@ -12,12 +12,11 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Menu,
-  X,
   LogOut,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
+import { MobileTabBar } from "@/src/components/MobileTabBar";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -65,41 +64,12 @@ function RegionSwitcher({ compact = false }: { compact?: boolean }) {
   );
 }
 
-/* ─── Main sidebar component ───────────────────────────────────── */
+/* ─── Main navigation component ────────────────────────────────── */
 export default function Navigation() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [open, setOpen] = useState(false); // mobile drawer state
   const mounted = useMounted();
-  const drawerRef = useRef<HTMLElement>(null);
-
-  // Close the mobile drawer whenever the route changes
-  useEffect(() => {
-    const t = setTimeout(() => setOpen(false), 0);
-    return () => clearTimeout(t);
-  }, [pathname]);
-
-  // Drawer a11y: close on Escape and move focus inside when it opens
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    const t = setTimeout(() => {
-      drawerRef.current
-        ?.querySelector<HTMLButtonElement>('[aria-label="Close navigation"]')
-        ?.focus();
-    }, 0);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      clearTimeout(t);
-    };
-  }, [open]);
-
-  // On mobile the drawer is always expanded when open; on desktop `open` is unused
-  const effectiveCollapsed = collapsed && !open;
 
   const isActive = useCallback(
     (href: string) => {
@@ -111,16 +81,8 @@ export default function Navigation() {
 
   return (
     <>
-      {/* ─── Mobile top bar ───────────────────────────────── */}
+      {/* ─── Mobile top bar (no hamburger — bottom tabs navigate) ─── */}
       <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-3 px-4 glass-sidebar border-b border-[var(--sidebar-border)]">
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center justify-center w-9 h-9 -ml-1 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150"
-          aria-label="Open navigation"
-        >
-          <Menu size={20} strokeWidth={2} />
-        </button>
-
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-md shadow-[rgba(6,182,212,0.3)] shrink-0">
             <BarChart3 size={14} className="text-white" strokeWidth={2.5} />
@@ -136,26 +98,15 @@ export default function Navigation() {
         </div>
       </header>
 
-      {/* ─── Mobile drawer backdrop ───────────────────────── */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-          onClick={() => setOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+      {/* ─── Mobile bottom tab bar (Dashboard + Input) ─────────── */}
+      <MobileTabBar />
 
-      {/* ─── Sidebar (drawer on mobile) ───────────────────── */}
+      {/* ─── Sidebar (desktop only) ───────────────────────────── */}
       <aside
-        ref={drawerRef}
-        role={open ? "dialog" : undefined}
-        aria-modal={open ? "true" : undefined}
-        aria-label={open ? "Navigation" : undefined}
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col h-full glass-sidebar shrink-0 select-none transform-gpu transition-[width,transform] duration-300 ease-in-out md:static md:translate-x-0 md:transition-[width] ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        aria-label="Navigation"
+        className="hidden md:flex flex-col h-full glass-sidebar shrink-0 select-none transform-gpu transition-[width] duration-300 ease-in-out"
         style={{
-          width: effectiveCollapsed ? 64 : 256,
+          width: collapsed ? 64 : 256,
         }}
       >
         {/* ─── Brand header ─────────────────────────────────── */}
@@ -174,22 +125,14 @@ export default function Navigation() {
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
                 transition: `opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
-                opacity: effectiveCollapsed ? 0 : 1,
-                maxWidth: effectiveCollapsed ? 0 : 200,
+                opacity: collapsed ? 0 : 1,
+                maxWidth: collapsed ? 0 : 200,
                 overflow: "hidden",
               }}
             >
               FleetCore
             </span>
           </div>
-          {/* Close drawer (mobile only) */}
-          <button
-            onClick={() => setOpen(false)}
-            className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150 shrink-0"
-            aria-label="Close navigation"
-          >
-            <X size={18} strokeWidth={2} />
-          </button>
         </div>
 
         {/* ─── Divider ──────────────────────────────────────── */}
@@ -205,7 +148,6 @@ export default function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
                 className={`
                   group relative flex items-center gap-3 px-3 py-2.5 rounded-xl
                   transition-all duration-200
@@ -215,7 +157,7 @@ export default function Navigation() {
                       : "text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)]"
                   }
                 `}
-                title={effectiveCollapsed ? item.label : undefined}
+                title={collapsed ? item.label : undefined}
               >
                 {/* Icon */}
                 <div className="flex items-center justify-center w-5 h-5 shrink-0">
@@ -231,8 +173,8 @@ export default function Navigation() {
                   className="text-sm whitespace-nowrap"
                   style={{
                     transition: `opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)`,
-                    opacity: effectiveCollapsed ? 0 : 1,
-                    maxWidth: effectiveCollapsed ? 0 : 200,
+                    opacity: collapsed ? 0 : 1,
+                    maxWidth: collapsed ? 0 : 200,
                     overflow: "hidden",
                   }}
                 >
@@ -240,7 +182,7 @@ export default function Navigation() {
                 </span>
 
                 {/* Collapsed tooltip */}
-                {effectiveCollapsed && (
+                {collapsed && (
                   <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-[var(--foreground)] text-[var(--background)] text-xs font-medium whitespace-nowrap shadow-xl z-50 animate-fade-up-sm border border-[var(--card-border)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
                     {item.label}
                     <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-[var(--foreground)]" />
@@ -256,10 +198,10 @@ export default function Navigation() {
           <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">
             <div
               className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${
-                effectiveCollapsed ? "justify-center" : "justify-between"
+                collapsed ? "justify-center" : "justify-between"
               }`}
             >
-              {!effectiveCollapsed && (
+              {!collapsed && (
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-[var(--foreground)] truncate">
                     {user.email}
@@ -273,7 +215,7 @@ export default function Navigation() {
                 </div>
               )}
               <div className="flex flex-col gap-1.5 shrink-0">
-                {!effectiveCollapsed && <RegionSwitcher />}
+                {!collapsed && <RegionSwitcher />}
                 <button
                   onClick={() => logout()}
                   title="Log out"
@@ -291,12 +233,12 @@ export default function Navigation() {
           {mounted ? (
             <div className="flex items-center justify-between">
               {/* Theme toggle */}
-              <ThemeToggleButton collapsed={effectiveCollapsed} />
+              <ThemeToggleButton collapsed={collapsed} />
 
-              {/* Collapse toggle (desktop only) */}
+              {/* Collapse toggle */}
               <button
                 onClick={() => setCollapsed((c) => !c)}
-                className="hidden md:flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150"
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150"
                 title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {collapsed ? (

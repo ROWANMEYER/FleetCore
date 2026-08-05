@@ -10,7 +10,7 @@ export default function OperationsLayout({ children}: { children: React.ReactNod
 
  return (
  <div className="h-full flex flex-col overflow-hidden">
- <div className="border-b px-6 py-2 flex gap-2 flex-shrink-0 bg-[var(--card-bg)] border-[var(--card-border)] /60 dark:backdrop-blur-sm">
+ <div className="hidden md:flex border-b px-6 py-2 gap-2 flex-shrink-0 bg-[var(--card-bg)] border-[var(--card-border)] /60 dark:backdrop-blur-sm">
  <Link
  href="/operations/daily-planner/input"
  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${

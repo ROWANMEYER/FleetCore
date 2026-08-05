@@ -1,6 +1,5 @@
 "use client";
 
-import Link from"next/link";
 import { usePathname } from"next/navigation";
 import InputPage from"./input/page";
 import SheetsPage from"./sheets/page";
@@ -61,7 +60,6 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  const paneBg ="glass-card-premium";
  const paneWrap ="glass-card";
  const resizerBg ="bg-[var(--card-border)] hover:bg-[#06B6D4]";
- const textBase ="";
  const toggleBg ="glass-card rounded-lg p-0.5 gap-0.5";
  const toggleActive = tokens.toggleActive;
  const toggleInactive = tokens.toggleInactive;
@@ -69,32 +67,8 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  if (pathname.includes("/edit/")) return <>{children}</>;
 
  return (
- <div className="h-full min-h-0 flex flex-col relative overflow-hidden">
-
- {/* Mobile header */}
- <div className="lg:hidden flex-shrink-0">
- <div className="border-b px-4 sm:px-8 pt-4 sm:pt-6 bg-[var(--card-bg)] border-[var(--card-border)] ">
- <h2 className={`text-lg font-semibold mb-4 ${textBase}`}>Daily Planner</h2>
- <div className="flex gap-6">
- {[
- { href:"/operations/daily-planner/input", label:"Input"},
- { href:"/operations/daily-planner/sheets", label:"Sheets"},
-].map(({ href, label}) => (
- <Link key={href} href={href}
- className={`pb-2 text-sm font-medium border-b-2 transition-all ${
- pathname.startsWith(href)
- ?"border-[#06B6D4] text-[var(--foreground)]"
- :"border-transparent text-[var(--nav-text-color)] hover:text-[var(--foreground)] dark:hover:text-white"
-}`}
- >
- {label}
- </Link>
-))}
- </div>
- </div>
- </div>
-
- {/* Mobile content */}
+ <div className="h-full min-h-0 flex flex-col relative overflow-hidden"> {/* Mobile content — the Android app only shows the Input screen here
+     (navigation is the bottom tab bar; Sheets/Planner are desktop-only) */}
  <div className="lg:hidden p-4 sm:p-8 flex-1 overflow-y-auto scrollbar-hidden bg-[var(--card-bg)]">
  {children}
  </div>

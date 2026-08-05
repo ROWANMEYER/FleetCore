@@ -85,7 +85,7 @@ export function PwaInstaller() {
 
   return (
     <div
-      className="fixed bottom-4 inset-x-4 z-[60] sm:left-auto sm:right-4 sm:w-96 animate-fade-up glass-card-premium mb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-24 inset-x-4 z-[60] sm:left-auto sm:right-4 sm:w-96 animate-fade-up glass-card-premium mb-[env(safe-area-inset-bottom)] md:bottom-4"
       role="region"
       aria-label="Install app"
     >

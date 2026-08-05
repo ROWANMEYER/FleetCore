@@ -13,6 +13,7 @@ export type UpcomingBirthday = {
   day: number;
   daysUntil: number;
   birthdayDate: string;
+  birthYear: number;
 };
 
 /**

@@ -582,7 +582,7 @@ function DailyPlannerInputForm() {
         </p>
       </div>
 
-      <div className="space-y-8 pb-44 md:pb-8">
+      <div className="space-y-8 pb-8">
         {/* Main Form - Wizard Header */}
         <div
           className={`
@@ -1103,9 +1103,9 @@ function DailyPlannerInputForm() {
           </div>
         </div>
 
-        {/* Save Actions — pinned to the screen bottom on mobile (above the tab bar); in-flow on desktop */}
+        {/* Save Actions — in normal flow at the end of the form, scrolls with the content */}
         {isEditable && (
-          <div className="fixed left-0 right-0 z-30 bottom-[calc(4rem_+_env(safe-area-inset-bottom))] px-4 sm:px-8 py-4 sm:py-5 md:pt-6 md:pb-0 flex flex-col gap-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-xl shadow-[0_-8px_24px_rgba(0,0,0,0.12)] rounded-t-2xl md:static md:left-auto md:right-auto md:bottom-auto md:z-auto md:-mx-8 md:px-8 md:bg-transparent md:backdrop-blur-none md:shadow-none md:rounded-none">
+          <div className="-mx-4 sm:-mx-8 px-4 sm:px-8 py-4 sm:py-5 flex flex-col gap-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-xl">
           {saveStatus === "error" && (
             <div className="bg-red-50 dark:bg-red-500/20 text-red-900 dark:text-red-200 p-4 rounded-lg text-sm border border-red-200 dark:border-red-500/40 flex items-center gap-3 shadow-sm">
               <span className="font-semibold">Error:</span>

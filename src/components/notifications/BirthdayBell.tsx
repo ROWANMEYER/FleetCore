@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, CalendarDays, MessageCircle, Cake } from "lucide-react";
 import { useBirthdays } from "@/src/lib/useBirthdays";
-import { initialsOf, waWishLink } from "@/src/lib/birthdays";
+import { ageThisYear, initialsOf, waWishLink } from "@/src/lib/birthdays";
 
 const PANEL_W = 320;
 
@@ -103,9 +103,11 @@ export function BirthdayBell() {
                       </p>
                       <p className="text-xs text-[var(--nav-text-color)]">
                         {b.daysUntil === 0 ? (
-                          <span className="text-[#EC4899] font-semibold">Today 🎉</span>
+                          <span className="text-[#EC4899] font-semibold">
+                            Today 🎉 · turns {ageThisYear(b.birthYear)}
+                          </span>
                         ) : (
-                          `In ${b.daysUntil} day${b.daysUntil === 1 ? "" : "s"}`
+                          `Turns ${ageThisYear(b.birthYear)} · in ${b.daysUntil} day${b.daysUntil === 1 ? "" : "s"}`
                         )}
                       </p>
                     </div>

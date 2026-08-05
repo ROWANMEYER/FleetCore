@@ -105,6 +105,7 @@ export const upcomingBirthdays = query({
       day: number;
       daysUntil: number;
       birthdayDate: string;
+      birthYear: number;
     }[] = [];
 
     for (const d of drivers) {
@@ -120,6 +121,7 @@ export const upcomingBirthdays = query({
           day: bd.day,
           daysUntil,
           birthdayDate: occurrenceDate(bd.month, bd.day, today),
+          birthYear: bd.year,
         });
       }
     }
@@ -143,6 +145,7 @@ export const getBirthdaysForMonth = query({
       name: string;
       phoneNumber: string;
       day: number;
+      birthYear: number;
     }[] = [];
 
     for (const d of drivers) {
@@ -153,6 +156,7 @@ export const getBirthdaysForMonth = query({
         name: toName(d),
         phoneNumber: (d as any).phone ?? "",
         day: bd.day,
+        birthYear: bd.year,
       });
     }
 

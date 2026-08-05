@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Cake, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { waWishLink } from "@/src/lib/birthdays";
+import { ageThisYear, waWishLink } from "@/src/lib/birthdays";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -17,6 +17,7 @@ type BirthdayBadge = {
   name: string;
   phoneNumber: string;
   day: number;
+  birthYear: number;
 };
 
 export default function CalendarPage() {
@@ -161,19 +162,21 @@ export default function CalendarPage() {
                           target="_blank"
                           rel="noreferrer"
                           title={`Wish ${b.name} a happy birthday`}
-                          className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] hover:from-[#F472B6] hover:to-[#EC4899] hover:text-white text-[10px] font-semibold truncate transition-colors"
+                          className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] hover:from-[#F472B6] hover:to-[#EC4899] hover:text-white text-[10px] font-semibold transition-colors"
                         >
                           <Cake size={10} className="shrink-0" />
-                          <span className="truncate">{b.name.split(" ")[0]}</span>
+                          <span className="min-w-0 flex-1 truncate">{b.name.split(" ")[0]}</span>
+                          <span className="shrink-0">· {ageThisYear(b.birthYear)}</span>
                         </a>
                       ) : (
                         <span
                           key={b.driverId}
                           title={`${b.name} — no phone number`}
-                          className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] text-[10px] font-semibold truncate"
+                          className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] text-[10px] font-semibold"
                         >
                           <Cake size={10} className="shrink-0" />
-                          <span className="truncate">{b.name.split(" ")[0]}</span>
+                          <span className="min-w-0 flex-1 truncate">{b.name.split(" ")[0]}</span>
+                          <span className="shrink-0">· {ageThisYear(b.birthYear)}</span>
                         </span>
                       )
                     )}

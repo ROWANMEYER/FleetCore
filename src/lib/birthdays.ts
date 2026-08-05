@@ -11,6 +11,13 @@ export function waWishLink(phone: string, name: string): string {
   return `https://wa.me/${international}?text=${encodeURIComponent(message)}`;
 }
 
+/** Age the driver turns this year, derived from their birth year. */
+export function ageThisYear(birthYear: number): number {
+  // Defensive: never render NaN if a stale query result lacks birthYear.
+  if (!Number.isFinite(birthYear)) return 0;
+  return new Date().getFullYear() - birthYear;
+}
+
 /** Two-letter initials for avatar circles, e.g. "JOHN OELF" -> "JO". */
 export function initialsOf(name: string): string {
   return name

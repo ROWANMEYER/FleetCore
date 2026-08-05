@@ -28,18 +28,33 @@ export default function QuickSendPage() {
  const queryStartDate = dateMode ==="single" ? singleDate : rangeStartDate;
  const queryEndDate = dateMode ==="single" ? singleDate : rangeEndDate;
 
+ // Guard against empty/inverted ranges BEFORE querying — prevents the backend
+ // "Start date cannot be after end date" error from crashing the page.
+ const missingDate = queryStartDate ==="" || queryEndDate ==="";
+ const rangeReversed = dateMode ==="range" && queryStartDate !=="" && queryEndDate !=="" && queryEndDate < queryStartDate;
+ const dateError = rangeReversed
+ ?"End date cannot be before the start date."
+ : missingDate
+ ?"Please select a date to load the report."
+ :"";
+
  // 2. Data Fetching
  const [completedOnly, setCompletedOnly] = useState(true);
 
  const { token } = useAuth();
  const region = useRegionArg();
- const reportData = useQuery(api.dailyRoutes.getQuickSendReport, { 
+ const reportData = useQuery(
+ api.dailyRoutes.getQuickSendReport,
+ dateError !==""
+ ?"skip"
+ : {
  startDate: queryStartDate, 
  endDate: queryEndDate,
  completedOnly,
  token,
  region
-});
+ }
+);
  
  const sendLoadReportEmail = useAction(api.emails.sendLoadReportEmail);
  const { addToast } = useToast();
@@ -191,6 +206,11 @@ export default function QuickSendPage() {
  onChange={(e) => setRangeEndDate(e.target.value)}
  className="block w-full border border-[var(--card-border)] rounded-md px-3 py-2 focus:outline-none focus:ring-[#06B6D4] focus:border-[#06B6D4] sm:text-sm"
  />
+ {rangeReversed && (
+ <p className="text-xs font-medium text-red-600 mt-1">
+ {dateError}
+ </p>
+ )}
  </div>
  </div>
 )}
@@ -273,7 +293,13 @@ export default function QuickSendPage() {
  </div>
 
  <div className="flex-1 bg-[var(--card-bg)] dark:backdrop-blur-lg p-8 overflow-auto">
- {isLoading ? (
+ {dateError ? (
+ <EmptyState
+ icon="calendar"
+ title={rangeReversed ?"Invalid date range" :"Select a date"}
+ description={dateError}
+ />
+) : isLoading ? (
  <div className="space-y-6 p-12">
  <SkeletonCard />
  <SkeletonCard />

@@ -573,16 +573,16 @@ function DailyPlannerInputForm() {
   return (
     <div className="h-full min-h-0 flex flex-col relative">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-[var(--card-bg)]/90 backdrop-blur-lg -mx-4 sm:-mx-8 px-4 sm:px-8 pt-4 sm:pt-8 pb-4 border-b border-[var(--card-border)] shadow-sm mb-8 -mt-4 sm:-mt-8">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
+      <div className="sticky top-0 z-10 bg-[var(--card-bg)]/90 backdrop-blur-lg -mx-4 sm:-mx-8 px-4 sm:px-8 pt-3 sm:pt-6 pb-3 sm:pb-4 border-b border-[var(--card-border)] shadow-sm mb-6 -mt-4 sm:-mt-8">
+        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-[var(--foreground)]">
           {mode === "edit" ? "Edit Route" : "New Route"}
         </h1>
-        <p className="text-sm text-[var(--nav-text-color)] mt-1">
-          Create and manage your fleet routes efficiently
+        <p className="hidden sm:block text-sm text-[var(--nav-text-color)] mt-0.5">
+          Create and manage your fleet routes
         </p>
       </div>
 
-      <div className="space-y-8 pb-8">
+      <div className="space-y-8 pb-44 md:pb-8">
         {/* Main Form - Wizard Header */}
         <div
           className={`
@@ -1103,9 +1103,9 @@ function DailyPlannerInputForm() {
           </div>
         </div>
 
-        {/* Save Actions — sticky on mobile above the bottom tab bar */}
+        {/* Save Actions — pinned to the screen bottom on mobile (above the tab bar); in-flow on desktop */}
         {isEditable && (
-          <div className="sticky bottom-0 z-20 md:static -mx-4 sm:-mx-8 px-4 sm:px-8 py-4 sm:py-5 md:pt-6 md:pb-0 flex flex-col gap-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-xl shadow-[0_-8px_24px_rgba(0,0,0,0.12)] rounded-t-2xl md:bg-transparent md:backdrop-blur-none md:shadow-none md:rounded-none">
+          <div className="fixed left-0 right-0 z-30 bottom-[calc(4rem_+_env(safe-area-inset-bottom))] px-4 sm:px-8 py-4 sm:py-5 md:pt-6 md:pb-0 flex flex-col gap-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-xl shadow-[0_-8px_24px_rgba(0,0,0,0.12)] rounded-t-2xl md:static md:left-auto md:right-auto md:bottom-auto md:z-auto md:-mx-8 md:px-8 md:bg-transparent md:backdrop-blur-none md:shadow-none md:rounded-none">
           {saveStatus === "error" && (
             <div className="bg-red-50 dark:bg-red-500/20 text-red-900 dark:text-red-200 p-4 rounded-lg text-sm border border-red-200 dark:border-red-500/40 flex items-center gap-3 shadow-sm">
               <span className="font-semibold">Error:</span>

@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { BarChart3 } from "lucide-react";
+import { SwapsViewToggle } from "@/src/components/operations/SwapsViewToggle";
 
 const kpiColor = (count: number) => {
   if (count <= 3) return "text-green-700";
@@ -53,6 +54,8 @@ export default function TrailerActivityScreen() {
       <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
         <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Trailer Activity</h1>
       </div>
+
+      <SwapsViewToggle />
 
       <div className="flex-1 overflow-auto px-6 py-4 space-y-3" style={{backgroundColor:"var(--background)"}}>
         {trailerCounts.map(item => (

@@ -4,10 +4,11 @@
  * Launches headless Chrome (auto-detected per platform), emulates a 375x812
  * phone, and asserts on every configured page:
  *   - no horizontal overflow
- *   - the two-screen Android UX is present: bottom tab bar with exactly
- *     Dashboard + Input tabs, NO hamburger, NO drawer/sidebar
- *   - the mobile route guard: non-allowed paths (Admin, Settings, Sheets,
- *     ...) redirect to /dashboard
+ *   - the Android UX is present: bottom tab bar with exactly the four
+ *     mobile tabs (Dashboard, Input, Swaps, Sheets), NO hamburger, NO
+ *     drawer/sidebar
+ *   - the mobile route guard: non-allowed paths (Admin, Settings, ...)
+ *     redirect to /dashboard
  *   - no console errors and no console warnings (except an allowlist of
  *     known-benign third-party/informational messages)
  *
@@ -30,15 +31,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const BASE = process.argv[2] || process.env.AUDIT_URL || "https://fleetcore-mu.vercel.app";
-// Pages the audit visits. `allowed: true` means the page is one of the two
+// Pages the audit visits. `allowed: true` means the page is one of the four
 // mobile screens and must render as-is; `allowed: false` means the mobile
 // guard must redirect it to /dashboard.
 const PAGES = [
   { path: "/dashboard", allowed: true },
   { path: "/operations/daily-planner/input", allowed: true },
+  { path: "/operations/swaps/history", allowed: true },
+  { path: "/operations/swaps/trailers", allowed: true },
+  { path: "/operations/daily-planner/sheets", allowed: true },
+  { path: "/calendar", allowed: true },
   { path: "/settings", allowed: false },
   { path: "/admin/trucks", allowed: false },
-  { path: "/operations/daily-planner/sheets", allowed: false },
 ];
 const REPORT_FILE = join(process.cwd(), "mobile-audit-report.json");
 const TAB_BAR_SELECTOR = '[aria-label="Bottom navigation"]';
@@ -286,7 +290,7 @@ async function main() {
       };
     })()`);
 
-    // Two-screen tab bar check: exactly Dashboard + Input tabs
+    // Four-screen tab bar check: exactly Dashboard + Input + Swaps + Sheets
     const tabs = await evalJs(`(() => {
       const nav = document.querySelector('${TAB_BAR_SELECTOR}');
       if (!nav) return { ok: false, reason: "tab bar not found" };
@@ -295,8 +299,18 @@ async function main() {
         href: a.getAttribute('href'),
       }));
       const texts = links.map((l) => l.text).filter(Boolean);
+      const expected = ["Dashboard", "Input", "Swaps", "Sheets"];
+      const expectedHrefs = [
+        "/dashboard",
+        "/operations/daily-planner/input",
+        "/operations/swaps/history",
+        "/operations/daily-planner/sheets",
+      ];
       return {
-        ok: links.length === 2 && texts.includes("Dashboard") && texts.includes("Input"),
+        ok:
+          links.length === 4 &&
+          expected.every((t) => texts.includes(t)) &&
+          expectedHrefs.every((h) => links.some((l) => l.href === h)),
         links,
       };
     })()`);
@@ -327,7 +341,7 @@ async function main() {
     if (p.hasHamburger) failures.push(`${p.requested}: hamburger button must not exist on mobile`);
     if (p.hasAside) failures.push(`${p.requested}: sidebar/drawer must not render on mobile`);
     if (p.tabs && !p.tabs.ok) {
-      failures.push(`${p.requested}: tab bar should have exactly Dashboard + Input -> ${JSON.stringify(p.tabs)}`);
+      failures.push(`${p.requested}: tab bar should have exactly Dashboard, Input, Swaps, Sheets -> ${JSON.stringify(p.tabs)}`);
     }
     if (p.allowed && p.path !== p.requested) {
       failures.push(`${p.requested}: expected to render (allowed screen) but landed on ${p.path}`);

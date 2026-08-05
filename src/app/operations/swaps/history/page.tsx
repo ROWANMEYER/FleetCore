@@ -6,6 +6,7 @@ import { api} from"@/convex/_generated/api";
 import { SkeletonPage} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { BarChart3, ArrowRight} from"lucide-react";
+import { SwapsViewToggle} from"@/src/components/operations/SwapsViewToggle";
 
 type QuickFilter ="today" |"week" |"month";
 
@@ -141,6 +142,8 @@ export default function SwapHistoryScreen() {
  </button>
  </div>
  </div>
+
+ <SwapsViewToggle />
 
  <div className="px-6 py-3 flex gap-2" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
  {(["today","week","month"] as QuickFilter[]).map(key => (

@@ -11,7 +11,10 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
-import { ChevronDown } from "lucide-react";
+import { Cake, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useBirthdays } from "@/src/lib/useBirthdays";
+import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -975,9 +978,9 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 // ─── sub-components ──────────────────────────────────────────────────────────
 
 function KpiCard({
- label, value, sub, accent, onClick,
+ label, value, sub, accent, onClick, icon,
 }: {
- label: string; value: string; sub?: string; accent?: string; onClick?: () => void;
+ label: string; value: string; sub?: string; accent?: string; onClick?: () => void; icon?: ReactNode;
 }) {
  const valueClass = accent ??"text-[var(--foreground)]";
  
@@ -987,7 +990,7 @@ function KpiCard({
  className={`glass-card rounded-xl p-4 sm:p-5 flex flex-col gap-1 text-left w-full transition-all duration-200 group
  ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"}`}
  >
- <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{label}</span>
+ <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider flex items-center gap-1.5">{icon && <span className="shrink-0">{icon}</span>}{label}</span>
  <span className={`text-xl sm:text-2xl font-black leading-tight break-words ${valueClass}`}>{value}</span>
  {sub && <span className="text-xs text-[var(--nav-text-color)] opacity-60">{sub}</span>}
  {onClick && <span className="text-xs text-[var(--nav-text-color)] opacity-40 mt-1 group-hover:opacity-60 transition-opacity">Tap to drill down →</span>}
@@ -1151,6 +1154,8 @@ export default function DashboardPage() {
 };
 
  const todayStr = today();
+ const router = useRouter();
+ const { todayBirthdays } = useBirthdays();
 
  const summary = useQuery(api.dashboard.getExecutiveSummary, { startDate, endDate, token, region});
  const todaySummary = useQuery(api.dashboard.getDashboardLoadsSummary, { startDate: todayStr, endDate: todayStr, token, region});
@@ -1194,7 +1199,7 @@ export default function DashboardPage() {
  <>
  {/* ── Today ── */}
  <CollapsibleSection title="Today" defaultOpen summary={`${todaySummary.totalRoutes} routes · ${todaySummary.completedRoutes} completed`}>
- <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">              <KpiCard label="Routes today" value={String(todaySummary.totalRoutes)}
+ <div className={`grid grid-cols-2 sm:grid-cols-4 gap-4 ${todayBirthdays.length > 0 ? "lg:grid-cols-5" : ""}`}>              <KpiCard label="Routes today" value={String(todaySummary.totalRoutes)}
                 onClick={() => setDrill({ kind:"date", date: todayStr, label:"All routes today"})} />
               <KpiCard label="Completed" value={String(todaySummary.completedRoutes)} accent="text-green-400"
                 onClick={() => setDrill({ kind:"status", status:"completed", startDate: todayStr, endDate: todayStr, label:"Completed routes today"})} />
@@ -1202,8 +1207,16 @@ export default function DashboardPage() {
                 onClick={() => setDrill({ kind:"status", status:"planned", startDate: todayStr, endDate: todayStr, label:"Pending routes today"})} />
               <KpiCard label="KM today" value={fmtNum(todaySummary.totalKm)} sub="kilometres"
                 onClick={() => setDrill({ kind:"date", date: todayStr, label:"KM breakdown — today"})} />
+              {todayBirthdays.length > 0 && (
+                <KpiCard label="Birthdays today" value={String(todayBirthdays.length)} accent="text-pink-400"
+                  icon={<Cake size={16} className="text-[#EC4899]" />}
+                  sub={todayBirthdays.map((b) => b.name.split(" ")[0]).join(", ")}
+                  onClick={() => router.push("/calendar")} />
+              )}
  </div>
  </CollapsibleSection>
+
+ <BirthdaysCard />
 
  {/* ── Period KPIs ── */}
  <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>

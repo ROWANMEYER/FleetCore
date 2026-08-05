@@ -13,10 +13,12 @@ import {
   Sun,
   Moon,
   LogOut,
+  CalendarDays,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { MobileTabBar } from "@/src/components/MobileTabBar";
+import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -25,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/admin", label: "Admin", icon: Shield, adminOnly: false },
   { href: "/all-regions", label: "All Regions", icon: BarChart3, adminOnly: true },
   { href: "/settings", label: "Settings", icon: Settings, adminOnly: false },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, adminOnly: false },
 ] as const;
 
 /* ─── Custom hook for mounted check ────────────────────────────── */
@@ -93,6 +96,7 @@ export default function Navigation() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <BirthdayBell />
           <RegionSwitcher compact />
           {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
         </div>
@@ -132,6 +136,9 @@ export default function Navigation() {
             >
               FleetCore
             </span>
+          </div>
+          <div className="ml-auto pl-2">
+            <BirthdayBell />
           </div>
         </div>
 

@@ -13,6 +13,7 @@ import type * as ai from "../ai.js";
 import type * as attachments from "../attachments.js";
 import type * as backfillRegion from "../backfillRegion.js";
 import type * as backfillStatus from "../backfillStatus.js";
+import type * as birthdays from "../birthdays.js";
 import type * as cleanupTrailerSwaps from "../cleanupTrailerSwaps.js";
 import type * as cleanup_trucks from "../cleanup_trucks.js";
 import type * as crons from "../crons.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   attachments: typeof attachments;
   backfillRegion: typeof backfillRegion;
   backfillStatus: typeof backfillStatus;
+  birthdays: typeof birthdays;
   cleanupTrailerSwaps: typeof cleanupTrailerSwaps;
   cleanup_trucks: typeof cleanup_trucks;
   crons: typeof crons;

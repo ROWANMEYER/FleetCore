@@ -6,12 +6,21 @@ import Navigation from "@/src/components/Navigation";
 import { AmbientBackground } from "@/src/components/AmbientBackground";
 import { useAuth } from "./AuthProvider";
 
-/* ─── Android app: two-screen mode ────────────────────────────────
+/* ─── Android app: four-screen mode ────────────────────────────────
    On phones (<768px, same breakpoint the app uses for "mobile") the
-   app is deliberately limited to the Dashboard and the Input screens.
-   Every other route redirects to the Dashboard. Desktop keeps the
-   full sidebar and all screens. */
-const MOBILE_ALLOWED_PATHS = ["/dashboard", "/operations/daily-planner/input", "/operations/daily-planner/edit"];
+   app is limited to Dashboard, Input, Swaps and Sheets (both swaps
+   screens and the edit route are covered). Every other route
+   redirects to the Dashboard. Desktop keeps the full sidebar and all
+   screens. */
+const MOBILE_ALLOWED_PATHS = [
+  "/dashboard",
+  "/operations/daily-planner/input",
+  "/operations/daily-planner/edit",
+  "/operations/swaps/history",
+  "/operations/swaps/trailers",
+  "/operations/daily-planner/sheets",
+  "/calendar",
+];
 
 function isMobileAllowed(path: string) {
   return MOBILE_ALLOWED_PATHS.some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
@@ -40,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (user && isLogin) router.replace("/dashboard");
   }, [loading, user, isLogin, router]);
 
-  // Mobile guard: only Dashboard + Input are reachable on phones
+  // Mobile guard: only the four mobile screens are reachable on phones
   useEffect(() => {
     if (loading || !user || !isMobile || isLogin) return;
     if (!isMobileAllowed(pathname)) router.replace("/dashboard");

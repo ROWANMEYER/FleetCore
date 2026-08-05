@@ -412,4 +412,12 @@ export default defineSchema({
     lastSeenAt: v.float64(),
   })
     .index("by_endpoint", ["endpoint"]),
+  // Driver birthday alerts — per user, per driver, per year. One row hides
+  // this year's birthday for that user only (reappears next year).
+  dismissedBirthdayAlerts: defineTable({
+    userId: v.id("users"),
+    driverId: v.id("drivers"),
+    birthdayDate: v.string(), // this year's occurrence, e.g. "2026-08-04"
+  })
+    .index("by_userId_driverId", ["userId", "driverId"]),
 });

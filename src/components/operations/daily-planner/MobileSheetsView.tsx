@@ -163,7 +163,7 @@ const LEVEL_DOT: Record<string, string> = {
 };
 
 const inputClass =
-  "w-full h-11 px-3.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
+  "w-full h-9 px-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -282,8 +282,8 @@ export default function MobileSheetsView({
   return (
     <div className="h-full flex flex-col">
       {/* ── Sticky header: title + date navigation ── */}
-      <div className="sticky top-0 z-30 -mx-4 px-4 pt-4 pb-2 sm:-mx-8 sm:px-8 bg-[var(--card-bg)]/90 backdrop-blur-md border-b border-[var(--card-border)]">
-        <div className="flex items-center justify-between mb-3">
+      <div className="sticky top-0 z-30 -mx-4 px-4 pt-3 pb-2 sm:-mx-8 sm:px-8 bg-[var(--card-bg)]/90 backdrop-blur-md border-b border-[var(--card-border)]">
+        <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-black tracking-tight text-[var(--foreground)]">
             Sheets
             <span className="ml-2 text-xs font-medium text-[var(--nav-text-color)]">
@@ -292,7 +292,7 @@ export default function MobileSheetsView({
           </h1>
           <button
             onClick={goToday}
-            className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-semibold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] border border-[rgba(6,182,212,0.2)] active:scale-95 transition-all"
+            className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-semibold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] border border-[rgba(6,182,212,0.2)] active:scale-95 transition-all"
           >
             <RotateCcw size={12} strokeWidth={2.5} />
             Today
@@ -300,12 +300,12 @@ export default function MobileSheetsView({
         </div>
 
         {/* Mode chips */}
-        <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex items-center gap-1.5 mb-1.5">
           {(["single", "range", "month"] as DateMode[]).map((m) => (
             <button
               key={m}
               onClick={() => setDateMode(m)}
-              className={`flex-1 h-9 rounded-lg text-xs font-semibold capitalize transition-all ${
+              className={`flex-1 h-8 rounded-lg text-xs font-semibold capitalize transition-all ${
                 dateMode === m
                   ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
                   : "bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]"
@@ -322,7 +322,7 @@ export default function MobileSheetsView({
             <button
               onClick={goPrevDay}
               aria-label="Previous day"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
             >
               <ChevronLeft size={18} strokeWidth={2.5} />
             </button>
@@ -342,7 +342,7 @@ export default function MobileSheetsView({
             <button
               onClick={goNextDay}
               aria-label="Next day"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
             >
               <ChevronRight size={18} strokeWidth={2.5} />
             </button>
@@ -350,42 +350,42 @@ export default function MobileSheetsView({
         )}
 
         {dateMode === "range" && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs font-semibold text-[var(--nav-text-color)]">
+          <div className="grid grid-cols-2 gap-1.5">
+            <label className="text-[10px] font-semibold text-[var(--nav-text-color)]">
               From
               <input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className={`${inputClass} mt-1`}
+                className={`${inputClass} mt-0.5`}
               />
             </label>
-            <label className="text-xs font-semibold text-[var(--nav-text-color)]">
+            <label className="text-[10px] font-semibold text-[var(--nav-text-color)]">
               To
               <input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className={`${inputClass} mt-1`}
+                className={`${inputClass} mt-0.5`}
               />
             </label>
           </div>
         )}
 
         {dateMode === "month" && (
-          <label className="block text-xs font-semibold text-[var(--nav-text-color)]">
+          <label className="block text-[10px] font-semibold text-[var(--nav-text-color)]">
             Month
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className={`${inputClass} mt-1`}
+              className={`${inputClass} mt-0.5`}
             />
           </label>
         )}
 
         {/* Search + filter row */}
-        <div className="flex items-center gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-2">
           <div className="relative flex-1">
             <Search
               size={15}
@@ -401,7 +401,7 @@ export default function MobileSheetsView({
           </div>
           <button
             onClick={() => setShowFilters(true)}
-            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border shadow-sm active:scale-95 transition-all ${
+            className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border shadow-sm active:scale-95 transition-all ${
               hasAnyFilter
                 ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[#06B6D4]"
                 : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]"
@@ -417,7 +417,7 @@ export default function MobileSheetsView({
           </button>
           <button
             onClick={() => setSortOpen((s) => !s)}
-            className={`relative flex h-11 shrink-0 items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold shadow-sm active:scale-95 transition-all ${
+            className={`relative flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 px-0 rounded-lg border text-xs font-semibold shadow-sm active:scale-95 transition-all sm:w-auto sm:px-3 sm:justify-start ${
               sortConfig.column
                 ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[#06B6D4]"
                 : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]"
@@ -477,7 +477,7 @@ export default function MobileSheetsView({
 
       {/* ── Active filter chips ── */}
       {hasAnyFilter && (
-        <div className="flex flex-wrap items-center gap-1.5 px-0.5 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 px-0.5 py-2">
           {quickSearch && (
             <Chip label={`Search: "${quickSearch}"`} onClear={() => setQuickSearch("")} />
           )}

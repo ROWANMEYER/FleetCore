@@ -1,5 +1,4 @@
 import { mutation } from "./_generated/server"; 
- import { v } from "convex/values"; 
  
  export const migrateLegacyDailyRoutes = mutation({ 
    handler: async (ctx) => { 
@@ -28,5 +27,34 @@ import { mutation } from "./_generated/server";
        } 
      } 
      return `Migrated ${count} legacy routes.`; 
+   }, 
+ }); 
+ 
+ /** 
+  * Backfill the multi-device `sessions` table from the legacy single-session
+  * fields on `users` (users.sessionToken / sessionExpiresAt). Run once after
+  * deploying the multi-session auth change so existing logins survive. 
+  */ 
+ export const migrateLegacySessionsToTable = mutation({ 
+   handler: async (ctx) => { 
+     const users = await ctx.db.query("users").collect(); 
+     const existingTokens = new Set((await ctx.db.query("sessions").collect()).map((s) => s.token)); 
+     let count = 0; 
+     const now = Date.now(); 
+     for (const user of users) { 
+       const legacyToken = (user as any).sessionToken; 
+       const legacyExpiry = (user as any).sessionExpiresAt; 
+       if (legacyToken && legacyExpiry && legacyExpiry > now && !existingTokens.has(legacyToken)) { 
+         await ctx.db.insert("sessions", { 
+           userId: user._id, 
+           token: legacyToken, 
+           expiresAt: legacyExpiry, 
+           createdAt: now, 
+         }); 
+         existingTokens.add(legacyToken); 
+         count++; 
+       } 
+     } 
+     return `Migrated ${count} legacy sessions to the sessions table.`; 
    }, 
  });

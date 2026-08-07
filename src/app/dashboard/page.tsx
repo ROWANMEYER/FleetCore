@@ -5,16 +5,13 @@ import { useQuery, useMutation} from"convex/react";
 import { useTheme} from"next-themes";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
-import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
+import { useAuth, useRegionArg, type RegionFilter } from "@/src/components/auth/AuthProvider";
 import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer} from"recharts";
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
-import { Cake, ChevronDown } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useBirthdays } from "@/src/lib/useBirthdays";
-import { ageThisYear } from "@/src/lib/birthdays";
+import { ChevronDown, MapPin } from "lucide-react";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -1057,43 +1054,52 @@ function CollapsibleSection({
 );
 }
 
-function StatusPill({
- status, count, onClick,
-}: {
- status: string; count: number; onClick?: () => void;
-}) {
- const baseStyle ="glass-card rounded-lg w-full transition-all";
- const accentMap: Record<string, { text: string; dot: string}> = {
- planned: { text:"text-yellow-500", dot:"bg-yellow-500"},
- completed: { text:"text-emerald-500", dot:"bg-emerald-500"},
- locked: { text:"text-blue-500", dot:"bg-blue-500"},
-};
- const accent = accentMap[status] ?? { text:"text-[var(--nav-text-color)]", dot:"bg-[var(--card-bg)]"};
- 
- return (
- <button
- onClick={onClick}
- className={`${baseStyle} px-4 py-3 flex items-center justify-between
- ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"}`}
- >
- <div className="flex items-center gap-2">
- <span className={`w-2 h-2 rounded-full ${accent.dot}`} />
- <span className={`text-sm font-semibold capitalize ${accent.text}`}>{status}</span>
- </div>
- <div className="flex items-center gap-2">
- <span className={`text-lg font-black ${accent.text}`}>{count}</span>
- {onClick && <span className="text-xs opacity-40">→</span>}
- </div>
- </button>
-);
-}
-
 function ProgressBar({ pct, colour}: { pct: number; colour: string}) {
  return (
  <div className="w-full bg-[var(--card-border)] rounded-full h-2 overflow-hidden">
  <div className={`h-2 rounded-full ${colour}`} style={{ width:`${Math.min(pct, 100)}%`}} />
  </div>
 );
+}
+
+/* Master region filter — the region is the master filter for every number on
+   this screen. Admins pick All / Garden Route / Eastern Cape here (synced with
+   the sidebar switcher); regional users are server-locked to their own region
+   and see a read-only badge. */
+function RegionMasterFilter() {
+ const { user, regionFilter, setRegionFilter } = useAuth();
+
+ if (!user) return null;
+ if (user.role !== "admin") {
+ const locked = user?.region ?? null;
+ return (
+ <div className="glass-card flex items-center gap-2 rounded-xl px-4 py-2.5 shrink-0" title="Your data is scoped to this region">
+ <MapPin size={14} className="text-[#06B6D4] shrink-0" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>
+ <span className="text-sm font-black text-[var(--foreground)] capitalize">
+ {locked ? locked.replace("_", " ") : "—"}
+ </span>
+ </div>
+ );
+ }
+
+ return (
+ <div className="glass-card flex items-center gap-2 rounded-xl pl-3 pr-1 py-1.5 shrink-0">
+ <MapPin size={14} className="text-[#06B6D4] shrink-0" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>
+ <select
+ value={regionFilter}
+ onChange={(e) => setRegionFilter(e.target.value as RegionFilter)}
+ aria-label="Dashboard region filter"
+ title="Region — master filter for all dashboard data"
+ className="bg-transparent text-sm font-bold text-[var(--foreground)] py-1 pr-1 pl-1 focus:outline-none cursor-pointer"
+ >
+ <option value="all">All Regions</option>
+ <option value="garden_route">Garden Route</option>
+ <option value="eastern_cape">Eastern Cape</option>
+ </select>
+ </div>
+ );
 }
 
 // ─── main page ───────────────────────────────────────────────────────────────
@@ -1154,35 +1160,28 @@ export default function DashboardPage() {
    border: "var(--card-border)",
 };
 
- const todayStr = today();
- const router = useRouter();
- const { todayBirthdays } = useBirthdays();
-
  const summary = useQuery(api.dashboard.getExecutiveSummary, { startDate, endDate, token, region});
- const todaySummary = useQuery(api.dashboard.getDashboardLoadsSummary, { startDate: todayStr, endDate: todayStr, token, region});
- const statusBreakdown = useQuery(api.dashboard.getRoutesByStatus, { startDate, endDate, token, region});
  const topClients = useQuery(api.dashboard.getCustomerAnalytics, { startDate, endDate, token, region});
- const fleetPerf = useQuery(api.dashboard.getFleetPerformance, { startDate, endDate, token, region});
  const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, { startDate, endDate, token, region});
  const monthComparison = useQuery(api.dashboard.getMonthToMonthComparison, { month1, month2, token, region});
 
- const loading = !summary || !todaySummary || !statusBreakdown || !topClients || !fleetPerf;
+ const loading = !summary || !topClients || !revenueOverTime;
  const maxRevDay = revenueOverTime ? Math.max(...revenueOverTime.map((d) => d.revenue), 1) : 1;
 
  return (
  <>
  {drill && <DrillDownPanel drill={drill} onClose={() => setDrill(null)} onAnalyticsClick={() => setShowAnalytics(true)} onAnalyticsClose={() => setShowAnalytics(false)} showAnalytics={showAnalytics} isDayMode={isDayMode} onDrill={(newDrill) => setDrill(newDrill)} />}
 
- <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>
- <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-10">
+ <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-10">
 
  {/* ── Header ── */}
  <div className="flex flex-col gap-4">
- <div className="flex items-start justify-between">
+ <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
  <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
  <p className={`${themeClasses.text.secondary} text-sm mt-1`}>Fleet operations overview · tap any card to drill down</p>
  </div>
+ <RegionMasterFilter />
  </div>            <FilterBar
               startDate={startDate}
               endDate={endDate}
@@ -1198,31 +1197,6 @@ export default function DashboardPage() {
  </div>
 ) : (
  <>
- {/* ── Today ── */}
- <CollapsibleSection title="Today" defaultOpen summary={`${todaySummary.totalRoutes} routes · ${todaySummary.completedRoutes} completed`}>
- <div className={`grid grid-cols-2 sm:grid-cols-4 gap-4 ${todayBirthdays.length > 0 ? "lg:grid-cols-5" : ""}`}>              <KpiCard label="Routes today" value={String(todaySummary.totalRoutes)}
-                onClick={() => setDrill({ kind:"date", date: todayStr, label:"All routes today"})} />
-              <KpiCard label="Completed" value={String(todaySummary.completedRoutes)} accent="text-green-400"
-                onClick={() => setDrill({ kind:"status", status:"completed", startDate: todayStr, endDate: todayStr, label:"Completed routes today"})} />
-              <KpiCard label="Pending" value={String(todaySummary.incompleteRoutes)} accent="text-yellow-400"
-                onClick={() => setDrill({ kind:"status", status:"planned", startDate: todayStr, endDate: todayStr, label:"Pending routes today"})} />
-              <KpiCard label="KM today" value={fmtNum(todaySummary.totalKm)} sub="kilometres"
-                onClick={() => setDrill({ kind:"date", date: todayStr, label:"KM breakdown — today"})} />
-              {todayBirthdays.length > 0 && (
-                <KpiCard label="Birthdays today" value={String(todayBirthdays.length)} accent="text-pink-400"
-                  icon={<Cake size={16} className="text-[#EC4899]" />}
-                  sub={
-                    todayBirthdays.length === 1
-                      ? `${todayBirthdays[0].name.split(" ")[0]} turns ${ageThisYear(todayBirthdays[0].birthYear)} today`
-                      : todayBirthdays
-                          .map((b) => `${b.name.split(" ")[0]} turns ${ageThisYear(b.birthYear)}`)
-                          .join(" · ")
-                  }
-                  onClick={() => router.push("/calendar")} />
-              )}
- </div>
- </CollapsibleSection>
-
  <BirthdaysCard />
 
  {/* ── Period KPIs ── */}
@@ -1239,25 +1213,10 @@ export default function DashboardPage() {
                 accent={summary.completionRate >= 80 ?"text-green-400" :"text-yellow-400"}
                 onClick={() => setDrill({ kind:"status", status:"completed", startDate, endDate, label:"Completed routes this period"})} />
  </div>
- <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">              <KpiCard label="Rev / Route" value={fmt(summary.revenuePerRoute)} sub="average"
-                onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per route detail"})} />
-              <KpiCard label="Rev / Load" value={fmt(summary.revenuePerLoad)} sub="average"
-                onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per load detail"})} />
-              <KpiCard label="Rev / KM" value={`R ${summary.revenuePerKm.toFixed(2)}`} sub="average"
-                onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per KM detail"})} />
- </div>
  </CollapsibleSection>
 
- {/* ── Status + Revenue chart ── */}
+ {/* ── Revenue by Day + Top Clients ── */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- <CollapsibleSection title="Route Status" carded summary={statusBreakdown?.map((s) => `${s.count} ${s.status}`).join(" · ")}>
- <div className="space-y-3">
- {(statusBreakdown ?? []).map((s) => (              <StatusPill key={s.status} status={s.status} count={s.count}
-                onClick={() => setDrill({ kind:"status", status: s.status, startDate, endDate, label:`${s.status.charAt(0).toUpperCase() + s.status.slice(1)} routes`})} />
-))}
- </div>
- </CollapsibleSection>
-
  <CollapsibleSection title="Revenue by Day — tap a row" carded summary={`${revenueOverTime?.length ?? 0} days`}>
  {!revenueOverTime || revenueOverTime.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1283,10 +1242,6 @@ export default function DashboardPage() {
  </div>
 )}
  </CollapsibleSection>
- </div>
-
- {/* ── Top clients + Top trucks ── */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
  <CollapsibleSection title="Top Clients — tap to drill down" carded summary={`${topClients.topCustomers?.length ?? 0} clients`}>
  {(topClients.topCustomers ?? []).length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1310,7 +1265,7 @@ export default function DashboardPage() {
  </span>
  <div className="text-right">
  <span className="text-sm font-bold text-emerald-400">{fmt(c.revenue)}</span>
- <span className={`text-xs ml-2 ${isDayMode ?"text-[var(--nav-text-color)]" :"text-[var(--nav-text-color)]"}`}>{c.loads} loads</span>
+ <span className="text-xs ml-2 text-[var(--nav-text-color)]">{c.loads} loads</span>
  </div>
  </div>
  <ProgressBar pct={pct} colour="bg-emerald-600" />
@@ -1320,64 +1275,7 @@ export default function DashboardPage() {
  </div>
 )}
  </CollapsibleSection>
-
- <CollapsibleSection title="Top Trucks — tap to drill down" carded summary={`${fleetPerf.topTrucks?.length ?? 0} trucks`}>
- {(fleetPerf.topTrucks ?? []).length === 0 ? (
- <div className="flex flex-col items-center justify-center py-8 text-center">
- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
- <rect x="1" y="3" width="15" height="13" rx="2" />
- <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
- <circle cx="5.5" cy="18.5" r="2.5" />
- <circle cx="18.5" cy="18.5" r="2.5" />
- </svg>
- <p className="text-xs text-[var(--nav-text-color)]">No truck data available.</p>
  </div>
-) : (
- <div className="space-y-3">
- {fleetPerf.topTrucks.slice(0, 8).map((t, i) => {
- const pct = summary.totalRevenue > 0 ? (t.revenue / summary.totalRevenue) * 100 : 0;
- return (
- <button key={t.truckNumber} onClick={() => setDrill({ kind:"truck", truck: t.truckNumber, startDate, endDate, label:`Truck ${t.truckNumber} — routes`})}
- className={`w-full space-y-1 rounded-lg px-3 py-2.5 transition-colors text-left group ${
- isDayMode
- ?"hover:bg-[var(--card-bg)] text-[var(--foreground)]"
- :"hover:bg-[var(--card-bg)]/50 text-gray-200"
-}`}>
- <div className="flex items-center justify-between">
- <span className={`text-sm font-semibold ${
- isDayMode
- ?"group-hover:text-gray-950"
- :"group-hover:text-white"
-}`}>
- <span className={`mr-2 ${isDayMode ?"text-[var(--nav-text-color)]" :"text-[var(--nav-text-color)]"}`}>#{i + 1}</span>Truck {t.truckNumber}
- </span>
- <div className="text-right">
- <span className="text-sm font-bold text-blue-400">{fmt(t.revenue)}</span>
- <span className={`text-xs ml-2 ${isDayMode ?"text-[var(--nav-text-color)]" :"text-[var(--nav-text-color)]"}`}>{t.routes} routes · {fmtNum(t.km)} km</span>
- </div>
- </div>
- <ProgressBar pct={pct} colour="bg-blue-600" />
- </button>
-);
-})}
- </div>
-)}
- </CollapsibleSection>
- </div>
-
- {/* ── Fleet summary ── */}
- <CollapsibleSection title="Fleet Summary" carded summary={`${fleetPerf.totalTrucksActive} active trucks`}>
- <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
- <KpiCard label="Active trucks" value={String(fleetPerf.totalTrucksActive)}
- onClick={() => setDrill({ kind:"period", startDate, endDate, label:"All active trucks this period"})} />
- <KpiCard label="Unique clients" value={String(topClients.totalUniqueCustomers)}
- onClick={() => setDrill({ kind:"period", startDate, endDate, label:"All clients this period"})} />
- <KpiCard label="Avg KM / route" value={fmtNum(summary.avgKmPerRoute)} sub="kilometres"
- onClick={() => setDrill({ kind:"period", startDate, endDate, label:"KM per route breakdown"})} />
- <KpiCard label="Rev / KM fleet" value={`R ${fleetPerf.avgRevenuePerKm.toFixed(2)}`} sub="per kilometre" accent="text-emerald-400"
- onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue per KM — all routes"})} />
- </div>
- </CollapsibleSection>
 
  {/* ── Month-to-Month Comparison ── */}
  <CollapsibleSection title="Month-to-Month Comparison" carded summary={`M1 ${monthLabel(month1)} → M2 ${monthLabel(month2)}`}>

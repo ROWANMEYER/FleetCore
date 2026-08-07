@@ -22,10 +22,18 @@ import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/
  import ImportLoadsModal from"./ImportLoadsModal";
  import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import SpreadsheetDataTable from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
+import MobileSheetsView from"@/src/components/operations/daily-planner/MobileSheetsView";
+import { useIsMobile } from"@/src/hooks/useIsMobile";
 import { gradients } from"@/src/lib/design-tokens";
 
 // Offline cache key — last-fetched sheets data for read-only offline viewing
 const OFFLINE_CACHE_KEY = "fleetcore-sheets-cache-v1";
+// Persisted sheets UI state — density, search, filters, sort, date range, and
+// column layout survive page lifecycle. Declared at module scope so every lazy
+// state initializer can read it regardless of declaration order (a component-
+// local const caused a TDZ ReferenceError in the filters initializer, which
+// silently reset all filters on every visit).
+const SHEETS_UI_KEY = "fleetcore-sheets-ui-v1";
 import {
  ResponsiveContainer,
  AreaChart,
@@ -245,6 +253,9 @@ const DEFAULT_TABLE_COLUMN_VISIBILITY: Record<ResizableTableColumnKey, boolean> 
  status: true,
 };
 
+// Columns the sort logic in getFilteredAndSortedRoutes actually knows how to sort.
+const SORTABLE_COLUMNS = ["date", "truck", "trailer", "client", "driver", "from", "to", "amount", "status"];
+
 export default function DailyPlannerSheetsPage({ mode ="primary"}: { mode?:"primary" |"secondary"}) {
  return (
  <Suspense fallback={null}>
@@ -260,10 +271,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // 1. Track mount state (client-only enhancement)
  const [isMounted, setIsMounted] = useState(false);
  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
- const [isHeaderCompact, setIsHeaderCompact] = useState(false);
+ const [isHeaderCompact, setIsHeaderCompact] = useState(true); // auto-collapse the header (date selector + KPI/chart sections) into a slim bar
+ const [summaryCollapsed, setSummaryCollapsed] = useState(false); // independently collapse the KPI/chart summary above the table
  useEffect(() => {
  setIsMounted(true);
 }, []);
+ // Mobile viewport detection (matches AppShell's 767px mobile breakpoint) —
+ // phones get the purpose-built mobile Sheets screen instead of the desktop grid.
+ const isMobile = useIsMobile();
 
  // TRAE-FIX: Remove conditional layout logic
  //"mode" is used for logic, but we must NOT change the grid structure based on it during render.
@@ -330,9 +345,18 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  }, !!selectedRoute);
 
  // Sort and Filter State
- const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc'}>({
- column: null,
- direction: 'asc',
+ const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc'}>(() => {
+ if (typeof window === "undefined") return { column: null, direction: 'asc' };
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.sort && typeof parsed.sort.column === 'string' && (parsed.sort.direction === 'asc' || parsed.sort.direction === 'desc') && SORTABLE_COLUMNS.includes(parsed.sort.column)) {
+ return { column: parsed.sort.column, direction: parsed.sort.direction };
+ }
+ }
+ } catch { /* ignore */ }
+ return { column: null, direction: 'asc' };
 });
 
  const [filters, setFilters] = useState<{
@@ -371,12 +395,26 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  } catch { /* ignore */ }
  return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
 });
- const [dashboardDrilldown, setDashboardDrilldown] = useState({
- date: null as { label: string; date: string} | null,
- truck: null as { label: string; value: string} | null,
- client: null as { label: string; value: string} | null,
- status: null as { label: string; values: string[]} | null,
- sort: null as { label: string; column: string; direction: 'asc' | 'desc'} | null,
+ const [dashboardDrilldown, setDashboardDrilldown] = useState<{
+ date: { label: string; date: string } | null;
+ truck: { label: string; value: string } | null;
+ client: { label: string; value: string } | null;
+ status: { label: string; values: string[] } | null;
+ sort: { label: string; column: string; direction: 'asc' | 'desc' } | null;
+}>(() => {
+ if (typeof window === "undefined") return { date: null, truck: null, client: null, status: null, sort: null };
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ // Only the sort drilldown is persisted — date/truck/client/status drilldowns
+ // are transient "Dashboard: ..." focus states that reset on every visit.
+ if (parsed.drillSort && typeof parsed.drillSort.column === 'string' && typeof parsed.drillSort.direction === 'string' && SORTABLE_COLUMNS.includes(parsed.drillSort.column)) {
+ return { date: null, truck: null, client: null, status: null, sort: parsed.drillSort };
+ }
+ }
+ } catch { /* ignore */ }
+ return { date: null, truck: null, client: null, status: null, sort: null };
 });
 
  const [showFilterDropdown, setShowFilterDropdown] = useState<string | null>(null);  const [showColumnPicker, setShowColumnPicker] = useState(false);
@@ -386,7 +424,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   const [isFullscreenEntered, setIsFullscreenEntered] = useState(false);
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
  // Persisted UI state: density, search, filters survive page lifecycle
- const SHEETS_UI_KEY = "fleetcore-sheets-ui-v1";
+ // (SHEETS_UI_KEY is declared at module scope so earlier initializers can use it)
  const [tableDensity, setTableDensity] = useState<'comfortable' | 'compact'>(() => {
  if (typeof window === "undefined") return 'compact';
  try {
@@ -445,11 +483,13 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  parsed.density = tableDensity;
  parsed.search = quickSearch;
  parsed.filters = filters;
+ parsed.sort = sortConfig;
+ parsed.drillSort = dashboardDrilldown.sort;
  parsed.columnWidths = tableColumnWidths;
  parsed.columnVisibility = tableColumnVisibility;
  localStorage.setItem(SHEETS_UI_KEY, JSON.stringify(parsed));
  } catch { /* ignore */ }
- }, [tableDensity, quickSearch, filters, tableColumnWidths, tableColumnVisibility]);
+ }, [tableDensity, quickSearch, filters, sortConfig, dashboardDrilldown, tableColumnWidths, tableColumnVisibility]);
  const resizingColumnRef = useRef<{ key: ResizableTableColumnKey; startX: number; startWidth: number} | null>(null);
  const tableHeaderScrollRef = useRef<HTMLDivElement | null>(null);
  const tableBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -760,17 +800,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  setTableColumnWidths(DEFAULT_TABLE_COLUMN_WIDTHS);
  setTableColumnVisibility(DEFAULT_TABLE_COLUMN_VISIBILITY);
 
- // 5. Persist cleared filters to localStorage (density is preserved separately)
-  try {
- const existing = localStorage.getItem(SHEETS_UI_KEY);
- const parsed = existing ? JSON.parse(existing) : {};
- parsed.search = '';
- parsed.filters = { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
- parsed.columnWidths = DEFAULT_TABLE_COLUMN_WIDTHS;
- parsed.columnVisibility = DEFAULT_TABLE_COLUMN_VISIBILITY;
- // density is intentionally left untouched
- localStorage.setItem(SHEETS_UI_KEY, JSON.stringify(parsed));
- } catch { /* ignore */ }
+ // 5. Persistence is handled by the state-persist effects, which write the
+ // complete reset state (including the cleared sort/dates) — density stays as-is.
  };
  
   const summarizeRoutes = (routesList: any[]) => {
@@ -1070,16 +1101,68 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const router = useRouter();
  const urlDate = searchParams.get("date");
 
- // Date Mode State
- const [dateMode, setDateMode] = useState<"single" |"range" |"month">("single");
+ // Date Mode State (persisted — restored from SHEETS_UI_KEY so the selected
+ // date range survives navigating to other screens and back)
+ const [dateMode, setDateMode] = useState<"single" |"range" |"month">(() => {
+ if (typeof window === "undefined") return "single";
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (parsed.dateMode === "range" || parsed.dateMode === "month") return parsed.dateMode;
+ }
+ } catch { /* ignore */ }
+ return "single";
+ });
 
- // Single Date State (defaults to URL or today - SAFE INIT)
- const [singleDate, setSingleDate] = useState(""); 
+ // Single Date State (defaults to URL or today - SAFE INIT, persisted)
+ const [singleDate, setSingleDate] = useState(() => {
+ if (typeof window === "undefined") return "";
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (typeof parsed.singleDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.singleDate)) return parsed.singleDate;
+ }
+ } catch { /* ignore */ }
+ return "";
+ });
 
- // Range Date State (defaults to today - SAFE INIT)
- const [fromDate, setFromDate] = useState("");
- const [toDate, setToDate] = useState("");  // Month State (defaults to current month)
-  const [selectedMonth, setSelectedMonth] = useState("");
+ // Range Date State (defaults to today - SAFE INIT, persisted)
+ const [fromDate, setFromDate] = useState(() => {
+ if (typeof window === "undefined") return "";
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (typeof parsed.fromDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.fromDate)) return parsed.fromDate;
+ }
+ } catch { /* ignore */ }
+ return "";
+ });
+ const [toDate, setToDate] = useState(() => {
+ if (typeof window === "undefined") return "";
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (typeof parsed.toDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.toDate)) return parsed.toDate;
+ }
+ } catch { /* ignore */ }
+ return "";
+ });
+ // Month State (defaults to current month, persisted)
+ const [selectedMonth, setSelectedMonth] = useState(() => {
+ if (typeof window === "undefined") return "";
+ try {
+ const saved = localStorage.getItem(SHEETS_UI_KEY);
+ if (saved) {
+ const parsed = JSON.parse(saved);
+ if (typeof parsed.selectedMonth === "string" && /^\d{4}-\d{2}$/.test(parsed.selectedMonth)) return parsed.selectedMonth;
+ }
+ } catch { /* ignore */ }
+ return "";
+ });
 
   // Sync state with URL changes and Init Defaults
   useEffect(() => {
@@ -1099,6 +1182,22 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  if (!toDate) setToDate(today);
  if (!selectedMonth) setSelectedMonth(currentMonth);
 }, [urlDate]); // Run on mount and URL change
+
+ // Persist the date selector state (mode + selected dates) so it survives
+ // navigating away to other screens and back. Kept in its own effect after the
+ // state declarations above to avoid referencing them before initialization.
+ useEffect(() => {
+ try {
+ const existing = localStorage.getItem(SHEETS_UI_KEY);
+ const parsed = existing ? JSON.parse(existing) : {};
+ parsed.dateMode = dateMode;
+ parsed.singleDate = singleDate;
+ parsed.fromDate = fromDate;
+ parsed.toDate = toDate;
+ parsed.selectedMonth = selectedMonth;
+ localStorage.setItem(SHEETS_UI_KEY, JSON.stringify(parsed));
+ } catch { /* ignore */ }
+ }, [dateMode, singleDate, fromDate, toDate, selectedMonth]);
 
  const handleSingleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
  const newDate = e.target.value;
@@ -1725,6 +1824,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   return getFilteredAndSortedRoutes(routes || []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routes, filters, sortConfig, dashboardDrilldown, quickSearch]);
+
+ // Mobile route list: same filters/sort as the desktop grid, but dashboard
+ // drilldown state is excluded — phones can't see the drilldown chips or
+ // clear them, so it must never silently apply (e.g. a persisted drillSort).
+ const filteredRoutesMobile = useMemo(() => {
+ return getFilteredAndSortedRoutes(routes || [], { includeDashboard: false });
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [routes, filters, sortConfig, quickSearch]);
 
  const baseRoutes = useMemo(() => {
  return getFilteredAndSortedRoutes(routes || [], { includeDashboard: false, applySorting: false});
@@ -2385,6 +2492,137 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
        }
      : {};
 
+ // ── Route detail overlay (shared desktop/mobile) ─────────────────────────
+ // The route detail/edit side panel and the confirmation dialog are rendered
+ // on BOTH the desktop grid and the mobile card view (tapping a mobile card
+ // opens the same panel). Defined once here so phones get the exact same
+ // overlay — same state, same delete/confirm flow. On a phone the max-w-xl
+ // panel is wider than the screen, so it naturally fills the viewport.
+ const routeDetailOverlay = (
+   <>
+     {/* ── Route Detail Side Panel ── */}
+     {selectedRoute && (
+       <div className="fixed inset-0 z-50 flex pointer-events-none">
+         {/* backdrop — blurs the background, click to close */}
+         <div
+           className="flex-1 pointer-events-auto backdrop-blur-sm bg-black/20 animate-in fade-in duration-200"
+           onClick={closePanel}
+         />
+
+         {/* panel — solid background */}
+         <div data-testid="route-detail-panel" className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
+           {/* header */}
+           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
+             <div className="flex items-center gap-2 min-w-0">
+               {panelView === "edit" && (
+                 <button
+                   onClick={backToDetail}
+                   aria-label="Back to route details"
+                   className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
+                 >
+                   ←
+                 </button>
+               )}
+               <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] truncate">
+                 {panelView === "edit" ? "Edit Route" : `Truck ${selectedRoute.truckFleetNoStr ?? "—"} · ${selectedRoute.routeDate}`}
+               </h2>
+             </div>
+             <button
+               onClick={closePanel}
+               aria-label="Close panel"
+               className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
+             >
+               ✕
+             </button>
+           </div>
+
+           {/* scrollable body — detail or edit view */}
+           <div className="flex-1 overflow-y-auto">
+             {panelView === "edit" ? (
+               <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
+             ) : (
+               <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ?? "planned") === "locked"} mode="primary" onDrillDown={openPanel} />
+             )}
+           </div>
+         </div>
+       </div>
+     )}
+
+     {/* Confirmation Dialog */}
+     {confirmDialog.isOpen && (
+       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100">
+           <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">{confirmDialog.title}</h3>
+           <p className="text-sm text-[var(--nav-text-color)] mb-6">{confirmDialog.message}</p>
+           <div className="flex justify-end gap-3">
+             <button
+               onClick={closeConfirm}
+               className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--card-bg)] hover:bg-[var(--card-bg)] rounded-md transition-colors"
+               disabled={confirmDialog.isLoading}
+             >
+               Cancel
+             </button>
+             <button
+               onClick={confirmDialog.onConfirm}
+               disabled={confirmDialog.isLoading}
+               className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 ${
+                 confirmDialog.confirmStyle === "danger" ? "bg-red-600 hover:bg-red-700 focus:ring-red-500" :
+                 confirmDialog.confirmStyle === "neutral" ? "bg-[var(--card-bg)] hover:bg-black focus:ring-gray-500" :
+                 "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm hover:opacity-90 focus:ring-[#06B6D4]"
+               }`}
+             >
+               {confirmDialog.isLoading && (
+                 <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                 </svg>
+               )}
+               {confirmDialog.isLoading ? "Processing..." : confirmDialog.confirmText}
+             </button>
+           </div>
+         </div>
+       </div>
+     )}
+   </>
+ );
+
+ // ── Mobile view ──────────────────────────────────────────────────────────
+ // On phones (<768px) the desktop grid is replaced by a purpose-built card
+ // screen: routes grouped by day, with search + filters and date navigation.
+ // Tablets/desktop keep the full grid untouched. All filter/sort/date state
+ // is shared with the desktop view above (and persists via SHEETS_UI_KEY).
+ if (isMobile) {
+   return (
+     <>
+       <MobileSheetsView
+         routes={filteredRoutesMobile ?? []}
+         loading={!routes && !isOffline}
+         filters={filters}
+         updateFilter={updateFilter}
+         quickSearch={quickSearch}
+         setQuickSearch={setQuickSearch}
+         sortConfig={sortConfig}
+         setSortConfig={setSortConfig}
+         clearFilters={clearFilters}
+         dateMode={dateMode}
+         setDateMode={setDateMode}
+         singleDate={singleDate}
+         setSingleDate={setSingleDate}
+         fromDate={fromDate}
+         setFromDate={setFromDate}
+         toDate={toDate}
+         setToDate={setToDate}
+         selectedMonth={selectedMonth}
+         setSelectedMonth={setSelectedMonth}
+         syncDateToUrl={syncDateToUrl}
+         riskStatusOf={getRouteRiskStatus}
+         onRouteTap={openPanel}
+       />
+       {routeDetailOverlay}
+     </>
+   );
+ }
+
  return (
  <div
    className={`h-full min-h-0 flex flex-col ${isFullscreenActive ? 'fixed inset-0 z-50 bg-[var(--card-bg)] overflow-y-auto' : 'relative'}`}
@@ -2443,6 +2681,25 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
      </svg>
    )}
  </button>
+ {/* KPI summary toggle (hidden in fullscreen) */}
+ {!showFocusMode && (
+   <button
+     onClick={() => setSummaryCollapsed((c) => !c)}
+     className={`p-3 rounded-md transition-colors ${
+       summaryCollapsed
+         ? "text-[var(--nav-text-color)] opacity-50"
+         : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"
+     }`}
+     title={summaryCollapsed ? "Show KPI/chart summary" : "Hide KPI/chart summary"}
+   >
+     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+       <line x1="12" y1="20" x2="12" y2="10"></line>
+       <line x1="18" y1="20" x2="18" y2="4"></line>
+       <line x1="6" y1="20" x2="6" y2="16"></line>
+     </svg>
+   </button>
+ )}
+
  {/* Collapse button (hidden in fullscreen) */}
  {!showFocusMode && (
    <button
@@ -2840,7 +3097,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {/* KPI Summary Bar (TRAE-ADDED) */}
  {isMounted && !isLoading && (
  <>  {/* Expanded View */}
-  {!showFocusMode && !isHeaderCompact && (
+  {!showFocusMode && !isHeaderCompact && !summaryCollapsed && (
   <div className="mb-4">
  <div className="overflow-auto rounded-lg pb-1">
  <div className="grid min-h-[164px] min-w-[1240px] grid-cols-12 gap-2">
@@ -3292,89 +3549,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
    </div>
  )}
 
- {/* ── Route Detail Side Panel ── */}
- {selectedRoute && (
- <div className="fixed inset-0 z-50 flex pointer-events-none">
- {/* backdrop — blurs the background, click to close */}
- <div
- className="flex-1 pointer-events-auto backdrop-blur-sm bg-black/20 animate-in fade-in duration-200"
- onClick={closePanel}
- />
-
- {/* panel — solid background */}
- <div data-testid="route-detail-panel" className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
- {/* header */}
- <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
- <div className="flex items-center gap-2 min-w-0">
- {panelView === "edit" && (
- <button
- onClick={backToDetail}
- aria-label="Back to route details"
- className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
- >
- ←
- </button>
- )}
- <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] truncate">
- {panelView === "edit" ? "Edit Route" : `Truck ${selectedRoute.truckFleetNoStr ?? "—"} · ${selectedRoute.routeDate}`}
- </h2>
- </div>
- <button
- onClick={closePanel}
- aria-label="Close panel"
- className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] text-lg font-bold leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--card-bg)]/60 transition-colors shrink-0"
- >
- ✕
- </button>
- </div>
-
- {/* scrollable body — detail or edit view */}
- <div className="flex-1 overflow-y-auto">
- {panelView === "edit" ? (
- <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
- ) : (
- <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ??"planned") ==="locked"} mode="primary" onDrillDown={openPanel} />
- )}
- </div>
- </div>
- </div>
-)}
-
- {/* Confirmation Dialog */}
- {confirmDialog.isOpen && (
- <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100">
- <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">{confirmDialog.title}</h3>
- <p className="text-sm text-[var(--nav-text-color)] mb-6">{confirmDialog.message}</p>
- <div className="flex justify-end gap-3">
- <button
- onClick={closeConfirm}
- className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--card-bg)] hover:bg-[var(--card-bg)]  rounded-md transition-colors"
- disabled={confirmDialog.isLoading}
- >
- Cancel
- </button>
- <button
- onClick={confirmDialog.onConfirm}
- disabled={confirmDialog.isLoading}
- className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 ${
- confirmDialog.confirmStyle ==="danger" ?"bg-red-600 hover:bg-red-700 focus:ring-red-500" :
- confirmDialog.confirmStyle ==="neutral" ?"bg-[var(--card-bg)] hover:bg-black focus:ring-gray-500" :
-"bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm hover:opacity-90 focus:ring-[#06B6D4]"
-}`}
- >
- {confirmDialog.isLoading && (
- <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
- <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
- <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
- </svg>
-)}
- {confirmDialog.isLoading ?"Processing..." : confirmDialog.confirmText}
- </button>
- </div>
- </div>
- </div>
-)}
+ {/* Route detail overlay + confirmation dialog — shared with the mobile view */}
+ {routeDetailOverlay}
 
  {/* Import Modal */}
  {isImportModalOpen && (

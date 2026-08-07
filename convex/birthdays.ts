@@ -66,12 +66,12 @@ export function occurrenceDate(
 
 async function resolveUserId(ctx: any, token?: string | null) {
   if (!token) return null;
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_sessionToken", (q: any) => q.eq("sessionToken", token))
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
     .first();
-  if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) return null;
-  return user._id;
+  if (!session || session.expiresAt < Date.now()) return null;
+  return session.userId;
 }
 
 function toName(d: any): string {
@@ -109,6 +109,9 @@ export const upcomingBirthdays = query({
     }[] = [];
 
     for (const d of drivers) {
+      // Only active drivers get birthday reminders (convention: "inactive" is
+      // the sole inactive status; undefined/anything else counts as active).
+      if ((d as any).status === "inactive") continue;
       const bd = getBirthdayFromSAID((d as any).idNumber ?? "");
       if (!bd) continue;
       const daysUntil = daysUntilBirthday(bd.month, bd.day, today);
@@ -149,6 +152,8 @@ export const getBirthdaysForMonth = query({
     }[] = [];
 
     for (const d of drivers) {
+      // Calendar shows active drivers only, matching the bell/dashboard card.
+      if ((d as any).status === "inactive") continue;
       const bd = getBirthdayFromSAID((d as any).idNumber ?? "");
       if (!bd || bd.month !== args.month) continue;
       out.push({
@@ -216,6 +221,48 @@ export const dismissBirthday = mutation({
         driverId: args.driverId,
         birthdayDate,
       });
+    }
+  },
+});
+
+/** Undo a dismissal — restores one driver's birthday reminder for this year. */
+export const restoreBirthday = mutation({
+  args: {
+    token: v.string(),
+    driverId: v.id("drivers"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await resolveUserId(ctx, args.token);
+    if (!userId) throw new Error("Not authenticated — cannot restore");
+    const driver = await ctx.db.get(args.driverId);
+    if (!driver) return; // nothing to restore
+    const bd = getBirthdayFromSAID((driver as any).idNumber ?? "");
+    if (!bd) return;
+    const birthdayDate = occurrenceDate(bd.month, bd.day);
+    const existing = await ctx.db
+      .query("dismissedBirthdayAlerts")
+      .withIndex("by_userId_driverId", (q) =>
+        q.eq("userId", userId).eq("driverId", args.driverId)
+      )
+      .filter((q) => q.eq(q.field("birthdayDate"), birthdayDate))
+      .first();
+    if (existing) await ctx.db.delete(existing._id);
+  },
+});
+
+/** Undo ALL dismissals for the current year — restores every hidden reminder. */
+export const restoreAllBirthdays = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await resolveUserId(ctx, args.token);
+    if (!userId) throw new Error("Not authenticated — cannot restore");
+    const currentYear = String(new Date().getFullYear());
+    const rows = await ctx.db
+      .query("dismissedBirthdayAlerts")
+      .withIndex("by_userId_driverId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const r of rows) {
+      if (r.birthdayDate.startsWith(currentYear)) await ctx.db.delete(r._id);
     }
   },
 });

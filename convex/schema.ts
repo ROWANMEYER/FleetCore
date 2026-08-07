@@ -401,6 +401,21 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_sessionToken", ["sessionToken"]),
+  // Multi-device sessions: one row per logged-in device/browser. Keeps the user
+  // signed in on several devices at once — logging in on one device no longer
+  // logs out another (the old single users.sessionToken was overwritten on
+  // every login, which signed the previous device out).
+  sessions: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.float64(),
+    device: v.optional(v.string()),
+    // Raw navigator.userAgent captured at login — used to show browser + OS on each device row
+    userAgent: v.optional(v.string()),
+    createdAt: v.float64(),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId", ["userId"]),
   // Web push (PWA) subscriptions — one per installed device/browser
   webPushSubscriptions: defineTable({
     endpoint: v.string(),

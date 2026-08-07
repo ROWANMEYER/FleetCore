@@ -5,8 +5,8 @@ import { useMutation} from"convex/react";
 import { api} from"@/convex/_generated/api";
 import { useEscapeToClose} from"@/src/components/common/useKeyboardShortcut";
 import { useToast } from"@/src/components/common/Toast";
-import { useAuth} from"@/src/components/auth/AuthProvider";
-import { X, Lightbulb} from"lucide-react";
+import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
+import { X, Lightbulb, AlertTriangle} from"lucide-react";
 
 interface ImportLoadsModalProps {
  onClose: () => void;
@@ -60,6 +60,19 @@ function saveMapping(mapping: string[], numCols: number) {
 
 export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModalProps) {
  const { user, token } = useAuth();
+ // The region the import should land in. useRegionArg returns the admin's
+ // currently selected region (undefined when "All Regions" is chosen, or for
+ // regional users whose region the server always forces).
+ const regionArg = useRegionArg();
+ const importBlocked = user?.role === "admin" && !regionArg;
+ const importRegion: "garden_route" | "eastern_cape" | null =
+   regionArg ?? (user?.role === "regional" ? user.region : null) ?? null;
+ const regionLabel =
+   importRegion === "garden_route"
+     ? "Garden Route"
+     : importRegion === "eastern_cape"
+       ? "Eastern Cape"
+       : null;
  const [step, setStep] = useState<ImportStep>("paste");
  const [pasteContent, setPasteContent] = useState("");
  const [columnMapping, setColumnMapping] = useState<string[]>([]);
@@ -321,6 +334,13 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 };
 
  const handleImport = async () => {
+ // Never import while "All Regions" is selected — we don't know which
+ // region the loads belong to, and the backend would default to Garden Route.
+ if (importBlocked) {
+   addToast("Select a region (Garden Route or Eastern Cape) before importing.", "error");
+   setIsSubmitting(false);
+   return;
+ }
  setIsSubmitting(true);
  try {
  const validRows = parsedRows.filter(r => r.isValid);
@@ -348,10 +368,11 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 };
 });
 
- await createBulkDailyRoutes({ routes, region: user?.role === "regional" ? (user.region ?? "garden_route") : undefined, token});
+ await createBulkDailyRoutes({ routes, region: regionArg, token});
  // Auto-save the mapping on successful import
  saveMapping(columnMapping, columnMapping.length);
  setSavedMappingExists(true);
+ addToast(`Imported ${validRows.length} loads to ${regionLabel ?? "your region"}.`, "success");
  onSuccess();
  onClose();
 } catch (error) {
@@ -372,18 +393,42 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
  <div className="bg-[var(--card-bg)] rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
  {/* Header */}
- <div className="px-6 py-4 border-b flex justify-between items-center">
+ <div className="px-6 py-4 border-b flex justify-between items-center gap-3">
  <div>
  <h2 className="text-xl font-bold text-[var(--foreground)]">Import Loads</h2>
  <p className="text-sm text-[var(--nav-text-color)]">Paste Excel data to bulk create routes</p>
  </div>
- <button onClick={onClose} className="text-[var(--nav-text-color)] hover:text-[var(--nav-text-color)]">
+ <div className="flex items-center gap-3 shrink-0">
+ {regionLabel && !importBlocked && (
+ <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
+ <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+ Importing to: {regionLabel}
+ </span>
+ )}
+ <button onClick={onClose} className="text-[var(--nav-text-color)] hover:text-[var(--foreground)]">
  <X className="w-5 h-5" />
  </button>
+ </div>
  </div>
 
  {/* Content */}
  <div className="flex-1 overflow-auto p-6">
+ {importBlocked ? (
+ <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-amber-800">
+ <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+ <div>
+ <p className="font-semibold">Import disabled — &ldquo;All Regions&rdquo; is selected.</p>
+ <p className="mt-0.5 text-amber-700">
+ Choose <span className="font-medium">Garden Route</span> or <span className="font-medium">Eastern Cape</span> in the region switcher (top right of the screen), then reopen this import. This stops loads from being saved to the wrong region.
+ </p>
+ </div>
+ </div>
+ ) : regionLabel ? (
+ <div className="mb-4 flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-md text-sm text-emerald-800">
+ <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+ Loads will be imported to <span className="font-semibold">{regionLabel}</span>.
+ </div>
+ ) : null}
  {step ==="paste" && (
  <div className="h-full flex flex-col">
  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
@@ -491,6 +536,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  <thead className="bg-[var(--card-bg)]">
  <tr>
  <th className="px-4 py-2 text-left text-xs font-medium text-[var(--nav-text-color)] uppercase">Status</th>
+ <th className="px-4 py-2 text-left text-xs font-medium text-[var(--nav-text-color)] uppercase">Region</th>
  <th className="px-4 py-2 text-left text-xs font-medium text-[var(--nav-text-color)] uppercase">Date</th>
  <th className="px-4 py-2 text-left text-xs font-medium text-[var(--nav-text-color)] uppercase">Truck</th>
  <th className="px-4 py-2 text-left text-xs font-medium text-[var(--nav-text-color)] uppercase">Client</th>
@@ -509,6 +555,22 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  Invalid
  </span>
 )}
+ </td>
+ <td className="px-4 py-2 whitespace-nowrap">
+ {regionLabel ? (
+ <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
+   regionLabel === "Garden Route"
+     ? "bg-cyan-50 text-cyan-700 border-cyan-200"
+     : "bg-purple-50 text-purple-700 border-purple-200"
+ }`}>
+ <span className={`w-1.5 h-1.5 rounded-full ${regionLabel === "Garden Route" ? "bg-[#06B6D4]" : "bg-purple-500"}`} />
+ {regionLabel}
+ </span>
+ ) : (
+ <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+ Select region
+ </span>
+ )}
  </td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">{row.mappedValues.routeDate}</td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">{row.mappedValues.truckFleetNoStr}</td>
@@ -587,13 +649,15 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  >
  Back
  </button>
+ <span className={importBlocked ? "cursor-not-allowed" : ""} title={importBlocked ? "Select a region before importing" : undefined}>
  <button
  onClick={handleImport}
- disabled={isSubmitting || validCount === 0}
+ disabled={isSubmitting || validCount === 0 || importBlocked}
  className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
  >
  {isSubmitting ?"Importing..." :`Import ${validCount} Loads`}
  </button>
+ </span>
  </>
 )}
  </div>

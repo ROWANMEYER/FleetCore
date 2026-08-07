@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/src/components/auth/AuthProvider";
-import { BarChart3, MapPin } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import SpreadsheetDataTable, {
   type SpreadsheetRow,
   type SpreadsheetExtraColumn,
@@ -61,6 +61,34 @@ const regionColumn: SpreadsheetExtraColumn = {
     );
   },
 };
+
+/* ─── Minimal inline region stat pill ─────────────────────────────────────── */
+
+function RegionStat({
+  dot,
+  label,
+  value,
+  sub,
+}: {
+  dot?: string;
+  label: string;
+  value: number;
+  sub?: string;
+}) {
+  return (
+    <div
+      className="glass-card flex items-center gap-1.5 rounded-full px-3 py-1.5 whitespace-nowrap"
+      title={sub ? `${label} — ${sub}` : label}
+    >
+      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
+      <span className="text-xs font-bold text-[var(--foreground)] tabular-nums">{value}</span>
+      <span className="text-[11px] text-[var(--nav-text-color)]">{label}</span>
+      {sub && (
+        <span className="text-[11px] text-[var(--nav-text-color)] opacity-70 hidden xl:inline">({sub})</span>
+      )}
+    </div>
+  );
+}
 
 /* ─── Date selector (Day / Month / Range) ─────────────────────────────────── */
 
@@ -125,10 +153,10 @@ export default function AllRegionsPage() {
   const loading = isAdmin && datesReady && !routes;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-5">
+    <div className="h-full flex flex-col">
+      <div className="flex-1 min-h-0 w-full flex flex-col gap-5 px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto">
         {/* ── Header ── */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-md shadow-[rgba(6,182,212,0.3)]">
             <BarChart3 size={22} className="text-white" strokeWidth={2.5} />
           </div>
@@ -150,8 +178,8 @@ export default function AllRegionsPage() {
           </div>
         ) : (
           <>
-            {/* ── Date selector ── */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* ── Date selector + region split — single minimal row ── */}
+            <div className="shrink-0 flex flex-wrap items-center gap-3">
               <div className="glass-card flex rounded-xl p-1 gap-1">
                 {DATE_TABS.map((t) => (
                   <button
@@ -209,45 +237,20 @@ export default function AllRegionsPage() {
                   End date cannot be before the start date.
                 </p>
               )}
-            </div>
 
-            {/* ── Region split summary ── */}
-            {!loading && regionSummary.total > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="glass-card rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider mb-2">
-                    <span className="w-2 h-2 rounded-full bg-[#06B6D4]" />
-                    Garden Route
-                  </div>
-                  <div className="text-2xl font-black text-[var(--foreground)]">
-                    {regionSummary.garden_route}
-                  </div>
-                  <div className="text-xs text-[var(--nav-text-color)] mt-0.5">routes</div>
+              {/* Region split — minimal pills, right-aligned on wide screens */}
+              {!loading && regionSummary.total > 0 && (
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <RegionStat dot="bg-[#06B6D4]" label="Garden Route" value={regionSummary.garden_route} />
+                  <RegionStat dot="bg-purple-500" label="Eastern Cape" value={regionSummary.eastern_cape} />
+                  <RegionStat
+                    label="Total"
+                    value={regionSummary.total}
+                    sub={regionSummary.unassigned > 0 ? `${regionSummary.unassigned} unassigned` : "all regions"}
+                  />
                 </div>
-                <div className="glass-card rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider mb-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    Eastern Cape
-                  </div>
-                  <div className="text-2xl font-black text-[var(--foreground)]">
-                    {regionSummary.eastern_cape}
-                  </div>
-                  <div className="text-xs text-[var(--nav-text-color)] mt-0.5">routes</div>
-                </div>
-                <div className="col-span-2 sm:col-span-1 glass-card rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider mb-2">
-                    <MapPin size={12} />
-                    Total
-                  </div>
-                  <div className="text-2xl font-black text-[var(--foreground)]">
-                    {regionSummary.total}
-                  </div>
-                  <div className="text-xs text-[var(--nav-text-color)] mt-0.5">
-                    routes · {regionSummary.unassigned > 0 ? `${regionSummary.unassigned} unassigned` : "all regions"}
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* ── Table ── */}
             {rangeReversed ? (
@@ -270,8 +273,9 @@ export default function AllRegionsPage() {
                 description={`No routes exist for ${startDate}${startDate !== endDate ? ` → ${endDate}` : ""}. Pick a different date range.`}
               />
             ) : (
-              <div className="glass-card rounded-xl overflow-hidden">
+              <div className="flex-1 min-h-0 glass-card rounded-xl overflow-hidden flex flex-col">
                 <SpreadsheetDataTable
+                  className="h-full min-h-0"
                   routes={routes ?? []}
                   density="compact"
                   storageNamespace="allregions"

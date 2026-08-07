@@ -127,8 +127,7 @@ export default function QuickSendPage() {
  const hasData = reportData && reportData.loads && reportData.loads.length > 0;
 
  return (
- <div className="h-full overflow-y-auto">
- <div className="max-w-6xl mx-auto space-y-8 p-6">
+ <div className="h-full overflow-y-auto">  <div className="w-full space-y-8 p-6">
  {/* Header */}
  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
  <div>

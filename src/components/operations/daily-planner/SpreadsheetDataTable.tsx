@@ -12,6 +12,8 @@ export interface SpreadsheetRow {
   trailerNo: string;
   loadNo: string;
   date: string;
+  /** Raw ISO date (YYYY-MM-DD) used for correct chronological sorting. */
+  dateIso: string;
   driverName: string;
   origin: string;
   destination: string;
@@ -55,6 +57,8 @@ interface Props {
   extraColumn?: SpreadsheetExtraColumn;
   /** Namespaces the localStorage layout keys so instances keep separate layouts. */
   storageNamespace?: string;
+  /** Extra classes applied to the root table container (e.g. h-full). */
+  className?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -105,25 +109,29 @@ interface ColumnDef {
   align: "left" | "right";
 }
 
+interface SortRule {
+  key: string;
+  dir: "asc" | "desc";
+}
+
 const COLUMNS: ColumnDef[] = [
   { key: "truckNo", label: "Truck", defaultWidth: 92, minWidth: 72, sortable: true, align: "left" },
-  { key: "trailerNo", label: "Trailer", defaultWidth: 92, minWidth: 72, sortable: false, align: "left" },
-  { key: "loadNo", label: "Load No", defaultWidth: 100, minWidth: 72, sortable: false, align: "left" },
+  { key: "trailerNo", label: "Trailer", defaultWidth: 92, minWidth: 72, sortable: true, align: "left" },
+  { key: "loadNo", label: "Load No", defaultWidth: 100, minWidth: 72, sortable: true, align: "left" },
   { key: "date", label: "Date", defaultWidth: 120, minWidth: 82, sortable: true, align: "left" },
-  { key: "driverName", label: "Driver", defaultWidth: 160, minWidth: 100, sortable: false, align: "left" },
-  { key: "origin", label: "Origin", defaultWidth: 140, minWidth: 96, sortable: false, align: "left" },
-  { key: "destination", label: "Dest", defaultWidth: 140, minWidth: 96, sortable: false, align: "left" },
-  { key: "customer", label: "Client", defaultWidth: 160, minWidth: 96, sortable: false, align: "left" },
-  { key: "amount", label: "Amount", defaultWidth: 130, minWidth: 96, sortable: false, align: "right" },
-  { key: "notes", label: "Notes", defaultWidth: 280, minWidth: 120, sortable: false, align: "left" },
+  { key: "driverName", label: "Driver", defaultWidth: 160, minWidth: 100, sortable: true, align: "left" },
+  { key: "origin", label: "Origin", defaultWidth: 140, minWidth: 96, sortable: true, align: "left" },
+  { key: "destination", label: "Dest", defaultWidth: 140, minWidth: 96, sortable: true, align: "left" },
+  { key: "customer", label: "Client", defaultWidth: 160, minWidth: 96, sortable: true, align: "left" },
+  { key: "amount", label: "Amount", defaultWidth: 130, minWidth: 96, sortable: true, align: "right" },
+  { key: "notes", label: "Notes", defaultWidth: 280, minWidth: 120, sortable: true, align: "left" },
 ] as const;
-
-type ColumnKey = (typeof COLUMNS)[number]["key"];
 
 const STORAGE_KEY = "fleetcore.spreadsheetColumnWidths";
 const VISIBILITY_STORAGE_KEY = "fleetcore.spreadsheetColumnVisibility";
 const ORDER_STORAGE_KEY = "fleetcore.spreadsheetColumnOrder";
 const PROFILES_STORAGE_KEY = "fleetcore.spreadsheetLayoutProfiles";
+const SORTS_STORAGE_KEY = "fleetcore.spreadsheetSorts";
 
 interface LayoutProfile {
   name: string;
@@ -144,6 +152,7 @@ export default function SpreadsheetDataTable({
   density = 'comfortable',
   extraColumn,
   storageNamespace,
+  className,
 }: Props) {
   // Base column set + optional caller-supplied extra column, inserted after
   // Date so it is prominent in cross-region views. Stable per extraColumn.
@@ -155,7 +164,7 @@ export default function SpreadsheetDataTable({
       label: extraColumn.label,
       defaultWidth: extraColumn.defaultWidth,
       minWidth: extraColumn.minWidth,
-      sortable: false,
+      sortable: true,
       align: "left",
     };
     return [...COLUMNS.slice(0, dateIdx + 1), extra, ...COLUMNS.slice(dateIdx + 1)];
@@ -172,18 +181,45 @@ export default function SpreadsheetDataTable({
             visibility: `fleetcore.${storageNamespace}.columnVisibility`,
             order: `fleetcore.${storageNamespace}.columnOrder`,
             profiles: `fleetcore.${storageNamespace}.layoutProfiles`,
+            sorts: `fleetcore.${storageNamespace}.sorts`,
           }
         : {
             widths: STORAGE_KEY,
             visibility: VISIBILITY_STORAGE_KEY,
             order: ORDER_STORAGE_KEY,
             profiles: PROFILES_STORAGE_KEY,
+            sorts: SORTS_STORAGE_KEY,
           },
     [storageNamespace]
   );
 
-  const [sortKey, setSortKey] = useState<ColumnKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // ── Compound sort state ───────────────────────────────────────────────────
+  // Ordered list of sort rules: earlier entries are higher priority. Clicking a
+  // new column appends it as the next (least significant) key instead of
+  // resetting; clicking an already-sorted column advances asc → desc → remove.
+  // Restored from localStorage so the sort survives navigating away and back.
+  const [sorts, setSorts] = useState<SortRule[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = window.localStorage.getItem(storageKeys.sorts);
+      if (saved) {
+        const parsed = JSON.parse(saved) as SortRule[];
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (s) => s && typeof s.key === "string" && (s.dir === "asc" || s.dir === "desc")
+          );
+        }
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+
+  // Persist sorts on change
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKeys.sorts, JSON.stringify(sorts));
+    } catch { /* ignore quota errors */ }
+  }, [sorts, storageKeys]);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState("");
   const [savingCell, setSavingCell] = useState<string | null>(null);
@@ -521,6 +557,7 @@ export default function SpreadsheetDataTable({
           trailerNo: route.trailerFleetNoStr || String(route.trailerFleetNo || ""),
           loadNo: "",
           date: formatDate(route.routeDate),
+          dateIso: route.routeDate || "",
           driverName: (route.driverName || "").toUpperCase(),
           origin: "",
           destination: "",
@@ -542,6 +579,7 @@ export default function SpreadsheetDataTable({
             trailerNo: route.trailerFleetNoStr || String(route.trailerFleetNo || ""),
             loadNo: load.loadId || String(index + 1),
             date: formatDate(route.routeDate),
+            dateIso: route.routeDate || "",
             driverName: (route.driverName || "").toUpperCase(),
             origin: ((load.fromLocations && load.fromLocations[0]) || "").toUpperCase(),
             destination: ((load.toLocations && load.toLocations[0]) || "").toUpperCase(),
@@ -557,39 +595,62 @@ export default function SpreadsheetDataTable({
     return result;
   }, [routes]);
 
-  // Sort rows
+  // Extract a comparable value for a given sort key (numbers sort numerically,
+  // everything else case-insensitively; dates use the raw ISO string).
+  const sortValueOf = useCallback((row: SpreadsheetRow, key: string): string | number => {
+    switch (key) {
+      case "truckNo":
+      case "trailerNo": {
+        const raw = String(row[key as "truckNo"] || "");
+        // Strict numeric check — "12A" must NOT parse as 12 (keeps alphanumeric
+        // trailer numbers sub-sorting correctly instead of silently tying).
+        return /^\d+$/.test(raw) ? parseInt(raw, 10) : raw.toUpperCase();
+      }
+      case "amount":
+        return row.amount;
+      case "date":
+        return row.dateIso || row.date;
+      default: {
+        const v = (row as unknown as Record<string, unknown>)[key];
+        return v == null ? "" : String(v).toUpperCase();
+      }
+    }
+  }, []);
+
+  // Compound sort: apply rules from highest to lowest priority; only move to the
+  // next rule when the previous one ties. Kept stable so equal rows keep order.
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
+    if (sorts.length === 0) return rows;
 
     return [...rows].sort((a, b) => {
-      let aVal: string | number = "";
-      let bVal: string | number = "";
-
-      if (sortKey === "truckNo") {
-        aVal = parseInt(a.truckNo, 10) || 0;
-        bVal = parseInt(b.truckNo, 10) || 0;
-      } else if (sortKey === "date") {
-        aVal = a.date;
-        bVal = b.date;
+      for (const rule of sorts) {
+        const aVal = sortValueOf(a, rule.key);
+        const bVal = sortValueOf(b, rule.key);
+        const cmp =
+          typeof aVal === "number" && typeof bVal === "number"
+            ? aVal - bVal
+            : String(aVal).localeCompare(String(bVal));
+        if (cmp !== 0) return rule.dir === "asc" ? cmp : -cmp;
       }
-
-      const cmp = typeof aVal === "number" && typeof bVal === "number"
-        ? aVal - bVal
-        : String(aVal).localeCompare(String(bVal));
-
-      return sortDir === "asc" ? cmp : -cmp;
+      return 0;
     });
-  }, [rows, sortKey, sortDir]);
+  }, [rows, sorts, sortValueOf]);
 
-  // Handle sort
-  const handleSort = useCallback((key: ColumnKey) => {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }, [sortKey]);
+  // Clicking a column: if it isn't sorted yet, append it as the next (least
+  // significant) key — the existing sorts are preserved. If it is already
+  // sorted, advance its direction asc → desc → removed.
+  const handleSort = useCallback((key: string) => {
+    setSorts((prev) => {
+      const idx = prev.findIndex((s) => s.key === key);
+      if (idx === -1) return [...prev, { key, dir: "asc" }];
+      if (prev[idx].dir === "asc") {
+        const next = [...prev];
+        next[idx] = { ...next[idx], dir: "desc" };
+        return next;
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
+  }, []);
 
   // Start editing a cell
   const startEditing = useCallback(
@@ -855,10 +916,10 @@ export default function SpreadsheetDataTable({
   }
 
   return (
-    <div className="w-full overflow-auto border border-[var(--card-border)] bg-[var(--card-bg)]">
+    <div className={`w-full overflow-auto border border-[var(--card-border)] bg-[var(--card-bg)] ${className ?? ""}`}>
       {/* ── Toolbar: resize hint + Columns toggle + Layout profiles ── */}
       <div className="flex items-center justify-between px-4 py-2 text-xs text-[var(--nav-text-color)]">
-        <span>Drag column edges to resize · double-click to auto-fit · drag headers to reorder</span>
+        <span>Click headers to sort (adds a sort key) · drag edges to resize · drag headers to reorder</span>
         <div className="flex items-center gap-1">
           {/* Columns toggle */}
           <div className="relative" ref={columnMenuRef}>
@@ -1017,14 +1078,25 @@ export default function SpreadsheetDataTable({
               dragOverKey === col.key ? "bg-[rgba(6,182,212,0.15)] dark:bg-[rgba(6,182,212,0.25)] ring-1 ring-[#06B6D4]" : ""
             }`}
             onClick={col.sortable ? () => handleSort(col.key) : undefined}
-            title={`Drag to reorder · ${col.sortable ? 'Click to sort' : ''}`}
+            title={
+              col.sortable
+                ? "Click to sort · click again to toggle direction · third click removes · sorted columns keep earlier sorts"
+                : "Drag to reorder"
+            }
           >
             <span className="truncate">{col.label}</span>
-            {col.sortable && sortKey === col.key && (
-              <span className="ml-1 text-[10px] shrink-0">
-                {sortDir === "asc" ? "▲" : "▼"}
-              </span>
-            )}
+            {col.sortable && (() => {
+              const ruleIdx = sorts.findIndex((s) => s.key === col.key);
+              if (ruleIdx === -1) return null;
+              return (
+                <span className="ml-1 text-[10px] shrink-0 flex items-center gap-0.5">
+                  <span>{sorts[ruleIdx].dir === "asc" ? "▲" : "▼"}</span>
+                  {sorts.length > 1 && (
+                    <span className="opacity-60 tabular-nums">{ruleIdx + 1}</span>
+                  )}
+                </span>
+              );
+            })()}
             {/* Resize handle on every column */}
             {renderResizeHandle(col.key)}
           </div>

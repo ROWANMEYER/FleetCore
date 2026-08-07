@@ -1,12 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell, CalendarDays, MessageCircle, Cake } from "lucide-react";
 import { useBirthdays } from "@/src/lib/useBirthdays";
 import { ageThisYear, initialsOf, waWishLink } from "@/src/lib/birthdays";
 
 const PANEL_W = 320;
+const PANEL_H = 420; // upper bound (header + list + footer) for viewport clamping
 
 /**
  * Birthday notification bell. Badge = number of driver birthdays in the next
@@ -34,7 +36,10 @@ export function BirthdayBell() {
     // narrow desktop sidebar this opens over the content; on the mobile top
     // bar it right-aligns under the bell.
     const left = Math.max(12, Math.min(r.left, window.innerWidth - PANEL_W - 12));
-    setPos({ top: r.bottom + 8, left });
+    // Keep the panel inside the viewport vertically too (e.g. a bell near the
+    // bottom edge would otherwise open off-screen).
+    const top = Math.max(12, Math.min(r.bottom + 8, window.innerHeight - PANEL_H - 12));
+    setPos({ top, left });
     setOpen(true);
   };
 
@@ -57,13 +62,24 @@ export function BirthdayBell() {
         )}
       </button>
 
-      {open && pos && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+      {/* Portal to document.body: the sidebar/top-bar carry backdrop-filter +
+          transforms which hijack position:fixed's containing block (the panel
+          would be positioned relative to the sidebar, not the viewport). */}
+      {open &&
+        pos &&
+        createPortal(
+          <>
+          {/* Blurred + dimmed backdrop — makes the panel the focal point and
+              keeps the list readable (the glass card is translucent). */}
+          <div
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
           <div
             role="dialog"
             aria-label="Upcoming birthdays"
-            className="fixed z-50 w-[320px] glass-card rounded-2xl overflow-hidden shadow-2xl animate-fade-up-sm"
+            className="fixed z-[60] w-[320px] max-h-[calc(100vh-24px)] glass-card bg-[var(--card-bg)]/95 rounded-2xl overflow-hidden shadow-2xl animate-fade-up-sm"
             style={{ top: pos.top, left: pos.left }}
           >
             {/* Header */}
@@ -139,8 +155,9 @@ export function BirthdayBell() {
               View birthday calendar
             </Link>
           </div>
-        </>
-      )}
+          </>,
+          document.body
+        )}
     </div>
   );
 }

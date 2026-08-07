@@ -29,10 +29,14 @@ export function useBirthdays() {
     token: token ?? undefined,
   });
   const dismissMutation = useMutation(api.birthdays.dismissBirthday);
+  const restoreMutation = useMutation(api.birthdays.restoreBirthday);
+  const restoreAllMutation = useMutation(api.birthdays.restoreAllBirthdays);
 
   const all = (upcoming ?? []) as UpcomingBirthday[];
   const dismissedIds = new Set(dismissed?.driverIds ?? []);
   const visible = all.filter((b) => !dismissedIds.has(b.driverId));
+  /** In-window birthdays the user hid this year (dismissed, currently upcoming). */
+  const hidden = all.filter((b) => dismissedIds.has(b.driverId));
   const todayBirthdays = all.filter((b) => b.daysUntil === 0);
 
   const dismiss = async (driverId: string) => {
@@ -45,12 +49,35 @@ export function useBirthdays() {
     }
   };
 
+  const restore = async (driverId: string) => {
+    if (!token) return { ok: false, error: "Not signed in" };
+    try {
+      await restoreMutation({ token, driverId: driverId as Id<"drivers"> });
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  };
+
+  const restoreAll = async () => {
+    if (!token) return { ok: false, error: "Not signed in" };
+    try {
+      await restoreAllMutation({ token });
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  };
+
   return {
     all,
     visible,
+    hidden,
     dismissedIds,
     todayBirthdays,
     dismiss,
+    restore,
+    restoreAll,
     loading: upcoming === undefined || dismissed === undefined,
   };
 }

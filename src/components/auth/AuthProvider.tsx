@@ -80,6 +80,19 @@ function generateToken(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Short device label stored on the session so admins can see where sessions are. */
+function getDeviceLabel(): string {
+  try {
+    if (typeof navigator === "undefined") return "Browser";
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad|iPod|Android/i.test(ua)) return "Mobile";
+    if (/Macintosh|Windows|Linux/i.test(ua)) return "Desktop";
+    return "Browser";
+  } catch {
+    return "Browser";
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
@@ -104,7 +117,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
       const newToken = generateToken();
-      const res = (await loginAction({ email, password, token: newToken })) as {
+      const res = (await loginAction({
+        email,
+        password,
+        token: newToken,
+        device: getDeviceLabel(),
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      })) as {
         ok?: boolean;
         error?: string;
         user?: AuthUser;

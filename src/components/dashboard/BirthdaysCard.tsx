@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { Cake, CalendarDays, ChevronDown, MessageCircle, X } from "lucide-react";
+import { Cake, CalendarDays, ChevronDown, MessageCircle, Undo2, X } from "lucide-react";
 import { useBirthdays } from "@/src/lib/useBirthdays";
 import { ageThisYear, initialsOf, waWishLink } from "@/src/lib/birthdays";
 import { useToast } from "@/src/components/common/Toast";
@@ -14,9 +14,11 @@ import { useToast } from "@/src/components/common/Toast";
  * year. Each driver has a ✕ (per-driver dismissal only) and a WhatsApp Wish.
  */
 export function BirthdaysCard() {
-  const { visible, todayBirthdays, dismiss, loading } = useBirthdays();
+  const { visible, hidden, todayBirthdays, dismiss, restore, restoreAll, loading } =
+    useBirthdays();
   const { addToast } = useToast();
   const [open, setOpen] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
   const bodyId = useId();
 
   const summary =
@@ -27,9 +29,37 @@ export function BirthdaysCard() {
   const handleDismiss = async (driverId: string, name: string) => {
     const res = await dismiss(driverId);
     if (res.ok) {
-      addToast(`Birthday reminder for ${name} hidden`, "success");
+      addToast(`Birthday reminder for ${name} hidden`, "success", {
+        label: "Undo",
+        onClick: () => {
+          restore(driverId).then((res) => {
+            if (!res.ok) addToast(res.error || "Could not restore", "error");
+          });
+        },
+      });
     } else {
       addToast(res.error || "Could not dismiss", "error");
+    }
+  };
+
+  const handleRestore = async (driverId: string, name: string) => {
+    const res = await restore(driverId);
+    if (res.ok) {
+      // Collapse the list when nothing remains hidden (avoids a stale open state).
+      if (hidden.length <= 1) setShowHidden(false);
+      addToast(`Birthday reminder for ${name} restored`, "success");
+    } else {
+      addToast(res.error || "Could not restore", "error");
+    }
+  };
+
+  const handleRestoreAll = async () => {
+    const res = await restoreAll();
+    if (res.ok) {
+      addToast(`All ${hidden.length} hidden reminders restored`, "success");
+      setShowHidden(false);
+    } else {
+      addToast(res.error || "Could not restore", "error");
     }
   };
 
@@ -77,58 +107,122 @@ export function BirthdaysCard() {
             <div className="skeleton-shimmer h-12 w-full rounded-lg" />
             <div className="skeleton-shimmer h-12 w-full rounded-lg" />
           </div>
-        ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Cake size={28} className="text-[#EC4899] mb-2 opacity-80" />
-            <p className="text-sm font-semibold text-[var(--foreground)]">All caught up 🎂</p>
-            <p className="text-xs text-[var(--nav-text-color)] mt-1">
-              No upcoming birthdays in the next 7 days.
-            </p>
-          </div>
         ) : (
-          <ul className="divide-y divide-[var(--card-border)]">
-            {visible.map((b) => (
-              <li key={b.driverId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                <span className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F472B6] to-[#EC4899] text-white text-xs font-bold flex items-center justify-center shrink-0">
-                  {initialsOf(b.name)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[var(--foreground)] truncate">{b.name}</p>
-                  <p className="text-xs text-[var(--nav-text-color)]">
-                    {b.daysUntil === 0 ? (
-                      <span className="text-[#EC4899] font-semibold">
-                        Today 🎉 · turns {ageThisYear(b.birthYear)}
-                      </span>
-                    ) : (
-                      `Turns ${ageThisYear(b.birthYear)} · in ${b.daysUntil} day${b.daysUntil === 1 ? "" : "s"}`
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {b.phoneNumber ? (
-                    <a
-                      href={waWishLink(b.phoneNumber, b.name)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-semibold transition-colors"
+          <>
+            {visible.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Cake size={28} className="text-[#EC4899] mb-2 opacity-80" />
+                <p className="text-sm font-semibold text-[var(--foreground)]">All caught up 🎂</p>
+                <p className="text-xs text-[var(--nav-text-color)] mt-1">
+                  No upcoming birthdays in the next 7 days.
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-[var(--card-border)]">
+                {visible.map((b) => (
+                  <li key={b.driverId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <span className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F472B6] to-[#EC4899] text-white text-xs font-bold flex items-center justify-center shrink-0">
+                      {initialsOf(b.name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[var(--foreground)] truncate">{b.name}</p>
+                      <p className="text-xs text-[var(--nav-text-color)]">
+                        {b.daysUntil === 0 ? (
+                          <span className="text-[#EC4899] font-semibold">
+                            Today 🎉 · turns {ageThisYear(b.birthYear)}
+                          </span>
+                        ) : (
+                          `Turns ${ageThisYear(b.birthYear)} · in ${b.daysUntil} day${b.daysUntil === 1 ? "" : "s"}`
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {b.phoneNumber ? (
+                        <a
+                          href={waWishLink(b.phoneNumber, b.name)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-semibold transition-colors"
+                        >
+                          <MessageCircle size={14} />
+                          Wish
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => handleDismiss(b.driverId, b.name)}
+                        aria-label={`Dismiss ${b.name}`}
+                        title="Dismiss"
+                        className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Undo safety net — show what's hidden and let the user restore it */}
+            {hidden.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between gap-3 px-3 py-2 bg-[var(--card-bg)]/50 rounded-lg border border-[var(--card-border)]">
+                  <span className="text-xs text-[var(--nav-text-color)]">
+                    {hidden.length} hidden from this list
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRestoreAll}
+                      className="flex items-center gap-1 text-xs font-semibold text-[#06B6D4] hover:text-[#0891B2] transition-colors"
                     >
-                      <MessageCircle size={14} />
-                      Wish
-                    </a>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => handleDismiss(b.driverId, b.name)}
-                    aria-label={`Dismiss ${b.name}`}
-                    title="Dismiss"
-                    className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
+                      <Undo2 size={13} />
+                      Restore all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowHidden((s) => !s)}
+                      aria-expanded={showHidden}
+                      className="text-xs font-semibold text-[#06B6D4] hover:text-[#0891B2] transition-colors"
+                    >
+                      {showHidden ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+                {showHidden && (
+                  <ul className="divide-y divide-[var(--card-border)] rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/30 overflow-hidden">
+                    {hidden.map((h) => (
+                      <li key={h.driverId} className="flex items-center gap-3 py-2.5 px-3">
+                        <span className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F472B6] to-[#EC4899] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {initialsOf(h.name)}
+                        </span>
+                        <span className="flex-1 min-w-0 text-left">
+                          <span className="block text-sm font-medium text-[var(--foreground)] truncate">
+                            {h.name}
+                          </span>
+                          <span className="block text-[11px] text-[var(--nav-text-color)]">
+                            {h.daysUntil === 0 ? (
+                              <span className="text-[#EC4899] font-semibold">Today 🎉</span>
+                            ) : (
+                              `Turns ${ageThisYear(h.birthYear)} · in ${h.daysUntil} day${h.daysUntil === 1 ? "" : "s"}`
+                            )}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(h.driverId, h.name)}
+                          className="flex items-center gap-1 text-xs font-semibold text-[#06B6D4] hover:text-[#0891B2] transition-colors shrink-0"
+                        >
+                          <Undo2 size={13} />
+                          Restore
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         <div className="mt-4 pt-3 border-t border-[var(--card-border)] flex justify-end">

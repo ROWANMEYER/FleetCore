@@ -3,6 +3,7 @@
 import { useState, useEffect} from"react";
 import { useQuery, useMutation, useAction} from"convex/react";
 import { api} from"@/convex/_generated/api";
+import type { Id } from"@/convex/_generated/dataModel";
 import {
  Bell,
  BellRing,
@@ -19,6 +20,11 @@ import {
  Lock,
  AlertTriangle,
  RefreshCw,
+ Smartphone,
+ Laptop,
+ Globe,
+ LogOut,
+ ShieldCheck,
 } from"lucide-react";
 import { PushNotificationSettings } from"@/src/components/PushNotificationSettings";
 import { useAuth } from"@/src/components/auth/AuthProvider";
@@ -103,6 +109,184 @@ function NumberField({ label, value, min, max, step, suffix, onChange}: {
  {value}{suffix ||""}
  </span>
  </div>
+ </div>
+);
+}
+
+function deviceIcon(device: string) {
+ const d = device.toLowerCase();
+ if (d.includes("mobile") || d.includes("phone") || d.includes("tablet")) {
+ return <Smartphone className="w-5 h-5" />;
+ }
+ if (d.includes("desktop") || d.includes("laptop") || d.includes("mac") || d.includes("windows")) {
+ return <Laptop className="w-5 h-5" />;
+ }
+ return <Globe className="w-5 h-5" />;
+}
+
+/** Best-effort browser + OS names from a raw userAgent string. */
+function parseUserAgent(ua: string | null): { browser: string; os: string } {
+ if (!ua) return { browser: "Unknown browser", os: "Unknown OS" };
+ const u = ua;
+ let os = "Unknown OS";
+ if (/windows nt 10/i.test(u)) os = "Windows 10/11";
+ else if (/windows nt 6\.3/i.test(u)) os = "Windows 8.1";
+ else if (/windows/i.test(u)) os = "Windows";
+ else if (/android/i.test(u)) os = "Android";
+ else if (/iphone|ipad|ipod/i.test(u)) os = "iOS";
+ else if (/mac os x/i.test(u)) {
+ const m = u.match(/mac os x (\d+[._]\d+)/i);
+ os = m ? `macOS ${m[1].replace("_", ".")}` : "macOS";
+ } else if (/linux/i.test(u)) os = "Linux";
+
+ let browser = "Unknown browser";
+ if (/edg\//i.test(u)) {
+ const m = u.match(/edg\/([\d.]+)/i);
+ browser = m ? `Edge ${m[1].split(".")[0]}` : "Edge";
+ } else if (/opr\//i.test(u) || /opera/i.test(u)) {
+ const m = u.match(/opr\/([\d.]+)/i);
+ browser = m ? `Opera ${m[1].split(".")[0]}` : "Opera";
+ } else if (/firefox\//i.test(u)) {
+ const m = u.match(/firefox\/([\d.]+)/i);
+ browser = m ? `Firefox ${m[1].split(".")[0]}` : "Firefox";
+ } else if (/crios\//i.test(u)) {
+ const m = u.match(/crios\/([\d.]+)/i);
+ browser = m ? `Chrome ${m[1].split(".")[0]}` : "Chrome";
+ } else if (/fxios\//i.test(u)) {
+ const m = u.match(/fxios\/([\d.]+)/i);
+ browser = m ? `Firefox ${m[1].split(".")[0]}` : "Firefox";
+ } else if (/chrome\//i.test(u)) {
+ const m = u.match(/chrome\/([\d.]+)/i);
+ browser = m ? `Chrome ${m[1].split(".")[0]}` : "Chrome";
+ } else if (/safari\//i.test(u)) {
+ const m = u.match(/version\/([\d.]+)/i);
+ browser = m ? `Safari ${m[1].split(".")[0]}` : "Safari";
+ }
+ return { browser, os };
+}
+
+function timeAgo(ts: number): string {
+ const diff = Date.now() - ts;
+ const mins = Math.floor(diff / 60000);
+ if (mins < 1) return "just now";
+ if (mins < 60) return `${mins}m ago`;
+ const hrs = Math.floor(mins / 60);
+ if (hrs < 24) return `${hrs}h ago`;
+ const days = Math.floor(hrs / 24);
+ return `${days}d ago`;
+}
+
+function expiresInLabel(ts: number): string {
+ const days = Math.ceil((ts - Date.now()) / 86400000);
+ if (days <= 1) return "expires today";
+ return `expires in ${days} days`;
+}
+
+/** Lists the signed-in user's active sessions with per-device remote sign-out. */
+function ActiveSessionsPanel() {
+ const { token } = useAuth();
+ const data = useQuery(api.userSessions.listMySessions, token ? { token } : "skip");
+ const logoutSession = useMutation(api.userSessions.logoutSession);
+ const [confirmId, setConfirmId] = useState<string | null>(null);
+ const [busyId, setBusyId] = useState<string | null>(null);
+ const [signOutError, setSignOutError] = useState<string | null>(null);
+
+ const handleSignOut = async (sessionId: Id<"sessions">) => {
+ if (!token) return;
+ setBusyId(sessionId);
+ setSignOutError(null);
+ try {
+ await logoutSession({ token, sessionId });
+ } catch (e) {
+ console.error("Failed to sign out device:", e);
+ setSignOutError("Couldn't sign out that device. Please try again.");
+ } finally {
+ setBusyId(null);
+ setConfirmId(null);
+ }
+ };
+
+ const sessions = data?.sessions ?? [];
+ const loading = !!token && data === undefined;
+
+ return (
+ <div className="space-y-3">
+ <p className="text-xs text-[var(--nav-text-color)]">
+ Up to 5 devices can be signed in at once. Sign out any device you don&apos;t recognise — that device will be logged out immediately.
+ </p>
+ {signOutError && (
+ <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+ <AlertTriangle className="w-3.5 h-3.5" /> {signOutError}
+ </div>
+ )}
+ {loading ? (
+ <div className="flex items-center gap-2 text-sm text-[var(--nav-text-color)] py-3 justify-center">
+ <RotateCcw className="w-4 h-4 animate-spin" /> Loading sessions…
+ </div>
+ ) : sessions.length === 0 ? (
+ <div className="text-sm text-[var(--nav-text-color)] py-3 text-center border border-dashed border-[var(--card-border)] rounded-lg">
+ No active sessions
+ </div>
+ ) : (
+ <div className="space-y-2">
+ {sessions.map((s) => {
+ const { browser, os } = parseUserAgent(s.userAgent);
+ return (
+ <div
+ key={s._id}
+ className="flex items-center gap-3 p-3 bg-[var(--card-bg)]/50 rounded-lg border border-[var(--card-border)]"
+ >
+ <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#06B6D4]/10 text-[#06B6D4] shrink-0">
+ {deviceIcon(s.device)}
+ </div>
+ <div className="flex-1 min-w-0">
+ <div className="flex items-center gap-2 flex-wrap">
+ <span className="text-sm font-medium text-[var(--foreground)] capitalize">{s.device}</span>
+ {s.isCurrent && (
+ <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#06B6D4] bg-[#06B6D4]/10 px-1.5 py-0.5 rounded-full">
+ <ShieldCheck className="w-3 h-3" /> This device
+ </span>
+ )}
+ </div>
+ <div className="text-xs text-[var(--nav-text-color)] mt-0.5">
+ {browser} · {os}
+ </div>
+ <div className="text-xs text-[var(--nav-text-color)] mt-0.5">
+ Signed in {timeAgo(s.createdAt)} · {expiresInLabel(s.expiresAt)}
+ </div>
+ </div>
+ {s.isCurrent ? (
+ <span className="text-xs text-[var(--nav-text-color)]">Active now</span>
+ ) : confirmId === s._id ? (
+ <div className="flex gap-2 shrink-0">
+ <button
+ onClick={() => handleSignOut(s._id)}
+ disabled={busyId === s._id}
+ className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-all shadow-sm disabled:opacity-60"
+ >
+ {busyId === s._id ? "Signing out..." : "Confirm"}
+ </button>
+ <button
+ onClick={() => setConfirmId(null)}
+ className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--card-bg)] text-[var(--foreground)] hover:bg-[var(--card-border)] transition-all"
+ >
+ Cancel
+ </button>
+ </div>
+ ) : (
+ <button
+ onClick={() => setConfirmId(s._id)}
+ className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--card-border)] text-[var(--nav-text-color)] hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/5 transition-all shrink-0"
+ >
+ <LogOut className="w-3.5 h-3.5" />
+ Sign out
+ </button>
+ )}
+ </div>
+ );
+ })}
+ </div>
+ )}
  </div>
 );
 }
@@ -395,7 +579,7 @@ export default function SettingsPage() {
 
  return (
  <div className="h-full overflow-y-auto">
- <div className="max-w-3xl mx-auto space-y-6 p-4 sm:p-8">
+ <div className="w-full max-w-[1600px] mx-auto space-y-6 p-4 sm:p-8">
  {/* Page Header */}
  <div className="flex items-center justify-between flex-wrap gap-3">
  <div>
@@ -407,9 +591,11 @@ export default function SettingsPage() {
  <div className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-500/30 animate-in fade-in slide-in-from-top-2">
  <CheckCircle className="w-4 h-4" />
  Saved
+ </div> )}
  </div>
-)}
- </div>
+
+ {/* Sections — stacked side-by-side on wide screens to maximise space */}
+ <div className="grid grid-cols-1 xl:grid-cols-2 3xl:grid-cols-3 gap-6 items-start">
 
  {/* Section 1: Expiry Reminder Thresholds */}
  <SettingsSection
@@ -496,6 +682,15 @@ export default function SettingsPage() {
  description="Get notified on your phone — daily dispatch summary and alerts (works with the installed app)"
  >
  <PushNotificationSettings />
+ </SettingsSection>
+
+ {/* Section 1c: Sessions & Devices */}
+ <SettingsSection
+ icon={<Smartphone className="w-5 h-5" />}
+ title="Sessions & Devices"
+ description="Devices currently signed in to your account — sign out any you don&apos;t recognise"
+ >
+ <ActiveSessionsPanel />
  </SettingsSection>
 
  {/* Section 2: Display & Theme */}
@@ -1239,6 +1434,7 @@ export default function SettingsPage() {
  )}
  </div>
  </SettingsSection>
+ </div>
  </div>
  </div>
 );

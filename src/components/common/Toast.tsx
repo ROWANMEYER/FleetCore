@@ -4,14 +4,17 @@ import { createContext, useCallback, useContext, useState, ReactNode } from "rea
 
 type ToastType = "success" | "error" | "info";
 
+type ToastAction = { label: string; onClick: () => void };
+
 interface ToastItem {
   id: string;
   message: string;
   type: ToastType;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  addToast: (message: string, type?: ToastType) => void;
+  addToast: (message: string, type?: ToastType, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -25,9 +28,9 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const addToast = useCallback((message: string, type: ToastType = "info") => {
+  const addToast = useCallback((message: string, type: ToastType = "info", action?: ToastAction) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, action }]);
 
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -85,6 +88,17 @@ function ToastItem({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
     >
       {icons[toast.type]}
       <span className="flex-1">{toast.message}</span>
+      {toast.action && (
+        <button
+          onClick={() => {
+            toast.action?.onClick();
+            onDismiss();
+          }}
+          className="px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-white text-xs font-bold uppercase tracking-wide transition-colors"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button onClick={onDismiss} className="text-white/70 hover:text-white">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
           <line x1="6" y1="6" x2="18" y2="18" />

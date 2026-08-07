@@ -1,0 +1,808 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { calculateLoadAmount } from "@/convex/utils";
+import {
+  Search,
+  SlidersHorizontal,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  RotateCcw,
+  FileText,
+} from "lucide-react";
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Mobile Sheets screen (phone app)
+
+   Rendered instead of the desktop grid when the viewport is <768px (see
+   useIsMobile). Routes arrive already filtered + sorted from the parent page;
+   this view groups them by day and layers the mobile UX on top:
+
+     • Date navigation — Day / Range / Month with prev-day / next-day / Today
+     • Quick search + a filter bottom sheet (same filter fields as desktop)
+     • Day-grouped route cards with status badge, revenue, truck, driver,
+       client, route and load summary
+
+   Filters, search, sort and the date range are owned by the parent page, so
+   they persist to localStorage and stay in sync with the desktop screens.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+type RiskStatus = { label: string; level: "red" | "yellow" | "green" | "blue" };
+
+type FiltersShape = {
+  date: string;
+  truck: string;
+  trailer: string;
+  client: string;
+  driver: string;
+  from: string;
+  to: string;
+  status: string[];
+  amountMin: string;
+  amountMax: string;
+};
+
+type SortConfig = { column: string | null; direction: "asc" | "desc" };
+type DateMode = "single" | "range" | "month";
+
+interface MobileSheetsViewProps {
+  routes: any[];
+  loading: boolean;
+  filters: FiltersShape;
+  updateFilter: (key: keyof FiltersShape, value: any) => void;
+  quickSearch: string;
+  setQuickSearch: (v: string) => void;
+  sortConfig: SortConfig;
+  setSortConfig: (cfg: SortConfig) => void;
+  clearFilters: () => void;
+  dateMode: DateMode;
+  setDateMode: (m: DateMode) => void;
+  singleDate: string;
+  setSingleDate: (d: string) => void;
+  fromDate: string;
+  setFromDate: (d: string) => void;
+  toDate: string;
+  setToDate: (d: string) => void;
+  selectedMonth: string;
+  setSelectedMonth: (m: string) => void;
+  syncDateToUrl: (date: string) => void;
+  riskStatusOf: (route: any) => RiskStatus;
+  /** Opens the shared route detail/edit panel (the page owns the panel state). */
+  onRouteTap: (route: any) => void;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function parseNumberSafe(value: unknown): number {
+  if (value == null) return 0;
+  const cleaned = String(value)
+    .replace(/[A-Za-z]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".");
+  const n = parseFloat(cleaned);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+// [HYDRATION SAFE] Deterministic ZAR formatting ("R 1 234,56"), matching the
+// rest of the app (never toLocaleString).
+function formatZAR(value: number): string {
+  const parts = value.toFixed(2).split(".");
+  const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `R ${integerPart},${parts[1]}`;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function shiftDay(iso: string, delta: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + delta);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDayLabel(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  const weekday = d.toLocaleDateString(undefined, { weekday: "short" });
+  const day = d.getDate();
+  const month = d.toLocaleDateString(undefined, { month: "short" });
+  const isToday = iso === todayIso();
+  return `${weekday} ${day} ${month}${isToday ? " · Today" : ""}`;
+}
+
+function uniqueFroms(route: any): string[] {
+  const froms = (route.loads ?? []) as string[];
+  return [...new Set(froms.flatMap((l: any) => (l.fromLocations ?? []) as string[]))];
+}
+
+function uniqueTos(route: any): string[] {
+  const tos = (route.loads ?? []) as string[];
+  return [...new Set(tos.flatMap((l: any) => (l.toLocations ?? []) as string[]))];
+}
+
+function routeRevenue(route: any): number {
+  return (route.loads ?? []).reduce((sum: number, l: any) => {
+    return (
+      sum +
+      calculateLoadAmount(
+        parseNumberSafe(l.quantity),
+        parseNumberSafe(l.rate),
+        l.rateType || "per_unit"
+      )
+    );
+  }, 0);
+}
+
+const STATUS_OPTIONS = [
+  "🔴 Incomplete",
+  "🟡 Missing KM",
+  "🟡 Multi-drop",
+  "🟡 Multi-pick",
+  "🔵 Finalized",
+  "🟢 Clean",
+];
+
+const LEVEL_PILL: Record<string, string> = {
+  red: "bg-red-50 text-red-700 border-red-200",
+  yellow: "bg-amber-50 text-amber-700 border-amber-200",
+  green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  blue: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
+const LEVEL_DOT: Record<string, string> = {
+  red: "bg-red-500",
+  yellow: "bg-amber-500",
+  green: "bg-emerald-500",
+  blue: "bg-blue-500",
+};
+
+const inputClass =
+  "w-full h-11 px-3.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function MobileSheetsView({
+  routes,
+  loading,
+  filters,
+  updateFilter,
+  quickSearch,
+  setQuickSearch,
+  sortConfig,
+  setSortConfig,
+  clearFilters,
+  dateMode,
+  setDateMode,
+  singleDate,
+  setSingleDate,
+  fromDate,
+  setFromDate,
+  toDate,
+  setToDate,
+  selectedMonth,
+  setSelectedMonth,
+  syncDateToUrl,
+  riskStatusOf,
+  onRouteTap,
+}: MobileSheetsViewProps) {
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+
+  const today = todayIso();
+
+  // Group routes by day, newest day first; order within a day is preserved
+  // (the parent already applied the user's sort).
+  const groups = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const r of routes) {
+      const key = r.routeDate || "";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [routes]);
+
+  const activeFilterCount =
+    (quickSearch ? 1 : 0) +
+    (filters.truck ? 1 : 0) +
+    (filters.trailer ? 1 : 0) +
+    (filters.client ? 1 : 0) +
+    (filters.driver ? 1 : 0) +
+    (filters.from ? 1 : 0) +
+    (filters.to ? 1 : 0) +
+    (filters.date ? 1 : 0) +
+    filters.status.length +
+    (filters.amountMin || filters.amountMax ? 1 : 0);
+
+  const hasAnyFilter = activeFilterCount > 0;
+
+  // ── Date navigation ────────────────────────────────────────────────────────
+  const goPrevDay = () => {
+    if (!singleDate) return;
+    const next = shiftDay(singleDate, -1);
+    setSingleDate(next);
+    syncDateToUrl(next);
+  };
+
+  const goNextDay = () => {
+    if (!singleDate) return;
+    const next = shiftDay(singleDate, 1);
+    setSingleDate(next);
+    syncDateToUrl(next);
+  };
+
+  const goToday = () => {
+    setDateMode("single");
+    setSingleDate(today);
+    syncDateToUrl(today);
+  };
+
+  const changeSingleDate = (v: string) => {
+    setSingleDate(v);
+    syncDateToUrl(v);
+  };
+
+  const sortOptions: { key: string; label: string }[] = [
+    { key: "date", label: "Date" },
+    { key: "truck", label: "Truck" },
+    { key: "client", label: "Client" },
+    { key: "driver", label: "Driver" },
+    { key: "amount", label: "Amount" },
+    { key: "status", label: "Status" },
+  ];
+
+  const applySort = (column: string) => {
+    setSortConfig({
+      column,
+      direction: sortConfig.column === column && sortConfig.direction === "asc" ? "desc" : "asc",
+    });
+    setSortOpen(false);
+  };
+
+  const statusPill = (route: any) => {
+    const { label, level } = riskStatusOf(route);
+    const text = label.replace(/^\S+\s*/, ""); // strip the leading emoji
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${LEVEL_PILL[level] ?? "bg-[var(--card-bg)] text-[var(--nav-text-color)] border-[var(--card-border)]"}`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${LEVEL_DOT[level] ?? "bg-[var(--nav-text-color)]"}`} />
+        {text || label}
+      </span>
+    );
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="h-full flex flex-col">
+      {/* ── Sticky header: title + date navigation ── */}
+      <div className="sticky top-0 z-30 -mx-4 px-4 pt-4 pb-2 sm:-mx-8 sm:px-8 bg-[var(--card-bg)]/90 backdrop-blur-md border-b border-[var(--card-border)]">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-lg font-black tracking-tight text-[var(--foreground)]">
+            Sheets
+            <span className="ml-2 text-xs font-medium text-[var(--nav-text-color)]">
+              {routes.length} route{routes.length === 1 ? "" : "s"}
+            </span>
+          </h1>
+          <button
+            onClick={goToday}
+            className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-semibold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] border border-[rgba(6,182,212,0.2)] active:scale-95 transition-all"
+          >
+            <RotateCcw size={12} strokeWidth={2.5} />
+            Today
+          </button>
+        </div>
+
+        {/* Mode chips */}
+        <div className="flex items-center gap-1.5 mb-2">
+          {(["single", "range", "month"] as DateMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setDateMode(m)}
+              className={`flex-1 h-9 rounded-lg text-xs font-semibold capitalize transition-all ${
+                dateMode === m
+                  ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+                  : "bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]"
+              }`}
+            >
+              {m === "single" ? "Day" : m}
+            </button>
+          ))}
+        </div>
+
+        {/* Date controls */}
+        {dateMode === "single" && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goPrevDay}
+              aria-label="Previous day"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
+            >
+              <ChevronLeft size={18} strokeWidth={2.5} />
+            </button>
+            <label className="flex-1 relative">
+              <CalendarDays
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nav-text-color)] pointer-events-none"
+              />
+              <input
+                type="date"
+                value={singleDate}
+                onChange={(e) => changeSingleDate(e.target.value)}
+                className={`${inputClass} pl-9`}
+                aria-label="Select date"
+              />
+            </label>
+            <button
+              onClick={goNextDay}
+              aria-label="Next day"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm active:scale-95 transition-all"
+            >
+              <ChevronRight size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
+
+        {dateMode === "range" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-[var(--nav-text-color)]">
+              From
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+            <label className="text-xs font-semibold text-[var(--nav-text-color)]">
+              To
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+          </div>
+        )}
+
+        {dateMode === "month" && (
+          <label className="block text-xs font-semibold text-[var(--nav-text-color)]">
+            Month
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className={`${inputClass} mt-1`}
+            />
+          </label>
+        )}
+
+        {/* Search + filter row */}
+        <div className="flex items-center gap-2 mt-3">
+          <div className="relative flex-1">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nav-text-color)] pointer-events-none"
+            />
+            <input
+              type="search"
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+              placeholder="Search truck, client, driver…"
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters(true)}
+            className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border shadow-sm active:scale-95 transition-all ${
+              hasAnyFilter
+                ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[#06B6D4]"
+                : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]"
+            }`}
+            aria-label="Filters"
+          >
+            <SlidersHorizontal size={17} strokeWidth={2.25} />
+            {hasAnyFilter && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-1 text-[9px] font-black text-white shadow-sm">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setSortOpen((s) => !s)}
+            className={`relative flex h-11 shrink-0 items-center gap-1.5 px-3 rounded-lg border text-xs font-semibold shadow-sm active:scale-95 transition-all ${
+              sortConfig.column
+                ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[#06B6D4]"
+                : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]"
+            }`}
+            aria-label="Sort"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round">
+              <path d="M11 5h10" />
+              <path d="M11 9h7" />
+              <path d="M11 13h4" />
+              <path d="m3 17 3 3 3-3" />
+              <path d="M6 18V4" />
+            </svg>
+            <span className="hidden sm:inline">
+              {sortConfig.column ? `${sortConfig.column} ${sortConfig.direction === "asc" ? "↑" : "↓"}` : "Sort"}
+            </span>
+          </button>
+        </div>
+
+        {/* Sort dropdown */}
+        {sortOpen && (
+          <div className="absolute right-4 sm:right-8 top-full mt-1 z-40 min-w-[180px] rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl backdrop-blur-xl py-1">
+            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--nav-text-color)]">
+              Sort by
+            </div>
+            {sortOptions.map((o) => {
+              const active = sortConfig.column === o.key;
+              return (
+                <button
+                  key={o.key}
+                  onClick={() => applySort(o.key)}
+                  className="w-full text-left px-3 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors flex items-center justify-between"
+                >
+                  <span>{o.label}</span>
+                  {active && (
+                    <span className="text-[#06B6D4] font-bold">
+                      {sortConfig.direction === "asc" ? "↑" : "↓"}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {sortConfig.column && (
+              <button
+                onClick={() => {
+                  setSortConfig({ column: null, direction: "asc" });
+                  setSortOpen(false);
+                }}
+                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Clear sort
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Active filter chips ── */}
+      {hasAnyFilter && (
+        <div className="flex flex-wrap items-center gap-1.5 px-0.5 py-2.5">
+          {quickSearch && (
+            <Chip label={`Search: "${quickSearch}"`} onClear={() => setQuickSearch("")} />
+          )}
+          {filters.truck && <Chip label={`Truck: ${filters.truck}`} onClear={() => updateFilter("truck", "")} />}
+          {filters.trailer && <Chip label={`Trailer: ${filters.trailer}`} onClear={() => updateFilter("trailer", "")} />}
+          {filters.client && <Chip label={`Client: ${filters.client}`} onClear={() => updateFilter("client", "")} />}
+          {filters.driver && <Chip label={`Driver: ${filters.driver}`} onClear={() => updateFilter("driver", "")} />}
+          {filters.from && <Chip label={`From: ${filters.from}`} onClear={() => updateFilter("from", "")} />}
+          {filters.to && <Chip label={`To: ${filters.to}`} onClear={() => updateFilter("to", "")} />}
+          {filters.date && <Chip label={`Date: ${filters.date}`} onClear={() => updateFilter("date", "")} />}
+          {filters.status.length > 0 && (
+            <Chip label={`Status (${filters.status.length})`} onClear={() => updateFilter("status", [])} />
+          )}
+          {(filters.amountMin || filters.amountMax) && (
+            <Chip
+              label={`Amount ${filters.amountMin ? `≥ ${filters.amountMin}` : ""}${filters.amountMax ? ` ≤ ${filters.amountMax}` : ""}`}
+              onClear={() => {
+                updateFilter("amountMin", "");
+                updateFilter("amountMax", "");
+              }}
+            />
+          )}
+          <button
+            onClick={clearFilters}
+            className="text-xs font-medium text-red-600 hover:text-red-800 underline ml-0.5"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* ── Content: loading / empty / day groups ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-6">
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="glass-card rounded-xl p-4 space-y-2.5">
+                <div className="skeleton-shimmer h-3 w-24 rounded" />
+                <div className="skeleton-shimmer h-8 w-40 rounded" />
+                <div className="skeleton-shimmer h-3 w-full rounded" />
+                <div className="skeleton-shimmer h-3 w-2/3 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center pt-16 px-6 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] mb-3">
+              <CalendarDays size={24} className="text-[var(--nav-text-color)]" />
+            </div>
+            <p className="text-sm font-semibold text-[var(--foreground)]">No routes found</p>
+            <p className="text-xs text-[var(--nav-text-color)] mt-1 max-w-[240px]">
+              There are no routes for this date range. Try a different date or
+              clear the filters.
+            </p>
+            {hasAnyFilter && (
+              <button
+                onClick={clearFilters}
+                className="mt-4 px-4 h-10 rounded-lg text-sm font-semibold bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm active:scale-95 transition-all"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {groups.map(([day, dayRoutes]) => (
+              <section key={day}>
+                <div className="flex items-baseline justify-between mb-2 px-0.5">
+                  <h2 className="text-sm font-black tracking-tight text-[var(--foreground)] capitalize">
+                    {formatDayLabel(day)}
+                  </h2>
+                  <span className="text-[11px] font-medium text-[var(--nav-text-color)] tabular-nums">
+                    {dayRoutes.length} route{dayRoutes.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  {dayRoutes.map((route: any) => (
+                    <RouteCard
+                      key={route._id}
+                      route={route}
+                      statusPill={statusPill}
+                      onTap={() => onRouteTap(route)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Filter bottom sheet ── */}
+      {showFilters && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+            onClick={() => setShowFilters(false)}
+          />
+          <div
+            className="relative bg-[var(--card-bg)] rounded-t-2xl border-t border-[var(--card-border)] shadow-2xl max-h-[85dvh] flex flex-col animate-in slide-in-from-bottom duration-200"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[var(--card-border)]">
+              <h3 className="text-base font-black tracking-tight text-[var(--foreground)]">
+                Filters
+              </h3>
+              <button
+                onClick={() => setShowFilters(false)}
+                aria-label="Close filters"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+              >
+                <X size={18} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 space-y-4">
+              {/* Status checkboxes */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)] mb-2">
+                  Status
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {STATUS_OPTIONS.map((s) => {
+                    const checked = filters.status.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        onClick={() =>
+                          updateFilter(
+                            "status",
+                            checked
+                              ? filters.status.filter((x) => x !== s)
+                              : [...filters.status, s]
+                          )
+                        }
+                        className={`flex items-center gap-2 h-11 px-3 rounded-lg border text-xs font-semibold transition-all active:scale-[0.98] ${
+                          checked
+                            ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[var(--foreground)]"
+                            : "border-[var(--card-border)] bg-[var(--card-bg)]/60 text-[var(--nav-text-color)]"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                            checked ? "bg-[#06B6D4] border-[#06B6D4] text-white" : "border-[var(--card-border)]"
+                          }`}
+                        >
+                          {checked && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="truncate">{s.replace(/^\S+\s*/, "")}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Text filters */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {(
+                  [
+                    ["truck", "Truck"],
+                    ["trailer", "Trailer"],
+                    ["client", "Client"],
+                    ["driver", "Driver"],
+                    ["from", "From"],
+                    ["to", "To"],
+                  ] as [keyof FiltersShape, string][]
+                ).map(([key, label]) => (
+                  <label key={key} className="block text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)]">
+                    {label}
+                    <input
+                      type="text"
+                      value={String(filters[key] ?? "")}
+                      onChange={(e) => updateFilter(key, e.target.value)}
+                      placeholder={label}
+                      className={`${inputClass} mt-1`}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              {/* Amount range */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)]">
+                  Amount min (R)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={filters.amountMin}
+                    onChange={(e) => updateFilter("amountMin", e.target.value)}
+                    placeholder="0"
+                    className={`${inputClass} mt-1`}
+                  />
+                </label>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)]">
+                  Amount max (R)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={filters.amountMax}
+                    onChange={(e) => updateFilter("amountMax", e.target.value)}
+                    placeholder="—"
+                    className={`${inputClass} mt-1`}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 px-5 py-3 border-t border-[var(--card-border)]">
+              <button
+                onClick={clearFilters}
+                className="flex-1 h-11 rounded-lg border border-[var(--card-border)] text-sm font-semibold text-[var(--nav-text-color)] hover:text-[var(--foreground)] active:scale-[0.98] transition-all"
+              >
+                Clear all
+              </button>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="flex-1 h-11 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-sm font-bold text-white shadow-sm active:scale-[0.98] transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Small pieces ────────────────────────────────────────────────────────────
+
+function Chip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-[rgba(6,182,212,0.08)] text-[#06B6D4] border border-[rgba(6,182,212,0.15)]">
+      {label}
+      <button
+        onClick={onClear}
+        aria-label={`Remove ${label}`}
+        className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-[rgba(6,182,212,0.15)] transition-colors"
+      >
+        <X size={11} strokeWidth={3} />
+      </button>
+    </span>
+  );
+}
+
+function RouteCard({
+  route,
+  statusPill,
+  onTap,
+}: {
+  route: any;
+  statusPill: (route: any) => React.ReactNode;
+  onTap: () => void;
+}) {
+  const revenue = routeRevenue(route);
+  const froms = uniqueFroms(route);
+  const tos = uniqueTos(route);
+  const truck = route.truckFleetNoStr || String(route.truckFleetNo ?? "—");
+  const km = Number(route.kilometers) || 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      className="glass-card rounded-xl p-3.5 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
+      aria-label={`View details for Truck ${truck}`}
+    >
+      {/* Status + revenue */}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        {statusPill(route)}
+        <span className="text-sm font-black text-[var(--foreground)] tabular-nums">
+          {revenue > 0 ? formatZAR(revenue) : "—"}
+        </span>
+      </div>
+
+      {/* Truck + driver */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[15px] font-black tracking-tight text-[#06B6D4]">
+          {truck}
+        </span>
+        <span className="text-xs font-semibold text-[var(--nav-text-color)] truncate">
+          {route.driverName ? route.driverName.toUpperCase() : "—"}
+        </span>
+      </div>
+
+      {/* Client */}
+      {route.client && (
+        <p className="text-sm font-semibold text-[var(--foreground)] truncate mt-1">
+          {route.client.toUpperCase()}
+        </p>
+      )}
+
+      {/* Route */}
+      {(froms.length > 0 || tos.length > 0) && (
+        <p className="text-[11px] text-[var(--nav-text-color)] mt-1 truncate">
+          {froms.length > 0 ? froms.join(", ").toUpperCase() : "?"} →{" "}
+          {tos.length > 0 ? tos.join(", ").toUpperCase() : "?"}
+        </p>
+      )}
+
+      {/* Meta + tap affordance */}
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
+        <span>{route.loads?.length ?? 0} load{(route.loads?.length ?? 0) === 1 ? "" : "s"}</span>
+        {route.trailerFleetNoStr && (
+          <>
+            <span className="opacity-40">·</span>
+            <span>Trailer {route.trailerFleetNoStr}</span>
+          </>
+        )}
+        {km > 0 && (
+          <>
+            <span className="opacity-40">·</span>
+            <span>{km} km</span>
+          </>
+        )}
+        <span className="ml-auto flex items-center gap-1 text-[11px] font-bold text-[#06B6D4] group-hover:gap-1.5 transition-all">
+          <FileText size={11} strokeWidth={2.5} />
+          Details
+          <ChevronRight size={12} strokeWidth={2.75} />
+        </span>
+      </div>
+    </button>
+  );
+}

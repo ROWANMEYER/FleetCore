@@ -12,13 +12,19 @@ type AuthUserView = {
 
 async function runLogin(
   ctx: any,
-  args: { email: string; password: string; token: string }
+  args: { email: string; password: string; token: string; device?: string; userAgent?: string }
 ): Promise<{ ok: boolean; error?: string; user?: AuthUserView }> {
   const user = await ctx.runQuery(internal.userSessions.getUserByEmail, { email: args.email });
   if (!user) return { ok: false, error: "Invalid email or password" };
   const valid = await bcrypt.compare(args.password, user.passwordHash);
   if (!valid) return { ok: false, error: "Invalid email or password" };
-  await ctx.runMutation(internal.userSessions.setSessionToken, { userId: user._id, token: args.token });
+  // Multi-device: each login registers its own session — other devices stay signed in.
+  await ctx.runMutation(internal.userSessions.setSessionToken, {
+    userId: user._id,
+    token: args.token,
+    device: args.device,
+    userAgent: args.userAgent,
+  });
   return {
     ok: true,
     user: { _id: user._id, email: user.email, role: user.role, region: user.region ?? null },
@@ -26,7 +32,13 @@ async function runLogin(
 }
 
 export const login = action({
-  args: { email: v.string(), password: v.string(), token: v.string() },
+  args: {
+    email: v.string(),
+    password: v.string(),
+    token: v.string(),
+    device: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+  },
   handler: (ctx, args) => runLogin(ctx, args),
 });
 
@@ -57,8 +69,9 @@ type UserRegion = "garden_route" | "eastern_cape";
 
 /** Resolve the session user and enforce that they are an admin with a live session. */
 async function requireAdmin(ctx: any, token: string): Promise<any | null> {
+  // getUserBySessionToken already enforces a live (non-expired) session.
   const user = await ctx.runQuery(internal.userSessions.getUserBySessionToken, { token });
-  if (!user || user.role !== "admin" || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) return null;
+  if (!user || user.role !== "admin") return null;
   return user;
 }
 
@@ -96,13 +109,22 @@ export const listUsers = query({
     const admin = await requireAdmin(ctx, args.token);
     if (!admin) throw new Error("Admin access required");
     const users = await ctx.db.query("users").collect();
+    // A user is "signed in" when they have at least one live session (multi-device).
+    const now = Date.now();
+    const sessions = await ctx.db.query("sessions").collect();
+    const liveByUser = new Map<string, number>();
+    for (const s of sessions) {
+      if (s.expiresAt > now) {
+        liveByUser.set(String(s.userId), (liveByUser.get(String(s.userId)) ?? 0) + 1);
+      }
+    }
     return users
       .map((u) => ({
         _id: u._id,
         email: u.email,
         role: u.role as UserRole,
         region: (u.region as UserRegion) ?? null,
-        signedIn: !!u.sessionToken && (u.sessionExpiresAt ?? 0) > Date.now(),
+        signedIn: (liveByUser.get(String(u._id)) ?? 0) > 0,
       }))
       .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === "admin" ? -1 : 1));
   },
@@ -214,7 +236,7 @@ export const changePassword = action({
     const user = await ctx.runQuery(internal.userSessions.getUserBySessionToken, {
       token: args.token,
     });
-    if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) {
+    if (!user) {
       return { ok: false, error: "Your session has expired. Please sign in again." };
     }
     const valid = await bcrypt.compare(args.currentPassword, user.passwordHash);

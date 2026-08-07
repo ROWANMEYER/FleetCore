@@ -69,7 +69,7 @@ export default function AdminUsersPage() {
   if (!me || me.role !== "admin") {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="max-w-3xl mx-auto p-6">
+        <div className="p-6">
           <div className="glass-card rounded-xl p-10 text-center">
             <div className="mx-auto w-14 h-14 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] flex items-center justify-center mb-4">
               <Shield size={24} className="text-[#06B6D4]" strokeWidth={2} />
@@ -188,7 +188,7 @@ export default function AdminUsersPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">

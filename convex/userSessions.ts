@@ -13,32 +13,64 @@ export const getUserByEmail = internalQuery({
   },
 });
 
+/** Max simultaneous sessions per user — oldest are dropped beyond this. */
+export const MAX_SESSIONS_PER_USER = 5;
+
+/** Look up a user by token — only when a live (non-expired) session exists. */
 export const getUserBySessionToken = internalQuery({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", args.token))
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
+    if (!session || session.expiresAt < Date.now()) return null;
+    return await ctx.db.get(session.userId);
   },
 });
 
+/**
+ * Register a new session for a user (login). Multi-device: each login appends
+ * a session instead of overwriting the previous one, so other devices stay
+ * signed in. Prunes expired sessions and enforces the per-user cap.
+ */
 export const setSessionToken = internalMutation({
-  args: { userId: v.id("users"), token: v.string() },
+  args: {
+    userId: v.id("users"),
+    token: v.string(),
+    device: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
-      sessionToken: args.token,
-      sessionExpiresAt: Date.now() + SESSION_MS,
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("sessions")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Drop expired sessions, then the oldest if over the per-user cap.
+    const live = existing.filter((s) => s.expiresAt > now);
+    for (const s of existing) {
+      if (s.expiresAt <= now) await ctx.db.delete(s._id);
+    }
+    if (live.length >= MAX_SESSIONS_PER_USER) {
+      const overflow = [...live]
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .slice(0, live.length - MAX_SESSIONS_PER_USER + 1);
+      for (const s of overflow) await ctx.db.delete(s._id);
+    }
+
+    await ctx.db.insert("sessions", {
+      userId: args.userId,
+      token: args.token,
+      expiresAt: now + SESSION_MS,
+      device: args.device,
+      userAgent: args.userAgent,
+      createdAt: now,
     });
   },
 });
 
-export const clearSessionToken = internalMutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, { sessionToken: undefined, sessionExpiresAt: undefined });
-  },
-});
 
 export const createUserInternal = internalMutation({
   args: {
@@ -77,13 +109,13 @@ export const updateUserInternal = internalMutation({
 export const getSessionUser = query({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", args.token))
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
-    if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) {
-      return { user: null };
-    }
+    if (!session || session.expiresAt < Date.now()) return { user: null };
+    const user = await ctx.db.get(session.userId);
+    if (!user) return { user: null };
     return {
       user: { _id: user._id, email: user.email, role: user.role, region: user.region ?? null },
     };
@@ -93,13 +125,70 @@ export const getSessionUser = query({
 export const logout = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_sessionToken", (q) => q.eq("sessionToken", args.token))
+    // Per-device logout: remove only this device's session, so the user stays
+    // signed in on their other devices (e.g. mobile while on desktop).
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
       .first();
-    if (user) {
-      await ctx.db.patch(user._id, { sessionToken: undefined, sessionExpiresAt: undefined });
+    if (session) {
+      await ctx.db.delete(session._id);
     }
+  },
+});
+
+/** Public: list all live sessions for the signed-in user — device labels and
+ * timestamps only, never tokens. The caller's own session is flagged isCurrent. */
+export const listMySessions = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const current = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+    if (!current || current.expiresAt < Date.now()) return { sessions: [] };
+
+    const all = await ctx.db
+      .query("sessions")
+      .withIndex("by_userId", (q) => q.eq("userId", current.userId))
+      .collect();
+    const now = Date.now();
+    const sessions = all
+      .filter((s) => s.expiresAt > now)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((s) => ({
+        _id: s._id,
+        device: s.device ?? "Browser",
+        userAgent: s.userAgent ?? null,
+        createdAt: s.createdAt,
+        expiresAt: s.expiresAt,
+        isCurrent: s.token === args.token,
+      }));
+    return { sessions };
+  },
+});
+
+/**
+ * Remotely sign out a specific device. Ownership-checked: the caller can only
+ * revoke their own sessions (matching userId), never another user's.
+ */
+export const logoutSession = mutation({
+  args: { token: v.string(), sessionId: v.id("sessions") },
+  handler: async (ctx, args) => {
+    const caller = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+    if (!caller || caller.expiresAt < Date.now()) {
+      throw new Error("Invalid session.");
+    }
+    const target = await ctx.db.get(args.sessionId);
+    if (!target) return { ok: true }; // already gone
+    if (target.userId !== caller.userId) {
+      throw new Error("You can only sign out your own devices.");
+    }
+    await ctx.db.delete(target._id);
+    return { ok: true };
   },
 });
 
@@ -115,11 +204,13 @@ export async function resolveUserScope(
   token?: string | null
 ): Promise<{ role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null> {
   if (!token) return null;
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_sessionToken", (q: any) => q.eq("sessionToken", token))
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_token", (q: any) => q.eq("token", token))
     .first();
-  if (!user || !user.sessionExpiresAt || user.sessionExpiresAt < Date.now()) return null;
+  if (!session || session.expiresAt < Date.now()) return null;
+  const user = await ctx.db.get(session.userId);
+  if (!user) return null;
   return {
     role: user.role,
     region: user.region ?? null,

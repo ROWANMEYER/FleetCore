@@ -58,7 +58,7 @@ export default function CalendarPage() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[var(--card-bg)] transition-colors duration-300">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <div className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>

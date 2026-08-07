@@ -310,8 +310,16 @@ export const createBulkDailyRoutes = mutation({
   },
   handler: async (ctx, args) => {
     const scope = await resolveUserScope(ctx, args.token);
-    // Regional users are forced to their own region
-    const region = scope?.role === "regional" ? (scope.region ?? "garden_route") : (args.region ?? "garden_route");
+    // Regional users are forced to their own region (never trusted from client).
+    // Admins must always pass an explicit region — silently defaulting to
+    // garden_route would save loads to the wrong region.
+    let region: "garden_route" | "eastern_cape";
+    if (scope?.role === "regional") {
+      region = scope.region ?? "garden_route";
+    } else {
+      if (!args.region) throw new Error("Region is required when importing as admin.");
+      region = args.region;
+    }
     const now = Date.now();
     const createdIds = [];
 

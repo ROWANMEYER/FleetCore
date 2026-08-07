@@ -4,7 +4,7 @@
  * - Stale-while-revalidate for hashed static assets
  * - Convex API / cross-origin requests are never cached (they need the network)
  */
-const CACHE_NAME = "fleetcore-v10";
+const CACHE_NAME = "fleetcore-v11";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -21,8 +21,20 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
+      .then((keys) => {
+        const stale = keys.filter((k) => k !== CACHE_NAME);
+        return Promise.all(stale.map((k) => caches.delete(k))).then(() => stale.length > 0);
+      })
+      .then((isUpdate) => self.clients.claim().then(() => isUpdate))
+      .then((isUpdate) => {
+        // On a real update (not a first install), force every open app window
+        // to reload through the new SW so users see the new bundle immediately
+        // instead of stale cached UI until their next manual relaunch.
+        if (!isUpdate) return;
+        return self.clients.matchAll({ type: "window" }).then((clients) =>
+          Promise.all(clients.map((client) => client.navigate(client.url).catch(() => {})))
+        );
+      })
   );
 });
 

@@ -2510,7 +2510,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          />
 
          {/* panel — solid background */}
-         <div data-testid="route-detail-panel" className="w-full max-w-xl bg-[var(--card-bg)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300">
+         <div data-testid="route-detail-panel" className={`w-full max-w-xl ${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300`}>
            {/* header */}
            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
              <div className="flex items-center gap-2 min-w-0">
@@ -2551,7 +2551,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
      {/* Confirmation Dialog */}
      {confirmDialog.isOpen && (
        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100">
+         <div className={`${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100`}>
            <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">{confirmDialog.title}</h3>
            <p className="text-sm text-[var(--nav-text-color)] mb-6">{confirmDialog.message}</p>
            <div className="flex justify-end gap-3">

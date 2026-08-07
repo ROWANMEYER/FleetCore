@@ -357,7 +357,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  {/* analytics panel - shown on left when active */}
  {showAnalytics && (          <div className={`absolute inset-0 z-10 md:static w-full max-w-4xl ${panelTheme.bg.primary} backdrop-blur-md border-r ${panelTheme.border} flex flex-col h-full shadow-2xl`}>
  {/* header */}
- <div className={`flex items-start justify-between px-6 py-5 border-b ${panelTheme.border}`}>
+ <div className={`flex items-start justify-between px-4 py-3 border-b ${panelTheme.border}`}>
  <div>
  <h2 className={`text-lg font-black ${panelTheme.text.primary}`}>Analytics Dashboard</h2>
  <p className={`text-xs ${panelTheme.text.secondary} mt-1`}>{start} → {end}</p>
@@ -365,7 +365,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  </div>
 
  {/* analytics content */}
- <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+ <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
  {/* Active Filter Badge */}
  {activeFilter && (          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg px-3 py-2">
             <p className="text-xs text-[var(--nav-text-color)]">
@@ -375,42 +375,42 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 )}
  
  {/* KPI Cards with Progress Bars */}
- <div className="grid grid-cols-2 gap-3">          <div className="glass-card rounded-lg p-4">
-                <div className="flex items-baseline justify-between mb-2">
+ <div className="grid grid-cols-2 gap-2.5">          <div className="glass-card rounded-lg p-3">
+                <div className="flex items-baseline justify-between mb-1.5">
                   <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Routes</h3>
                   <span className="text-xs text-emerald-400 font-bold">↑ Active</span>
                 </div>
-                <p className={`text-2xl font-black ${panelTheme.text.primary}`}>{filteredData.length}</p>
+                <p className={`text-xl font-black ${panelTheme.text.primary}`}>{filteredData.length}</p>
                 <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
                   <div className="bg-emerald-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (filteredData.length / 10) * 100)}%`}}></div>
                 </div>
               </div>
-              <div className="glass-card rounded-lg p-4">
-                <div className="flex items-baseline justify-between mb-2">
+              <div className="glass-card rounded-lg p-3">
+                <div className="flex items-baseline justify-between mb-1.5">
                   <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Revenue</h3>
                   <span className="text-xs text-emerald-400 font-bold">Peak</span>
                 </div>
-                <p className="text-2xl font-black text-emerald-400">{fmt(totalRevenue)}</p>
+                <p className="text-xl font-black text-emerald-400">{fmt(totalRevenue)}</p>
                 <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
                   <div className="bg-emerald-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (totalRevenue / 50000) * 100)}%`}}></div>
                 </div>
               </div>
-              <div className="glass-card rounded-lg p-4">
-                <div className="flex items-baseline justify-between mb-2">
+              <div className="glass-card rounded-lg p-3">
+                <div className="flex items-baseline justify-between mb-1.5">
                   <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Distance</h3>
                   <span className="text-xs text-cyan-400 font-bold">Coverage</span>
                 </div>
-                <p className="text-2xl font-black text-cyan-400">{fmtNum(totalKm)}</p>
+                <p className="text-xl font-black text-cyan-400">{fmtNum(totalKm)}</p>
                 <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
                   <div className="bg-cyan-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (totalKm / 5000) * 100)}%`}}></div>
                 </div>
               </div>
-              <div className="glass-card rounded-lg p-4">
-                <div className="flex items-baseline justify-between mb-2">
+              <div className="glass-card rounded-lg p-3">
+                <div className="flex items-baseline justify-between mb-1.5">
                   <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Revenue/KM</h3>
                   <span className="text-xs text-purple-400 font-bold">Efficiency</span>
                 </div>
-                <p className="text-2xl font-black text-purple-400">{fmt(totalKm > 0 ? totalRevenue / totalKm : 0)}</p>
+                <p className="text-xl font-black text-purple-400">{fmt(totalKm > 0 ? totalRevenue / totalKm : 0)}</p>
                 <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
                   <div className="bg-purple-500 h-1.5 rounded-full" style={{width:`${Math.min(100, ((totalKm > 0 ? totalRevenue / totalKm : 0) / 50) * 100)}%`}}></div>
                 </div>
@@ -763,7 +763,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 )}  {/* main drill-down panel */}
           <div className={`w-full max-w-4xl ${panelTheme.bg.primary} backdrop-blur-md border-l ${panelTheme.border} flex flex-col h-full shadow-2xl`}>
  {/* header */}
- <div className={`flex items-start justify-between px-6 py-5 border-b ${panelTheme.border}`}>
+ <div className={`flex items-start justify-between px-4 py-3 border-b ${panelTheme.border}`}>
  <div className="flex-1">
  {/* Breadcrumb Navigation */}
  {drill.kind ==="date" && parentDrill && (
@@ -798,7 +798,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  <span className={`text-base font-black ${panelTheme.text.primary}`}>{k.value}</span>
  </div>
 ))}
- {/* Graph Card - Analytics */}        <button onClick={onAnalyticsClick} className="glass-card rounded-xl px-4 py-3 flex flex-col gap-2 items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+ {/* Graph Card - Analytics */}        <button onClick={onAnalyticsClick} className="glass-card rounded-xl px-3 py-2.5 flex flex-col gap-1.5 items-center justify-center cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
  <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
  </svg>
@@ -985,7 +985,7 @@ function KpiCard({
  return (
  <button
  onClick={onClick}
- className={`glass-card rounded-xl p-4 sm:p-5 flex flex-col gap-1 text-left w-full transition-all duration-200 group
+ className={`glass-card rounded-xl p-3 sm:p-4 flex flex-col gap-1 text-left w-full transition-all duration-200 group
  ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"}`}
  >
  <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider flex items-center gap-1.5">{icon && <span className="shrink-0">{icon}</span>}{label}</span>
@@ -1028,8 +1028,8 @@ function CollapsibleSection({
         aria-controls={bodyId}
  className={`lg:hidden w-full flex items-center justify-between gap-3 text-left transition-colors ${
  carded
- ? "px-4 sm:px-5 py-4"
- : "px-4 py-3.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
+ ? "px-4 sm:px-5 py-2.5"
+ : "px-4 py-2.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
  }`}
  >
  <span className="min-w-0">
@@ -1038,7 +1038,7 @@ function CollapsibleSection({
  <span className="block mt-0.5 text-sm font-semibold text-[var(--foreground)] truncate">{summary}</span>
  )}
  </span>
- <span className="flex items-center justify-center w-9 h-9 rounded-full shrink-0 text-[var(--nav-text-color)]">
+ <span className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 text-[var(--nav-text-color)]">
  <ChevronDown size={20} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
  </span>
  </button>
@@ -1047,7 +1047,7 @@ function CollapsibleSection({
  <div className={`hidden lg:block ${carded ? "px-5 pt-5" : ""}`}>
  <SectionHeader title={title} />
  </div>      {/* Body */}
-      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-3 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-4 sm:px-5 pb-5 lg:px-5 lg:pb-5" : ""}`}>
+      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-2 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-4 sm:px-5 pb-4 lg:px-5 lg:pb-4" : ""}`}>
         {children}
       </div>
  </section>

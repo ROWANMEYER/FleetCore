@@ -28,11 +28,11 @@ type Load = {
 
 // Shared form control styling — big touch targets, readable text
 const inputClass =
-  "w-full h-12 px-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none text-base transition-colors text-[var(--foreground)]";
+  "w-full h-11 px-3.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none text-base transition-colors text-[var(--foreground)]";
 // Fixed-width select (no w-full) for side-by-side input+dropdown pairs —
 // lets the number input flex to fill the remaining space.
 const selectClass =
-  "h-12 px-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none text-base transition-colors text-[var(--foreground)] appearance-none cursor-pointer";
+  "h-11 px-3.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none text-base transition-colors text-[var(--foreground)] appearance-none cursor-pointer";
 
 // Helper to format currency (ZAR)
 // [HYDRATION SAFE] Use deterministic formatting to avoid server/client mismatches
@@ -649,7 +649,7 @@ function DailyPlannerInputForm() {
                   <div
                     key={load.id}
                     data-load-card
-                    className="p-4 sm:p-5 border border-[#06B6D4]/50 rounded-xl bg-[var(--card-bg)] dark:backdrop-blur-md shadow-md space-y-4"
+                    className="p-3.5 sm:p-4 border border-[#06B6D4]/50 rounded-xl bg-[var(--card-bg)] dark:backdrop-blur-md shadow-md space-y-3"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h5 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
@@ -658,7 +658,7 @@ function DailyPlannerInputForm() {
                       </h5>
                       <button
                         onClick={handleCancelEdit}
-                        className="flex items-center justify-center w-12 h-12 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
+                        className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
                         aria-label="Cancel editing"
                       >
                         <X size={18} />
@@ -761,14 +761,14 @@ function DailyPlannerInputForm() {
                     <div className="flex gap-3 pt-1">
                       <button
                         onClick={handleCancelEdit}
-                        className="h-12 px-5 rounded-xl border border-[var(--card-border)] text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] text-base font-semibold transition-colors"
+                        className="h-11 px-4 rounded-xl border border-[var(--card-border)] text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] text-base font-semibold transition-colors"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleSaveEdit}
                         disabled={!editValid}
-                        className="flex-1 h-12 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-md shadow-[rgba(6,182,212,0.3)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                        className="flex-1 h-11 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-md shadow-[rgba(6,182,212,0.3)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                       >
                         <CheckCircle size={18} />
                         Save Load
@@ -783,7 +783,7 @@ function DailyPlannerInputForm() {
                 <div
                   key={load.id}
                   data-load-card
-                  className="p-4 sm:p-5 border border-[var(--card-border)] rounded-xl bg-[var(--card-bg)] dark:backdrop-blur-md shadow-sm transition-all duration-200 group"
+                  className="p-3.5 sm:p-4 border border-[var(--card-border)] rounded-xl bg-[var(--card-bg)] dark:backdrop-blur-md shadow-sm transition-all duration-200 group"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1.5 min-w-0 flex-1">
@@ -797,7 +797,7 @@ function DailyPlannerInputForm() {
                         {load.fromLocations.join(", ")} → {load.toLocations.join(", ")}
                       </div>
                       {!isFleetMode && load.subcontractorRate && showSubMargin && (
-                        <div className="mt-2 pt-2 border-t border-dashed border-[var(--card-border)] space-y-0.5 text-sm">
+                        <div className="mt-1.5 pt-1.5 border-t border-dashed border-[var(--card-border)] space-y-0.5 text-sm">
                           <div className="flex justify-between text-[var(--nav-text-color)]">
                             <span>Sub cost:</span>
                             <span className="text-orange-500 font-medium">
@@ -819,7 +819,7 @@ function DailyPlannerInputForm() {
                       <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleEditLoad(load)}
-                          className="flex items-center justify-center w-12 h-12 rounded-lg text-[var(--nav-text-color)] hover:text-[#06B6D4] hover:bg-[var(--card-bg)] transition-colors"
+                          className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-[#06B6D4] hover:bg-[var(--card-bg)] transition-colors"
                           title="Edit Load"
                           aria-label={`Edit load ${load.sequence}`}
                         >
@@ -827,7 +827,7 @@ function DailyPlannerInputForm() {
                         </button>
                         <button
                           onClick={() => handleRemoveLoad(load.id)}
-                          className="flex items-center justify-center w-12 h-12 rounded-lg text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-500/10 transition-colors"
+                          className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-500/10 transition-colors"
                           title="Remove Load"
                           aria-label={`Remove load ${load.sequence}`}
                         >
@@ -837,7 +837,7 @@ function DailyPlannerInputForm() {
                     )}
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-[var(--card-border)] flex items-center justify-between gap-3">
+                  <div className="mt-2.5 pt-2.5 border-t border-[var(--card-border)] flex items-center justify-between gap-3">
                     <span className="text-sm text-[var(--nav-text-color)]">
                       {load.quantity}{" "}
                       <span className="font-semibold text-[var(--foreground)]">{unitMap[load.quantityType] || load.quantityType}</span>
@@ -855,7 +855,7 @@ function DailyPlannerInputForm() {
 
             {loads.length === 0 && (
               <div className="text-center py-12 border-2 border-dashed border-[var(--card-border)] rounded-lg text-[var(--nav-text-color)] bg-[var(--card-bg)] dark:backdrop-blur-sm transition-all duration-300">
-                <PackageOpen className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                <PackageOpen className="w-11 h-11 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
                 <p className="font-medium text-base text-[var(--foreground)]">No loads added yet.</p>
                 <p className="text-sm">Start adding loads to build your route</p>
               </div>
@@ -864,7 +864,7 @@ function DailyPlannerInputForm() {
 
           {/* Add Load Form */}
           <div
-            className={`border border-[var(--card-border)] rounded-xl p-4 sm:p-6 bg-[var(--card-bg)] dark:backdrop-blur-xl shadow-lg transition-all duration-300 ${
+            className={`border border-[var(--card-border)] rounded-xl p-3.5 sm:p-5 bg-[var(--card-bg)] dark:backdrop-blur-xl shadow-lg transition-all duration-300 ${
               !isEditable ? "opacity-50 pointer-events-none" : ""
             }`}
           >
@@ -1088,7 +1088,7 @@ function DailyPlannerInputForm() {
                 <button
                   onClick={handleAddLoad}
                   disabled={!canAddLoad}
-                  className="w-full h-12 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-lg shadow-[rgba(6,182,212,0.3)] hover:opacity-90 transition-all flex justify-center items-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed"
+                  className="w-full h-11 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-lg shadow-[rgba(6,182,212,0.3)] hover:opacity-90 transition-all flex justify-center items-center gap-2 disabled:opacity-40 disabled:shadow-none disabled:cursor-not-allowed"
                 >
                   <Plus size={20} strokeWidth={2.5} />
                   <span>Add Load</span>
@@ -1135,7 +1135,7 @@ function DailyPlannerInputForm() {
             <button
               onClick={handleSave}
               disabled={saveStatus === "saving"}
-              className={`flex-1 max-w-[220px] h-14 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-lg shadow-[rgba(6,182,212,0.35)] hover:opacity-90 transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 max-w-[220px] h-12 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-base font-bold shadow-lg shadow-[rgba(6,182,212,0.35)] hover:opacity-90 transition-all flex items-center justify-center gap-2 ${
                 saveStatus === "saving" ? "opacity-60 cursor-not-allowed" : ""
               }`}
             >

@@ -51,24 +51,26 @@ export default function TrailerActivityScreen() {
 
   return (
     <div className="h-full flex flex-col" style={{backgroundColor:"var(--background)"}}>
-      <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
+      <div className="flex items-center justify-between px-4 py-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
         <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Trailer Activity</h1>
       </div>
 
       <SwapsViewToggle />
 
-      <div className="flex-1 overflow-auto px-6 py-4 space-y-3" style={{backgroundColor:"var(--background)"}}>
+      <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{backgroundColor:"var(--background)"}}>
         {trailerCounts.map(item => (
           <div
             key={item.number}
-            className="glass-card rounded-xl px-5 py-4 flex flex-col gap-1"
+            className="glass-card rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
           >
-            <div className="text-xs font-medium" style={{color:"var(--nav-text-color)"}}>TRAILER</div>
-            <div className="text-lg font-bold" style={{color:"var(--foreground)"}}>
-              {item.number}
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-wider" style={{color:"var(--nav-text-color)"}}>Trailer</div>
+              <div className="text-base font-bold min-w-0 truncate" style={{color:"var(--foreground)"}}>
+                {item.number}
+              </div>
             </div>
-            <div className={`mt-1 text-xs font-medium flex items-center gap-1 ${kpiColor(item.count)}`}>
-              <BarChart3 className="w-4 h-4" />
+            <div className={`text-xs font-medium flex items-center gap-1 shrink-0 ${kpiColor(item.count)}`}>
+              <BarChart3 className="w-3.5 h-3.5" />
               <span>{item.count} swaps this month</span>
             </div>
           </div>

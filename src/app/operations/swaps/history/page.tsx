@@ -112,7 +112,7 @@ export default function SwapHistoryScreen() {
 
  return (
  <div className="h-full flex flex-col" style={{backgroundColor:"var(--background)"}}>
- <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
+ <div className="flex items-center justify-between px-4 py-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)", backdropFilter:"blur(12px)"}}>
  <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Swap History</h1>
  <div className="flex items-center gap-2">
  <button
@@ -150,7 +150,7 @@ export default function SwapHistoryScreen() {
  <button
  key={key}
  onClick={() => setQuickFilter(key)}
- className={`px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+ className={`px-3 py-2 rounded-full text-[13px] font-semibold transition-all ${
  quickFilter === key
  ?"text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-sm"
  :"glass-card"
@@ -164,7 +164,7 @@ export default function SwapHistoryScreen() {
  </div>
 
  {showSearch && (
- <div className="px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
+ <div className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center gap-2" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
  <input
  value={truckSearch}
  onChange={e => setTruckSearch(e.target.value)}
@@ -181,7 +181,7 @@ export default function SwapHistoryScreen() {
 )}
 
  {showFilter && (
- <div className="px-6 py-3 flex flex-col sm:flex-row sm:items-end gap-3" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
+ <div className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-end gap-2" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>From Date</span>
  <input
@@ -209,7 +209,7 @@ export default function SwapHistoryScreen() {
  </div>
 )}
 
- <div className="flex-1 overflow-auto px-6 py-4 space-y-3" style={{backgroundColor:"var(--background)"}}>
+ <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{backgroundColor:"var(--background)"}}>
  {filteredSwaps.map(swap => {
  const reason = swap.reason ||"Other";
  const badgeColor = reasonColorMap[reason] || reasonColorMap.Other;
@@ -221,35 +221,35 @@ export default function SwapHistoryScreen() {
  ? new Date(swap.createdAt).toLocaleDateString()
  :"";
 
- return (
- <div
- key={swap._id}
- className="glass-card rounded-xl px-4 py-3 flex flex-col gap-2"
- >
- <div className="flex items-center justify-between text-xs">
- <span style={{color:"var(--nav-text-color)"}}>{dateLabel}</span>
- <span className={`px-2 py-0.5 rounded-full font-medium text-[11px] ${badgeColor}`}>
- {reason}
- </span>
- </div>
+ return (    <div
+      key={swap._id}
+      className="glass-card rounded-xl px-3.5 py-2.5 flex flex-col gap-1.5"
+    >
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span style={{color:"var(--nav-text-color)"}}>{dateLabel}</span>
+        <span className={`px-2 py-0.5 rounded-full font-medium text-[10px] ${badgeColor}`}>
+          {reason}
+        </span>
+      </div>
 
- <div className="text-lg font-bold" style={{color:"var(--foreground)"}}>
- TRUCK {swap.truckNumber ||""}
- </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-base font-bold min-w-0 truncate" style={{color:"var(--foreground)"}}>
+          TRUCK {swap.truckNumber || ""}
+        </div>
+        <div className={`text-[11px] font-medium flex items-center gap-1 shrink-0 ${kpiColor(monthCount)}`}>
+          <BarChart3 className="w-3.5 h-3.5" />
+          <span>{monthCount} swaps this month</span>
+        </div>
+      </div>
 
- <div className="text-xs flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
- <span className="font-medium">Old:</span>
- <span>{swap.oldTrailerNumber ||"None"}</span>
- <ArrowRight className="w-3 h-3" style={{color:"var(--nav-text-color)"}} />
- <span className="font-medium">New:</span>
- <span>{swap.newTrailerNumber ||"None"}</span>
- </div>
-
- <div className={`mt-1 text-xs font-medium flex items-center gap-1 ${kpiColor(monthCount)}`}>
- <BarChart3 className="w-4 h-4" />
- <span>{monthCount} swaps this month</span>
- </div>
- </div>
+      <div className="text-[11px] flex items-center gap-1.5" style={{color:"var(--nav-text-color)"}}>
+        <span className="font-medium">Old:</span>
+        <span>{swap.oldTrailerNumber || "None"}</span>
+        <ArrowRight className="w-3 h-3" style={{color:"var(--nav-text-color)"}} />
+        <span className="font-medium">New:</span>
+        <span>{swap.newTrailerNumber || "None"}</span>
+      </div>
+    </div>
 );
 })}
 

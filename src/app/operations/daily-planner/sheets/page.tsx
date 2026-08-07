@@ -1584,51 +1584,51 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const statusLabel = status ==="locked" ?"● LOCKED" : status ==="completed" ?"● COMPLETED" :"● PLANNED";
 
  return (
- <div className="p-5 space-y-5 text-[var(--foreground)]">
+ <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
 
  {/* ── Breadcrumb + status ── */}
- <div className="flex items-center justify-between text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
+ <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
  <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
  <span className={`px-3 py-1 rounded-full border text-[10px] font-bold ${statusColour}`}>{statusLabel}</span>
  </div>
 
  {/* ── Title + actions ── */}
- <div className="flex items-start justify-between gap-4">
- <div>
+ <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+ <div className="min-w-0">
  <h1 className="text-2xl font-black tracking-tight">
  Truck {route.truckFleetNoStr}
  <span className="text-[var(--nav-text-color)] font-light ml-2">/ Route Detail</span>
  </h1>
- <p className="text-xs text-[var(--nav-text-color)] mt-1">
+ <p className="text-xs text-[var(--nav-text-color)] mt-1 truncate">
  {[truckReg, trailerType, trailerLength ?`${trailerLength}m` :"", route.routeDate, route.client].filter(Boolean).join(" ·")}
  </p>
  </div>
  {!isLocked && mode ==="primary" && (
- <div className="flex flex-wrap gap-2 shrink-0">
+ <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:shrink-0">
  {status ==="completed" && (
  <button onClick={() => handleStatusChange(route._id,"lock")}
- className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  LOCK ROUTE
  </button>
 )}
  {status ==="planned" && (
  <button onClick={() => handleStatusChange(route._id,"complete")}
- className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  COMPLETE
  </button>
 )}
  <button onClick={() => openEditView()}
- className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  EDIT
  </button>
  <button onClick={() => handleDelete(route._id)} disabled={actionLoading === route._id}
- className="px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
  DELETE
  </button>
  </div>
 )} {isLocked && (
  <button onClick={() => handleStatusChange(route._id,"unlock")}
- className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] shrink-0">
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] sm:shrink-0">
  UNLOCK
  </button>
  )}
@@ -1644,7 +1644,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div key={k.label} className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3 border-l-4 ${k.accent}`}>
  <p className="text-[10px] font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{k.label}</p>
  <p className="text-lg font-black mt-1">{k.value}</p>
- {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5">{k.sub}</p>}
+ {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5 truncate">{k.sub}</p>}
  </div>
 ))}
  </div>
@@ -1686,24 +1686,30 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 
  {/* Load vs capacity gauge */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 flex flex-col items-center justify-center">
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
  <div className="flex items-center justify-between w-full mb-3">
  <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Load vs Capacity</p>
  <span className="text-[10px] font-bold text-[var(--nav-text-color)]">{totalQty} {capacityLabel} / {maxCapacity} {capacityLabel}</span>
  </div>
- {/* Semicircle gauge */}
- <div className="relative w-28 h-14 overflow-hidden">
- <div className="absolute inset-0 rounded-t-full border-8 border-[var(--card-border)]" style={{ borderBottomColor:"transparent"}} />          <div
-            className="absolute inset-0 rounded-t-full border-8 border-[#06B6D4] transition-all"
+ {/* Gauge + readout — side-by-side on phones, stacked on desktop */}
+ <div className="flex flex-row sm:flex-col items-center justify-center gap-4 sm:gap-0">
+ <div className="relative w-28 h-14 overflow-hidden shrink-0">
+ <div className="absolute inset-0 rounded-t-full border-8 border-[var(--card-border)]" style={{ borderBottomColor:"transparent"}} />
+ <div
+ className="absolute inset-0 rounded-t-full border-8 border-[#06B6D4] transition-all"
  style={{
  borderBottomColor:"transparent",
  clipPath:`inset(0 ${100 - Math.min((totalQty / maxCapacity) * 100, 100)}% 0 0)`,
-}}
+ }}
  />
- </div>          <p className="text-2xl font-black text-[#06B6D4] mt-1">{Math.round((totalQty / maxCapacity) * 100)}%</p>
+ </div>
+ <div className="sm:text-center">
+ <p className="text-2xl font-black text-[#06B6D4] sm:mt-1">{Math.round((totalQty / maxCapacity) * 100)}%</p>
  <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5">
  {totalQty >= maxCapacity ?"Full load · optimal utilisation" :`${(maxCapacity - totalQty).toFixed(1)} ${capacityLabel} remaining capacity`}
  </p>
+ </div>
+ </div>
  </div>
  </div>
 
@@ -1725,7 +1731,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  {/* Loads table */}
  <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
- <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-[var(--card-bg)] text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider">
+ <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2 bg-[var(--card-bg)] text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider">
  <div className="col-span-1">#</div>
  <div className="col-span-3">Client</div>
  <div className="col-span-2">From</div>
@@ -1744,13 +1750,33 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const amount = calculateLoadAmount(qty, rate, load.rateType ||"per_unit");
  const unit = unitMap[load.quantityType] || load.quantityType ||"t";
  return (
- <div key={i} className="grid grid-cols-12 gap-1 px-3 py-2.5 text-xs border-t border-[var(--card-border)] hover:bg-[var(--card-bg)]">
+ <div key={i}>
+ {/* Desktop grid row */}
+ <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2.5 text-xs border-t border-[var(--card-border)] hover:bg-[var(--card-bg)]">
  <div className="col-span-1 text-[var(--nav-text-color)] font-mono">{String(i + 1).padStart(2,"0")}</div>
  <div className="col-span-3 font-semibold truncate">{load.client}</div>
  <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.fromLocations ?? []).join(",")}</div>
  <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.toLocations ?? []).join(",")}</div>
  <div className="col-span-1 text-right">{qty} {unit}</div>
- <div className="col-span-1 text-right text-[var(--nav-text-color)]">{load.rateType ==="flat" ?"Flat" : formatZAR(rate)}</div>  <div className="col-span-2 text-right font-bold text-[#06B6D4]">{formatZAR(amount)}</div>
+ <div className="col-span-1 text-right text-[var(--nav-text-color)]">{load.rateType ==="flat" ?"Flat" : formatZAR(rate)}</div>
+ <div className="col-span-2 text-right font-bold text-[#06B6D4]">{formatZAR(amount)}</div>
+ </div>
+ {/* Mobile stacked row */}
+ <div className="sm:hidden px-3 py-3 border-t border-[var(--card-border)] flex items-start justify-between gap-3">
+ <div className="min-w-0">
+ <div className="flex items-center gap-2">
+ <span className="text-[10px] font-mono text-[var(--nav-text-color)] shrink-0">{String(i + 1).padStart(2,"0")}</span>
+ <span className="text-xs font-semibold truncate">{load.client || "—"}</span>
+ </div>
+ <div className="text-[11px] text-[var(--nav-text-color)] mt-0.5 truncate">
+ {(load.fromLocations ?? []).join(", ") || "—"} → {(load.toLocations ?? []).join(", ") || "—"}
+ </div>
+ </div>
+ <div className="text-right shrink-0">
+ <div className="text-xs font-black text-[#06B6D4]">{formatZAR(amount)}</div>
+ <div className="text-[10px] text-[var(--nav-text-color)] mt-0.5">{qty} {unit} · {load.rateType === "flat" ? "Flat" : formatZAR(rate)}</div>
+ </div>
+ </div>
  </div>
 );
 })}
@@ -1760,17 +1786,17 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 
  {/* ── Invoice + Asset card ── */}
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  {/* Invoice */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 flex items-center justify-between gap-3">
+ <div className="min-w-0">
  <p className="text-sm font-bold mb-1">Invoice ready</p>
- <p className="text-[10px] text-[var(--nav-text-color)] mb-3">{route.client ||"—"}</p>
- <div className="flex gap-2">
+ <p className="text-[10px] text-[var(--nav-text-color)] truncate">{route.client ||"—"}</p>
+ </div>
  <button onClick={handleGenerateProforma}
- className="flex-1 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ className="shrink-0 px-4 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
  PDF
  </button>
- </div>
  </div>
 
  {/* Asset card */}
@@ -1778,7 +1804,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div className="flex items-center gap-3 mb-3">  <div className="w-8 h-8 bg-[rgba(6,182,212,0.08)] rounded-lg flex items-center justify-center text-[#06B6D4] text-lg">🚛</div>
  <div>
  <p className="text-sm font-bold">{truckReg || route.truckFleetNoStr}</p>
- <p className="text-[10px] text-[var(--nav-text-color)]">{[trailerType, trailerLength ?`${trailerLength} metre` :"",`Truck ${route.truckFleetNoStr}`].filter(Boolean).join(" ·")}</p>
+ <p className="text-[10px] text-[var(--nav-text-color)] truncate">{[trailerType, trailerLength ?`${trailerLength} metre` :"",`Truck ${route.truckFleetNoStr}`].filter(Boolean).join(" ·")}</p>
  </div>
  </div>
  <div className="grid grid-cols-3 gap-2 text-center">
@@ -2510,9 +2536,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          />
 
          {/* panel — solid background */}
-         <div data-testid="route-detail-panel" className={`w-full max-w-xl ${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in slide-in-from-right duration-300`}>
+         <div data-testid="route-detail-panel" className={`w-full max-w-xl ${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in fade-in duration-200`}>
            {/* header */}
-           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--card-border)]">
+           <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-[var(--card-border)]">
              <div className="flex items-center gap-2 min-w-0">
                {panelView === "edit" && (
                  <button

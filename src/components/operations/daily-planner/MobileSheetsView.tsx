@@ -10,7 +10,6 @@ import {
   ChevronRight,
   CalendarDays,
   RotateCcw,
-  FileText,
 } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -545,7 +544,7 @@ export default function MobileSheetsView({
           <div className="space-y-5">
             {groups.map(([day, dayRoutes]) => (
               <section key={day}>
-                <div className="flex items-baseline justify-between mb-2 px-0.5">
+                <div className="flex items-baseline justify-between mb-1.5 px-0.5">
                   <h2 className="text-sm font-black tracking-tight text-[var(--foreground)] capitalize">
                     {formatDayLabel(day)}
                   </h2>
@@ -553,7 +552,7 @@ export default function MobileSheetsView({
                     {dayRoutes.length} route{dayRoutes.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {dayRoutes.map((route: any) => (
                     <RouteCard
                       key={route._id}
@@ -746,11 +745,11 @@ function RouteCard({
     <button
       type="button"
       onClick={onTap}
-      className="glass-card rounded-xl p-3.5 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
+      className="glass-card rounded-xl p-3 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
       aria-label={`View details for Truck ${truck}`}
     >
       {/* Status + revenue */}
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
         {statusPill(route)}
         <span className="text-sm font-black text-[var(--foreground)] tabular-nums">
           {revenue > 0 ? formatZAR(revenue) : "—"}
@@ -762,33 +761,32 @@ function RouteCard({
         <span className="text-[15px] font-black tracking-tight text-[#06B6D4]">
           {truck}
         </span>
-        <span className="text-xs font-semibold text-[var(--nav-text-color)] truncate">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] truncate">
           {route.driverName ? route.driverName.toUpperCase() : "—"}
         </span>
       </div>
 
-      {/* Client */}
-      {route.client && (
-        <p className="text-sm font-semibold text-[var(--foreground)] truncate mt-1">
-          {route.client.toUpperCase()}
-        </p>
-      )}
-
-      {/* Route */}
-      {(froms.length > 0 || tos.length > 0) && (
-        <p className="text-[11px] text-[var(--nav-text-color)] mt-1 truncate">
-          {froms.length > 0 ? froms.join(", ").toUpperCase() : "?"} →{" "}
-          {tos.length > 0 ? tos.join(", ").toUpperCase() : "?"}
+      {/* Client + route (merged onto one compact line) */}
+      {(route.client || froms.length > 0 || tos.length > 0) && (
+        <p className="text-[12px] font-semibold text-[var(--foreground)] mt-0.5 truncate">
+          {route.client && route.client.toUpperCase()}
+          {(froms.length > 0 || tos.length > 0) && (
+            <span className="text-[var(--nav-text-color)] font-medium">
+              {route.client ? " · " : ""}
+              {froms.length > 0 ? froms.join(", ").toUpperCase() : "?"} →{" "}
+              {tos.length > 0 ? tos.join(", ").toUpperCase() : "?"}
+            </span>
+          )}
         </p>
       )}
 
       {/* Meta + tap affordance */}
-      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
+      <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
         <span>{route.loads?.length ?? 0} load{(route.loads?.length ?? 0) === 1 ? "" : "s"}</span>
         {route.trailerFleetNoStr && (
           <>
             <span className="opacity-40">·</span>
-            <span>Trailer {route.trailerFleetNoStr}</span>
+            <span>{route.trailerFleetNoStr}</span>
           </>
         )}
         {km > 0 && (
@@ -797,10 +795,9 @@ function RouteCard({
             <span>{km} km</span>
           </>
         )}
-        <span className="ml-auto flex items-center gap-1 text-[11px] font-bold text-[#06B6D4] group-hover:gap-1.5 transition-all">
-          <FileText size={11} strokeWidth={2.5} />
+        <span className="ml-auto flex items-center gap-0.5 text-[10px] font-bold text-[#06B6D4]">
           Details
-          <ChevronRight size={12} strokeWidth={2.75} />
+          <ChevronRight size={11} strokeWidth={2.75} />
         </span>
       </div>
     </button>

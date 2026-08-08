@@ -175,6 +175,68 @@ function ExportDropdown({
 
 // --- End Export Utilities ---
 
+// ── Truck revenue trend chart (shared) ───────────────────────────────────
+// Horizontal bar chart of a truck's last N routes with the current route
+// highlighted. Used by both the route detail card and the route analytics
+// view so the two stay visually identical. Bars are clickable to drill
+// into that route's detail (when onBarClick is provided).
+function TruckRevenueTrendChart({
+ routes,
+ chartMax,
+ currentRouteId,
+ truckFleetNoStr,
+ onBarClick,
+ legend = (
+ <>
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> This route</span>
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-cyan-200 inline-block" /> Previous</span>
+ </>
+ ),
+}: {
+ routes?: any[];
+ chartMax: number;
+ currentRouteId: string;
+ truckFleetNoStr: string;
+ onBarClick?: (route: any) => void;
+ legend?: React.ReactNode;
+}) {
+ return (
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <div className="flex items-center justify-between mb-3">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Revenue · Last {routes?.length ?? 0} Routes</p>
+ <span className="text-[10px] font-bold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] px-2 py-0.5 rounded-full">Truck {truckFleetNoStr}</span>
+ </div>
+ {!routes ? (
+ <p className="text-xs text-[var(--nav-text-color)] text-center py-4">Loading…</p>
+ ) : (
+ <div className="flex items-end gap-1 h-24">
+ {routes.map((r: any, i: number) => {
+ const rev = Number(r.rate) || 0;
+ const pct = (rev / chartMax) * 100;
+ const isThis = r._id === currentRouteId;
+ return (
+ <div key={i} className="flex-1 flex flex-col items-center gap-1">
+ <div className="w-full flex items-end cursor-pointer group" style={{ height: "72px" }} onClick={() => onBarClick?.(r)} title="Click to view route details">
+ <div
+ className={`w-full rounded-t transition-all ${isThis ? "bg-[#06B6D4]" : "bg-cyan-200 group-hover:bg-cyan-400"}`}
+ style={{ height: `${Math.max(pct, 4)}%` }}
+ />
+ </div>
+ <span className="text-[8px] text-[var(--nav-text-color)] truncate w-full text-center">
+ {r.routeDate?.slice(5)}
+ </span>
+ </div>
+ );
+ })}
+ </div>
+ )}
+ <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--nav-text-color)]">
+ {legend}
+ </div>
+ </div>
+ );
+}
+
 type TableColumnKey =
  |"select"
  |"expand"
@@ -1584,40 +1646,13 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 
  {/* ── Revenue trend (last 7 routes, this truck) ── */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <div className="flex items-center justify-between mb-3">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Revenue · Last {recentRoutes?.length ?? 0} Routes</p>
- <span className="text-[10px] font-bold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] px-2 py-0.5 rounded-full">Truck {route.truckFleetNoStr}</span>
- </div>
- {!recentRoutes ? (
- <p className="text-xs text-[var(--nav-text-color)] text-center py-4">Loading…</p>
-) : (
- <div className="flex items-end gap-1 h-24">
- {recentRoutes.map((r: any, i: number) => {
- const rev = Number(r.rate) || 0;
- const pct = (rev / chartMax) * 100;
- const isThis = r._id === route._id;
- return (
- <div key={i} className="flex-1 flex flex-col items-center gap-1">
- <div className="w-full flex items-end cursor-pointer group" style={{ height:"72px" }} onClick={() => openPanel(r)} title="Click to view route details">
- <div
- className={`w-full rounded-t transition-all ${isThis ?"bg-[#06B6D4]" :"bg-cyan-200 group-hover:bg-cyan-400"}`}
- style={{ height:`${Math.max(pct, 4)}%` }}
+ <TruckRevenueTrendChart
+ routes={recentRoutes}
+ chartMax={chartMax}
+ currentRouteId={route._id}
+ truckFleetNoStr={route.truckFleetNoStr}
+ onBarClick={openPanel}
  />
- </div>
- <span className="text-[8px] text-[var(--nav-text-color)] truncate w-full text-center">
- {r.routeDate?.slice(5)}
- </span>
- </div>
-);
-})}
- </div>
-)}
- <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--nav-text-color)]">
- <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> This route</span>
- <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-cyan-200 inline-block" /> Previous</span>
- </div>
- </div>
 
  {/* ── Client revenue breakdown ── */}
  <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
@@ -1829,38 +1864,19 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {/* ── Revenue chart + Load gauge ── */}
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  {/* Revenue last 7 routes */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <div className="flex items-center justify-between mb-3">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Revenue · Last {recentRoutes?.length ?? 0} Routes</p>  <span className="text-[10px] font-bold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] px-2 py-0.5 rounded-full">Truck {route.truckFleetNoStr}</span>
- </div>
- {!recentRoutes ? (
- <p className="text-xs text-[var(--nav-text-color)] text-center py-4">Loading…</p>
-) : (
- <div className="flex items-end gap-1 h-24">
- {recentRoutes.map((r: any, i: number) => {
- const rev = Number(r.rate) || 0;
- const pct = (rev / chartMax) * 100;
- const isThis = r._id === route._id;
- return (
- <div key={i} className="flex-1 flex flex-col items-center gap-1">
- <div className="w-full flex items-end cursor-pointer group" style={{ height:"72px"}} onClick={() => onDrillDown?.(r)} title="Click to view route details">          <div
-            className={`w-full rounded-t transition-all ${isThis ?"bg-[#06B6D4]" :"bg-cyan-200 group-hover:bg-cyan-400"}`}
-            style={{ height:`${Math.max(pct, 4)}%`}}
-          />
- </div>
- <span className="text-[8px] text-[var(--nav-text-color)] truncate w-full text-center">
- {r.routeDate?.slice(5)}
- </span>
- </div>
-);
-})}
- {/* avg line overlay */}
- </div>
-)}
- <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--nav-text-color)]">          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> Revenue (R)</span>
+ <TruckRevenueTrendChart
+ routes={recentRoutes}
+ chartMax={chartMax}
+ currentRouteId={route._id}
+ truckFleetNoStr={route.truckFleetNoStr}
+ onBarClick={onDrillDown}
+ legend={
+ <>
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> Revenue (R)</span>
  <span className="flex items-center gap-1"><span className="w-3 h-1 bg-yellow-400 inline-block" /> Avg {formatZAR(avgRevenue)}</span>
- </div>
- </div>
+ </>
+ }
+ />
 
  {/* Load vs capacity gauge */}
  <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">

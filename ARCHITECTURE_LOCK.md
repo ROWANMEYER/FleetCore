@@ -54,11 +54,14 @@ Rules:
 ## 🔐 ROUTING INTENT
 
 - `/operations/daily-planner/*` is the canonical system
-- `/planner` and `/sheets` are legacy but valid
-- Legacy routes must not be removed without migration
-- Deprecation is documented, not implicit
+- `/planner` and `/sheets` were historically legacy routes, but **no route
+  files for them currently exist in `src/app`** (verified 2026-08-08)
+- Legacy routes must not be reintroduced as new canonical routes
+- If a legacy-style route is ever needed again, its deprecation status must be
+  documented explicitly — never implicit
 
-Duplicate routing is **intentional**, not accidental.
+Duplicate routing was historically **intentional**; the current codebase does
+not contain it, and that single-source routing is the locked state.
 
 ---
 
@@ -88,8 +91,9 @@ Shared logic belongs in helpers, not conditionals.
 
 The following require an explicit refactor phase:
 
-- Removing legacy routes
-- Consolidating routing systems
+- Reintroducing `/planner` or `/sheets` as canonical routes
+- Removing or consolidating the canonical `/operations/daily-planner/*` system
+  without migration
 - Merging backend queries
 - Replacing table architecture
 - Introducing global state systems

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/src/components/auth/AuthProvider";
+import { calculateLoadAmount } from "@/convex/utils";
 import { BarChart3 } from "lucide-react";
 import SpreadsheetDataTable, {
   type SpreadsheetRow,
@@ -22,6 +23,42 @@ const monthRange = (ym: string) => {
   const end = new Date(Date.UTC(year, month, 0)).toISOString().split("T")[0];
   return { start, end };
 };
+
+// Same number parsing as the spreadsheet table (strips letters/spaces, treats
+// commas as decimal separators) so R / KM aggregates match the column values.
+function parseNumberSafe(value: unknown): number {
+  if (value == null) return 0;
+  const cleaned = String(value)
+    .replace(/[A-Za-z]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".");
+  const n = parseFloat(cleaned);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+// Deterministic ZAR formatting ("R 1 234,56") matching the rest of the app.
+function formatZAR(value: number): string {
+  const parts = value.toFixed(2).split(".");
+  const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `R ${integerPart},${parts[1]}`;
+}
+
+// Route revenue — identical to the spreadsheet rows: the sum of load amounts,
+// or the route-level rate when the route has no loads.
+function routeRevenueOf(route: any): number {
+  const loads = route.loads ?? [];
+  if (loads.length === 0) return Number(route.rate) || 0;
+  return loads.reduce((sum: number, l: any) => {
+    return (
+      sum +
+      calculateLoadAmount(
+        parseNumberSafe(l.quantity),
+        parseNumberSafe(l.rate),
+        l.rateType || "per_unit"
+      )
+    );
+  }, 0);
+}
 
 const REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
   garden_route: {
@@ -69,11 +106,13 @@ function RegionStat({
   label,
   value,
   sub,
+  accent,
 }: {
   dot?: string;
   label: string;
-  value: number;
+  value: number | string;
   sub?: string;
+  accent?: boolean;
 }) {
   return (
     <div
@@ -81,7 +120,11 @@ function RegionStat({
       title={sub ? `${label} — ${sub}` : label}
     >
       {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
-      <span className="text-xs font-bold text-[var(--foreground)] tabular-nums">{value}</span>
+      <span
+        className={`text-xs font-bold tabular-nums ${accent ? "text-[#06B6D4]" : "text-[var(--foreground)]"}`}
+      >
+        {value}
+      </span>
       <span className="text-[11px] text-[var(--nav-text-color)]">{label}</span>
       {sub && (
         <span className="text-[11px] text-[var(--nav-text-color)] opacity-70 hidden xl:inline">({sub})</span>
@@ -148,6 +191,20 @@ export default function AllRegionsPage() {
       total: (routes ?? []).length,
       totalRevenue,
     };
+  }, [routes]);
+
+  // R / KM aggregate across every route in the selection — the weighted
+  // average (total load revenue ÷ total kilometres), so it lines up with the
+  // per-route R / KM column values in the table.
+  const rkmSummary = useMemo(() => {
+    let totalRevenue = 0;
+    let totalKm = 0;
+    for (const r of routes ?? []) {
+      totalRevenue += routeRevenueOf(r);
+      totalKm += Number(r.kilometers) || 0;
+    }
+    const avg = totalKm > 0 && totalRevenue > 0 ? Number((totalRevenue / totalKm).toFixed(2)) : 0;
+    return { avg, totalKm, totalRevenue };
   }, [routes]);
 
   const loading = isAdmin && datesReady && !routes;
@@ -247,6 +304,12 @@ export default function AllRegionsPage() {
                     label="Total"
                     value={regionSummary.total}
                     sub={regionSummary.unassigned > 0 ? `${regionSummary.unassigned} unassigned` : "all regions"}
+                  />
+                  <RegionStat
+                    accent
+                    label="R / KM"
+                    value={rkmSummary.avg > 0 ? formatZAR(rkmSummary.avg) : "—"}
+                    sub={rkmSummary.totalKm > 0 ? `${rkmSummary.totalKm.toLocaleString()} km` : "no km"}
                   />
                 </div>
               )}

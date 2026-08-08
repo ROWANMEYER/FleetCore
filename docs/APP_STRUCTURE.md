@@ -1,22 +1,27 @@
 # FleetCore Application Structure
 
+> **Refreshed**: 2026-08-08 — matches the current codebase.
+> Full architecture reference: `PROJECT_CONTEXT.md` · Changelog: `UPDATES.md`.
+
 ## 1. Tech Stack
 
-- **Framework**: Next.js 16.1.7 (App Router only, no Pages Router)
-- **Language**: TypeScript (strict mode enabled)
-- **Frontend**: React 19.2.3
-- **Styling**: Tailwind CSS v4 with `@theme inline` directives; dark mode via class toggle (`next-themes` injects `.dark` on `<html>`)
+- **Framework**: Next.js 16.1.7 (App Router only, no Pages Router), Turbopack
+- **Language**: TypeScript (strict mode enabled), path alias `@/*` → project root
+- **Frontend**: React 19.2.3 (React Compiler enabled via `babel-plugin-react-compiler`)
+- **Styling**: Tailwind CSS v4 with `@theme inline` in `src/app/globals.css`; dark mode via `.dark` class on `<html>` (injected by `next-themes`)
 - **Backend/Database**: Convex (`convex/` directory, deployment `dev:quixotic-gopher-969`)
 - **State Management**: Convex queries/mutations only — no Redux, Zustand, or other client state lib
-- **Auth**: bcryptjs (simple PIN-based admin gate, no OAuth)
-- **PDF**: jsPDF v4 + jspdf-autotable (absolute positioning only, see `src/pdf/` conventions)
+- **Auth**: Custom email + password (bcryptjs) — `users` + `sessions` tables, admin/regional roles, multi-device sessions (30-day tokens, max 5/user)
+- **PDF**: jsPDF v4 + jspdf-autotable (absolute positioning only, see `src/pdf/README.md`)
 - **Email**: Resend (via `convex/emails.ts`)
+- **Push**: web-push v3 (PWA web push with VAPID keys)
 - **Spreadsheet Exports**: exceljs, xlsx
 - **Charts**: recharts v3
 - **Theme**: `next-themes` v0.4.6 (default: dark, system preference disabled)
+- **Fonts**: Space Grotesk (heading) + Inter (body) via `next/font/google`
 - **Form/Validation**: No form library (vanilla React `useState`); no validation library (manual checks)
+- **Tests**: vitest (run with `npm test`)
 - **Package Manager**: npm
-- **React Compiler**: enabled via `babel-plugin-react-compiler`
 
 ### Key Dependencies from `package.json`
 
@@ -26,12 +31,14 @@
 | `next` | Framework |
 | `react` / `react-dom` | UI |
 | `tailwindcss` v4 | Utility-first CSS |
-| `bcryptjs` | Admin password hashing |
+| `bcryptjs` | Password hashing (users + legacy adminSettings) |
 | `jspdf` + `jspdf-autotable` | PDF invoice generation |
 | `recharts` | Dashboard charts |
 | `resend` | Transactional emails |
 | `exceljs` / `xlsx` | Excel import/export |
+| `web-push` | PWA push notifications (VAPID) |
 | `next-themes` | Dark/light theme toggle |
+| `vitest` | Unit tests |
 
 ---
 
@@ -41,118 +48,105 @@
 fleetcor/
 ├── convex/                 # Convex backend — schema, queries, mutations, actions
 │   ├── _generated/         # Auto-generated Convex types (run `npx convex codegen`)
-│   ├── __analysis__/       # Architecture analysis docs (e.g. trailerSwapAnalysis.md)
-│   ├── finance/            # Finance module: age analysis, payments, allocations
-│   │   ├── lib/            # Shared helpers (parseAgeAnalysis.ts, validateAgeRows.ts)
-│   │   ├── allocations.ts
-│   │   ├── dashboard.ts
-│   │   ├── deleteAgeSnapshot.ts
-│   │   ├── getAgeSnapshotRows.ts
-│   │   ├── getAgeSnapshots.ts
-│   │   ├── getAgeSnapshotSummary.ts
-│   │   ├── importAgeSnapshot.ts
-│   │   └── payments.ts
-│   ├── templates/          # Email templates (Resend)
+│   ├── __analysis__/       # Architecture analysis docs (trailerSwapAnalysis.md)
+│   ├── templates/          # Email templates (TransportReport.ts)
 │   ├── schema.ts           # Database schema (single source of truth)
-│   ├── dailyRoutes.ts      # Core route CRUD
-│   ├── trucks.ts           # Truck operations (trailer assignment)
-│   ├── trailers.ts         # Trailer queries
-│   ├── drivers.ts          # Driver queries + expiry tracking
-│   ├── fleet.ts            # Admin CRUD for trucks/drivers/trailers + list helpers
+│   ├── dailyRoutes.ts      # Core route CRUD + region scoping
+│   ├── users.ts            # Auth: login action, user management, changePassword
+│   ├── userSessions.ts     # Sessions CRUD + resolveUserScope / resolveEffectiveRegion
+│   ├── birthdays.ts        # Driver birthdays from SA ID (pure helpers, unit-tested)
+│   ├── webPush.ts          # PWA push sending (VAPID), daily dispatch
+│   ├── webPushSubscriptions.ts  # Push subscription registry
 │   ├── dashboard.ts        # CEO dashboard analytics queries
-│   ├── dataImport.ts       # Bulk import mutations (drivers, trucks, trailers)
-│   ├── emails.ts           # Email sending via Resend
-│   └── ... (other modules)
+│   ├── fleet.ts            # Admin CRUD for trucks/drivers/trailers + list helpers
+│   ├── subcontractors.ts   # Subcontractor CRUD + stats
+│   ├── customers.ts        # Customer CRUD + search
+│   ├── invoices.ts         # Invoice record storage (PDF rendered client-side in src/pdf/)
+│   ├── emails.ts / emailTemplates.ts / recipients.ts  # Email via Resend
+│   ├── trucks.ts / trailers.ts / drivers.ts  # Trailer assignment, queries, expiry
+│   ├── trailerSwaps.ts     # Swap history (current combo lives on trucks.currentTrailerId)
+│   ├── truckRenewals.ts / trailerRenewals.ts  # Renewal workflows + audit logs
+│   ├── pdp.ts / pdpReport.ts  # PDP application lifecycle + report
+│   ├── dailyAvailability.ts / dailyOps.ts  # Availability CRUD / ops snapshot
+│   ├── damageLogs.ts / tasks.ts / attachments.ts  # Damage, tasks, file uploads
+│   ├── dataImport.ts / fleetImport.ts  # Bulk import mutations
+│   ├── notifications.ts / crons.ts  # Scheduled reminders + push dispatch
+│   ├── settings.ts / adminSettings.ts / displaySettings.ts  # App/admin/client settings
+│   ├── myDay.ts / vehicleLicences.ts / ai.ts  # My Day, licence queries, Ollama AI
+│   ├── health.ts / http.ts / migrations.ts / seed.ts  # Ops utilities
+│   ├── backfillRegion.ts / backfillStatus.ts / resetFlags.ts / cleanup_*.ts  # Maintenance
+│   └── routes.ts           # Legacy route queries
 │
 ├── src/
 │   ├── app/                # Next.js App Router pages
-│   │   ├── layout.tsx      # Root layout — ConvexClientProvider, ThemeProvider, Navigation
+│   │   ├── layout.tsx      # Root layout — ThemeProvider → ConvexClientProvider → ToastProvider → AuthProvider → AppShell + PwaInstaller
 │   │   ├── page.tsx        # Root redirects to /dashboard
-│   │   ├── globals.css     # Tailwind v4 imports, custom scrollbar styles, theme vars
-│   │   ├── dashboard/      # CEO dashboard (single page)
-│   │   ├── operations/     # Operations routes
-│   │   │   ├── daily-planner/  # Core route planning UI
-│   │   │   │   ├── input/      # Route creation/edit form (wizard-based)
-│   │   │   │   ├── edit/       # Route edit page
-│   │   │   │   ├── sheets/     # Sheets view (collapsed summary + expanded rows)
-│   │   │   │   ├── page.tsx    # Redirects to /input
-│   │   │   │   └── layout.tsx  # Daily planner layout
-│   │   │   ├── combinations/   # Truck-trailer combination management
-│   │   │   ├── fuel/           # Fuel tracking
-│   │   │   ├── quicksend/      # QuickSend report page
-│   │   │   ├── swaps/          # Trailer swap management
-│   │   │   ├── layout.tsx      # Operations layout
-│   │   │   └── page.tsx        # Operations landing page
-│   │   ├── admin/          # Admin routes (CRUD for master data)
-│   │   │   ├── layout.tsx     # Admin sub-navigation (Fleet group + Finance group)
+│   │   ├── globals.css     # Tailwind v4, design tokens, glass utilities, animations
+│   │   ├── login/          # Sign-in screen (email + password)
+│   │   ├── dashboard/      # CEO dashboard (single page + drill-down panels)
+│   │   ├── all-regions/    # Admin cross-region table (Region column, R/KM)
+│   │   ├── calendar/       # Driver birthday calendar (WhatsApp wishes)
+│   │   ├── settings/       # Reminders, theme, push, change password, my devices
+│   │   ├── operations/
+│   │   │   ├── layout.tsx / page.tsx  # Ops layout; redirects to daily-planner/input
+│   │   │   ├── daily-planner/
+│   │   │   │   ├── layout.tsx     # View-mode toggle: Input / Split / Sheets
+│   │   │   │   ├── page.tsx       # Redirects to daily-planner/input
+│   │   │   │   ├── input/         # Route creation wizard (DailyPlannerInputContent)
+│   │   │   │   ├── sheets/        # Sheets view + ImportLoadsModal
+│   │   │   │   └── edit/[routeId]/  # Route edit page
+│   │   │   ├── combinations/      # Truck-trailer combination management
+│   │   │   ├── fuel/              # Fuel tracking
+│   │   │   ├── quicksend/         # QuickSend email report
+│   │   │   └── swaps/history + swaps/trailers  # Swap history + current assignments
+│   │   ├── admin/
+│   │   │   ├── layout.tsx     # Admin sub-nav (Fleet / Services / Access groups)
 │   │   │   ├── page.tsx       # Admin dashboard (link grid)
-│   │   │   ├── trucks/        # Truck master data CRUD
-│   │   │   ├── trailers/      # Trailer master data CRUD
-│   │   │   ├── drivers/       # Driver master data CRUD
-│   │   │   ├── customers/     # Customer master data
-│   │   │   ├── age-analysis/  # Age analysis snapshot import + list + detail views
-│   │   │   │   ├── page.tsx
-│   │   │   │   └── [snapshotId]/
-│   │   │   ├── payments/      # Bank payment import + allocation
-│   │   │   ├── reconciliation/ # Reconciliation (read-only view)
-│   │   │   └── settings/      # App settings
-│   │   ├── import/             # General import page
-│   │   └── settings/           # Application settings page
+│   │   │   ├── trucks/ trailers/ drivers/  # Master data CRUD
+│   │   │   ├── subcontractors/  # Subcontractor CRUD
+│   │   │   ├── fleet-import/    # Fleet bulk import
+│   │   │   └── users/           # User management (admin-only)
+│   │   └── import/           # JSON import page (drivers/trucks/trailers)
 │   │
 │   ├── components/         # React components
-│   │   ├── admin/             # Admin-specific components
-│   │   │   └── payments/      # AllocationModal, OnAccountModal
-│   │   ├── common/            # WarningIcon
-│   │   ├── dashboard/ceo/     # CEO dashboard widgets
-│   │   │   ├── ExecutiveSummary.tsx
-│   │   │   ├── FinancialHealthWidget.tsx
-│   │   │   ├── OperationalMetrics.tsx
-│   │   │   ├── CustomerPerformance.tsx
-│   │   │   ├── FleetPerformance.tsx
-│   │   │   ├── StrategicInsights.tsx
-│   │   │   └── TrendIcon.tsx
-│   │   ├── operations/        # Operations components
-│   │   │   └── daily-planner/ # WizardRouteHeader, EditRouteForm, Sheets components
-│   │   ├── providers/         # ConvexClientProvider
-│   │   ├── Navigation.tsx     # Top-level nav bar (Dashboards, Operations, Admin, Settings)
-│   │   ├── RouteForm.tsx      # Legacy route form (used by /planner routes)
-│   │   ├── ThemeProvider.tsx  # next-themes wrapper
-│   │   ├── ThemeToggle.tsx    # Light/dark toggle button
+│   │   ├── auth/             # AuthProvider (useAuth, useRegionArg), AppShell (route guard)
+│   │   ├── common/           # Toast, ConfirmDialog, ModalShell, SlideInPanel, EmptyState,
+│   │   │                     # Pagination, Skeleton, WarningIcon, useKeyboardShortcut
+│   │   ├── providers/        # ConvexClientProvider
+│   │   ├── dashboard/        # BirthdaysCard (all other widgets render inline in the dashboard page)
+│   │   ├── operations/       # daily-planner/{EditRouteForm, MobileSheetsView, SpreadsheetDataTable,
+│   │   │                     # WizardRouteHeader}, invoice/{InvoiceDeliveryPanel, invoiceEscape}, SwapsViewToggle
+│   │   ├── notifications/    # BirthdayBell
+│   │   ├── Navigation.tsx    # Desktop sidebar + mobile top bar + admin region switcher
+│   │   ├── MobileTabBar.tsx  # Mobile bottom tabs (Dashboard/Input/Swaps/Sheets)
+│   │   ├── PwaInstaller.tsx  # Install banner + SW registration (production)
+│   │   ├── PushNotificationSettings.tsx
 │   │   ├── EmailReportModal.tsx
-│   │   ├── BackgroundProvider.tsx
-│   │   ├── ParticleBackground.tsx
-│   │   └── Placeholder.tsx
+│   │   ├── RouteForm.tsx     # Legacy route form (used by /planner routes)
+│   │   ├── ThemeProvider.tsx / BackgroundProvider.tsx / AmbientBackground.tsx
+│   │   └── workspace/WorkspaceSplit.tsx
 │   │
+│   ├── hooks/               # useIsMobile.ts
 │   ├── lib/
-│   │   └── exports/           # Export utilities
-│   │       ├── exportCSV.ts
-│   │       ├── exportExcelWithTemplate.ts
-│   │       ├── exportJSON.ts
-│   │       ├── exportPDF.ts
-│   │       └── utils.ts
+│   │   ├── exports/         # exportCSV, exportExcelWithTemplate, exportJSON, exportPDF, utils
+│   │   ├── birthdays.ts     # ageThisYear, waWishLink
+│   │   ├── useBirthdays.ts / useKpiFilter.ts / design-tokens.ts
 │   │
-│   ├── pdf/                # PDF invoice generation
-│   │   ├── invoiceBuilder.ts
-│   │   ├── invoiceTemplate.ts
-│   │   ├── formatters.ts      # formatCurrency (ZAR), formatDate, formatDescription
-│   │   ├── types.ts
-│   │   └── README.md
+│   ├── pdf/                 # PDF invoice generation (jsPDF, absolute positioning)
+│   │   ├── README.md        # PDF layout rules
+│   │   ├── invoiceBuilder.ts / invoiceTemplate.ts / formatters.ts / types.ts
 │   │
-│   └── types/
-│       └── sheetExport.ts    # SheetExportRow interface
+│   └── types/               # sheetExport.ts (SheetExportRow)
 │
 ├── scripts/               # Build/utility scripts
-│   ├── generateSnapshot.ps1
-│   ├── updateBackend.ps1
-│   ├── fleetcore_report.py
-│   └── generate_monthly_report.py
+│   ├── updateBackend.ps1 / generateSnapshot.ps1
+│   ├── seed-admin.mjs / seed-regional.mjs / seed-test-route.mjs
+│   ├── check-*.mjs / verify-mobile.mjs / patch-region-args*.py
+│   ├── generate-pwa-icons.mjs / fleetcore_report.py / generate_monthly_report.py
 │
-├── public/                # Static assets (templates, etc.)
-├── docs/                  # (this file)
-├── AGENTS.md              # AI agent instructions
-├── ARCHITECTURE_LOCK.md   # Frozen architectural decisions
-├── LINT_FREEZE.md         # Lint exemption policy
-├── CEO_DASHBOARD_GUIDE.md # Dashboard documentation
+├── public/                # sw.js (versioned cache), manifest.webmanifest, templates/, icons
+├── docs/                  # APP_STRUCTURE.md, THEME_TOKENS.md
+├── AGENTS.md / ARCHITECTURE_LOCK.md / LINT_FREEZE.md / UPDATES.md / CEO_DASHBOARD_GUIDE.md
 └── README.md              # Project overview
 ```
 
@@ -161,83 +155,69 @@ fleetcor/
 | Route Pattern | Purpose |
 |---|---|
 | `/` | Redirects to `/dashboard` |
+| `/login` | Sign-in (email + password) |
 | `/dashboard` | CEO analytics dashboard |
-| `/operations/daily-planner/input` | Create/edit routes (canonical route form) |
-| `/operations/daily-planner/sheets` | Sheets view (collapsed summary + expansion) |
-| `/operations/daily-planner/edit` | Edit route |
+| `/all-regions` | Admin cross-region table (admin-only nav item) |
+| `/calendar` | Driver birthday calendar (WhatsApp wishes) |
+| `/settings` | App settings — reminders, theme, push, change password, my devices |
+| `/operations/daily-planner/input` | Create routes (canonical route form) |
+| `/operations/daily-planner/sheets` | Sheets view (collapsed summary + expansion; loads imported via `ImportLoadsModal` — not a route) |
+| `/operations/daily-planner/edit/[routeId]` | Edit route |
 | `/operations/combinations` | Truck-trailer combo management |
 | `/operations/fuel` | Fuel tracking |
 | `/operations/quicksend` | QuickSend report |
-| `/operations/swaps` | Trailer swap history |
-| `/admin/trucks` | Truck master data CRUD |
-| `/admin/trailers` | Trailer master data CRUD |
-| `/admin/drivers` | Driver master data CRUD |
-| `/admin/customers` | Customer master data |
-| `/admin/age-analysis` | Age analysis import + list |
-| `/admin/age-analysis/[snapshotId]` | Snapshot detail view |
-| `/admin/payments` | Bank payment import + allocation |
-| `/admin/reconciliation` | Reconciliation read-only view |
-| `/settings` | App settings |
+| `/operations/swaps/history` | Trailer swap history |
+| `/operations/swaps/trailers` | Current trailer assignments |
+| `/admin` | Admin link grid |
+| `/admin/trucks` · `/admin/trailers` · `/admin/drivers` | Master data CRUD |
+| `/admin/subcontractors` | Subcontractor CRUD |
+| `/admin/fleet-import` | Fleet bulk import |
+| `/admin/users` | User management (admin-only) |
+| `/import` | JSON import (drivers/trucks/trailers) |
+| `/planner`, `/sheets` | Declared legacy by `ARCHITECTURE_LOCK` — **no route files exist in the current codebase** |
+
+> **Mobile (PWA, <768px)**: limited to Dashboard, Input, Edit, Sheets, Swaps,
+> Calendar — everything else redirects to Dashboard (`AppShell.tsx`).
 
 ---
 
 ## 3. Data Model / Schema
 
-The full schema is defined in `convex/schema.ts` (runtime validators using `convex/values`). Below is every table and its fields.
+The full schema is defined in `convex/schema.ts` (runtime validators using
+`convex/values`). Below is every table and its fields.
 
-### `adminSettings`
+### Auth & Sessions
+
+#### `users`
 ```ts
-{ mode: string; passwordHash: string }
+{ email: string; passwordHash: string; role: "admin" | "regional";
+  region?: "garden_route" | "eastern_cape"; sessionToken?: string; sessionExpiresAt?: number }
 ```
-Single-row table for admin PIN and mode.
+Indexes: `by_email`, `by_sessionToken`. The `sessionToken` fields are legacy —
+current sessions live in `sessions`.
 
-### `invoiceCounter`
+#### `sessions` (multi-device)
 ```ts
-{ lastNumber: float64 }
+{ userId: Id<"users">; token: string; expiresAt: float64;  // 30 days
+  device?: string; userAgent?: string; createdAt: float64 }
 ```
+Indexes: `by_token`, `by_userId`. Max 5 live sessions per user (oldest pruned).
 
-### `ageSnapshots`
+#### `webPushSubscriptions`
 ```ts
-{ current, days120, days90, days60, days30: float64; fileName: string; importedAt: float64; importedBy: string; month: string; status: string; totalDue: float64 }
+{ endpoint: string; keys: { p256dh: string; auth: string }; userAgent?: string; lastSeenAt: float64 }
 ```
-Index: `by_month` (month)
+Index: `by_endpoint`
 
-### `ageSnapshotRows`
+#### `dismissedBirthdayAlerts`
 ```ts
-{ accountNumber, clientName: string; current, days120, days30, days60, days90, originalRowIndex, totalDue: float64; snapshotId: Id<"ageSnapshots"> }
+{ userId: Id<"users">; driverId: Id<"drivers">; birthdayDate: string }  // e.g. "2026-08-04"
 ```
-Index: `by_snapshotId` (snapshotId)
+Index: `by_userId_driverId`
 
-### `appSettings`
-```ts
-{ expiryReminder30, expiryReminder60, expiryReminder90: boolean; pushToken?: string; stage1AlertDays, stage2AlertDays, stage3AlertDays: float64 }
-```
+### Core Operational Tables
 
-### `attachments`
-```ts
-{ fileName, fileType, fileUrl: string; refId?, refType?: string; storageId: Id<"_storage">; taskId?: Id<"tasks">; uploadedAt: float64; uploadedBy: string }
-```
-Indexes: `by_refId`, `by_taskId`
-
-### `clientDisplaySettings`
-```ts
-{ clientId: string; compactMode, reduceMotion: boolean; createdAt, updatedAt, zoomLevel: float64; theme: string }
-```
-Index: `by_clientId`
-
-### `customers`
-```ts
-{ accountNumber?, address?, contactPerson?, phone?, email?, vatNumber?, note?: string; createdAt: float64; isActive: boolean; name: string; normalizedName: string }
-```
-Indexes: `by_accountNumber`, `by_normalizedName`
-
-### `dailyAvailability`
-```ts
-{ createdAt: float64; createdBy?: string; date, dayKey: string; drivers: string[]; status: "available" | "unavailable" | "maintenance"; trailers: string[]; trucks: string[] }
-```
-Indexes: `by_date`, `by_day`
-
-### **`dailyRoutes`** (core table)
+#### `dailyRoutes` (core table)
 ```ts
 {
   client: string;                              // Derived from first load
@@ -253,12 +233,16 @@ Indexes: `by_date`, `by_day`
     client: string;
     fromLocations: string[];
     kilometers?: float64;
+    loadId?: string;
     quantity, rate: string;                    // Stored as strings
-    quantityType, rateType: string;
+    quantityType, rateType: string;            // rateType: "flat" | "per_qty" | "full"
+    subcontractorRate?: string;
+    subcontractorRateType?: string;
     toLocations: string[];
   }[];
   notes: string;
-  rate: float64;                               // Derived total revenue
+  rate: float64;                               // Route-level rate (revenue fallback when no loads)
+  region?: "garden_route" | "eastern_cape";    // Region scoping (Stage 3+)
   routeDate: string;                           // YYYY-MM-DD
   routeKilometers?: float64;                   // Explicit route KM override
   status?: string;                             // "planned" | "completed" | "locked"
@@ -267,129 +251,126 @@ Indexes: `by_date`, `by_day`
   trailerFleetNoStr?: string;
   truckFleetNo?: float64;
   truckFleetNoStr?: string;
+  subcontractorId?: Id<"subcontractors">;
 }
 ```
 Indexes: `by_routeDate`, `by_routeDate_truckFleetNoStr`
 
-### `damageLogs`
+#### `trucks`
 ```ts
-{ assetType, assetUnit, date, status: string; closedAt?, notes?: string; photoUrls: string[] }
+{
+  truckFleetNo?: string;                   // Canonical fleet number
+  registration?: string; make?, model?: string;
+  currentTrailerId?: Id<"trailers">;       // CURRENTLY ASSIGNED trailer (source of truth)
+  status?: string;                         // "active" | "inactive"
+  subStatus?: string;                      // Subcontractor mode status
+  subcontractorId?: Id<"subcontractors">;
+  fleetNumber?: string;                    // Legacy
+  createdAt?, currentKm?, lastRenewalDate?, licenseExpiryDate?,
+  receiptPhotoUrl?, renewalNotes?, serviceDueDate?, serviceDueKm?
+}
 ```
-Indexes: `by_assetType`, `by_assetType_assetUnit`, `by_assetUnit`
+Indexes: `by_currentTrailerId`, `by_truckFleetNo`
 
-### `drivers`
+#### `trailers`
+```ts
+{
+  trailerFleetNo: float64;                 // Numeric fleet number
+  trailerFleetNoStr: string;               // String fleet number (canonical for joins)
+  trailers: { length: string; registration: string }[];  // ⚠ Physical units under this fleet number
+  type: string;                            // e.g. "interlink", "flatbed"
+  status?: string; subStatus?: string;
+  subcontractorId?: Id<"subcontractors">;
+  currentKm?, lastRenewalDate?, licenseExpiryDate?, receiptPhotoUrl?,
+  renewalNotes?, serviceDueDate?, serviceDueKm?
+}
+```
+Index: `by_trailerFleetNoStr`
+
+**Note**: One `trailers` document can represent multiple physical trailer units
+(the `trailers` array). The trailer fleet number is the canonical identifier.
+
+#### `drivers`
 ```ts
 {
   createdAt?: float64;
   driverId?: string;          // Business key, e.g. employee/ID number
   driverName?: string;
-  idNumber?: string;          // National ID
+  idNumber?: string;          // SA ID — used to derive birthdays
   licenseExpiryDate?: string; // YYYY-MM-DD
   name?: string;
   pdpExpiryDate?: string;     // Professional Driving Permit expiry
   phone?: string;
-  photoStorageId?: string;
-  photoUrl?: string;
+  photoStorageId?: string; photoUrl?: string;
   status?: string;            // "active" | "inactive"
+  subStatus?: string;
+  subcontractorId?: Id<"subcontractors">;
 }
 ```
-No indexes defined beyond default `_creationTime`.
+Index: `by_driverId`
 
-### `fleetSetupBaseline`
-```ts
-{ assignments: { trailerId: Id<"trailers">; truckId: Id<"trucks"> }[]; locked: boolean; setupDate: float64 }
-```
+### Master Data & Settings
 
-### `fleetSetupStatus`
-```ts
-{ complete: boolean }
-```
+| Table | Purpose |
+|---|---|
+| `customers` | `{ name, normalizedName, accountNumber?, address?, contactPerson?, phone?, email?, vatNumber?, note?, isActive, createdAt }` — indexes `by_accountNumber`, `by_normalizedName` |
+| `subcontractors` | `{ companyName, phone?, email?, status?, createdAt }` |
+| `adminSettings` | `{ mode, passwordHash }` — legacy PIN gate (superseded by `users` auth) |
+| `appSettings` | `{ expiryReminder30/60/90, stage1/2/3AlertDays, pushToken? }` |
+| `clientDisplaySettings` | `{ clientId, compactMode, reduceMotion, theme, zoomLevel, createdAt, updatedAt }` — index `by_clientId` |
+| `recipients` | `{ email, name }` |
 
-### `invoices`
-```ts
-{ createdAt: float64; invoiceNumber: string; routeId: Id<"dailyRoutes">; snapshot: any; totals: { subtotal, totalAmount, vatAmount: float64 } }
-```
-Indexes: `by_invoiceNumber`, `by_routeId`
+### Financial
 
-### `myDaySelections`
-```ts
-{ createdAt: float64; itemId, itemType, label, selectedDate: string; completed?: boolean }
-```
-Index: `by_selectedDate`
+| Table | Purpose |
+|---|---|
+| `invoices` | `{ invoiceNumber, routeId: Id<"dailyRoutes">, snapshot: any, totals: { subtotal, totalAmount, vatAmount }, createdAt }` — indexes `by_invoiceNumber`, `by_routeId`. Record storage only (`convex/invoices.ts`); **PDF rendering is client-side** in `src/pdf/` |
+| `invoiceCounter` | `{ lastNumber }` — invoice number sequence |
 
-### `paymentAllocations`
-```ts
-{ allocatedAmount: float64; allocatedAt: float64; allocatedBy, accountNumber?, clientName?, allocationType?, notes?: string; paymentId: Id<"payments">; snapshotId?: Id<"ageSnapshots">; snapshotRowId?: Id<"ageSnapshotRows"> }
-```
-Indexes: `by_accountNumber`, `by_paymentId`, `by_snapshotRowId`
+### Availability & Scheduling
 
-### `payments`
-```ts
-{ amount: float64; flags: string[]; importedAt: float64; notes?: string; paymentDate: string; rawDescription: string; reference?: string; source: string }
-```
-Indexes: `by_importedAt`, `by_paymentDate`
+| Table | Purpose |
+|---|---|
+| `dailyAvailability` | `{ date, dayKey, status: "available"\|"unavailable"\|"maintenance", trucks[], trailers[], drivers[], createdBy?, createdAt }` — indexes `by_date`, `by_day` |
+| `myDaySelections` | `{ itemId, itemType, label, selectedDate, completed?, createdAt }` — index `by_selectedDate` |
 
-### `pdpApplications` / `pdpApplicationLogs`
-Complex tables for driver PDP (Professional Driving Permit) application tracking.
+### Operations & Compliance
 
-### `recipients`
-```ts
-{ email, name: string }
-```
+| Table | Purpose |
+|---|---|
+| `attachments` | `{ fileName, fileType, fileUrl, storageId, refId?, refType?, taskId?, uploadedAt, uploadedBy }` — indexes `by_refId`, `by_taskId` |
+| `damageLogs` | `{ assetType, assetUnit, date, status, notes?, photoUrls[], closedAt? }` — indexes `by_assetType`, `by_assetType_assetUnit`, `by_assetUnit` |
+| `tasks` / `taskResolutions` / `taskSnoozes` | Task management with snooze + resolution tracking |
+| `trailerSwaps` | `{ truckId, oldTrailerId?, newTrailerId?, truckFleetNoStr?, trailerFleetNoStr?, oldTrailerFleetNoStr?, reason, swapDate, swapDateMs?, swapType, notes?, createdAt }` — **history only** |
+| `fleetSetupBaseline` | `{ assignments: { truckId, trailerId }[], locked, setupDate }` |
+| `fleetSetupStatus` | `{ complete }` |
 
-### `tasks` / `taskResolutions` / `taskSnoozes`
-Task management tables with snooze and resolution tracking.
+### Renewals & PDP
 
-### `trailerRenewals` / `trailerRenewalLogs`
-Trailer license renewal tracking.
-
-### `trailerSwaps`
-```ts
-{ createdAt, notes?, oldTrailerFleetNoStr?, oldTrailerId?, reason, swapDate, swapDateMs?, swapType, trailerFleetNoStr?, truckFleetNoStr?, truckId, newTrailerId?: string }
-```
-
-### **`trailers`** (core table)
-```ts
-{
-  trailerFleetNo: float64;                 // Numeric fleet number
-  trailerFleetNoStr: string;               // String fleet number (canonical for joins)
-  trailers: { length: string; registration: string }[];  // Physical trailer units under this fleet number
-  type: string;                            // e.g. "interlink", "flatbed"
-  status?: string;                         // "active" | "inactive"
-  currentKm?: float64;
-  licenseExpiryDate?, lastRenewalDate?, receiptPhotoUrl?, renewalNotes?, serviceDueDate?, serviceDueKm?: string | float64
-}
-```
-Index: `by_trailerFleetNoStr`
-
-**Note**: One `trailers` document can represent multiple physical trailer units (the `trailers` array). The `registration` field exists per-physical-unit within the array. The trailer fleet number is the canonical identifier.
-
-### **`trucks`** (core table)
-```ts
-{
-  truckFleetNo?: string;                   // Canonical fleet number
-  registration?: string;                   // Vehicle registration plate
-  make?, model?: string;
-  currentTrailerId?: Id<"trailers">;       // CURRENTLY ASSIGNED trailer (source of truth)
-  status?: string;                         // "active" | "inactive"
-  fleetNumber?: string;                    // Legacy
-  createdAt?, currentKm?, lastRenewalDate?, licenseExpiryDate?, receiptPhotoUrl?, renewalNotes?, serviceDueDate?, serviceDueKm?: string | float64
-}
-```
-Indexes: `by_currentTrailerId`, `by_truckFleetNo`
-
-### `truckRenewals` / `truckRenewalLogs`
-Truck license renewal tracking.
+| Table | Purpose |
+|---|---|
+| `truckRenewals` / `truckRenewalLogs` | Truck license renewal + audit (`initiated` → `complete`) |
+| `trailerRenewals` / `trailerRenewalLogs` | Trailer license renewal + audit (`initiated` → `complete`) |
+| `pdpApplications` | PDP lifecycle — stages, docs (`docAttachmentIds`), card, expiry, contingencies |
+| `pdpApplicationLogs` | `{ applicationId, driverId, action, performedBy, notes?, timestamp }` |
 
 ### Entity Relationships
 
-- **trucks ↔ trailers**: `trucks.currentTrailerId` points to `trailers._id`. This is the *current* assignment. Historical assignments are tracked in `trailerSwaps`. Initial assignments are stored in `fleetSetupBaseline`.
-- **drivers**: Not directly FK-linked to any table. Referenced by `dailyRoutes.driverName` as a string.
-- **dailyRoutes ↔ trucks**: `dailyRoutes.truckFleetNoStr` references `trucks.truckFleetNo` (string, not ID).
-- **dailyRoutes ↔ trailers**: `dailyRoutes.trailerFleetNoStr` references `trailers.trailerFleetNoStr`.
+- **trucks ↔ trailers**: `trucks.currentTrailerId` → `trailers._id` (current
+  assignment). History lives in `trailerSwaps`; initial in `fleetSetupBaseline`.
+- **users ↔ sessions**: `sessions.userId` → `users._id` (multi-device).
+- **dismissedBirthdayAlerts**: `userId` → `users._id`, `driverId` → `drivers._id`.
+- **dailyRoutes ↔ trucks/trailers**: string references
+  (`truckFleetNoStr` ↔ `trucks.truckFleetNo`, `trailerFleetNoStr` ↔
+  `trailers.trailerFleetNoStr`).
 - **dailyRoutes ↔ invoices**: `invoices.routeId` is an `Id<"dailyRoutes">`.
-- **ageSnapshots ↔ ageSnapshotRows**: `ageSnapshotRows.snapshotId` is an `Id<"ageSnapshots">`.
-- **payments ↔ paymentAllocations**: `paymentAllocations.paymentId` is an `Id<"payments">`.
+- **Subcontractors**: `trucks`/`trailers`/`drivers`/`dailyRoutes` carry an
+  optional `subcontractorId` → `subcontractors._id`.
+- **drivers**: Not FK-linked — referenced by `dailyRoutes.driverName` as a string.
+
+> **Removed**: Earlier revisions documented `payments`, `paymentAllocations`,
+> `ageSnapshots`, `ageSnapshotRows`, and `notifications` tables. They are **not
+> in the current schema** — treat `convex/schema.ts` as authoritative.
 
 ---
 
@@ -399,77 +380,81 @@ Truck license renewal tracking.
 
 This is the most representative CRUD flow:
 
-1. **UI Component**: `src/app/operations/daily-planner/input/page.tsx` — a multi-step wizard form.
+1. **UI Component**: `src/app/operations/daily-planner/input/page.tsx` +
+   `DailyPlannerInputContent.tsx` — a multi-step wizard form.
 
 2. **Form Structure**:
-   - Header section: date, truck (select), trailer (optional select), driver (select), route KM, notes
-   - Loads section: add/edit/remove individual loads inline (client name, from/to locations, quantity+type, rate+type)
-   - No form validation library — uses manual checks like `if (!date || !truckFleetNo || !driverName)`
-   - Input values are uppercased on change (e.g. client name `toUpperCase()`)
+   - Header section: date, region (defaults to the user's region), truck
+     (select), trailer (optional select), driver (select), route KM, notes
+   - Loads section: add/edit/remove individual loads inline (client name, from/to
+     locations, quantity+type, rate+type)
+   - No form validation library — manual checks
+   - Client names uppercased on change
 
-3. **Session Draft Recovery**: The form saves state to `sessionStorage` (key `fleetcor_daily_planner_draft`, 10-min TTL) and restores on page load for crash recovery.
+3. **Session Draft Recovery**: `sessionStorage` draft (10-min TTL).
 
 4. **Convex Mutation**: `convex/dailyRoutes.ts` — `createDailyRoute()`
-   - Validates `truckFleetNo` is non-empty
-   - Normalizes loads, derives aggregate values (client name, total rate, from/to locations)
-   - Auto-calculates kilometers (priority: routeKilometers > legs sum > max load km > legacy km)
-   - Converts `truckFleetNoStr` to numeric `truckFleetNo` where possible
+   - Validates inputs, normalizes loads, derives aggregate values
+   - **Stamps `region`** (regional users are hard-locked to their own region)
+   - Auto-calculates kilometers (priority: routeKilometers > legs sum > max load
+     km > legacy km)
    - Auto-sets status to `"completed"` if all loads are valid, else `"planned"`
    - Returns the new document ID
 
-5. **Result Display**: The route appears in the Sheets view (`/operations/daily-planner/sheets`) which shows collapsed summary rows with chevron expansion.
+5. **Result Display**: Sheets view (`/operations/daily-planner/sheets`) — collapsed
+   summary rows with chevron expansion (desktop `SpreadsheetDataTable`) or
+   day-grouped cards (mobile `MobileSheetsView`).
 
 ### 4b. Existing Import / Bulk-Entry Features
 
-**Age Analysis Import** (`/admin/age-analysis`):
-- Multi-step wizard: upload .xlsx → preview rows → select header → map columns → validate → import
-- Uses `xlsx` library for file parsing
-- Imports via Convex action (`finance.importAgeSnapshot.importSnapshot`)
-- Validates rows with `finance/lib/validateAgeRows.ts`
-- Duplicate detection: checks if snapshot for month already exists
-- Refuses import for existing months
+**JSON Import** (`/import`):
+- Paste or upload a JSON array; tabs for drivers / trucks / trailers
+- Calls `dataImport.importDrivers` / `importTrucks` / `importTrailers`
+  (upsert by business key); example payloads built in
 
-**Payment Import** (`/admin/payments`):
-- Copy-paste raw bank statement lines into a textarea
-- Parses lines with regex (amount extraction, reference detection)
-- Flags anomalies (missing reference, zero/negative amounts, outliers)
-- Imports via `finance.payments.createPayments` mutation
-- Duplicate detection per batch using signature `paymentDate-amount-reference`
+**Fleet Import** (`/admin/fleet-import`):
+- Excel template-driven import
+  (`public/templates/fleetcore-sheets-template-extended.xlsx`)
 
-**Bulk Data Import** (`convex/dataImport.ts`):
-- `importDrivers` — array of driver objects, upserts by `driverId`
-- `importTrucks` — array of truck objects, upserts by `truckFleetNo`
-- `importTrailers` — array of trailer objects, upserts by `trailerFleetNoStr`
-- These are Convex mutations (not actions) and exist in `convex/dataImport.ts`. They are NOT wired to any UI page currently — they appear to be intended for CLI or script-based import.
+**Load Import** (`/operations/daily-planner/sheets` → `ImportLoadsModal.tsx`):
+- Imports loads into routes; region-aware (regional users blocked from
+  "All Regions"; Region column)
 
-**Bulk Route Creation** (`convex/dailyRoutes.ts`): `createBulkDailyRoutes` mutation — accepts array of route objects similar to single create.
-
-**General Import Page** (`/import`): Exists as a route but no content implemented yet (single `page.tsx`).
+**Bulk Route Creation** (`convex/dailyRoutes.ts`): `createBulkDailyRoutes`
+mutation — accepts an array of route objects (no UI wiring yet).
 
 ### 4c. Admin Access Control
 
-Admin access uses a simple PIN system:
+Auth is **session-based**, not a PIN gate:
 
-- **`convex/adminSettings.ts`**: Single-row table with `mode` ("ADMIN" or other) and `passwordHash` (bcrypt)
-- Default password: `"admin123"`
-- Access check: `verifyAdminPassword` Convex action uses bcrypt compare
-- The admin layout (`src/app/admin/layout.tsx`) does NOT enforce auth in layout — individual pages appear to be unprotected beyond the nav. The PIN check likely happens at the settings/route level.
-- There is no role system — just "admin" or not.
+- **Login**: `users.login` action (bcrypt compare) creates a `sessions` row;
+  token in `localStorage` (`fleetcore-session-token`). `AuthProvider` restores
+  the user via `userSessions.getSessionUser`.
+- **Roles**: `admin` (sees everything, region-switcher override) and `regional`
+  (hard-locked to their region — enforced **server-side** via
+  `resolveUserScope` / `resolveEffectiveRegion` in `convex/userSessions.ts`).
+- **Guards**: `AppShell` redirects logged-out users to `/login`; user-management
+  mutations require a live admin session (`requireAdmin`); cannot demote/delete
+  the last admin; sessions expire after 30 days.
+- **Admin layout** (`src/app/admin/layout.tsx`): sub-nav grouped into
+  **Fleet** (trucks, trailers, drivers), **Services** (subcontractors),
+  **Access** (users). It does not gate by role — individual pages + backend
+  enforce admin-only access (e.g. `/admin/users`).
+- **Legacy**: `convex/adminSettings.ts` (PIN + bcrypt hash) still exists but is
+  superseded by the `users`/`sessions` system.
 
 ### 4d. Admin CRUD Patterns (Trucks, Trailers, Drivers)
 
 All three admin CRUD pages follow the same pattern:
-- **Inline editing** within a CSS grid table (not a separate form page)
-- Sortable columns via sort state (asc/desc toggles)
-- Search filter with `includeInactive` checkbox
-- KPI cards showing total/active/inactive counts
-- Status badges (green = Active, gray = Inactive)
-- Edit/Save/Cancel/Delete + Activate/Deactivate buttons per row
-- Error/success toast messages that auto-dismiss after 2.5s
-- Reference checks on delete (prevents deletion if the entity is used in existing routes)
-- Mutations in `convex/fleet.ts`: `createTruck`, `updateTruck`, `deleteTruck`, `createDriver`, `updateDriver`, `deleteDriver`, `createTrailer`, `updateTrailerComponent`, `deleteTrailerComponent` + status mutations
-- All mutations use `ctx.db.patch` for updates, `ctx.db.insert` for create, `ctx.db.delete` for delete
-- Uniqueness checks on fleet numbers before insert/update
+- **Card-based grid** layout (not a table) with inline edit mode (blue border)
+- Sortable columns, debounced search, `includeInactive` checkbox
+- KPI cards (Total/Active/Inactive), status badges (green/gray)
+- OwnerBadge (Fleet gray vs Subcontractor purple) + sub-status badges
+- Hover-revealed actions: Edit (Pencil), Power/PowerOff, Delete (Trash2)
+- ConfirmDialog for deletes, Toast feedback, Pagination (20/page)
+- Reference checks on delete (blocks when used by existing routes)
+- Mutations in `convex/fleet.ts` — `ctx.db.patch`/`insert`/`delete`, uniqueness
+  checks on fleet numbers
 
 ---
 
@@ -477,12 +462,10 @@ All three admin CRUD pages follow the same pattern:
 
 ### Naming Conventions
 
-- **Files**: camelCase (`dailyRoutes.ts`, `age-analysis/`, `exportCSV.ts`)
+- **Files**: camelCase (`dailyRoutes.ts`, `exportCSV.ts`)
 - **Components**: PascalCase (`RouteForm.tsx`, `WizardRouteHeader.tsx`)
-- **Convex functions**: camelCase (`createDailyRoute`, `getRoutesByDate`, `listTrucks`)
-- **Convex query/mutation exports**: `export const getXxx = query({...})`, `export const createXxx = mutation({...})`
-- **React state variables**: camelCase, prefixed with `set` for setters
-- **Directories**: kebab-case (`daily-planner/`, `age-analysis/`)
+- **Convex functions**: camelCase (`createDailyRoute`, `getRoutesByDate`)
+- **Directories**: kebab-case (`daily-planner/`, `fleet-import/`)
 
 ### Formatting Utilities
 
@@ -492,41 +475,37 @@ formatCurrency(amount: number): string  // → "R 1 234,56"
 ```
 - Strict ZAR format: space thousands separator, comma decimal, `R ` prefix
 - MUST NOT use `toLocaleString()` — always use the custom formatter
-- The `formatZAR` function in `input/page.tsx` duplicates this logic (hydration-safe version)
+- `formatZAR` variants also exist in `MobileSheetsView.tsx` and
+  `all-regions/page.tsx` (hydration-safe, matching table columns)
 
-**Date** (`src/pdf/formatters.ts`):
-```ts
-formatDate(date): string  // → "YYYY-MM-DD"
-```
+**Date** / **Description** (`src/pdf/formatters.ts`):
+`formatDate(date)` → `"YYYY-MM-DD"`; `formatDescription(rawDesc)` inserts a
+line break after `" TO "`.
 
-**Description** (`src/pdf/formatters.ts`):
-```ts
-formatDescription(rawDesc): string  // Inserts line break after " TO "
-```
+**Load amounts** (`convex/utils.ts`): `calculateLoadAmount(qty, rate, rateType)`
+— `flat`/`full` → rate, else `qty × rate`. Used for every revenue/R-KM calc.
 
-**Export helpers** (`src/lib/exports/utils.ts`): `downloadFile` utility for triggering file download from blob.
+**Export helpers** (`src/lib/exports/utils.ts`): `downloadFile` blob download.
 
 ### Design Tokens / Colors / Typography
 
 **CSS** (`src/app/globals.css`):
-- `@theme inline` with `--color-background`, `--color-foreground`, `--font-sans`, `--font-mono`
-- Two custom scrollbar utilities: `scrollbar-fleet` (thin dark) and `scrollbar-hidden`
-- Dark mode class: `.dark` (never from OS preference)
-- Base background: `#f0f4f8` (light), `#0b1220` (dark)
-- Font: Geist (sans) via `next/font/google`
+- `@theme inline` tokens: `--color-primary` (#06B6D4), accents, glass colors,
+  fonts (`--font-space-grotesk`, `--font-inter`), animations
+- Core surface vars: `--background`, `--foreground`, `--card-bg`,
+  `--card-border`, `--nav-text-color` (light + `.dark` values)
+- Glass utilities: `.glass-card`, `.glass-card-premium`, `.glass-sidebar`,
+  `.nav-item-active`, `.settings-input`, `.skeleton-shimmer`
+- Scrollbar utilities: `scrollbar-fleet`, `scrollbar-hidden`
+- Dark mode: `.dark` class on `<html>` (never from OS preference)
 
-**Component-level patterns** (observed throughout):
-- Page container: `w-full h-full p-6 space-y-6 overflow-y-auto`
-- Cards: `bg-white dark:bg-slate-900/60 rounded-lg border shadow-sm`
-- Tables: CSS grid with `grid-cols-[repeat(N,minmax(0,1fr))]`
-- Form inputs: `border rounded px-2 py-1 text-sm`
-- Buttons: hover effects, status coloring (blue primary, red danger, green success)
-- Error/success messages: `text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1`
-- Status badges: `inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold`
-- Navigation: black nav bar (`bg-black/95`), white text, active link has bottom border
-- Admin sub-nav: grouped sections (Fleet vs Finance) with small-caps headers
+**Rules** (see `docs/THEME_TOKENS.md` for the full reference):
+- NEVER use `text-gray-*`, `bg-white`, `border-gray-*`, or `dark:*` variants —
+  CSS vars handle theming
+- Semantic status badges (`bg-green-100 text-green-800`, etc.) stay hardcoded
+- Primary CTAs: `bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white`
 
-**Theme**: Default dark. Next-themes injects `.dark` on `<html>`. Light/dark toggle in nav bar.
+**Theme**: Default dark. Light/dark toggle lives in `Navigation.tsx`.
 
 ---
 
@@ -537,48 +516,67 @@ formatDescription(rawDesc): string  // Inserts line break after " TO "
 The following must NOT be changed without explicit Phase 3+ approval:
 - **Sheets table** collapsed summary + chevron expansion pattern
 - **Status + Risk** computation (pure functions only, no hooks/mutations)
-- **Backend queries** separated by consumer intent (no merging into "god queries")
+- **Backend queries** separated by consumer intent (no "god queries")
 - **Suspense** only localized, `fallback={null}` unless required
-- **Legacy routes** (`/planner`, `/sheets`) must not be removed
+- **Legacy routes** (`/planner`, `/sheets`): declared in `ARCHITECTURE_LOCK` — not present as route files; do not reintroduce them as canonical routes
 - No global state (Redux, Zustand) introduced
+
+### Region Scoping (server-enforced)
+
+- Regional users are hard-locked to their own region — never trusted from the
+  client. Route reads resolve scope via `resolveEffectiveRegion`.
+- New routes must be stamped with the effective region.
 
 ### Schema Sensitivity
 
-- **`convex/schema.ts`**: Do not modify without understanding downstream impact. Schema changes require `npx convex push`.
-- **`convex/dailyRoutes.ts`**: Contains locked KM calculation priority and auto-complete logic.
-- **`convex/trucks.ts`**: `trucks.currentTrailerId` is source of truth for truck-trailer assignments. Do not use `trailerSwaps` for current state.
-- **`src/pdf/`**: Absolute positioning only. Never use mm/px or flow layout. Currency must use `formatters.ts`.
+- **`convex/schema.ts`**: Do not modify without understanding downstream impact.
+  Schema changes require `npx convex push`.
+- **`convex/dailyRoutes.ts`**: Locked KM priority + auto-complete logic.
+- **`convex/trucks.ts`**: `trucks.currentTrailerId` is source of truth —
+  do not use `trailerSwaps` for current state.
+- **`src/pdf/`**: Absolute positioning only, fixed Y zones, ZAR via
+  `formatters.ts`.
 
 ### Lint Freeze
 
-- Legacy Convex and Planner files have `no-explicit-any` disabled per-file (see `LINT_FREEZE.md`).
-- New code must remain strict and lint-free.
-- Lint command: `npm run lint` (ESLint only, no typecheck script).
+- Legacy Convex/Planner files have `no-explicit-any` disabled per-file
+  (see `LINT_FREEZE.md`). New code must be strict and lint-free.
+- `npm run lint` (ESLint only — no typecheck script).
 
 ### Environment
 
 - Convex deployment: `dev:quixotic-gopher-969`
-- Env vars: `.env.local` (not committed) with `NEXT_PUBLIC_CONVEX_URL`
-- Production build: `npm run build` (verified passing as of 2026-01-23)
-- Backend updates: `npm run update-backend` runs `npx convex codegen` + `generateSnapshot.ps1`
+- Env vars: `.env.local` (not committed) — `NEXT_PUBLIC_CONVEX_URL`,
+  `RESEND_API_KEY`
+- VAPID keys for web push: `npx convex env set VAPID_PUBLIC_KEY ...` /
+  `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`
+- Commands: `npm run dev` · `npm run build` · `npm run lint` · `npm test`
+  (vitest) · `npm run update-backend` (codegen + snapshot) · `npx convex push`
+- Unit tests exist: `convex/birthdays.test.ts`, `convex/utils.test.ts`,
+  `src/components/operations/invoice/invoiceEscape.test.ts`,
+  `src/pdf/formatters.test.ts`
 - All writes go through Convex mutations/actions — no direct DB access from client
 
 ### Other Constraints
 
-- **PDF currency format**: Strict ZAR (`R 1 234,56`) — never use `toLocaleString()`
+- **PDF currency format**: Strict ZAR (`R 1 234,56`) — never `toLocaleString()`
 - **New features only** — no cleanup refactoring without explicit instruction
 - **React Compiler** enabled — all components must be compatible
-- **No test suite** exists (no test script in package.json)
-- **Trailer schema quirk**: One `trailers` document has a `trailers` array (confusing name) representing physical units under a fleet number
+- **Trailer schema quirk**: One `trailers` document has a `trailers` array
+  (confusing name) representing physical units under a fleet number
+- **Mobile**: 44px touch targets, `<768px` limited to
+  Dashboard/Input/Edit/Sheets/Swaps/Calendar
 
 ---
 
 ## Open Questions
 
-1. **Admin auth enforcement**: Where exactly is `verifyAdminPassword` called? The admin layout does not gate pages — is the PIN enforced at the individual page level, or only in settings?
-2. **The `/import` route**: A page exists at `src/app/import/page.tsx` with no content. Is this planned or abandoned?
-3. **`createBulkDailyRoutes`**: This mutation exists but no UI calls it. Is it intended for future bulk import?
-4. **Trailer `trailers` array confusion**: The `trailers` field on the `trailers` table holds physical units, but is named the same as the table. When adding a new import feature, how should we refer to individual physical trailer units to avoid confusion?
-5. **Email templates**: `convex/templates/` directory exists but wasn't fully explored — what email templates exist?
-6. **Driver photo upload**: Uses Convex storage via action — is this pattern relevant for future import features?
-7. **Convex deployment split**: Is there a separate production/staging deployment, or only `dev:quixotic-gopher-969`?
+1. **`createBulkDailyRoutes`**: exists in `convex/dailyRoutes.ts` but no UI
+   calls it. Is it intended for future bulk import?
+2. **Trailer `trailers` array confusion**: the field name collides with the
+   table name. When adding import features, how should individual physical
+   units be referred to?
+3. **Deployment split**: only `dev:quixotic-gopher-969` is referenced — is there
+   a separate production deployment?
+4. **`adminSettings` legacy**: still present but superseded by `users` auth —
+   should it be removed in a future cleanup phase?

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { InvoiceData } from "@/src/pdf/types";
 import { formatCurrency, formatDate } from "@/src/pdf/formatters";
 import { X, Download, ClipboardList, MessageSquare } from "lucide-react";
+import { registerCaptureEscape } from "./invoiceEscape";
 
 interface InvoiceDeliveryPanelProps {
   invoiceData: InvoiceData;
@@ -11,6 +12,11 @@ interface InvoiceDeliveryPanelProps {
   onClose: () => void;
 }
 
+/**
+ * Invoice delivery modal — pops up on top of the route detail panel once the
+ * PDF has been generated. Uses a solid background (never transparent); the
+ * backdrop dims the page behind it. Closes via the ✕ button or backdrop click.
+ */
 export default function InvoiceDeliveryPanel({
   invoiceData,
   pdfBlob,
@@ -18,19 +24,25 @@ export default function InvoiceDeliveryPanel({
 }: InvoiceDeliveryPanelProps) {
   const [copyFeedback, setCopyFeedback] = useState("");
 
+  // Escape closes this modal first. Registered in the capture phase with
+  // stopImmediatePropagation so it wins over the route detail panel's own
+  // bubble-phase Escape handler — a single Escape closes the invoice modal,
+  // and a second Escape then closes the route panel underneath.
+  useEffect(() => registerCaptureEscape(document, onClose), [onClose]);
+
   const handleDownload = () => {
     // 1. Create Object URL
     const url = URL.createObjectURL(pdfBlob);
-    
+
     // 2. Create Hidden Link
     const a = document.createElement("a");
     a.href = url;
     a.download = `Invoice_${invoiceData.invoiceNumber}.pdf`;
-    
+
     // 3. Trigger Download
     document.body.appendChild(a);
     a.click();
-    
+
     // 4. Cleanup
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
@@ -59,47 +71,77 @@ Total: ${formatCurrency(invoiceData.totals.totalAmount)}`;
   };
 
   return (
-    <div className="mt-4 border-t border-gray-100 pt-4 bg-gray-50 rounded-lg p-4 animate-in fade-in slide-in-from-top-2">
-      <div className="flex justify-between items-start mb-3">
-        <div>
-            <h3 className="text-sm font-semibold text-gray-900">Invoice Ready</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-                #{invoiceData.invoiceNumber} • {invoiceData.client.name}
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {/* backdrop — dims the page behind, click to close */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={onClose}
+      />
+
+      {/* panel — solid background, sits above the route detail panel (z-50) */}
+      <div className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto bg-[var(--background)] border border-[var(--card-border)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 border-b border-[var(--card-border)]">
+          <div>
+            <h3 className="text-sm font-bold text-[var(--foreground)]">Invoice Ready</h3>
+            <p className="text-xs text-[var(--nav-text-color)] mt-0.5">
+              #{invoiceData.invoiceNumber} • {invoiceData.client.name}
             </p>
-        </div>
-        <button 
+          </div>
+          <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 text-lg leading-none"
             aria-label="Close"
-        >
+            className="text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] p-1.5 rounded-full transition-colors"
+          >
             <X className="w-4 h-4" />
-        </button>
-      </div>
+          </button>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <button
-          onClick={handleDownload}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Download PDF
-        </button>
-        
-        <button
-          onClick={handleCopySummary}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded transition-colors relative"
-        >
-          <ClipboardList className="w-4 h-4" />
-          {copyFeedback || "Copy Summary"}
-        </button>
+        <div className="p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--nav-text-color)] mb-3">
+            Deliver invoice
+          </p>
 
-        <button
-          onClick={handleWhatsApp}
-          className="flex items-center justify-center gap-2 px-3 py-2 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium rounded transition-colors"
-        >
-          <MessageSquare className="w-4 h-4" />
-          WhatsApp
-        </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              onClick={handleDownload}
+              className="flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors active:scale-[0.98]"
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </button>
+
+            <button
+              onClick={handleCopySummary}
+              className="flex items-center justify-center gap-2 px-3 py-2.5 bg-[var(--card-bg)] border border-[var(--card-border)] hover:bg-[var(--card-border)] text-[var(--foreground)] text-xs font-medium rounded-lg transition-colors active:scale-[0.98]"
+            >
+              <ClipboardList className="w-4 h-4" />
+              {copyFeedback || "Copy Summary"}
+            </button>
+
+            <button
+              onClick={handleWhatsApp}
+              className="flex items-center justify-center gap-2 px-3 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white text-xs font-medium rounded-lg transition-colors active:scale-[0.98]"
+            >
+              <MessageSquare className="w-4 h-4" />
+              WhatsApp
+            </button>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-[var(--card-border)] text-[11px] text-[var(--nav-text-color)] space-y-1">
+            <div className="flex justify-between gap-4">
+              <span>Invoice</span>
+              <span className="font-semibold text-[var(--foreground)]">#{invoiceData.invoiceNumber}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>Date</span>
+              <span className="font-semibold text-[var(--foreground)]">{formatDate(invoiceData.date)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>Total</span>
+              <span className="font-semibold text-[var(--foreground)]">{formatCurrency(invoiceData.totals.totalAmount)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

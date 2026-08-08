@@ -64,7 +64,7 @@ export function ModalShell({ open, onClose, children, className = "" }: ModalShe
       <div
         ref={modalRef}
         tabIndex={-1}
-        className={`bg-[var(--card-bg)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none ${className}`}
+        className={`bg-[var(--background)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none ${className}`}
       >
         {children}
       </div>
@@ -103,7 +103,7 @@ export function SlideInPanel({ open, onClose, children, className = "" }: ModalS
       <div className="min-w-[20%] flex-1 bg-black/60 cursor-pointer" onClick={onClose} />
       <div
         ref={panelRef}
-        className={`w-full max-w-[600px] sm:w-[600px] bg-[var(--card-bg)] shadow-2xl border-l border-[var(--card-border)] h-full overflow-y-auto ${className}`}
+        className={`w-full max-w-[600px] sm:w-[600px] bg-[var(--background)] shadow-2xl border-l border-[var(--card-border)] h-full overflow-y-auto ${className}`}
       >
         {children}
       </div>

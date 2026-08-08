@@ -21,7 +21,11 @@ This means:
 - Core UI patterns are finalized
 - Architectural intent is documented
 
-All work after this point is **feature-driven**, not cleanup-driven.
+All work after this point is **feature-driven**, not cleanup-driven. Since the
+baseline, features have been added for multi-user auth + region scoping
+(admin/regional roles, multi-device sessions), driver birthdays, PWA install +
+web push, mobile (PWA) screens, and an R/KM revenue metric — see `UPDATES.md`
+for the full changelog.
 
 ---
 
@@ -72,6 +76,22 @@ Refer to `ARCHITECTURE_LOCK.md` before making structural changes.
 - Introducing new architectural patterns
 
 If in doubt: **assume it is locked**.
+
+---
+
+## 📚 DOCUMENTATION
+
+| Doc | Purpose |
+|---|---|
+| `UPDATES.md` | Changelog + current working-tree state (read this first) |
+| `PROJECT_CONTEXT.md` | Full architecture reference — schema, modules, routes, conventions |
+| `AGENTS.md` | Quick-reference cheat sheet for AI agents |
+| `ARCHITECTURE_LOCK.md` | Frozen architectural decisions |
+| `docs/APP_STRUCTURE.md` | Application structure deep-dive |
+| `docs/THEME_TOKENS.md` | Design tokens & UI conventions |
+| `CEO_DASHBOARD_GUIDE.md` | CEO dashboard documentation |
+| `LINT_FREEZE.md` | Lint exemption policy |
+| `src/pdf/README.md` | PDF layout rules |
 
 ---
 

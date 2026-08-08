@@ -391,7 +391,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 
  return (
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
- <div className="bg-[var(--card-bg)] rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
+ <div className="bg-[var(--background)] rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
  {/* Header */}
  <div className="px-6 py-4 border-b flex justify-between items-center gap-3">
  <div>

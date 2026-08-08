@@ -1499,6 +1499,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }) => {
  const status = route.status ||"planned";
  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+ const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
  const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
  const [currentInvoiceData, setCurrentInvoiceData] = useState<InvoiceData | null>(null);
 
@@ -1554,6 +1555,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  if (!route.driverName) errors.push("Driver");
  if (!route.truckFleetNoStr) errors.push("Truck");
  if (errors.length > 0) { addToast(`Cannot generate invoice. Missing: ${errors.join(", ")}`, "error"); return;}
+ setIsGeneratingInvoice(true);
  try {
  const settings = appSettings as any;
  const companySettings = settings ? {
@@ -1576,6 +1578,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  setCurrentPdfBlob(doc.output("blob"));
  setIsInvoiceModalOpen(true);
 } catch { addToast("Failed to generate invoice.", "error");}
+ finally {
+ setIsGeneratingInvoice(false);
+}
 };
 
  const statusColour = status ==="locked" ?"bg-[var(--card-bg)] text-[var(--foreground)] border-[var(--card-border)]"
@@ -1793,9 +1798,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <p className="text-sm font-bold mb-1">Invoice ready</p>
  <p className="text-[10px] text-[var(--nav-text-color)] truncate">{route.client ||"—"}</p>
  </div>
- <button onClick={handleGenerateProforma}
- className="shrink-0 px-4 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
- PDF
+ <button onClick={handleGenerateProforma} disabled={isGeneratingInvoice}
+ className="shrink-0 px-4 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] disabled:opacity-50">
+ {isGeneratingInvoice ? "Generating…" : "PDF"}
  </button>
  </div>
 
@@ -2536,7 +2541,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          />
 
          {/* panel — solid background */}
-         <div data-testid="route-detail-panel" className={`w-full max-w-xl ${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in fade-in duration-200`}>
+         <div data-testid="route-detail-panel" className="w-full max-w-xl bg-[var(--background)] border-l border-[var(--card-border)] flex flex-col h-full shadow-2xl pointer-events-auto overflow-hidden animate-in fade-in duration-200">
            {/* header */}
            <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-[var(--card-border)]">
              <div className="flex items-center gap-2 min-w-0">
@@ -2577,7 +2582,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
      {/* Confirmation Dialog */}
      {confirmDialog.isOpen && (
        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-         <div className={`${isMobile ? "bg-[var(--background)]" : "bg-[var(--card-bg)]"} border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100`}>
+         <div className="bg-[var(--background)] border border-[var(--card-border)] rounded-lg shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200 scale-100">
            <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">{confirmDialog.title}</h3>
            <p className="text-sm text-[var(--nav-text-color)] mb-6">{confirmDialog.message}</p>
            <div className="flex justify-end gap-3">
@@ -2651,7 +2656,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  return (
  <div
-   className={`h-full min-h-0 flex flex-col ${isFullscreenActive ? 'fixed inset-0 z-50 bg-[var(--card-bg)] overflow-y-auto' : 'relative'}`}
+   className={`h-full min-h-0 flex flex-col ${isFullscreenActive ? 'fixed inset-0 z-50 bg-[var(--background)] overflow-y-auto' : 'relative'}`}
    style={fullscreenTransitionStyle}
  >
  {isOffline && (

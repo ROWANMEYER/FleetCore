@@ -19,6 +19,8 @@ export interface SpreadsheetRow {
   destination: string;
   customer: string;
   amount: number;
+  /** Route-level revenue ÷ kilometres (same for every load row of a route). */
+  rkm: number;
   notes: string;
   /** Optional extra column value (e.g. region badge key). */
   region: string;
@@ -124,6 +126,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "destination", label: "Dest", defaultWidth: 140, minWidth: 96, sortable: true, align: "left" },
   { key: "customer", label: "Client", defaultWidth: 160, minWidth: 96, sortable: true, align: "left" },
   { key: "amount", label: "Amount", defaultWidth: 130, minWidth: 96, sortable: true, align: "right" },
+  { key: "rkm", label: "R / KM", defaultWidth: 90, minWidth: 70, sortable: true, align: "right" },
   { key: "notes", label: "Notes", defaultWidth: 280, minWidth: 120, sortable: true, align: "left" },
 ] as const;
 
@@ -132,6 +135,7 @@ const VISIBILITY_STORAGE_KEY = "fleetcore.spreadsheetColumnVisibility";
 const ORDER_STORAGE_KEY = "fleetcore.spreadsheetColumnOrder";
 const PROFILES_STORAGE_KEY = "fleetcore.spreadsheetLayoutProfiles";
 const SORTS_STORAGE_KEY = "fleetcore.spreadsheetSorts";
+const SEEN_COLUMNS_STORAGE_KEY = "fleetcore.spreadsheetSeenColumns";
 
 interface LayoutProfile {
   name: string;
@@ -182,6 +186,7 @@ export default function SpreadsheetDataTable({
             order: `fleetcore.${storageNamespace}.columnOrder`,
             profiles: `fleetcore.${storageNamespace}.layoutProfiles`,
             sorts: `fleetcore.${storageNamespace}.sorts`,
+            seen: `fleetcore.${storageNamespace}.seenColumns`,
           }
         : {
             widths: STORAGE_KEY,
@@ -189,6 +194,7 @@ export default function SpreadsheetDataTable({
             order: ORDER_STORAGE_KEY,
             profiles: PROFILES_STORAGE_KEY,
             sorts: SORTS_STORAGE_KEY,
+            seen: SEEN_COLUMNS_STORAGE_KEY,
           },
     [storageNamespace]
   );
@@ -300,22 +306,53 @@ export default function SpreadsheetDataTable({
     return () => document.removeEventListener("mousedown", handler);
   }, [showColumnMenu]);
 
+  // Merge saved column order with the default set: keep the user's relative
+  // ordering for moved columns, but slot any newly added columns (e.g. R / KM)
+  // into the position they hold in the default layout — right after Amount —
+  // instead of appending them at the end, where they'd sit off-screen past the
+  // wide Notes column and look like they're missing.
+  const mergeColumnOrder = useCallback(
+    (saved: string[] | undefined): string[] => {
+      if (!saved || saved.length === 0) return [...defaultOrder];
+      const valid = new Set(defaultOrder);
+      const merged = saved.filter((k) => valid.has(k));
+      for (const key of defaultOrder) {
+        if (merged.includes(key)) continue;
+        const defIdx = defaultOrder.indexOf(key);
+        let insertAt = 0;
+        for (let i = 0; i < merged.length; i++) {
+          if (defaultOrder.indexOf(merged[i]) < defIdx) insertAt = i + 1;
+        }
+        merged.splice(insertAt, 0, key);
+      }
+      return merged;
+    },
+    [defaultOrder]
+  );
+
+  // Columns that a given saved layout is missing AND the user hasn't been told
+  // about yet — the trigger for the one-time onboarding hint. Only applies to
+  // users with a saved layout (fresh users see the full default, so nothing is
+  // "new" to them).
+  const unseenNewColumns = useCallback(
+    (savedOrder: string[]): string[] => {
+      if (!savedOrder || savedOrder.length === 0) return [];
+      let seen = new Set<string>();
+      try {
+        seen = new Set(JSON.parse(window.localStorage.getItem(storageKeys.seen) ?? "[]") as string[]);
+      } catch { /* ignore */ }
+      const saved = new Set(savedOrder);
+      return defaultOrder.filter((k) => !saved.has(k) && !seen.has(k));
+    },
+    [defaultOrder, storageKeys]
+  );
+
   // ── Column order state with localStorage persistence ──────────────────────
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     if (typeof window === "undefined") return [...defaultOrder];
     try {
       const saved = window.localStorage.getItem(storageKeys.order);
-      if (saved) {
-        const parsed = JSON.parse(saved) as string[];
-        // Ensure all columns are present, append any missing at the end
-        const existing = new Set(parsed);
-        for (const key of defaultOrder) {
-          if (!existing.has(key)) parsed.push(key);
-        }
-        // Filter out any invalid keys
-        const valid = new Set(defaultOrder);
-        return parsed.filter((k) => valid.has(k));
-      }
+      if (saved) return mergeColumnOrder(JSON.parse(saved) as string[]);
     } catch { /* ignore */ }
     return [...defaultOrder];
   });
@@ -326,6 +363,40 @@ export default function SpreadsheetDataTable({
       window.localStorage.setItem(storageKeys.order, JSON.stringify(columnOrder));
     } catch { /* ignore quota errors */ }
   }, [columnOrder, storageKeys]);
+
+  // ── Onboarding hint: newly added columns ─────────────────────────────────
+  // Columns the user's saved layout predates (e.g. R / KM) are surfaced once
+  // with a banner + header badge, then remembered so they never nag again.
+  const [newColumns, setNewColumns] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = window.localStorage.getItem(storageKeys.order);
+      return saved ? unseenNewColumns(JSON.parse(saved) as string[]) : [];
+    } catch { /* ignore */ }
+    return [];
+  });
+
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const dismissNewColumns = useCallback(() => {
+    if (newColumns.length === 0) return;
+    try {
+      const seen = new Set<string>(JSON.parse(window.localStorage.getItem(storageKeys.seen) ?? "[]") as string[]);
+      for (const k of newColumns) seen.add(k);
+      window.localStorage.setItem(storageKeys.seen, JSON.stringify([...seen]));
+    } catch { /* ignore */ }
+    setNewColumns([]);
+  }, [newColumns, storageKeys]);
+
+  // Auto-dismiss after a few seconds and bring the highlighted column into
+  // view so the badge isn't missed (it can sit off-screen on narrow windows).
+  useEffect(() => {
+    if (newColumns.length === 0) return;
+    const t = setTimeout(dismissNewColumns, 8000);
+    const el = rootRef.current?.querySelector<HTMLElement>("[data-new-column]");
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    return () => clearTimeout(t);
+  }, [newColumns, dismissNewColumns]);
 
   // ── Layout profiles state ─────────────────────────────────────────────────
   const [profiles, setProfiles] = useState<LayoutProfile[]>(() => {
@@ -389,12 +460,21 @@ export default function SpreadsheetDataTable({
     setShowLayoutMenu(false);
   }, [newLayoutName, columnOrder, columnWidths, columnVisibility]);
 
-  const loadLayout = useCallback((profile: LayoutProfile) => {
-    setColumnOrder([...profile.columnOrder]);
-    setColumnWidths({ ...profile.columnWidths });
-    setColumnVisibility({ ...profile.columnVisibility });
-    setShowLayoutMenu(false);
-  }, []);
+  const loadLayout = useCallback(
+    (profile: LayoutProfile) => {
+      // Merge so columns added after the profile was saved (e.g. R / KM) are
+      // not silently dropped, and surface them with the onboarding hint.
+      setColumnOrder(mergeColumnOrder(profile.columnOrder));
+      setColumnWidths({ ...profile.columnWidths });
+      setColumnVisibility({ ...profile.columnVisibility });
+      setShowLayoutMenu(false);
+      const missing = unseenNewColumns(profile.columnOrder);
+      if (missing.length > 0) {
+        setNewColumns((prev) => [...new Set([...prev, ...missing])]);
+      }
+    },
+    [mergeColumnOrder, unseenNewColumns]
+  );
 
   const deleteLayout = useCallback((name: string) => {
     setProfiles((prev) => prev.filter((p) => p.name !== name));
@@ -469,7 +549,7 @@ export default function SpreadsheetDataTable({
   // ── Column resize state ────────────────────────────────────────────────────
   const resizingColumnRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
 
-  const startColumnResize = useCallback((key: string, e: React.MouseEvent<HTMLDivElement>) => {
+  const startColumnResize = useCallback((key: string, e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     resizingColumnRef.current = {
@@ -479,10 +559,16 @@ export default function SpreadsheetDataTable({
     };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
+    // Capture the pointer so we keep receiving pointermove/pointerup even when
+    // the cursor leaves the window, and get lostpointercapture/pointercancel if
+    // the drag is interrupted. Without capture, a drag released outside the
+    // window left the resize state stuck — the table then grew/shrunk with the
+    // cursor on every mouse move (page widened on mouse-out, narrowed on return).
+    e.currentTarget.setPointerCapture(e.pointerId);
   }, [columnWidths]);
 
   useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!resizingColumnRef.current) return;
       const { key, startX, startWidth } = resizingColumnRef.current;
       const delta = e.clientX - startX;
@@ -492,18 +578,28 @@ export default function SpreadsheetDataTable({
       setColumnWidths((prev) => ({ ...prev, [key]: nextWidth }));
     };
 
-    const onMouseUp = () => {
-      if (!resizingColumnRef.current) return;
+    // pointerup + pointercancel both clear the resize state, so a drag can
+    // never get stuck — even when released outside the window.
+    const stopResize = () => {
       resizingColumnRef.current = null;
       document.body.style.cursor = "default";
       document.body.style.userSelect = "";
     };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+    // Safety net: if the window loses focus or the tab is hidden while a drag
+    // is in progress, abort it — the table can never get stuck following the
+    // cursor after the pointer leaves the window.
+    window.addEventListener("blur", stopResize);
+    document.addEventListener("visibilitychange", stopResize);
     return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+      window.removeEventListener("blur", stopResize);
+      document.removeEventListener("visibilitychange", stopResize);
     };
   }, [allColumns]);
 
@@ -519,7 +615,7 @@ export default function SpreadsheetDataTable({
   // Render resize handle
   const renderResizeHandle = useCallback((key: string) => (
     <div
-      onMouseDown={(e) => startColumnResize(key, e)}
+      onPointerDown={(e) => startColumnResize(key, e)}
       onDoubleClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -548,6 +644,19 @@ export default function SpreadsheetDataTable({
 
     for (const route of routes) {
       const loads = route.loads || [];
+      // Route-level metrics shared by every load row: revenue = sum of load
+      // amounts (or the route rate when there are no loads), and R / KM =
+      // revenue ÷ kilometres (0 when KM or revenue is missing).
+      const routeKm = Number(route.kilometers) || 0;
+      const routeRevenue =
+        loads.length === 0
+          ? Number(route.rate) || 0
+          : loads.reduce(
+              (sum: number, l: any) =>
+                sum + calculateLoadAmount(parseNumberSafe(l.quantity), parseNumberSafe(l.rate), l.rateType || "per_unit"),
+              0
+            );
+      const routeRkm = routeKm > 0 && routeRevenue > 0 ? Number((routeRevenue / routeKm).toFixed(2)) : 0;
       if (loads.length === 0) {
         // Route with no loads — show as one row
         result.push({
@@ -563,6 +672,7 @@ export default function SpreadsheetDataTable({
           destination: "",
           customer: route.client || "",
           amount: Number(route.rate) || 0,
+          rkm: routeRkm,
           notes: route.notes || "",
           region: route.region || "",
         });
@@ -585,6 +695,7 @@ export default function SpreadsheetDataTable({
             destination: ((load.toLocations && load.toLocations[0]) || "").toUpperCase(),
             customer: (load.client || "").toUpperCase(),
             amount,
+            rkm: routeRkm,
             notes: route.notes || "",
             region: route.region || "",
           });
@@ -608,6 +719,8 @@ export default function SpreadsheetDataTable({
       }
       case "amount":
         return row.amount;
+      case "rkm":
+        return row.rkm;
       case "date":
         return row.dateIso || row.date;
       default: {
@@ -881,6 +994,12 @@ export default function SpreadsheetDataTable({
             {row.amount > 0 ? formatZAR(row.amount) : "—"}
           </div>
         );
+      case "rkm":
+        return (
+          <div className={`px-2 ${rowPad} truncate flex items-center justify-end w-full h-full text-[var(--foreground)] font-mono tabular-nums`}>
+            {row.rkm > 0 ? formatZAR(row.rkm) : "—"}
+          </div>
+        );
       case "notes":
         return (
           <div
@@ -916,7 +1035,33 @@ export default function SpreadsheetDataTable({
   }
 
   return (
-    <div className={`w-full overflow-auto border border-[var(--card-border)] bg-[var(--card-bg)] ${className ?? ""}`}>
+    <div ref={rootRef} className={`w-full overflow-auto border border-[var(--card-border)] bg-[var(--card-bg)] ${className ?? ""}`}>
+      {/* ── Onboarding banner: newly added columns ── */}
+      {newColumns.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--card-border)] bg-[rgba(6,182,212,0.08)] text-xs text-[var(--foreground)]">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-[10px] leading-none text-white">
+            ✦
+          </span>
+          <span className="font-bold text-[#06B6D4]">
+            New column{newColumns.length > 1 ? "s" : ""}:{" "}
+            {newColumns.map((k) => allColumns.find((c) => c.key === k)?.label ?? k).join(", ")}
+          </span>
+          <span className="hidden sm:inline text-[var(--nav-text-color)]">
+            · drag the header to move it, or toggle it in Columns
+          </span>
+          <button
+            onClick={dismissNewColumns}
+            aria-label="Dismiss"
+            className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* ── Toolbar: resize hint + Columns toggle + Layout profiles ── */}
       <div className="flex items-center justify-between px-4 py-2 text-xs text-[var(--nav-text-color)]">
         <span>Click headers to sort (adds a sort key) · drag edges to resize · drag headers to reorder</span>
@@ -1076,7 +1221,10 @@ export default function SpreadsheetDataTable({
               col.sortable ? "cursor-pointer hover:bg-[rgba(6,182,212,0.08)] dark:hover:bg-[rgba(6,182,212,0.15)] select-none" : ""
             } ${col.align === "right" ? "justify-end" : "justify-start"} ${
               dragOverKey === col.key ? "bg-[rgba(6,182,212,0.15)] dark:bg-[rgba(6,182,212,0.25)] ring-1 ring-[#06B6D4]" : ""
+            } ${
+              newColumns.includes(col.key) ? "bg-[rgba(6,182,212,0.1)] ring-2 ring-inset ring-[#06B6D4]/70" : ""
             }`}
+            data-new-column={newColumns.includes(col.key) ? "true" : undefined}
             onClick={col.sortable ? () => handleSort(col.key) : undefined}
             title={
               col.sortable
@@ -1085,6 +1233,11 @@ export default function SpreadsheetDataTable({
             }
           >
             <span className="truncate">{col.label}</span>
+            {newColumns.includes(col.key) && (
+              <span className="ml-1.5 inline-flex shrink-0 items-center rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-white animate-pulse">
+                New
+              </span>
+            )}
             {col.sortable && (() => {
               const ruleIdx = sorts.findIndex((s) => s.key === col.key);
               if (ruleIdx === -1) return null;

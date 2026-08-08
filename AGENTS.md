@@ -1,5 +1,7 @@
 # FleetCore — Agent Instructions
 
+> **Read first**: `PROJECT_CONTEXT.md` (full architecture reference) and `UPDATES.md` (changelog + current working-tree state) describe the complete project scope. This file is the quick-reference cheat sheet.
+
 ## Tech Stack
 - **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS v4
 - **Backend**: Convex (functions in `convex/`), database schema in `convex/schema.ts`
@@ -8,14 +10,17 @@
 - **Email**: Resend (via `convex/emails.ts`)
 - **Exports**: exceljs, xlsx
 - **Charts**: recharts
-- **Auth**: bcryptjs
+- **Auth**: bcryptjs — custom email/password with `users`/`sessions` tables (admin/regional roles, multi-device sessions, 30-day tokens)
+- **Push**: web-push (PWA web push with VAPID)
+- **Tests**: vitest (`npm test`)
 
 ## Commands
 
 ```bash
 npm run dev      # Next.js dev server
 npm run build    # Production build
-npm run lint     # ESLint only (no test/typecheck script)
+npm run lint     # ESLint only (no typecheck script)
+npm test         # Vitest unit tests
 npm run update-backend  # Runs: npx convex codegen + generateSnapshot.ps1
 npx convex push  # Push Convex functions to deployment
 npx convex codegen  # Regenerate convex/_generated/ types
@@ -28,7 +33,8 @@ This project is in a **locked baseline** state (as of 2026-01-23). Core architec
 - Status + Risk: computed (pure functions, no hooks/mutations/side effects)
 - Backend queries: separated by consumer intent (UI, reporting, email, QuickSend)
 - Suspense: localized only, `fallback={null}` unless required
-- Legacy routes (`/planner`, `/sheets`) must not be removed
+- Legacy routes (`/planner`, `/sheets`): declared in `ARCHITECTURE_LOCK` — no route files exist in the current codebase; do not reintroduce them as canonical routes
+- Region scoping is **server-enforced** — regional users are hard-locked to their own region (never trusted from the client); route queries resolve scope via `resolveEffectiveRegion` in `convex/userSessions.ts`
 
 ## Lint Freeze
 
@@ -36,9 +42,15 @@ Legacy Convex and Planner files have `no-explicit-any` disabled via per-file `es
 
 ## Routing
 
-- `/operations/daily-planner/*` — canonical route system
+- `/login` — sign-in (email + password, multi-device sessions)
 - `/dashboard` — CEO dashboard (see `CEO_DASHBOARD_GUIDE.md`)
-- `/admin/*` — trucks, trailers, drivers, customers, payments, age-analysis, reconciliation
+- `/operations/daily-planner/*` — canonical route system
+- `/all-regions` — admin cross-region table (admin-only nav item)
+- `/calendar` — driver birthday calendar (WhatsApp wishes)
+- `/settings` — reminders, theme, push, change password, my devices
+- `/admin/*` — trucks, trailers, drivers, subcontractors, fleet-import, users
+- `/planner`, `/sheets` — declared legacy by `ARCHITECTURE_LOCK`; no route files exist in the current codebase (don't recreate them)
+- Mobile (PWA, <768px) is limited to Dashboard, Input, Edit, Sheets, Swaps, Calendar — everything else redirects to Dashboard (see `AppShell.tsx`)
 
 ## Trailer Swaps — Source of Truth
 
@@ -61,14 +73,17 @@ The **current** truck-trailer combination is stored in `trucks.currentTrailerId`
 | `trailers` | Fleet trailers |
 | `drivers` | Driver records |
 | `dailyAvailability` | Daily truck/driver/trailer availability |
-| `ageSnapshots` / `ageSnapshotRows` | Receivables aging data |
-| `payments` | Payment records |
 | `invoices` | Invoice records |
+| `users` / `sessions` | Auth — accounts + multi-device sessions (max 5/user) |
+| `subcontractors` | Subcontractor master data |
+| `webPushSubscriptions` | PWA push subscriptions |
+| `dismissedBirthdayAlerts` | Per-user per-year birthday dismissals |
 
 ## Environment
 
 - Convex deployment: `dev:quixotic-gopher-969`
-- Env vars in `.env.local` (not committed)
+- Env vars in `.env.local` (not committed): `NEXT_PUBLIC_CONVEX_URL`, `RESEND_API_KEY`
+- VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`) set via `npx convex env set ...` for web push
 - React Compiler enabled (`babel-plugin-react-compiler`)
 
 ## Theme Tokens — Quick Reference

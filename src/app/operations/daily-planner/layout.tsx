@@ -37,26 +37,41 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  const [leftWidth, setLeftWidth] = useState(65);
  const isDraggingRef = useRef(false);
 
- // Resizer drag listeners
+ // Resizer drag listeners — pointer events + capture so a drag released
+ // outside the window always ends (previously the drag state could stick,
+ // and the pane widths then tracked the cursor on every mouse move: the
+ // page widened on mouse-out and narrowed on return).
  useEffect(() => {
- const onMouseMove = (e: MouseEvent) => {
+ const onPointerMove = (e: PointerEvent) => {
  if (!isDraggingRef.current) return;
  const newLeftWidth = (e.clientX / window.innerWidth) * 100;
  setLeftWidth(Math.min(Math.max(newLeftWidth, 20), 80));
 };
- const onMouseUp = () => {
+ const stopResize = () => {
  isDraggingRef.current = false;
  document.body.style.cursor ="default";
 };
- window.addEventListener("mousemove", onMouseMove);
- window.addEventListener("mouseup", onMouseUp);
+ window.addEventListener("pointermove", onPointerMove);
+ window.addEventListener("pointerup", stopResize);
+ window.addEventListener("pointercancel", stopResize);
+ // Safety net: if the window loses focus or the tab is hidden while a drag
+ // is in progress, abort it — the pane can never get stuck following the
+ // cursor after the pointer leaves the window.
+ window.addEventListener("blur", stopResize);
+ document.addEventListener("visibilitychange", stopResize);
  return () => {
- window.removeEventListener("mousemove", onMouseMove);
- window.removeEventListener("mouseup", onMouseUp);
+ window.removeEventListener("pointermove", onPointerMove);
+ window.removeEventListener("pointerup", stopResize);
+ window.removeEventListener("pointercancel", stopResize);
+ window.removeEventListener("blur", stopResize);
+ document.removeEventListener("visibilitychange", stopResize);
 };
-}, []); const startResize = () => {
+}, []);
+
+ const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
  isDraggingRef.current = true;
  document.body.style.cursor ="col-resize";
+ e.currentTarget.setPointerCapture(e.pointerId);
  };
 
  const paneBg ="glass-card-premium";
@@ -165,7 +180,11 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  {viewMode === "split" && !inputCollapsed && (
  <div
  className={`w-1.5 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${resizerBg}`}
- onMouseDown={startResize}
+ onPointerDown={startResize}
+ onLostPointerCapture={() => {
+ isDraggingRef.current = false;
+ document.body.style.cursor ="default";
+ }}
  />
  )}
 

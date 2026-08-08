@@ -1,204 +1,152 @@
-# CEO Dashboard - Rebuild Summary
+# CEO Dashboard — Guide
+
+> **Refreshed**: 2026-08-08 — matches the current implementation.
+> The dashboard is a single page (`src/app/dashboard/page.tsx`) with inline
+> sections and a drill-down panel. Region-scoped, ZAR-formatted, mobile-aware.
 
 ## Overview
-Your dashboard has been completely rebuilt with comprehensive CEO-level analytics. It now provides real-time business intelligence for fleet operations with focus on profitability, efficiency, financial health, and strategic decision-making.
+
+The CEO dashboard provides real-time business intelligence for fleet
+operations — profitability, efficiency, and operational quality — built on
+Convex analytics queries and rendered with recharts. Every KPI and row is
+tappable and drills down to the supporting routes.
 
 ## Dashboard Structure
 
-### 1. **Executive Summary** (Top KPIs)
-- **Total Revenue**: Period revenue aggregation
-- **Revenue per KM**: Key efficiency metric (target: R5+)
-- **Avg Revenue per Load**: Load profitability
-- **Completion Rate**: Operational quality indicator
-- Secondary metrics showing active routes, average route length, and total loads
+### 1. Header & Filters
 
-### 2. **Financial Health Widget**
-- **Receivables Aging Analysis**
-  - Total Outstanding amount
-  - Current (not yet due): Cash already earned
-  - 30-60 days overdue: Early warnings
-  - 60-90 days: Serious overdue
-  - 120+ days: Critical attention needed
-- **Risk Level Indicator**: Healthy | Caution | Risk | Critical
-- **Collection Trend**: Month-on-month changes in receivables
-- **Days Outstanding**: Weighted average aging
+- **Region master filter** (`RegionMasterFilter`): the region is the *master
+  filter* for every number on the screen.
+  - Admin: dropdown — All Regions / Garden Route / Eastern Cape (synced with
+    the sidebar switcher).
+  - Regional user: read-only badge — data is server-locked to their region.
+- **Date filter bar** (`FilterBar`) with three modes:
+  - **Day** — pick a single date
+  - **Month** — month picker with ‹ › navigation
+  - **Range** — start → end date inputs
+  - Default: current month.
 
-### 3. **Operational Metrics**
-- **Total Routes**: Period volume
-- **Loads Per Route**: Consolidation efficiency
-- **KM Per Route**: Average route distance
-- **Revenue Per Route**: Revenue performance
-- **Completion Rate Progress**: Visual completion tracking with status color (green 80%+, yellow 60%+, red <60%)
+### 2. Upcoming Birthdays Card
 
-### 4. **Customer Performance**
-- **Concentration Risk Analysis**: % of revenue from top 10 customers
-  - Low (<50%): Healthy diversification ✓
-  - Medium (50-60%): Monitor closely
-  - High (60-70%): Significant risk ⚡
-  - Critical (>70%): High vulnerability ⚠️
-- **Top 10 Customers Table**: Ranked by revenue with metrics:
-  - Revenue, Loads, Routes, Average Revenue per Load
-- **Unique Customer Count**: Market reach indicator
+- `BirthdaysCard` (via `useBirthdays`) — driver birthdays in the next 7 days,
+  dismissible per user per year, with today's birthdays highlighted.
 
-### 5. **Fleet Performance**
-- **Active Trucks Count**: Fleet utilization
-- **Average Revenue/KM**: Fleet efficiency metric
-- **Top Performer**: Best performing truck
-- **Top 10 Trucks Table**: Ranked by revenue with:
-  - Revenue, Routes, KM, Loads
-  - Revenue per KM (color-coded: Green >R6, Blue >R4, Gray <R4)
-  - Efficiency (average km per route)
+### 3. Period KPIs
 
-### 6. **Strategic Insights** (AI-Powered Analysis)
-Automatically analyzes business data and provides actionable recommendations:
+Five cards, each tappable to drill down:
 
-**Success Indicators** (✓ Green):
-- Strong unit economics (R/KM > R5)
-- Healthy receivables management
-- Customer diversification
-- Fleet optimization
+| KPI | Source | Drill-down |
+|---|---|---|
+| **Revenue** | `getExecutiveSummary.totalRevenue` | All routes this period |
+| **Routes** | `totalRoutes` | All routes this period |
+| **Loads** | `totalLoads` | Loads breakdown |
+| **Total KM** | `totalKm` | KM breakdown |
+| **Completion** | `completionRate` (green ≥80%, yellow <80%) | Completed routes |
 
-**Warnings** (⚠ Yellow):
-- Low customer diversification (50-60% concentration)
-- High overdue receivables (60+ days)
-- Low fleet utilization
+### 4. Revenue by Day
 
-**Alerts** (! Red):
-- Low revenue efficiency (< R3/KM)
-- Plan execution issues (< 50% completion)
-- Critical receivables (>20% of revenue 120+ days)
-- Fleet over-utilization (>100% capacity)
-- Low consolidation rate (< 1.5 loads/route)
+- Progress-bar list of daily revenue across the selected range
+- Tap a day → drill down to `Routes on {date}`
 
----
+### 5. Top Clients
 
-## Core Analytics Queries Added
+- Top 8 clients by revenue with `% of total` progress bars and load counts
+- Tap a client → drill down to that client's routes
 
-### Backend (convex/dashboard.ts)
+### 6. Month-to-Month Comparison
 
-1. **`getExecutiveSummary`**
-   - Total revenue, routes, loads, km
-   - Efficiency metrics: R/KM, R/Load, R/Route
-   - Avg km/route and completion rate
+- Two month selectors (defaults: last month vs current month)
+- Powered by `getMonthToMonthComparison` — revenue/loads/KM deltas
 
-2. **`getCustomerAnalytics`**
-   - Top 10 customers by revenue
-   - Customer concentration risk
-   - Unique customer count
+### 7. Drill-Down Panel
 
-3. **`getFleetPerformance`**
-   - Top 10 trucks by revenue
-   - Revenue per KM at fleet level
-   - Truck-level efficiency metrics
+Opened by tapping any KPI, day, or client:
 
-4. **`getFinancialHealth`**
-   - Latest receivables snapshot
-   - Aging breakdown by bucket
-   - Risk level assessment
-   - Days outstanding calculation
-   - Collection trend vs prior month
+- **Header**: breadcrumb ("← Back to Range") when drilled from a period to a date
+- **Summary strip**: Routes · Revenue · KM + an **Analytics** button
+- **Route list**: truck/trailer, status badge (completed/locked/planned),
+  date/driver/km, revenue, loads, notes; **edit** (slide-in `EditRouteForm`)
+  and **delete** (confirm dialog) per route
+- **Analytics side panel** (toggled via the Analytics card):
+  - KPI cards with progress bars — Routes, Revenue, Distance, Revenue/KM
+  - **Daily Revenue Trend** line chart (click a point to drill into that day)
+  - **Routes per Day** bar chart (click a bar to drill into that day)
+  - Averages — Avg Revenue, Avg Distance, Routes/Day
+  - Per-chart **Filter by Client** toggles
 
-5. **`getOperationalEfficiency`**
-   - Route completion tracking
-   - Loads per route analysis
-   - KM per route averages
-   - Route planning quality
+## Backend Analytics Queries (convex/dashboard.ts)
 
----
+| Query | Purpose |
+|---|---|
+| `getExecutiveSummary` | Revenue, routes, loads, km, completion rate for a period |
+| `getCustomerAnalytics` | Top customers by revenue + counts |
+| `getRevenueOverTime` | Daily revenue series |
+| `getMonthToMonthComparison` | Month-over-month revenue/loads/km deltas |
+| `getDashboardLoadsSummary` / `getLoadsOverTime` | Loads summaries |
+| `getDashboardRevenueSummary` / `getRevenueByTruck` | Revenue summaries / per-truck |
+| `getRoutesByStatus` | Route counts by status |
+| `getClientBreakdown` | Client revenue breakdown |
+| `getFleetPerformance` | Truck-level efficiency |
+| `getOperationalEfficiency` | Route/load efficiency metrics |
 
-## UI Components (src/components/dashboard/ceo/)
+Period queries accept `{ startDate, endDate, token, region }`;
+`getMonthToMonthComparison` instead takes `{ month1, month2, token, region }`
+(months as `YYYY-MM`). Region is resolved server-side via
+`resolveEffectiveRegion` — regional users never see other regions. Load
+amounts are computed with `calculateLoadAmount` (flat/full → rate, else
+qty × rate).
 
-| Component | Purpose |
-|-----------|---------|
-| `ExecutiveSummary.tsx` | Main KPI display with trend indicators |
-| `FinancialHealthWidget.tsx` | Receivables aging and risk analysis |
-| `OperationalMetrics.tsx` | Route and load efficiency |
-| `CustomerPerformance.tsx` | Customer revenue concentration analysis |
-| `FleetPerformance.tsx` | Truck efficiency and utilization |
-| `StrategicInsights.tsx` | AI-generated recommendations and alerts |
-| `TrendIcon.tsx` | Reusable trend direction indicators |
+> **Notes**:
+> - The drill-down panel reads `dailyRoutes.getForSheets` directly for the
+>   route list. The legacy widget components (`dashboard/ceo/*`), the
+>   `getFinancialHealth` query, and the old `dashboard/operations/*` files
+>   (`LoadsTab.tsx`, `RevenueTab.tsx`, `KpiCard.tsx`, `DrillDownPanel.tsx`,
+>   `EditRouteModal.tsx`) and `DashboardCard.tsx` were removed (2026-08-08) —
+>   the current page renders all sections inline.
 
----
-
-## Usage
-
-### View Dashboard
-1. Navigate to `/dashboard` in your application
-2. Default date range: Current month
-3. Adjust date range using the date picker at top-right
-
-### Toggle Views
-- **Overview Tab**: Comprehensive view of all metrics
-- **Details Tab**: Drill-down table view of:
-  - Top 10 Customers with revenue breakdown
-  - Top 10 Trucks with performance metrics
-
-### Interpreting Insights
-- **Green/Success**: Continue current approach
-- **Yellow/Warning**: Monitor situation, plan adjustments
-- **Red/Alert**: Immediate action required
-
----
-
-## Key Performance Indicators (KPIs)
+## KPI Thresholds (interpretation guidance)
 
 ### Revenue Efficiency
-- **Healthy Range**: R/KM > R5, R/Load > R200
-- **Warning Range**: R2-R5 per KM
+- **Healthy**: R/KM > R5, R/Load > R200
+- **Warning**: R2–R5 per KM
 - **Critical**: < R2/KM
 
 ### Operational Quality
 - **Completion Rate Target**: 80%+
 - **Loads Per Route**: 1.5+ (higher = better consolidation)
-- **Average Route Length**: 200-500 km typical
-
-### Financial Health
-- **Days Outstanding Target**: 30-45 days
-- **Current Receivables**: Ideally 70%+ of total outstanding
-- **Overdue 120+ Days**: Should be < 10% of total
+- **Average Route Length**: 200–500 km typical
 
 ### Customer Health
 - **Concentration Ratio Target**: < 60% from top 10 customers
-- **Unique Customer Growth**: Track month-over-month
+- Track unique customer growth month-over-month
 
 ### Fleet Efficiency
-- **Utilization Rate**: Routes ÷ Total Trucks (target: 0.7-0.9)
-- **Revenue Per KM**: Fleet-wide efficiency metric
-
----
+- **Utilization Rate**: Routes ÷ Total Trucks (target 0.7–0.9)
+- **Revenue Per KM**: fleet-wide efficiency metric
 
 ## Data Flow
 
 ```
-Convex Database (dailyRoutes, ageSnapshots, invoices, payments, drivers, trucks)
+Convex Database (dailyRoutes, drivers, trucks, invoices, ...)
     ↓
-Backend Queries (getExecutiveSummary, getCustomerAnalytics, etc.)
+Backend Queries (convex/dashboard.ts — region-scoped)
     ↓
-React Components (useQuery from Convex)
+Dashboard Page (useQuery → inline sections)
     ↓
-Data Processing & Display (Dashboard Page)
-    ↓
-CEO Dashboard UI
+Drill-down: dailyRoutes.getForSheets + Analytics panel (recharts)
 ```
 
----
+## Mobile Behavior
 
-## Future Enhancements
-
-1. **Trend Charts**: Historical performance comparison
-2. **Forecasting**: Predictive analytics for revenue/receivables
-3. **Alerts**: Real-time notifications for critical metrics
-4. **Custom Reports**: Email-based executive summaries
-5. **Comparison**: YTD vs same period last year
-6. **Drill-down**: Click metrics to see supporting detail
-7. **Export**: PDF/Excel report generation
-8. **Alerts**: SMS/Email when thresholds breached
-
----
+- Sections render as **collapsible cards** on phones (`CollapsibleSection`) —
+  title + summary + chevron; desktop shows all sections expanded.
+- Drill-down panel is full-screen on mobile; analytics panel overlays it.
+- Dashboard is one of the four phone app screens (bottom tab bar).
 
 ## Notes
 
-- All dates use ISO format (YYYY-MM-DD)
-- Currency displayed in ZAR
-- Dashboard defaults to current month
-- Caching may require 30-60 seconds for data to fully load
+- All dates use ISO format (YYYY-MM-DD); currency displayed in ZAR
+  (`R 1 234` on the dashboard, `R 1 234,56` in exports/invoices).
+- Dashboard defaults to the current month.
+- `isDayMode` (theme-aware) drives light/dark-specific styling across the page.
+- See `PROJECT_CONTEXT.md` §6 for the full dashboard query inventory.

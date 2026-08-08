@@ -125,8 +125,12 @@ function uniqueTos(route: any): string[] {
   return [...new Set(tos.flatMap((l: any) => (l.toLocations ?? []) as string[]))];
 }
 
+// Route revenue — matches the desktop spreadsheet: the sum of load amounts, or
+// the route-level rate when the route has no loads.
 function routeRevenue(route: any): number {
-  return (route.loads ?? []).reduce((sum: number, l: any) => {
+  const loads = route.loads ?? [];
+  if (loads.length === 0) return Number(route.rate) || 0;
+  return loads.reduce((sum: number, l: any) => {
     return (
       sum +
       calculateLoadAmount(
@@ -136,6 +140,14 @@ function routeRevenue(route: any): number {
       )
     );
   }, 0);
+}
+
+// R / KM — identical to the desktop table column: route revenue ÷ kilometres
+// (0 when KM or revenue is missing, so the card just hides the badge).
+function routeRPerKm(route: any): number {
+  const km = Number(route.kilometers) || 0;
+  const revenue = routeRevenue(route);
+  return km > 0 && revenue > 0 ? Number((revenue / km).toFixed(2)) : 0;
 }
 
 const STATUS_OPTIONS = [
@@ -576,7 +588,7 @@ export default function MobileSheetsView({
             onClick={() => setShowFilters(false)}
           />
           <div
-            className="relative bg-[var(--card-bg)] rounded-t-2xl border-t border-[var(--card-border)] shadow-2xl max-h-[85dvh] flex flex-col animate-in slide-in-from-bottom duration-200"
+            className="relative bg-[var(--background)] rounded-t-2xl border-t border-[var(--card-border)] shadow-2xl max-h-[85dvh] flex flex-col animate-in slide-in-from-bottom duration-200"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[var(--card-border)]">
@@ -736,6 +748,7 @@ function RouteCard({
   onTap: () => void;
 }) {
   const revenue = routeRevenue(route);
+  const rPerKm = routeRPerKm(route);
   const froms = uniqueFroms(route);
   const tos = uniqueTos(route);
   const truck = route.truckFleetNoStr || String(route.truckFleetNo ?? "—");
@@ -748,12 +761,22 @@ function RouteCard({
       className="glass-card rounded-xl p-3 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
       aria-label={`View details for Truck ${truck}`}
     >
-      {/* Status + revenue */}
+      {/* Status + revenue (+ R / KM) */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
         {statusPill(route)}
-        <span className="text-sm font-black text-[var(--foreground)] tabular-nums">
-          {revenue > 0 ? formatZAR(revenue) : "—"}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {rPerKm > 0 && (
+            <span
+              className="inline-flex items-center rounded-md border border-[rgba(6,182,212,0.2)] bg-[rgba(6,182,212,0.08)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[#06B6D4]"
+              title="Revenue per kilometre"
+            >
+              {formatZAR(rPerKm)}/km
+            </span>
+          )}
+          <span className="text-sm font-black text-[var(--foreground)] tabular-nums">
+            {revenue > 0 ? formatZAR(revenue) : "—"}
+          </span>
+        </div>
       </div>
 
       {/* Truck + driver */}

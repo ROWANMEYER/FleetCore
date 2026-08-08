@@ -204,7 +204,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
  prevDrillRef.current = drill;
 }, [drill]); const panelTheme = {
    bg: {
-      primary: "bg-[var(--card-bg)]",
+      primary: "bg-[var(--background)]",
       secondary: "bg-[var(--card-bg)]",
       tertiary: "bg-[var(--card-bg)]",
    },
@@ -947,8 +947,8 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 )}      {/* Edit Modal - Using EditRouteForm Component */}
       {editingRouteId && (
         <div className="fixed inset-0 bg-black/60 z-50 flex justify-end animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl overflow-hidden bg-[var(--card-bg)]">
-            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0 bg-[var(--card-bg)] border-[var(--card-border)]">
+          <div className="w-full max-w-2xl h-full flex flex-col animate-in slide-in-from-right duration-300 shadow-2xl overflow-hidden bg-[var(--background)]">
+            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0 bg-[var(--background)] border-[var(--card-border)]">
               <h2 className="text-lg font-bold text-[var(--foreground)]">Edit Route</h2>
               <button 
                 onClick={() => setEditingRouteId(null)}
@@ -957,7 +957,7 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
                 ✕
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-[var(--card-bg)]">
+            <div className="flex-1 overflow-y-auto p-6 bg-[var(--background)]">
               <EditRouteForm 
                 routeId={editingRouteId}
                 onSuccess={() => setEditingRouteId(null)}

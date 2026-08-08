@@ -329,7 +329,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  // Side panel state (replaces inline expand/collapse)
  const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
- const [panelView, setPanelView] = useState<"detail" | "edit">("detail");
+ const [panelView, setPanelView] = useState<"detail" | "edit" | "analytics">("detail");
 
  const openPanel = (route: any) => {
  setSelectedRoute(route);
@@ -337,10 +337,11 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  };
  const closePanel = () => setSelectedRoute(null);
  const openEditView = () => setPanelView("edit");
+ const openAnalyticsView = () => setPanelView("analytics");
  const backToDetail = () => setPanelView("detail");
- // Escape: step back from the edit view first, then close the panel
+ // Escape: step back from the edit/analytics views first, then close the panel
  useEscapeToClose(() => {
- if (panelView === "edit") backToDetail();
+ if (panelView !== "detail") backToDetail();
  else closePanel();
  }, !!selectedRoute);
 
@@ -1486,16 +1487,175 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }
 };
 
+ // ── Route Analytics view ──────────────────────────────────────────────
+ // Route-scoped analytics, mirroring the dashboard's Analytics Dashboard:
+ // KPI cards with progress bars, revenue trend for the truck's last 7
+ // routes, and a per-client revenue breakdown. Opened from the ANALYTICS
+ // button on the route detail card (desktop + mobile).
+ const RouteAnalyticsView = ({ route }: { route: any }) => {
+ const routeKm = Number(route.kilometers) || 0;
+ const loads = route.loads ?? [];
+ const totalRevenue = loads.reduce((sum: number, l: any) => {
+ const qty = parseNumberSafe(l.quantity);
+ const rate = parseNumberSafe(l.rate);
+ return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
+}, 0);
+ const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
+ const totalQty = loads.reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
+ const qtyUnit = loads[0]?.quantityType ||"t";
+
+ // Truck revenue trend (same query as the detail card)
+ const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
+ truckFleetNoStr: route.truckFleetNoStr ??"",
+ limit: 7,
+ token,
+ region,
+});
+ const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
+
+ // Per-client revenue breakdown from this route's loads
+ const clientBreakdown = useMemo(() => {
+ const map = new Map<string, number>();
+ for (const l of loads) {
+ const qty = parseNumberSafe(l.quantity);
+ const rate = parseNumberSafe(l.rate);
+ const amt = calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
+ const key = l.client ||"Unknown";
+ map.set(key, (map.get(key) || 0) + amt);
+}
+ return [...map.entries()]
+ .map(([name, value]) => ({ name, value }))
+ .sort((a, b) => b.value - a.value);
+}, [route]);
+ const maxClientValue = Math.max(...clientBreakdown.map((c) => c.value), 1);
+
+ return (
+ <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
+ {/* ── Breadcrumb + status ── */}
+ <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
+ <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
+ <span className="px-3 py-1 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] text-[10px] font-bold">
+ {(route.status ||"planned").toUpperCase()}
+ </span>
+ </div>
+
+ {/* ── KPI cards with progress bars (mirrors dashboard analytics) ── */}
+ <div className="grid grid-cols-2 gap-2.5">
+ <div className="glass-card rounded-lg p-3">
+ <div className="flex items-baseline justify-between mb-1.5">
+ <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Revenue</h3>
+ <span className="text-xs text-emerald-400 font-bold">Total</span>
+ </div>
+ <p className="text-xl font-black text-emerald-400">{formatZAR(totalRevenue)}</p>
+ <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (totalRevenue / Math.max(chartMax, 1)) * 100)}%` }} />
+ </div>
+ </div>
+ <div className="glass-card rounded-lg p-3">
+ <div className="flex items-baseline justify-between mb-1.5">
+ <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Distance</h3>
+ <span className="text-xs text-cyan-400 font-bold">Coverage</span>
+ </div>
+ <p className="text-xl font-black text-cyan-400">{routeKm.toLocaleString()} km</p>
+ <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (routeKm / 5000) * 100)}%` }} />
+ </div>
+ </div>
+ <div className="glass-card rounded-lg p-3">
+ <div className="flex items-baseline justify-between mb-1.5">
+ <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Revenue/KM</h3>
+ <span className="text-xs text-purple-400 font-bold">Efficiency</span>
+ </div>
+ <p className="text-xl font-black text-purple-400">{formatZAR(rPerKm)}</p>
+ <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-purple-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (rPerKm / 50) * 100)}%` }} />
+ </div>
+ </div>
+ <div className="glass-card rounded-lg p-3">
+ <div className="flex items-baseline justify-between mb-1.5">
+ <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Load Weight</h3>
+ <span className="text-xs text-orange-400 font-bold">{qtyUnit}</span>
+ </div>
+ <p className="text-xl font-black text-orange-400">{totalQty.toLocaleString()}</p>
+ <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-orange-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (totalQty / 34) * 100)}%` }} />
+ </div>
+ </div>
+ </div>
+
+ {/* ── Revenue trend (last 7 routes, this truck) ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <div className="flex items-center justify-between mb-3">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Revenue · Last {recentRoutes?.length ?? 0} Routes</p>
+ <span className="text-[10px] font-bold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] px-2 py-0.5 rounded-full">Truck {route.truckFleetNoStr}</span>
+ </div>
+ {!recentRoutes ? (
+ <p className="text-xs text-[var(--nav-text-color)] text-center py-4">Loading…</p>
+) : (
+ <div className="flex items-end gap-1 h-24">
+ {recentRoutes.map((r: any, i: number) => {
+ const rev = Number(r.rate) || 0;
+ const pct = (rev / chartMax) * 100;
+ const isThis = r._id === route._id;
+ return (
+ <div key={i} className="flex-1 flex flex-col items-center gap-1">
+ <div className="w-full flex items-end cursor-pointer group" style={{ height:"72px" }} onClick={() => openPanel(r)} title="Click to view route details">
+ <div
+ className={`w-full rounded-t transition-all ${isThis ?"bg-[#06B6D4]" :"bg-cyan-200 group-hover:bg-cyan-400"}`}
+ style={{ height:`${Math.max(pct, 4)}%` }}
+ />
+ </div>
+ <span className="text-[8px] text-[var(--nav-text-color)] truncate w-full text-center">
+ {r.routeDate?.slice(5)}
+ </span>
+ </div>
+);
+})}
+ </div>
+)}
+ <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--nav-text-color)]">
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> This route</span>
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-cyan-200 inline-block" /> Previous</span>
+ </div>
+ </div>
+
+ {/* ── Client revenue breakdown ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Revenue by Client</p>
+ {clientBreakdown.length === 0 ? (
+ <p className="text-xs text-[var(--nav-text-color)] text-center py-4 italic">No loads</p>
+) : (
+ <div className="space-y-3">
+ {clientBreakdown.map((c) => (
+ <div key={c.name}>
+ <div className="flex items-center justify-between text-xs mb-1">
+ <span className="font-semibold truncate">{c.name}</span>
+ <span className="font-black text-[#06B6D4]">{formatZAR(c.value)}</span>
+ </div>
+ <div className="w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] h-1.5 rounded-full" style={{ width:`${(c.value / maxClientValue) * 100}%` }} />
+ </div>
+ </div>
+))}
+ </div>
+)}
+ </div>
+ </div>
+);
+};
+
  const RouteDetailsCard = ({
  route,
  isLocked,
  mode ="primary",
- onDrillDown
+ onDrillDown,
+ onAnalytics
 }: {
  route: any;
  isLocked: boolean;
  mode?:"primary" |"secondary";
  onDrillDown?: (route: any) => void;
+ onAnalytics?: () => void;
 }) => {
  const status = route.status ||"planned";
  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -1608,6 +1768,16 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {[truckReg, trailerType, trailerLength ?`${trailerLength}m` :"", route.routeDate, route.client].filter(Boolean).join(" ·")}
  </p>
  </div>
+ <div className="flex flex-col gap-2 sm:items-end sm:shrink-0">
+ {mode ==="primary" && (
+ <button onClick={onAnalytics}
+ className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold border border-[#06B6D4]/40 text-[#06B6D4] rounded-lg hover:bg-[rgba(6,182,212,0.08)] transition-colors">
+ <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+ <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ ANALYTICS
+ </button>
+ )}
  {!isLocked && mode ==="primary" && (
  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:shrink-0">
  {status ==="completed" && (
@@ -1631,12 +1801,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  DELETE
  </button>
  </div>
-)} {isLocked && (
+ )}
+ {isLocked && (
  <button onClick={() => handleStatusChange(route._id,"unlock")}
  className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] sm:shrink-0">
  UNLOCK
  </button>
  )}
+ </div>
  </div>
 
  {/* ── KPI strip ── */}
@@ -2545,7 +2717,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
            {/* header */}
            <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-[var(--card-border)]">
              <div className="flex items-center gap-2 min-w-0">
-               {panelView === "edit" && (
+               {panelView !== "detail" && (
                  <button
                    onClick={backToDetail}
                    aria-label="Back to route details"
@@ -2555,7 +2727,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
                  </button>
                )}
                <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] truncate">
-                 {panelView === "edit" ? "Edit Route" : `Truck ${selectedRoute.truckFleetNoStr ?? "—"} · ${selectedRoute.routeDate}`}
+                 {panelView === "edit" ? "Edit Route" : panelView === "analytics" ? "Analytics" : `Truck ${selectedRoute.truckFleetNoStr ?? "—"} · ${selectedRoute.routeDate}`}
                </h2>
              </div>
              <button
@@ -2567,12 +2739,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
              </button>
            </div>
 
-           {/* scrollable body — detail or edit view */}
+           {/* scrollable body — detail, edit, or analytics view */}
            <div className="flex-1 overflow-y-auto">
              {panelView === "edit" ? (
                <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
+             ) : panelView === "analytics" ? (
+               <RouteAnalyticsView route={selectedRoute} />
              ) : (
-               <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ?? "planned") === "locked"} mode="primary" onDrillDown={openPanel} />
+               <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ?? "planned") === "locked"} mode="primary" onDrillDown={openPanel} onAnalytics={openAnalyticsView} />
              )}
            </div>
          </div>

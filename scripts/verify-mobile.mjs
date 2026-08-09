@@ -227,7 +227,7 @@ async function main() {
   // redirect to /login. Sign in with the admin seed credentials so every
   // audited page runs in an authenticated session.
   const AUDIT_EMAIL = process.env.AUDIT_EMAIL || "admin@fleetcore.app";
-  const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "Fleetcore2026!";
+  const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "admin123";
 
   await send("Page.navigate", { url: BASE + "/login" });
   await waitFor(async () => {

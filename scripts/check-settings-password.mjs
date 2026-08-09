@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 const BASE = "https://fleetcore-mu.vercel.app";
 const AUDIT_EMAIL = process.env.AUDIT_EMAIL || "admin@fleetcore.app";
-const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "Fleetcore2026!";
+const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD || "admin123";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const profile = mkdtempSync(join(tmpdir(), "fc-settings-"));

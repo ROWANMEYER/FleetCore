@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { calculateLoadAmount } from "@/convex/utils";
 import { useMobileChrome } from "@/src/components/MobileChromeContext";
 import {
@@ -179,6 +179,13 @@ const LEVEL_DOT: Record<string, string> = {
 const inputClass =
   "w-full h-9 px-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
 
+// Floating restore pill — the user can drag it anywhere on the screen; its
+// position survives in localStorage so it stays where they left it.
+const RESTORE_PILL_POS_KEY = "fleetcore-restore-pill-pos";
+// Approximate pill size used to keep it on-screen after resize/rotation; the
+// drag handler clamps with the real measured size.
+const RESTORE_PILL_EST_SIZE = { w: 112, h: 40 };
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MobileSheetsView({
@@ -224,6 +231,88 @@ export default function MobileSheetsView({
     setSortOpen(false);
     setMinimized(true);
   };
+
+  // ── Floating (draggable) restore pill ──────────────────────────────────────
+  const [restorePos, setRestorePos] = useState<{ x: number; y: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(RESTORE_PILL_POS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+          return { x: parsed.x, y: parsed.y };
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  });
+  const restoreDragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  const restoreDraggedRef = useRef(false);
+  const restoreLatestPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const persistRestorePos = () => {
+    const latest = restoreLatestPosRef.current;
+    if (!latest) return;
+    try {
+      localStorage.setItem(RESTORE_PILL_POS_KEY, JSON.stringify(latest));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleRestorePillPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    restoreDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: restorePos?.x ?? rect.left,
+      origY: restorePos?.y ?? rect.top,
+    };
+    restoreDraggedRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleRestorePillPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = restoreDragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) restoreDraggedRef.current = true;
+    const w = e.currentTarget.offsetWidth;
+    const h = e.currentTarget.offsetHeight;
+    const next = {
+      x: Math.max(0, Math.min(drag.origX + dx, Math.max(0, window.innerWidth - w))),
+      y: Math.max(0, Math.min(drag.origY + dy, Math.max(0, window.innerHeight - h))),
+    };
+    restoreLatestPosRef.current = next;
+    setRestorePos(next);
+  };
+
+  const handleRestorePillPointerUp = () => {
+    restoreDragRef.current = null;
+    persistRestorePos();
+  };
+
+  // Saved position re-clamped to the current viewport (resize / rotation);
+  // before the user has dragged anywhere, fall back to bottom-right.
+  const restorePillStyle = (() => {
+    if (!restorePos || typeof window === "undefined") {
+      return { right: 16, bottom: "calc(1.25rem + env(safe-area-inset-bottom))" } as React.CSSProperties;
+    }
+    const maxX = Math.max(0, window.innerWidth - RESTORE_PILL_EST_SIZE.w);
+    const maxY = Math.max(0, window.innerHeight - RESTORE_PILL_EST_SIZE.h);
+    return {
+      left: Math.max(0, Math.min(restorePos.x, maxX)),
+      top: Math.max(0, Math.min(restorePos.y, maxY)),
+    } as React.CSSProperties;
+  })();
 
   // Group routes by day, newest day first; order within a day is preserved
   // (the parent already applied the user's sort).
@@ -619,14 +708,24 @@ export default function MobileSheetsView({
         )}
       </div>
 
-      {/* ── Restore pill (visible only while minimized) ── */}
+      {/* ── Floating restore pill (visible only while minimized) — drag to
+             move it anywhere, tap to restore the toolbar and navigation ── */}
       {minimized && (
         <button
-          onClick={() => setMinimized(false)}
-          aria-label="Restore toolbar and navigation"
-          title="Restore toolbar and navigation"
-          className="fixed right-4 z-[60] inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)] active:scale-95 transition-all"
-          style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+          onPointerDown={handleRestorePillPointerDown}
+          onPointerMove={handleRestorePillPointerMove}
+          onPointerUp={handleRestorePillPointerUp}
+          onPointerCancel={() => {
+            restoreDragRef.current = null;
+            persistRestorePos();
+          }}
+          onClick={() => {
+            if (!restoreDraggedRef.current) setMinimized(false);
+          }}
+          aria-label="Restore toolbar and navigation (drag to move)"
+          title="Restore toolbar and navigation — drag to move, tap to restore"
+          className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
+          style={restorePillStyle}
         >
           <ChevronDown size={14} strokeWidth={2.75} />
           Restore

@@ -286,6 +286,11 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile sheets: region badge on route cards** — each route card now shows a
+  region pill in its meta row (Garden Route teal / Eastern Cape purple, plain
+  em-dash for unassigned), matching the desktop sheets Region column colors so
+  a route reads identically across web and phone. The loads/trailer/km summary
+  truncates on narrow phones so the badge + Details stay on one line.
 - **Sheets (desktop): month stepper arrows + Region column** — the two native
   `<input type="month">` controls (compact header + expanded header) were
   replaced with a `‹ label ›` stepper like the dashboard's month filter, using

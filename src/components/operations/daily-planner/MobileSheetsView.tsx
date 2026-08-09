@@ -176,6 +176,21 @@ const LEVEL_DOT: Record<string, string> = {
   blue: "bg-blue-500",
 };
 
+// Region badge metadata — same colors as the desktop sheets table's Region
+// column, so a route reads identically across web and phone.
+const REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
+  garden_route: {
+    label: "Garden Route",
+    cls: "bg-[rgba(6,182,212,0.12)] text-[#06B6D4] dark:text-[#22D3EE] border-[rgba(6,182,212,0.25)]",
+    dot: "bg-[#06B6D4]",
+  },
+  eastern_cape: {
+    label: "Eastern Cape",
+    cls: "bg-[rgba(168,85,247,0.12)] text-purple-600 dark:text-purple-400 border-[rgba(168,85,247,0.3)]",
+    dot: "bg-purple-500",
+  },
+};
+
 const inputClass =
   "w-full h-9 px-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
 
@@ -908,6 +923,7 @@ function RouteCard({
   const tos = uniqueTos(route);
   const truck = route.truckFleetNoStr || String(route.truckFleetNo ?? "—");
   const km = Number(route.kilometers) || 0;
+  const regionMeta = REGION_META[route.region];
 
   return (
     <button
@@ -958,22 +974,36 @@ function RouteCard({
         </p>
       )}
 
-      {/* Meta + tap affordance */}
+      {/* Meta + tap affordance — the loads/trailer/km cluster truncates on
+          narrow phones so the region badge and Details stay on one line. */}
       <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
-        <span>{route.loads?.length ?? 0} load{(route.loads?.length ?? 0) === 1 ? "" : "s"}</span>
-        {route.trailerFleetNoStr && (
-          <>
-            <span className="opacity-40">·</span>
-            <span>{route.trailerFleetNoStr}</span>
-          </>
+        {regionMeta ? (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold whitespace-nowrap shrink-0 ${regionMeta.cls}`}
+            title="Region"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${regionMeta.dot}`} />
+            {regionMeta.label}
+          </span>
+        ) : (
+          <span className="shrink-0">—</span>
         )}
-        {km > 0 && (
-          <>
-            <span className="opacity-40">·</span>
-            <span>{km} km</span>
-          </>
-        )}
-        <span className="ml-auto flex items-center gap-0.5 text-[10px] font-bold text-[#06B6D4]">
+        <span className="min-w-0 truncate">
+          {route.loads?.length ?? 0} load{(route.loads?.length ?? 0) === 1 ? "" : "s"}
+          {route.trailerFleetNoStr && (
+            <>
+              <span className="opacity-40"> · </span>
+              {route.trailerFleetNoStr}
+            </>
+          )}
+          {km > 0 && (
+            <>
+              <span className="opacity-40"> · </span>
+              {km} km
+            </>
+          )}
+        </span>
+        <span className="ml-auto shrink-0 flex items-center gap-0.5 text-[10px] font-bold text-[#06B6D4]">
           Details
           <ChevronRight size={11} strokeWidth={2.75} />
         </span>

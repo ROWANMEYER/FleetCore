@@ -18,6 +18,7 @@ import {
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { MobileTabBar } from "@/src/components/MobileTabBar";
+import { useMobileChrome } from "@/src/components/MobileChromeContext";
 import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
@@ -71,6 +72,7 @@ function RegionSwitcher({ compact = false }: { compact?: boolean }) {
 export default function Navigation() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { minimized } = useMobileChrome();
   const [collapsed, setCollapsed] = useState(false);
   const mounted = useMounted();
 
@@ -84,26 +86,29 @@ export default function Navigation() {
 
   return (
     <>
-      {/* ─── Mobile top bar (no hamburger — bottom tabs navigate) ─── */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-3 px-4 glass-sidebar border-b border-[var(--sidebar-border)]">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-md shadow-[rgba(6,182,212,0.3)] shrink-0">
-            <BarChart3 size={14} className="text-white" strokeWidth={2.5} />
+      {/* ─── Mobile top bar + bottom tab bar (hidden while the sheets screen
+             is minimized — only the route cards should remain visible) ─── */}
+      {!minimized && (
+        <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-3 px-4 glass-sidebar border-b border-[var(--sidebar-border)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-md shadow-[rgba(6,182,212,0.3)] shrink-0">
+              <BarChart3 size={14} className="text-white" strokeWidth={2.5} />
+            </div>
+            <span className="font-[var(--font-heading)] font-bold text-sm tracking-tight truncate">
+              FleetCore
+            </span>
           </div>
-          <span className="font-[var(--font-heading)] font-bold text-sm tracking-tight truncate">
-            FleetCore
-          </span>
-        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <BirthdayBell />
-          <RegionSwitcher compact />
-          {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
-        </div>
-      </header>
+          <div className="ml-auto flex items-center gap-2">
+            <BirthdayBell />
+            <RegionSwitcher compact />
+            {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
+          </div>
+        </header>
+      )}
 
       {/* ─── Mobile bottom tab bar (Dashboard + Input) ─────────── */}
-      <MobileTabBar />
+      {!minimized && <MobileTabBar />}
 
       {/* ─── Sidebar (desktop only) ───────────────────────────── */}
       <aside

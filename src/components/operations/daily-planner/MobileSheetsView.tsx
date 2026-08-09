@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculateLoadAmount } from "@/convex/utils";
+import { useMobileChrome } from "@/src/components/MobileChromeContext";
 import {
   Search,
   SlidersHorizontal,
   X,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsUp,
   CalendarDays,
   RotateCcw,
 } from "lucide-react";
@@ -204,8 +207,23 @@ export default function MobileSheetsView({
 }: MobileSheetsViewProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const { minimized, setMinimized } = useMobileChrome();
 
   const today = todayIso();
+
+  // Reset the app-wide chrome state when leaving the mobile sheets screen,
+  // so the top bar / bottom tabs never stay hidden on another page.
+  useEffect(() => {
+    return () => setMinimized(false);
+  }, [setMinimized]);
+
+  const minimizeChrome = () => {
+    // Close the filter bottom sheet and sort dropdown first — they belong to
+    // the toolbar that is about to disappear.
+    setShowFilters(false);
+    setSortOpen(false);
+    setMinimized(true);
+  };
 
   // Group routes by day, newest day first; order within a day is preserved
   // (the parent already applied the user's sort).
@@ -292,7 +310,9 @@ export default function MobileSheetsView({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col">
-      {/* ── Sticky header: title + date navigation ── */}
+      {/* ── Sticky header: title + date navigation ──
+          Hidden entirely when the screen is minimized — only the cards stay. */}
+      {!minimized && (
       <div className="sticky top-0 z-30 -mx-4 px-4 pt-3 pb-2 sm:-mx-8 sm:px-8 bg-[var(--card-bg)]/90 backdrop-blur-md border-b border-[var(--card-border)]">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-black tracking-tight text-[var(--foreground)]">
@@ -301,13 +321,26 @@ export default function MobileSheetsView({
               {routes.length} route{routes.length === 1 ? "" : "s"}
             </span>
           </h1>
-          <button
-            onClick={goToday}
-            className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-semibold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] border border-[rgba(6,182,212,0.2)] active:scale-95 transition-all"
-          >
-            <RotateCcw size={12} strokeWidth={2.5} />
-            Today
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* Minimize: hides this toolbar, the mobile top bar and the bottom
+                tab bar so only the route cards remain visible. */}
+            <button
+              onClick={minimizeChrome}
+              aria-label="Minimize toolbar and navigation"
+              title="Minimize toolbar and navigation"
+              className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-semibold text-[var(--nav-text-color)] bg-[var(--card-bg)] border border-[var(--card-border)] active:scale-95 transition-all"
+            >
+              <ChevronsUp size={14} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Minimize</span>
+            </button>
+            <button
+              onClick={goToday}
+              className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-semibold text-[#06B6D4] bg-[rgba(6,182,212,0.08)] border border-[rgba(6,182,212,0.2)] active:scale-95 transition-all"
+            >
+              <RotateCcw size={12} strokeWidth={2.5} />
+              Today
+            </button>
+          </div>
         </div>
 
         {/* Mode chips */}
@@ -344,6 +377,7 @@ export default function MobileSheetsView({
               />
               <input
                 type="date"
+                name="mobile-single-date"
                 value={singleDate}
                 onChange={(e) => changeSingleDate(e.target.value)}
                 className={`${inputClass} pl-9`}
@@ -366,6 +400,7 @@ export default function MobileSheetsView({
               From
               <input
                 type="date"
+                name="mobile-from-date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
                 className={`${inputClass} mt-0.5`}
@@ -375,6 +410,7 @@ export default function MobileSheetsView({
               To
               <input
                 type="date"
+                name="mobile-to-date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className={`${inputClass} mt-0.5`}
@@ -388,6 +424,7 @@ export default function MobileSheetsView({
             Month
             <input
               type="month"
+              name="mobile-month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className={`${inputClass} mt-0.5`}
@@ -404,6 +441,7 @@ export default function MobileSheetsView({
             />
             <input
               type="search"
+              name="mobile-search"
               value={quickSearch}
               onChange={(e) => setQuickSearch(e.target.value)}
               placeholder="Search truck, client, driver…"
@@ -485,9 +523,10 @@ export default function MobileSheetsView({
           </div>
         )}
       </div>
+      )}
 
-      {/* ── Active filter chips ── */}
-      {hasAnyFilter && (
+      {/* ── Active filter chips (also hidden when minimized) ── */}
+      {!minimized && hasAnyFilter && (
         <div className="flex flex-wrap items-center gap-1.5 px-0.5 py-2">
           {quickSearch && (
             <Chip label={`Search: "${quickSearch}"`} onClear={() => setQuickSearch("")} />
@@ -580,6 +619,20 @@ export default function MobileSheetsView({
         )}
       </div>
 
+      {/* ── Restore pill (visible only while minimized) ── */}
+      {minimized && (
+        <button
+          onClick={() => setMinimized(false)}
+          aria-label="Restore toolbar and navigation"
+          title="Restore toolbar and navigation"
+          className="fixed right-4 z-[60] inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)] active:scale-95 transition-all"
+          style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        >
+          <ChevronDown size={14} strokeWidth={2.75} />
+          Restore
+        </button>
+      )}
+
       {/* ── Filter bottom sheet ── */}
       {showFilters && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -664,6 +717,7 @@ export default function MobileSheetsView({
                     {label}
                     <input
                       type="text"
+                      name={`mobile-filter-${key}`}
                       value={String(filters[key] ?? "")}
                       onChange={(e) => updateFilter(key, e.target.value)}
                       placeholder={label}
@@ -679,6 +733,7 @@ export default function MobileSheetsView({
                   Amount min (R)
                   <input
                     type="number"
+                    name="mobile-amount-min"
                     inputMode="decimal"
                     value={filters.amountMin}
                     onChange={(e) => updateFilter("amountMin", e.target.value)}
@@ -690,6 +745,7 @@ export default function MobileSheetsView({
                   Amount max (R)
                   <input
                     type="number"
+                    name="mobile-amount-max"
                     inputMode="decimal"
                     value={filters.amountMax}
                     onChange={(e) => updateFilter("amountMax", e.target.value)}

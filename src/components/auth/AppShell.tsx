@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Navigation from "@/src/components/Navigation";
 import { AmbientBackground } from "@/src/components/AmbientBackground";
 import { useAuth } from "./AuthProvider";
+import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileChromeContext";
 
 /* ─── Android app: four-screen mode ────────────────────────────────
    On phones (<768px, same breakpoint the app uses for "mobile") the
@@ -67,18 +68,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const showLogin = !user && isLogin;
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-[var(--background)]">
-      <AmbientBackground />
+    <MobileChromeProvider>
+      <div className="flex h-dvh overflow-hidden bg-[var(--background)]">
+        <AmbientBackground />
 
-      {showApp && <Navigation />}
+        {showApp && <Navigation />}
 
-      <main
-        className={`flex-1 min-w-0 relative flex flex-col overflow-auto scrollbar-fleet ${
-          showApp ? "pt-14 md:pt-0 pb-24 md:pb-0" : ""
-        }`}
-      >
-        {showApp || showLogin ? children : null}
-      </main>
-    </div>
+        <AppMain showApp={showApp}>{showApp || showLogin ? children : null}</AppMain>
+      </div>
+    </MobileChromeProvider>
+  );
+}
+
+/**
+ * The <main> element. Reserves space for the mobile top bar (pt-14) and the
+ * bottom tab bar (pb-24) — except when the sheets screen minimizes the app
+ * chrome, in which case the content takes the full viewport.
+ */
+function AppMain({ showApp, children }: { showApp: boolean; children: React.ReactNode }) {
+  const { minimized } = useMobileChrome();
+
+  return (
+    <main
+      className={`flex-1 min-w-0 relative flex flex-col overflow-auto scrollbar-fleet ${
+        showApp && !minimized ? "pt-14 md:pt-0 pb-24 md:pb-0" : ""
+      }`}
+    >
+      {children}
+    </main>
   );
 }

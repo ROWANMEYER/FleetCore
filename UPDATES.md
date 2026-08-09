@@ -286,6 +286,12 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **All Regions: edit region from the table** — the Region column badge is now
+  an inline dropdown (Garden Route / Eastern Cape / Unassigned). Clicking a
+  badge opens a fixed-position menu (flips above the row near the bottom of
+  the screen) and saves instantly via a new admin-only `updateRouteRegion`
+  mutation; failures surface as a toast. Routes show as "— assign" until a
+  region is set, and the region-split pills update live.
 - **Mobile sheets minimize view** — new Minimize button on the mobile sheets
   screen collapses the sort/filter toolbar, the FleetCore top bar and the
   bottom tab bar so only the route cards remain; a floating Restore pill

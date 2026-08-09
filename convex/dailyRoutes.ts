@@ -1028,3 +1028,41 @@ export const updateLoadFields = mutation({
     });
   },
 });
+
+/**
+ * Lightweight region reassignment for the All Regions table.
+ *
+ * Only admins may move routes between regions (regional users are hard-locked
+ * to their own region). Passing `region: null` clears the assignment so the
+ * route shows as unassigned. Locked routes are protected like every other edit.
+ */
+export const updateRouteRegion = mutation({
+  args: {
+    routeId: v.id("dailyRoutes"),
+    region: v.union(v.literal("garden_route"), v.literal("eastern_cape"), v.null()),
+    token: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const route = await ctx.db.get(args.routeId);
+    if (!route) {
+      throw new Error("Route not found");
+    }
+
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role !== "admin") {
+      throw new Error("Only administrators can change a route's region.");
+    }
+
+    const currentStatus = (route as any).status || "planned";
+    if (currentStatus === "locked") {
+      throw new Error("Cannot edit a locked route.");
+    }
+
+    // null → clear the assignment (schema field is optional, so removing the
+    // field keeps the route consistent with genuinely unassigned routes).
+    await ctx.db.patch(
+      args.routeId,
+      args.region === null ? { region: undefined } : { region: args.region }
+    );
+  },
+});

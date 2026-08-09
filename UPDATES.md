@@ -286,6 +286,16 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Sheets (desktop): month stepper arrows + Region column** — the two native
+  `<input type="month">` controls (compact header + expanded header) were
+  replaced with a `‹ label ›` stepper like the dashboard's month filter, using
+  UTC month arithmetic on the persisted `selectedMonth` so December/January
+  wrap correctly. The spreadsheet table also gained a display-only **Region**
+  column (colored badge: Garden Route teal / Eastern Cape purple, em-dash for
+  unassigned) via the existing `SpreadsheetDataTable` `extraColumn` prop — it
+  sits right after Date, is sortable, and participates in resize/visibility/
+  layout profiles like any built-in column. Desktop only (mobile sheets uses
+  its own card view).
 - **Mobile dashboard: one seamless page, no sideways scroll** — the dashboard's
   own inner scroller (the `flex-1 overflow-y-auto` root) now sets
   `overflow-x-hidden` explicitly (before, `overflow-y:auto` alone computed

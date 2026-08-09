@@ -21,7 +21,7 @@ import { buildInvoiceData} from"@/src/pdf/invoiceBuilder";
 import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/src/components/operations/invoice/InvoiceDeliveryPanel";
  import ImportLoadsModal from"./ImportLoadsModal";
  import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
-import SpreadsheetDataTable from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
+import SpreadsheetDataTable, { type SpreadsheetExtraColumn } from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
 import MobileSheetsView from"@/src/components/operations/daily-planner/MobileSheetsView";
 import { useIsMobile } from"@/src/hooks/useIsMobile";
 import { AnalyticsKpiCard } from"@/src/components/common/AnalyticsKpiCard";
@@ -259,6 +259,51 @@ tons:"t",
 pallets:"pallets",
 bales:"bales",
 bags:"bags",
+};
+
+// Month label for the ‹ › month stepper (same style as the dashboard filter).
+const monthLabel = (ym: string) => {
+ const d = new Date(ym +"-01");
+ return d.toLocaleDateString("en-ZA", { month:"long", year:"numeric"});
+};
+
+// ── Region column for the spreadsheet table ────────────────────────────────
+// Display-only region badge (colored like the All Regions table, without the
+// inline edit dropdown — the sheets table is region-scoped, and reassignment
+// lives on the All Regions page).
+const SHEETS_REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
+ garden_route: {
+ label:"Garden Route",
+ cls:"bg-[rgba(6,182,212,0.12)] text-[#06B6D4] dark:text-[#22D3EE]",
+ dot:"bg-[#06B6D4]",
+ },
+ eastern_cape: {
+ label:"Eastern Cape",
+ cls:"bg-[rgba(168,85,247,0.12)] text-purple-600 dark:text-purple-400",
+ dot:"bg-purple-500",
+ },
+};
+
+const sheetsRegionColumn: SpreadsheetExtraColumn = {
+ key:"region",
+ label:"Region",
+ defaultWidth: 140,
+ minWidth: 112,
+ render: (row) => {
+ const meta = SHEETS_REGION_META[row.region];
+ return (
+ <div className="px-2 flex items-center w-full h-full">
+ {meta ? (
+ <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${meta.cls}`}>
+ <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+ {meta.label}
+ </span>
+ ) : (
+ <span className="text-[var(--nav-text-color)] text-[11px]">—</span>
+ )}
+ </div>
+ );
+ },
 };
 
 // ── Route Analytics view ──────────────────────────────────────────────
@@ -2158,7 +2203,21 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const formatCompactNumber = (value: number) => {
  if (value >= 1000) return`${(value / 1000).toFixed(1)}k`;
  return value.toFixed(0);
-};  const renderCompactDateControls = () => (
+};
+
+ // Shift the selected month by a number of months (negative = back). Uses
+ // UTC to avoid the timezone offset issues the date inputs already guard
+ // against, and keeps the persisted YYYY-MM format.
+ const shiftMonth = (delta: number) => {
+ setSelectedMonth((prev: string) => {
+ if (!prev) return prev;
+ const [year, month] = prev.split("-").map(Number);
+ const d = new Date(Date.UTC(year, month - 1 + delta, 1));
+ return d.toISOString().slice(0, 7);
+ });
+ };
+
+ const renderCompactDateControls = () => (
  <div className="flex items-center gap-2 whitespace-nowrap">
  <div className="flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 p-0.5 gap-0.5">
  {[
@@ -2212,13 +2271,23 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 )}
 
  {dateMode ==="month" && (
- <input
- type="month"
- name="sheet-month"
- value={selectedMonth}
- onChange={(e) => setSelectedMonth(e.target.value)}
- className={compactDateInputClass}
- />
+ <div className="flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] h-11">
+ <button
+ type="button"
+ onClick={() => shiftMonth(-1)}
+ aria-label="Previous month"
+ className="h-full w-9 flex items-center justify-center text-lg font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)] transition-colors"
+ >‹</button>
+ <span className="min-w-[120px] text-center text-sm font-semibold text-[var(--foreground)]">
+ {selectedMonth ? monthLabel(selectedMonth) : "—"}
+ </span>
+ <button
+ type="button"
+ onClick={() => shiftMonth(1)}
+ aria-label="Next month"
+ className="h-full w-9 flex items-center justify-center text-lg font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)] transition-colors"
+ >›</button>
+ </div>
 )}
 
  {isRangeInvalid && (
@@ -3062,16 +3131,24 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 )}
 
- {/* Month Mode Input */}
+ {/* Month Mode Stepper */}
  {dateMode ==="month" && (
- <div>
- <input
- type="month"
- name="filter-month"
- value={selectedMonth}
- onChange={(e) => setSelectedMonth(e.target.value)}
- className="w-full border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
- />
+ <div className="flex items-center border border-[var(--card-border)] rounded-md bg-[var(--card-bg)] overflow-hidden">
+ <button
+ type="button"
+ onClick={() => shiftMonth(-1)}
+ aria-label="Previous month"
+ className="h-10 px-3 flex items-center justify-center text-lg font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)]/40 transition-colors"
+ >‹</button>
+ <span className="flex-1 min-w-0 text-center text-sm font-semibold text-[var(--foreground)] px-2">
+ {selectedMonth ? monthLabel(selectedMonth) : "—"}
+ </span>
+ <button
+ type="button"
+ onClick={() => shiftMonth(1)}
+ aria-label="Next month"
+ className="h-10 px-3 flex items-center justify-center text-lg font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)]/40 transition-colors"
+ >›</button>
  </div>
 )}
  </div>
@@ -3776,6 +3853,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
     className={tableOnly ? "flex-1 min-h-0" : undefined}
     routes={filteredRoutes || []} 
     density={tableDensity}
+    extraColumn={sheetsRegionColumn}
    updateLoadFields={({ routeId, loadIndex, patch }: any) => updateLoadFields({ routeId, loadIndex, patch, token })}
    onTruckClick={(truckNo) => {
     setFilters(prev => ({ ...prev, truck: truckNo }));

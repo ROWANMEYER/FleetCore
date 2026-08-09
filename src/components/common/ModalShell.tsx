@@ -12,6 +12,19 @@ interface ModalShellProps {
 export function ModalShell({ open, onClose, children, className = "" }: ModalShellProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose in a ref so the effect below only depends on
+  // `open`. Parent components often pass a fresh closure on every render
+  // (e.g. () => setX(null) inline) — if that identity were a dependency, the
+  // effect would re-run on every parent re-render, and the focus() call below
+  // would yank focus out of whatever input the user is typing in (a keystroke
+  // re-renders the parent → focus jumps to the modal container → the user has
+  // to click back into the field for every character).
+  const onCloseRef = useRef(onClose);
+  // Keep the ref fresh after every render (effect, not render body — the
+  // react-hooks/refs rule forbids writing refs during render).
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -20,7 +33,7 @@ export function ModalShell({ open, onClose, children, className = "" }: ModalShe
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -55,7 +68,7 @@ export function ModalShell({ open, onClose, children, className = "" }: ModalShe
       document.removeEventListener("keydown", handleKeyDown);
       previousActiveElement.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -75,6 +88,13 @@ export function ModalShell({ open, onClose, children, className = "" }: ModalShe
 export function SlideInPanel({ open, onClose, children, className = "" }: ModalShellProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  // Same ref pattern as ModalShell: parent components pass fresh onClose
+  // closures each render, which must not re-trigger the focus-restore cleanup
+  // below (it would steal focus from an input on every keystroke).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +103,7 @@ export function SlideInPanel({ open, onClose, children, className = "" }: ModalS
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
     };
@@ -94,7 +114,7 @@ export function SlideInPanel({ open, onClose, children, className = "" }: ModalS
       document.removeEventListener("keydown", handleKeyDown);
       previousActiveElement.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

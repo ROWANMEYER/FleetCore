@@ -286,6 +286,14 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Modal focus fix (ModalShell / SlideInPanel)** — modals no longer steal
+  focus from inputs on every keystroke. The effect that focuses the modal
+  container on open depended on `[open, onClose]`, and parent pages pass a
+  fresh `onClose` closure on each render — so typing one character re-rendered
+  the parent, re-ran the effect, and yanked the caret out of the field (the
+  admin Reset password modal needed a re-click per character). `onClose` now
+  lives in a ref (kept fresh in a no-deps effect) and the focus effect depends
+  only on `open`.
 - **Import loads: duplicate detection** — exact-load duplicates (same date +
   truck + trailer + client + amount, normalized) are detected and skipped. The
   import preview flags duplicate rows with an amber badge + row tint, adds a

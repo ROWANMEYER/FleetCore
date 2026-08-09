@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v25); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v26); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -299,7 +299,12 @@ npx convex codegen     # Regenerate convex/_generated/ types
   none` on html/body + `overscroll-y-contain` on the app scroller kill it in
   Chrome; a document-level touch guard (scrollable-ancestor check, cached per
   gesture) covers the rest. Scrolling itself is unaffected.
-- **SW cache** bumped to `fleetcore-v25`.
+- **Mobile dashboard layout** — sections reordered on phones so the period KPIs
+  come first and Birthdays move to the bottom (KPIs → Revenue by Day → Top
+  Clients → Month comparison → Birthdays); tighter mobile spacing, compact
+  filter-bar tabs, smaller mobile title, and the Completion KPI card now spans
+  the full row instead of dangling at half width. Desktop layout unchanged.
+- **SW cache** bumped to `fleetcore-v26`.
 - **Dead dashboard components removed** — `src/components/dashboard/DashboardCard.tsx`,
   `operations/*` (`DrillDownPanel`, `EditRouteModal`, `KpiCard`, `LoadsTab`,
   `RevenueTab`), and `ceo/TrendIcon.tsx` had zero imports (the dashboard page

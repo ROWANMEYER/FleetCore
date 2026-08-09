@@ -13,6 +13,7 @@ import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
 import { ChevronDown, MapPin } from "lucide-react";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
+import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -90,11 +91,10 @@ function FilterBar({
  if (t.key ==="day") setDay(today());
  if (t.key ==="month") setMonth(new Date().toISOString().slice(0, 7));
  if (t.key ==="range") onChange(monthStart(), monthEnd());
-}}
- className={`px-5 py-3 rounded-lg text-sm font-semibold transition-all
- ${mode === t.key
- ? tabActiveClass
- : tabInactiveClass}`}
+}}                  className={`px-3 py-2 sm:px-5 sm:py-3 rounded-lg text-sm font-semibold transition-all
+                    ${mode === t.key
+                    ? tabActiveClass
+                    : tabInactiveClass}`}
  >
  {t.label}
  </button>
@@ -375,46 +375,40 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 )}
  
  {/* KPI Cards with Progress Bars */}
- <div className="grid grid-cols-2 gap-2.5">          <div className="glass-card rounded-lg p-3">
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Routes</h3>
-                  <span className="text-xs text-emerald-400 font-bold">↑ Active</span>
-                </div>
-                <p className={`text-xl font-black ${panelTheme.text.primary}`}>{filteredData.length}</p>
-                <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
-                  <div className="bg-emerald-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (filteredData.length / 10) * 100)}%`}}></div>
-                </div>
-              </div>
-              <div className="glass-card rounded-lg p-3">
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Revenue</h3>
-                  <span className="text-xs text-emerald-400 font-bold">Peak</span>
-                </div>
-                <p className="text-xl font-black text-emerald-400">{fmt(totalRevenue)}</p>
-                <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
-                  <div className="bg-emerald-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (totalRevenue / 50000) * 100)}%`}}></div>
-                </div>
-              </div>
-              <div className="glass-card rounded-lg p-3">
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Distance</h3>
-                  <span className="text-xs text-cyan-400 font-bold">Coverage</span>
-                </div>
-                <p className="text-xl font-black text-cyan-400">{fmtNum(totalKm)}</p>
-                <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
-                  <div className="bg-cyan-500 h-1.5 rounded-full" style={{width:`${Math.min(100, (totalKm / 5000) * 100)}%`}}></div>
-                </div>
-              </div>
-              <div className="glass-card rounded-lg p-3">
-                <div className="flex items-baseline justify-between mb-1.5">
-                  <h3 className={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}>Revenue/KM</h3>
-                  <span className="text-xs text-purple-400 font-bold">Efficiency</span>
-                </div>
-                <p className="text-xl font-black text-purple-400">{fmt(totalKm > 0 ? totalRevenue / totalKm : 0)}</p>
-                <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
-                  <div className="bg-purple-500 h-1.5 rounded-full" style={{width:`${Math.min(100, ((totalKm > 0 ? totalRevenue / totalKm : 0) / 50) * 100)}%`}}></div>
-                </div>
- </div>
+ <div className="grid grid-cols-2 gap-2.5">
+ <AnalyticsKpiCard
+ label="Routes"
+ badge="↑ Active"
+ value={filteredData.length}
+ labelClass={`text-xs font-semibold ${panelTheme.text.secondary} uppercase`}
+ valueClass={`text-xl font-black ${panelTheme.text.primary}`}
+ barPercent={(filteredData.length / 10) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Revenue"
+ badge="Peak"
+ value={fmt(totalRevenue)}
+ valueClass="text-xl font-black text-emerald-400"
+ barPercent={(totalRevenue / 50000) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Distance"
+ badge="Coverage"
+ badgeClass="text-cyan-400"
+ value={fmtNum(totalKm)}
+ valueClass="text-xl font-black text-cyan-400"
+ barClass="bg-cyan-500"
+ barPercent={(totalKm / 5000) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Revenue/KM"
+ badge="Efficiency"
+ badgeClass="text-purple-400"
+ value={fmt(totalKm > 0 ? totalRevenue / totalKm : 0)}
+ valueClass="text-xl font-black text-purple-400"
+ barClass="bg-purple-500"
+ barPercent={((totalKm > 0 ? totalRevenue / totalKm : 0) / 50) * 100}
+ />
  </div>
 
  {/* Revenue Trend Chart */}
@@ -976,9 +970,9 @@ function DrillDownPanel({ drill, onClose, onAnalyticsClick, onAnalyticsClose, sh
 // ─── sub-components ──────────────────────────────────────────────────────────
 
 function KpiCard({
- label, value, sub, accent, onClick, icon,
+ label, value, sub, accent, onClick, icon, className = "",
 }: {
- label: string; value: string; sub?: string; accent?: string; onClick?: () => void; icon?: ReactNode;
+ label: string; value: string; sub?: string; accent?: string; onClick?: () => void; icon?: ReactNode; className?: string;
 }) {
  const valueClass = accent ??"text-[var(--foreground)]";
  
@@ -986,7 +980,7 @@ function KpiCard({
  <button
  onClick={onClick}
  className={`glass-card rounded-xl p-3 sm:p-4 flex flex-col gap-1 text-left w-full transition-all duration-200 group
- ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"}`}
+ ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"} ${className}`}
  >
  <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider flex items-center gap-1.5">{icon && <span className="shrink-0">{icon}</span>}{label}</span>
  <span className={`text-xl sm:text-2xl font-black leading-tight break-words ${valueClass}`}>{value}</span>
@@ -1172,13 +1166,13 @@ export default function DashboardPage() {
  <>
  {drill && <DrillDownPanel drill={drill} onClose={() => setDrill(null)} onAnalyticsClick={() => setShowAnalytics(true)} onAnalyticsClose={() => setShowAnalytics(false)} showAnalytics={showAnalytics} isDayMode={isDayMode} onDrill={(newDrill) => setDrill(newDrill)} />}
 
- <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-10">
+ <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-4 sm:py-8 space-y-6 lg:space-y-10 flex flex-col">
 
  {/* ── Header ── */}
  <div className="flex flex-col gap-4">
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
- <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
+ <h1 className="text-xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
  <p className={`${themeClasses.text.secondary} text-sm mt-1`}>Fleet operations overview · tap any card to drill down</p>
  </div>
  <RegionMasterFilter />
@@ -1197,8 +1191,6 @@ export default function DashboardPage() {
  </div>
 ) : (
  <>
- <BirthdaysCard />
-
  {/* ── Period KPIs ── */}
  <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>
  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
@@ -1211,6 +1203,7 @@ export default function DashboardPage() {
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"KM breakdown"})} />
               <KpiCard label="Completion" value={`${Math.round(summary.completionRate)}%`}
                 accent={summary.completionRate >= 80 ?"text-green-400" :"text-yellow-400"}
+                className="col-span-2 sm:col-span-1"
                 onClick={() => setDrill({ kind:"status", status:"completed", startDate, endDate, label:"Completed routes this period"})} />
  </div>
  </CollapsibleSection>
@@ -1465,14 +1458,20 @@ export default function DashboardPage() {
  </ResponsiveContainer>
  </div>
  </>
+)}  </CollapsibleSection>
+
+  {/* Birthdays — last in the DOM, so last on mobile (KPIs → Revenue → Clients
+      → Compare → Birthdays). lg:order-1 restores the original desktop position
+      (Birthdays → KPIs → Revenue → Clients → Compare). */}
+  <div className="lg:order-1">
+  <BirthdaysCard />
+  </div>
+  </>
 )}
- </CollapsibleSection>
- </>
-)}
- </div>
- </div>
- </>
-);
+  </div>
+  </div>
+  </>
+ );
 }
 
 function ComparisonMetricCard({

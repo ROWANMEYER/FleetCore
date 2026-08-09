@@ -14,6 +14,7 @@ import { useToast} from"@/src/components/common/Toast";
 import { ChevronDown, MapPin } from "lucide-react";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
+import { useIsMobile } from "@/src/hooks/useIsMobile";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ function FilterBar({
  const tabInactiveClass = "text-[var(--nav-text-color)] hover:text-[var(--foreground)]";
 
  return (
- <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+ <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
  {/* mode tabs */}
  <div className={`glass-card flex rounded-xl p-1 gap-1`}>
  {tabs.map((t) => (
@@ -91,7 +92,7 @@ function FilterBar({
  if (t.key ==="day") setDay(today());
  if (t.key ==="month") setMonth(new Date().toISOString().slice(0, 7));
  if (t.key ==="range") onChange(monthStart(), monthEnd());
-}}                  className={`px-3 py-2 sm:px-5 sm:py-3 rounded-lg text-sm font-semibold transition-all
+}}                  className={`px-2.5 py-1.5 sm:px-5 sm:py-3 rounded-lg text-sm font-semibold transition-all
                     ${mode === t.key
                     ? tabActiveClass
                     : tabInactiveClass}`}
@@ -102,12 +103,12 @@ function FilterBar({
  </div>
 
  {/* inputs */}
- <div className={`glass-card flex items-center gap-2 rounded-xl px-4 py-2`}>
+ <div className={`glass-card flex items-center gap-1.5 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2`}>
  {mode ==="day" && (
  <input
  type="date"
  value={startDate}
- onChange={(e) => setDay(e.target.value)} className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
+ onChange={(e) => setDay(e.target.value)} className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
                 />
               )}
               {mode ==="month" && (
@@ -138,14 +139,13 @@ function FilterBar({
  <input
  type="date"
  value={startDate}
- onChange={(e) => onChange(e.target.value, endDate)}                  className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
+ onChange={(e) => onChange(e.target.value, endDate)}                  className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
                   />
                   <span className="text-[var(--nav-text-color)]">→</span>
                   <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => onChange(startDate, e.target.value)}
-                    className="bg-transparent text-base py-2 focus:outline-none text-[var(--foreground)]"
+                    type="date"value={endDate}
+ onChange={(e) => onChange(startDate, e.target.value)}
+ className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
  />
  </>
 )}
@@ -979,13 +979,13 @@ function KpiCard({
  return (
  <button
  onClick={onClick}
- className={`glass-card rounded-xl p-3 sm:p-4 flex flex-col gap-1 text-left w-full transition-all duration-200 group
+ className={`glass-card rounded-xl p-2 sm:p-4 flex flex-col gap-0.5 sm:gap-1 text-left w-full transition-all duration-200 group
  ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"} ${className}`}
  >
  <span className="text-xs font-semibold text-[var(--nav-text-color)] uppercase tracking-wider flex items-center gap-1.5">{icon && <span className="shrink-0">{icon}</span>}{label}</span>
- <span className={`text-xl sm:text-2xl font-black leading-tight break-words ${valueClass}`}>{value}</span>
+ <span className={`text-lg sm:text-2xl font-black leading-tight break-words ${valueClass}`}>{value}</span>
  {sub && <span className="text-xs text-[var(--nav-text-color)] opacity-60">{sub}</span>}
- {onClick && <span className="text-xs text-[var(--nav-text-color)] opacity-40 mt-1 group-hover:opacity-60 transition-opacity">Tap to drill down →</span>}
+ {onClick && <span className="text-[10px] sm:text-xs text-[var(--nav-text-color)] opacity-40 mt-0.5 group-hover:opacity-60 transition-opacity">Tap to drill down →</span>}
  </button>
 );
 }
@@ -1022,8 +1022,8 @@ function CollapsibleSection({
         aria-controls={bodyId}
  className={`lg:hidden w-full flex items-center justify-between gap-3 text-left transition-colors ${
  carded
- ? "px-4 sm:px-5 py-2.5"
- : "px-4 py-2.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
+ ? "px-3 sm:px-5 py-2"
+ : "px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
  }`}
  >
  <span className="min-w-0">
@@ -1032,8 +1032,8 @@ function CollapsibleSection({
  <span className="block mt-0.5 text-sm font-semibold text-[var(--foreground)] truncate">{summary}</span>
  )}
  </span>
- <span className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 text-[var(--nav-text-color)]">
- <ChevronDown size={20} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+ <span className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full shrink-0 text-[var(--nav-text-color)]">
+ <ChevronDown size={18} className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
  </span>
  </button>
 
@@ -1041,7 +1041,7 @@ function CollapsibleSection({
  <div className={`hidden lg:block ${carded ? "px-5 pt-5" : ""}`}>
  <SectionHeader title={title} />
  </div>      {/* Body */}
-      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-2 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-4 sm:px-5 pb-4 lg:px-5 lg:pb-4" : ""}`}>
+      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-1.5 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-3 sm:px-5 pb-3 lg:px-5 lg:pb-4" : ""}`}>
         {children}
       </div>
  </section>
@@ -1096,6 +1096,49 @@ function RegionMasterFilter() {
  );
 }
 
+// ─── mobile tab bar ──────────────────────────────────────────────────────────
+
+/* Mobile-only dashboard tab bar — replaces the stacked, scrollable dashboard on
+   phones with one section at a time (KPIs, Revenue, Clients, Compare, Birthdays)
+   so the whole dashboard fits the viewport without scrolling. Hidden on lg+,
+   where the full stacked layout renders exactly as before. */
+const DASHBOARD_TABS = [
+ { key: "kpis", label: "KPIs" },
+ { key: "revenue", label: "Revenue" },
+ { key: "clients", label: "Clients" },
+ { key: "compare", label: "Compare" },
+ { key: "birthdays", label: "Birthdays" },
+] as const;
+
+type DashboardTab = (typeof DASHBOARD_TABS)[number]["key"];
+
+function DashboardTabBar({
+ active,
+ onChange,
+}: {
+ active: DashboardTab;
+ onChange: (t: DashboardTab) => void;
+}) {
+ return (
+ <div aria-label="Dashboard sections" className="lg:hidden grid grid-cols-5 gap-1">
+ {DASHBOARD_TABS.map((t) => (
+ <button
+ key={t.key}
+ type="button"
+ onClick={() => onChange(t.key)}
+ aria-current={active === t.key ? "true" : undefined}
+ className={`px-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider truncate transition-all
+ ${active === t.key
+ ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+ : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"}`}
+ >
+ {t.label}
+ </button>
+ ))}
+ </div>
+);
+}
+
 // ─── main page ───────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1106,6 +1149,8 @@ export default function DashboardPage() {
  const [drill, setDrill] = useState<DrillDown | null>(null);
  const [showAnalytics, setShowAnalytics] = useState(false);
  const [mounted, setMounted] = useState(false);
+ const [activeTab, setActiveTab] = useState<DashboardTab>("kpis");
+ const isMobile = useIsMobile();
  
  // Month-to-month comparison state
  const [month1, setMonth1] = useState(() => {
@@ -1166,14 +1211,14 @@ export default function DashboardPage() {
  <>
  {drill && <DrillDownPanel drill={drill} onClose={() => setDrill(null)} onAnalyticsClick={() => setShowAnalytics(true)} onAnalyticsClose={() => setShowAnalytics(false)} showAnalytics={showAnalytics} isDayMode={isDayMode} onDrill={(newDrill) => setDrill(newDrill)} />}
 
- <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-4 sm:py-8 space-y-6 lg:space-y-10 flex flex-col">
+ <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-3 sm:py-8 space-y-3 lg:space-y-10 flex flex-col">
 
  {/* ── Header ── */}
- <div className="flex flex-col gap-4">
+ <div className="flex flex-col gap-2 sm:gap-4">
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
  <h1 className="text-xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
- <p className={`${themeClasses.text.secondary} text-sm mt-1`}>Fleet operations overview · tap any card to drill down</p>
+ <p className={`${themeClasses.text.secondary} text-sm mt-1 hidden sm:block`}>Fleet operations overview · tap any card to drill down</p>
  </div>
  <RegionMasterFilter />
  </div>            <FilterBar
@@ -1182,6 +1227,8 @@ export default function DashboardPage() {
               onChange={(s, e) => { setStartDate(s); setEndDate(e);}}
             />
  </div>
+
+ <DashboardTabBar active={activeTab} onChange={setActiveTab} />
 
  {loading ? (
  <div className="space-y-6 p-6">
@@ -1192,8 +1239,9 @@ export default function DashboardPage() {
 ) : (
  <>
  {/* ── Period KPIs ── */}
+ <div key={`kpis-${activeTab === "kpis"}`} className={activeTab === "kpis" ? "lg:block" : "hidden lg:block"}>
  <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>
- <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
+ <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue — all routes"})} />
               <KpiCard label="Routes" value={fmtNum(summary.totalRoutes)}
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"All routes this period"})} />
@@ -1207,10 +1255,12 @@ export default function DashboardPage() {
                 onClick={() => setDrill({ kind:"status", status:"completed", startDate, endDate, label:"Completed routes this period"})} />
  </div>
  </CollapsibleSection>
+ </div>
 
  {/* ── Revenue by Day + Top Clients ── */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- <CollapsibleSection title="Revenue by Day — tap a row" carded summary={`${revenueOverTime?.length ?? 0} days`}>
+ <div key={`revenue-${activeTab === "revenue"}`} className={activeTab === "revenue" ? "lg:block" : "hidden lg:block"}>
+ <CollapsibleSection title="Revenue by Day — tap a row" carded defaultOpen summary={`${revenueOverTime?.length ?? 0} days`}>
  {!revenueOverTime || revenueOverTime.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
@@ -1220,22 +1270,23 @@ export default function DashboardPage() {
  <line x1="16" y1="2" x2="16" y2="6" />
  </svg>
  <p className="text-xs text-[var(--nav-text-color)]">No data for this period.</p>
- </div>
-) : (
- <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+ </div> ) : (
+ <div className="space-y-1 max-h-[42dvh] lg:max-h-64 overflow-y-auto pr-1">
  {revenueOverTime.map((d) => (
  <button key={d.date} onClick={() => setDrill({ kind:"date", date: d.date, label:`Routes on ${d.date}`})}
- className="flex items-center gap-3 w-full hover:bg-[var(--card-bg)]/60 rounded-lg px-2 py-2.5 transition-colors group">              <span className="text-xs text-[var(--nav-text-color)] w-24 shrink-0 group-hover:text-[var(--foreground)]">{d.date}</span>
+ className="flex items-center gap-3 w-full hover:bg-[var(--card-bg)]/60 rounded-lg px-2 py-1.5 sm:py-2.5 transition-colors group">              <span className="text-xs text-[var(--nav-text-color)] w-20 shrink-0 group-hover:text-[var(--foreground)]">{d.date}</span>
  <div className="flex-1">
  <ProgressBar pct={(d.revenue / maxRevDay) * 100} colour="bg-emerald-500" />
  </div>
- <span className="text-xs text-[var(--nav-text-color)] w-24 text-right shrink-0 group-hover:text-emerald-400">{fmt(d.revenue)}</span>
+ <span className="text-xs text-[var(--nav-text-color)] w-20 text-right shrink-0 group-hover:text-emerald-400">{fmt(d.revenue)}</span>
  </button>
 ))}
  </div>
-)}
+ )}
  </CollapsibleSection>
- <CollapsibleSection title="Top Clients — tap to drill down" carded summary={`${topClients.topCustomers?.length ?? 0} clients`}>
+ </div>
+ <div key={`clients-${activeTab === "clients"}`} className={activeTab === "clients" ? "lg:block" : "hidden lg:block"}>
+ <CollapsibleSection title="Top Clients — tap to drill down" carded defaultOpen summary={`${topClients.topCustomers?.length ?? 0} clients`}>
  {(topClients.topCustomers ?? []).length === 0 ? (
  <div className="flex flex-col items-center justify-center py-8 text-center">
  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-8 h-8 text-[var(--nav-text-color)] mb-2">
@@ -1245,63 +1296,62 @@ export default function DashboardPage() {
  <path d="M16 3.13a4 4 0 010 7.75" />
  </svg>
  <p className="text-xs text-[var(--nav-text-color)]">No client data available.</p>
- </div>
-) : (
- <div className="space-y-3">
- {topClients.topCustomers.slice(0, 8).map((c, i) => {
+ </div> ) : (
+ <div className="space-y-1 sm:space-y-3">
+ {topClients.topCustomers.slice(0, isMobile ? 5 : 8).map((c, i) => {
  const pct = summary.totalRevenue > 0 ? (c.revenue / summary.totalRevenue) * 100 : 0;
  return (
- <button key={c.name} onClick={() => setDrill({ kind:"client", client: c.name, startDate, endDate, label:`${c.name} — routes`})}              className="w-full space-y-1 rounded-lg px-3 py-2.5 transition-colors text-left group hover:bg-[var(--card-bg)] text-[var(--foreground)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold truncate max-w-[60%] group-hover:text-[var(--foreground)]">
-                    <span className="mr-2 text-[var(--nav-text-color)]">#{i + 1}</span>{c.name}
+ <button key={c.name} onClick={() => setDrill({ kind:"client", client: c.name, startDate, endDate, label:`${c.name} — routes`})}              className="w-full space-y-1 rounded-lg px-3 py-1.5 sm:py-2.5 transition-colors text-left group hover:bg-[var(--card-bg)] text-[var(--foreground)]"> <div className="flex items-center justify-between">
+ <span className="text-sm font-semibold truncate max-w-[60%] group-hover:text-[var(--foreground)]">
+ <span className="mr-2 text-[var(--nav-text-color)]">#{i + 1}</span>{c.name}
  </span>
  <div className="text-right">
  <span className="text-sm font-bold text-emerald-400">{fmt(c.revenue)}</span>
  <span className="text-xs ml-2 text-[var(--nav-text-color)]">{c.loads} loads</span>
  </div>
- </div>
- <ProgressBar pct={pct} colour="bg-emerald-600" />
+ </div> <ProgressBar pct={pct} colour="bg-emerald-600" />
  </button>
 );
 })}
  </div>
-)}
+ )}
  </CollapsibleSection>
+ </div>
  </div>
 
  {/* ── Month-to-Month Comparison ── */}
- <CollapsibleSection title="Month-to-Month Comparison" carded summary={`M1 ${monthLabel(month1)} → M2 ${monthLabel(month2)}`}>
+ <div key={`compare-${activeTab === "compare"}`} className={activeTab === "compare" ? "lg:block" : "hidden lg:block"}>
+ <CollapsibleSection title="Month-to-Month Comparison" carded defaultOpen summary={`M1 ${monthLabel(month1)} → M2 ${monthLabel(month2)}`}>
  
  {/* Month selectors */}
- <div className="flex flex-col sm:flex-row gap-4 mb-6">
- <div className="flex-1">
- <label className={`text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-2`}>
+ <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-4 mb-2 sm:mb-6">
+ <div className="min-w-0">
+ <label className={`text-[10px] sm:text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-0.5 sm:mb-2`}>
  Month 1
  </label>
  <input
  type="month"
  value={month1}
  onChange={(e) => setMonth1(e.target.value)}
- className={`w-full px-4 py-2 rounded-lg border ${
+ className={`w-full px-2 py-1 sm:px-4 sm:py-2 rounded-lg border text-sm ${
  isDayMode
  ?"bg-[var(--card-bg)] border-[var(--card-border)] text-[var(--foreground)]"
  :"bg-[var(--card-bg)] border-[var(--card-border)] text-white"
 } focus:outline-none focus:ring-2 focus:ring-[#06B6D4]`}
  />
  </div>
- <div className="flex items-end justify-center">
+ <div className="hidden sm:flex items-end justify-center">
  <span className={`text-2xl font-bold ${themeClasses.text.secondary}`}>→</span>
  </div>
- <div className="flex-1">
- <label className={`text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-2`}>
+ <div className="min-w-0">
+ <label className={`text-[10px] sm:text-xs font-semibold ${themeClasses.text.secondary} uppercase tracking-wider block mb-0.5 sm:mb-2`}>
  Month 2
  </label>
  <input
  type="month"
  value={month2}
  onChange={(e) => setMonth2(e.target.value)}
- className={`w-full px-4 py-2 rounded-lg border ${
+ className={`w-full px-2 py-1 sm:px-4 sm:py-2 rounded-lg border text-sm ${
  isDayMode
  ?"bg-[var(--card-bg)] border-[var(--card-border)] text-[var(--foreground)]"
  :"bg-[var(--card-bg)] border-[var(--card-border)] text-white"
@@ -1312,7 +1362,7 @@ export default function DashboardPage() {
 
  {/* MTD Badge */}
  {monthComparison?.isMtdComparison && (
- <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 ${
+ <div className={`inline-flex items-center gap-2 px-3 py-1 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-semibold mb-2 sm:mb-6 ${
  isDayMode
  ?"bg-blue-100 text-blue-800 border border-blue-300"
  :"bg-blue-900/30 text-blue-300 border border-blue-700"
@@ -1340,7 +1390,7 @@ export default function DashboardPage() {
 ) : (
  <>
  {/* Metrics comparison cards */}
- <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+ <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-2 sm:mb-6">
  <ComparisonMetricCard
  metric="revenue"
  label="Revenue"
@@ -1371,9 +1421,9 @@ export default function DashboardPage() {
  </div>
 
  {/* Combined Indexed Chart */}
- <div className="glass-card rounded-xl p-5">
+ <div className="glass-card rounded-xl p-2 sm:p-5">
  {/* Custom Legend */}
- <div className="flex flex-wrap gap-6 mb-4">
+ <div className="flex flex-wrap gap-3 sm:gap-6 mb-1 sm:mb-4">
  {visibleMetrics.has("revenue") && (
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor:"#10b981"}}></div>
@@ -1394,7 +1444,8 @@ export default function DashboardPage() {
 )}
  </div>
 
- <ResponsiveContainer width="100%" height={250}>
+ <div className="h-[115px] lg:h-[250px]">
+ <ResponsiveContainer width="100%" height="100%">
  <BarChart
  data={[
  {
@@ -1457,13 +1508,14 @@ export default function DashboardPage() {
  </BarChart>
  </ResponsiveContainer>
  </div>
+ </div>
  </>
 )}  </CollapsibleSection>
+ </div>
 
-  {/* Birthdays — last in the DOM, so last on mobile (KPIs → Revenue → Clients
-      → Compare → Birthdays). lg:order-1 restores the original desktop position
-      (Birthdays → KPIs → Revenue → Clients → Compare). */}
-  <div className="lg:order-1">
+  {/* Birthdays — in the tab view it's the last tab; lg:order-1 restores the
+      original desktop position (Birthdays → KPIs → Revenue → Clients → Compare). */}
+  <div key={`birthdays-${activeTab === "birthdays"}`} className={`lg:order-1 ${activeTab === "birthdays" ? "lg:block" : "hidden lg:block"}`}>
   <BirthdaysCard />
   </div>
   </>
@@ -1505,10 +1557,10 @@ function ComparisonMetricCard({
    const secondaryTextClass = "text-[var(--nav-text-color)]";
 
  return (
- <div className={`border rounded-lg p-4 ${bgClass} transition-all duration-300 cursor-pointer relative group hover:scale-[1.02] hover:shadow-lg`}
+ <div className={`border rounded-lg p-1.5 sm:p-4 ${bgClass} transition-all duration-300 cursor-pointer relative group hover:scale-[1.02] hover:shadow-lg`}
  onClick={onToggle}>
  <button 
- className={`absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center text-xs transition-all duration-200
+ className={`absolute top-1 right-1 sm:top-2 sm:right-2 w-6 h-6 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[10px] sm:text-xs transition-all duration-200
  ${isVisible      ? "bg-emerald-500/20 text-emerald-400"
       : "bg-[var(--card-bg)] text-[var(--nav-text-color)]"}`}
  onClick={(e) => {
@@ -1518,18 +1570,18 @@ function ComparisonMetricCard({
  >
  {isVisible ?"✓" :"✕"}
  </button>
- <div className={`text-xs font-semibold ${secondaryTextClass} uppercase tracking-wider mb-2 pr-6`}>{label}</div>
- <div className={`space-y-2 ${!isVisible ? 'opacity-50' : ''}`}>
- <div className="flex justify-between items-center">
- <span className={`text-xs ${secondaryTextClass}`}>M1</span>
- <span className={`text-base font-bold ${textClass} transition-all duration-300`}>{value1}</span>
+ <div className={`text-[10px] sm:text-xs font-semibold ${secondaryTextClass} uppercase tracking-wider mb-0.5 sm:mb-2 pr-4 sm:pr-6 truncate`}>{label}</div>
+ <div className={`space-y-0.5 sm:space-y-2 ${!isVisible ? 'opacity-50' : ''}`}>
+ <div className="flex justify-between items-center gap-1">
+ <span className={`text-[10px] sm:text-xs ${secondaryTextClass}`}>M1</span>
+ <span className={`text-xs sm:text-base font-bold ${textClass} transition-all duration-300 truncate`}>{value1}</span>
  </div>
- <div className="flex justify-between items-center">
- <span className={`text-xs ${secondaryTextClass}`}>M2</span>
- <span className={`text-base font-bold ${textClass} transition-all duration-300`}>{value2}</span>
+ <div className="flex justify-between items-center gap-1">
+ <span className={`text-[10px] sm:text-xs ${secondaryTextClass}`}>M2</span>
+ <span className={`text-xs sm:text-base font-bold ${textClass} transition-all duration-300 truncate`}>{value2}</span>
  </div>
- <div className="flex justify-end items-center pt-1 border-t border-[var(--card-border)]">
- <span className={`text-xs font-bold ${isVisible ? changeColor : secondaryTextClass} transition-all duration-300`}>
+ <div className="flex justify-end items-center pt-0 sm:pt-1 border-t border-[var(--card-border)]">
+ <span className={`text-[10px] sm:text-xs font-bold ${isVisible ? changeColor : secondaryTextClass} transition-all duration-300`}>
  {isPositive ?"+" :""}{change.toFixed(1)}%
  </span>
  </div>

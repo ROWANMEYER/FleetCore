@@ -11,7 +11,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { SkeletonLine, SkeletonKpiGrid, SkeletonCard} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
-import { ChevronDown, MapPin } from "lucide-react";
+import { Cake, ChevronDown, GitCompareArrows, LayoutGrid, MapPin, TrendingUp, Users } from "lucide-react";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 import { useIsMobile } from "@/src/hooks/useIsMobile";
@@ -1103,11 +1103,11 @@ function RegionMasterFilter() {
    so the whole dashboard fits the viewport without scrolling. Hidden on lg+,
    where the full stacked layout renders exactly as before. */
 const DASHBOARD_TABS = [
- { key: "kpis", label: "KPIs" },
- { key: "revenue", label: "Revenue" },
- { key: "clients", label: "Clients" },
- { key: "compare", label: "Compare" },
- { key: "birthdays", label: "Birthdays" },
+ { key: "kpis", label: "KPIs", icon: LayoutGrid },
+ { key: "revenue", label: "Revenue", icon: TrendingUp },
+ { key: "clients", label: "Clients", icon: Users },
+ { key: "compare", label: "Compare", icon: GitCompareArrows },
+ { key: "birthdays", label: "Birthdays", icon: Cake },
 ] as const;
 
 type DashboardTab = (typeof DASHBOARD_TABS)[number]["key"];
@@ -1121,20 +1121,25 @@ function DashboardTabBar({
 }) {
  return (
  <div aria-label="Dashboard sections" className="lg:hidden grid grid-cols-5 gap-1">
- {DASHBOARD_TABS.map((t) => (
+ {DASHBOARD_TABS.map((t) => {
+ const Icon = t.icon;
+ const isActive = active === t.key;
+ return (
  <button
  key={t.key}
  type="button"
  onClick={() => onChange(t.key)}
- aria-current={active === t.key ? "true" : undefined}
- className={`px-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider truncate transition-all
- ${active === t.key
+ aria-current={isActive ? "true" : undefined}
+ className={`flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-lg transition-all
+ ${isActive
  ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
  : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"}`}
  >
- {t.label}
+ <Icon size={16} strokeWidth={isActive ? 2.5 : 1.75} />
+ <span className="text-[10px] font-semibold leading-none truncate max-w-full">{t.label}</span>
  </button>
- ))}
+ );
+ })}
  </div>
 );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useRef} from"react";
+import { createPortal } from"react-dom";
 import { useQuery, useMutation} from"convex/react";
 import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
@@ -3880,32 +3881,40 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   />
 
  {/* ── Floating restore pill (table-only mode) — drag to move, tap to restore ── */}
- {tableOnly && (
-   <button
-     onPointerDown={handleRestorePillPointerDown}
-     onPointerMove={handleRestorePillPointerMove}
-     onPointerUp={handleRestorePillPointerUp}
-     onPointerCancel={() => {
-       restoreDragRef.current = null;
-       persistRestorePos();
-     }}
-     onClick={() => {
-       if (!restoreDraggedRef.current) setTableOnly(false);
-     }}
-     aria-label="Restore filters and sort (drag to move)"
-     title="Restore filters and sort — drag to move, tap to restore"
-     className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
-     style={restorePillStyle}
-   >
-     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75">
-       <polyline points="15 3 21 3 21 9"></polyline>
-       <polyline points="9 21 3 21 3 15"></polyline>
-       <line x1="21" y1="3" x2="14" y2="10"></line>
-       <line x1="3" y1="21" x2="10" y2="14"></line>
-     </svg>
-     Restore
-   </button>
- )}
+ {/* Rendered through a portal to document.body: the sheets pane uses
+     backdrop-filter (glass-card-premium), which creates a containing block
+     for position:fixed descendants in real browsers — the pill could then
+     anchor to the pane instead of the viewport and vanish when the pointer
+     left the window. Portaling keeps it viewport-fixed. */}
+ {tableOnly &&
+   typeof document !== "undefined" &&
+   createPortal(
+     <button
+       onPointerDown={handleRestorePillPointerDown}
+       onPointerMove={handleRestorePillPointerMove}
+       onPointerUp={handleRestorePillPointerUp}
+       onPointerCancel={() => {
+         restoreDragRef.current = null;
+         persistRestorePos();
+       }}
+       onClick={() => {
+         if (!restoreDraggedRef.current) setTableOnly(false);
+       }}
+       aria-label="Restore filters and sort (drag to move)"
+       title="Restore filters and sort — drag to move, tap to restore"
+       className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
+       style={restorePillStyle}
+     >
+       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75">
+         <polyline points="15 3 21 3 21 9"></polyline>
+         <polyline points="9 21 3 21 3 15"></polyline>
+         <line x1="21" y1="3" x2="14" y2="10"></line>
+         <line x1="3" y1="21" x2="10" y2="14"></line>
+       </svg>
+       Restore
+     </button>,
+     document.body
+   )}
 
  {/* Route detail overlay + confirmation dialog — shared with the mobile view */}
  {routeDetailOverlay}

@@ -286,6 +286,19 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **All Regions: month stepper + clickable KPI filters** — the native month
+  input becomes a ‹ label › stepper (same as the dashboard; UTC-safe month
+  arithmetic so Dec→Jan wrap and month-length shifts never corrupt the key).
+  The Garden Route / Eastern Cape KPI pills are now toggle filters: click to
+  focus one region in the table (teal ring + ✕ when active), click again to
+  clear; Total resets to all regions. A "No routes in this region" empty state
+  covers zero-result filters.
+- **Sheets: restore pill portaled to body** — the table-only floating restore
+  pill now renders via createPortal to document.body. The sheets pane is
+  .glass-card-premium (backdrop-filter), which creates a containing block for
+  position:fixed descendants in real browsers — the pill could anchor to the
+  pane instead of the viewport and vanish when the pointer left the window.
+  Portaling keeps it viewport-fixed.
 - **Mobile sheets: region filter in the filter bottom sheet** — the filter
   sheet gained a Region section (All / Garden Route / Eastern Cape segmented
   buttons with region dots) so an admin on "All Regions" can focus one region.

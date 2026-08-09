@@ -25,6 +25,20 @@ const monthRange = (ym: string) => {
   return { start, end };
 };
 
+// "August 2026" style label for the month stepper (UTC-safe for the YYYY-MM key).
+const monthLabel = (iso: string) => {
+  const d = new Date(iso + "-01");
+  return d.toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+};
+
+// Step a YYYY-MM key by ±1 month with pure UTC arithmetic — Date.UTC handles
+// December → January wrap and month-length shifts with no timezone/DST drift
+// (local-time setMonth on a UTC-parsed date can land on the wrong month).
+const shiftMonth = (ym: string, delta: number) => {
+  const [year, month] = ym.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1 + delta, 1)).toISOString().slice(0, 7);
+};
+
 // Same number parsing as the spreadsheet table (strips letters/spaces, treats
 // commas as decimal separators) so R / KM aggregates match the column values.
 function parseNumberSafe(value: unknown): number {
@@ -228,18 +242,21 @@ function RegionStat({
   value,
   sub,
   accent,
+  active,
+  onClick,
 }: {
   dot?: string;
   label: string;
   value: number | string;
   sub?: string;
   accent?: boolean;
+  /** True when this pill is the active region filter (teal ring). */
+  active?: boolean;
+  /** When provided the pill becomes a toggle button (click on/off as a filter). */
+  onClick?: () => void;
 }) {
-  return (
-    <div
-      className="glass-card flex items-center gap-1.5 rounded-full px-3 py-1.5 whitespace-nowrap"
-      title={sub ? `${label} — ${sub}` : label}
-    >
+  const inner = (
+    <>
       {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
       <span
         className={`text-xs font-bold tabular-nums ${accent ? "text-[#06B6D4]" : "text-[var(--foreground)]"}`}
@@ -250,6 +267,30 @@ function RegionStat({
       {sub && (
         <span className="text-[11px] text-[var(--nav-text-color)] opacity-70 hidden xl:inline">({sub})</span>
       )}
+    </>
+  );
+  const baseCls =
+    "glass-card flex items-center gap-1.5 rounded-full px-3 py-1.5 whitespace-nowrap";
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={sub ? `${label} — ${sub} (click to filter)` : `${label} — click to filter`}
+        className={`${baseCls} cursor-pointer transition-all ${
+          active
+            ? "ring-2 ring-[#06B6D4]/60 border-[#06B6D4]/50 shadow-[0_0_0_1px_rgba(6,182,212,0.4),0_4px_14px_rgba(6,182,212,0.18)]"
+            : "hover:ring-1 hover:ring-[#06B6D4]/30 hover:border-[#06B6D4]/40 hover:-translate-y-px"
+        }`}
+      >
+        {inner}
+        {active && <span className="text-[#06B6D4] text-[11px] font-bold">✕</span>}
+      </button>
+    );
+  }
+  return (
+    <div className={baseCls} title={sub ? `${label} — ${sub}` : label}>
+      {inner}
     </div>
   );
 }
@@ -277,6 +318,13 @@ export default function AllRegionsPage() {
   const [rangeEnd, setRangeEnd] = useState(() => monthRange(today().slice(0, 7)).end);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0, 7));
 
+  // ── Region filter — clicking the KPI pills toggles a region filter on/off ──
+  const [regionFilter, setRegionFilter] = useState<"" | "garden_route" | "eastern_cape">("");
+
+  const toggleRegionFilter = (region: "garden_route" | "eastern_cape") => {
+    setRegionFilter((prev) => (prev === region ? "" : region));
+  };
+
   const { startDate, endDate } = useMemo(() => {
     if (dateMode === "day") return { startDate: singleDate, endDate: singleDate };
     if (dateMode === "range") return { startDate: rangeStart, endDate: rangeEnd };
@@ -295,6 +343,12 @@ export default function AllRegionsPage() {
     isAdmin && datesReady ? { startDate, endDate, token, region: undefined } : "skip"
   );
   const updateLoadFields = useMutation(api.dailyRoutes.updateLoadFields);
+
+  // Region-filtered routes for the table (clicking the KPI pills toggles)
+  const filteredRoutes = useMemo(() => {
+    if (!regionFilter) return routes ?? [];
+    return (routes ?? []).filter((r) => (r.region || "") === regionFilter);
+  }, [routes, regionFilter]);
 
   // Region split summary, computed client-side from the fetched routes
   const regionSummary = useMemo(() => {
@@ -384,12 +438,27 @@ export default function AllRegionsPage() {
                   />
                 )}
                 {dateMode === "month" && (
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value || today().slice(0, 7))}
-                    className="bg-transparent text-sm py-1.5 focus:outline-none text-[var(--foreground)]"
-                  />
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
+                      aria-label="Previous month"
+                      className="w-8 h-8 flex items-center justify-center font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-sm font-semibold min-w-[130px] text-center text-[var(--foreground)]">
+                      {monthLabel(selectedMonth)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
+                      aria-label="Next month"
+                      className="w-8 h-8 flex items-center justify-center font-bold text-[var(--nav-text-color)] hover:text-[var(--foreground)]"
+                    >
+                      ›
+                    </button>
+                  </>
                 )}
                 {dateMode === "range" && (
                   <>
@@ -416,15 +485,29 @@ export default function AllRegionsPage() {
                 </p>
               )}
 
-              {/* Region split — minimal pills, right-aligned on wide screens */}
+              {/* Region split — clickable KPI pills (toggle the table filter) */}
               {!loading && regionSummary.total > 0 && (
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <RegionStat dot="bg-[#06B6D4]" label="Garden Route" value={regionSummary.garden_route} />
-                  <RegionStat dot="bg-purple-500" label="Eastern Cape" value={regionSummary.eastern_cape} />
+                  <RegionStat
+                    dot="bg-[#06B6D4]"
+                    label="Garden Route"
+                    value={regionSummary.garden_route}
+                    active={regionFilter === "garden_route"}
+                    onClick={() => toggleRegionFilter("garden_route")}
+                  />
+                  <RegionStat
+                    dot="bg-purple-500"
+                    label="Eastern Cape"
+                    value={regionSummary.eastern_cape}
+                    active={regionFilter === "eastern_cape"}
+                    onClick={() => toggleRegionFilter("eastern_cape")}
+                  />
                   <RegionStat
                     label="Total"
                     value={regionSummary.total}
                     sub={regionSummary.unassigned > 0 ? `${regionSummary.unassigned} unassigned` : "all regions"}
+                    active={regionFilter !== ""}
+                    onClick={() => setRegionFilter("")}
                   />
                   <RegionStat
                     accent
@@ -456,11 +539,17 @@ export default function AllRegionsPage() {
                 title="No routes found"
                 description={`No routes exist for ${startDate}${startDate !== endDate ? ` → ${endDate}` : ""}. Pick a different date range.`}
               />
+            ) : filteredRoutes.length === 0 ? (
+              <EmptyState
+                icon="filter"
+                title="No routes in this region"
+                description={`No ${regionFilter === "garden_route" ? "Garden Route" : "Eastern Cape"} routes for ${startDate}${startDate !== endDate ? ` → ${endDate}` : ""}. Click the region pill again to clear the filter.`}
+              />
             ) : (
               <div className="flex-1 min-h-0 glass-card rounded-xl overflow-hidden flex flex-col">
                 <SpreadsheetDataTable
                   className="h-full min-h-0"
-                  routes={routes ?? []}
+                  routes={filteredRoutes}
                   density="compact"
                   storageNamespace="allregions"
                   extraColumn={regionColumn}

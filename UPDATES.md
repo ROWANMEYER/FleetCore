@@ -286,6 +286,10 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Admin page: Users card** — the admin landing page now includes a Users
+  card (alongside Trucks, Drivers, Trailers, Subcontractors and Fleet Import)
+  linking to `/admin/users` for managing who can sign in and which region
+  they see.
 - **All Regions: edit region from the table** — the Region column badge is now
   an inline dropdown (Garden Route / Eastern Cape / Unassigned). Clicking a
   badge opens a fixed-position menu (flips above the row near the bottom of

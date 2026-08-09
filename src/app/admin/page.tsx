@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Truck, Users, Loader, Building2, Upload } from "lucide-react";
+import { Truck, Users, Loader, Building2, Upload, UserCog } from "lucide-react";
 
 export default function AdminPage() {
   const cards = [
@@ -32,6 +32,12 @@ export default function AdminPage() {
       title: "Fleet Import",
       description: "Bulk-import Trucks, Trailers and Drivers from Excel",
       icon: Upload,
+    },
+    {
+      href: "/admin/users",
+      title: "Users",
+      description: "Manage who can sign in and which region they see",
+      icon: UserCog,
     },
   ];
 

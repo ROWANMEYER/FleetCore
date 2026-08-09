@@ -1,12 +1,13 @@
 "use client";
 
-import { useState} from"react";
-import { useMutation} from"convex/react";
+import { useState, useMemo} from"react";
+import { useQuery, useMutation} from"convex/react";
 import { api} from"@/convex/_generated/api";
 import { useEscapeToClose} from"@/src/components/common/useKeyboardShortcut";
 import { useToast } from"@/src/components/common/Toast";
 import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
-import { X, Lightbulb, AlertTriangle} from"lucide-react";
+import { loadFingerprint } from"@/convex/utils";
+import { X, Lightbulb, AlertTriangle, CopyX} from"lucide-react";
 
 interface ImportLoadsModalProps {
  onClose: () => void;
@@ -84,6 +85,58 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  const [savedMappingExists, setSavedMappingExists] = useState(false);
 
  const createBulkDailyRoutes = useMutation(api.dailyRoutes.createBulkDailyRoutes);
+
+ // ── Duplicate detection (confirm preview) ─────────────────────────────
+ // Fetch the routes already saved for the dates being imported so rows that
+ // exactly match an existing load (date + truck + trailer + client + amount)
+ // can be flagged before import. Only needed on the confirm step, so the
+ // query is skipped everywhere else.
+ const previewDateRange = useMemo(() => {
+   if (step !== "confirm") return null;
+   // Only well-formed YYYY-MM-DD keys make a valid query range; a malformed
+   // date would put start after end and silently disable preview flagging.
+   const dates = parsedRows
+     .map((r) => r.mappedValues.routeDate as string)
+     .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+     .sort();
+   if (dates.length === 0) return null;
+   return { start: dates[0], end: dates[dates.length - 1] };
+ }, [step, parsedRows]);
+
+ const existingRoutes = useQuery(
+   api.dailyRoutes.getForSheets,
+   previewDateRange && !importBlocked
+     ? { startDate: previewDateRange.start, endDate: previewDateRange.end, token, region: importRegion ?? undefined }
+     : "skip"
+ );
+
+ // ids of rows that are exact duplicates of an already-saved load (or of an
+ // earlier row in the same paste). Computed so the preview badge + import
+ // always agree with the backend's authoritative skip.
+ const duplicateRowIds = useMemo(() => {
+   if (step !== "confirm" || !existingRoutes) return new Set<string>();
+   const seen = new Set<string>();
+   for (const route of existingRoutes) {
+     for (const load of route.loads ?? []) {
+       seen.add(
+         loadFingerprint(route.routeDate, route.truckFleetNoStr, route.trailerFleetNoStr, load.client, load.rate)
+       );
+     }
+   }
+   const dupIds = new Set<string>();
+   for (const row of parsedRows) {
+     const fp = loadFingerprint(
+       row.mappedValues.routeDate,
+       row.mappedValues.truckFleetNo,
+       row.mappedValues.trailerFleetNoStr,
+       row.mappedValues.client,
+       row.mappedValues.rate
+     );
+     if (seen.has(fp)) dupIds.add(row.id);
+     else seen.add(fp);
+   }
+   return dupIds;
+ }, [step, parsedRows, existingRoutes]);
 
  useEscapeToClose(onClose, true);
 
@@ -343,7 +396,10 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  }
  setIsSubmitting(true);
  try {
- const validRows = parsedRows.filter(r => r.isValid);
+ // Rows that exactly match an already-saved load (or a duplicate row in
+ // the same paste) are excluded up front; the backend skips any that slip
+ // through (e.g. a concurrent import) and reports the true skipped count.
+ const validRows = parsedRows.filter(r => r.isValid && !duplicateRowIds.has(r.id));
  
  const routes = validRows.map(row => {
  const { mappedValues} = row;
@@ -368,11 +424,24 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 };
 });
 
- await createBulkDailyRoutes({ routes, region: regionArg, token});
+ const result = await createBulkDailyRoutes({ routes, region: regionArg, token});
  // Auto-save the mapping on successful import
  saveMapping(columnMapping, columnMapping.length);
  setSavedMappingExists(true);
- addToast(`Imported ${validRows.length} loads to ${regionLabel ?? "your region"}.`, "success");
+ const created = result?.created ?? validRows.length;
+ // Rows flagged as duplicates in the preview were excluded client-side, so
+ // the backend may report skipped=0 even though we held some back. Report the
+ // true count: valid rows in the paste minus rows actually created.
+ const validRowCount = parsedRows.filter(r => r.isValid).length;
+ const skipped = Math.max(result?.skipped ?? 0, validRowCount - created);
+ if (skipped > 0) {
+   addToast(
+     `Imported ${created} load${created === 1 ? "" : "s"}, skipped ${skipped} duplicate${skipped === 1 ? "" : "s"}.`,
+     "success"
+   );
+ } else {
+   addToast(`Imported ${created} load${created === 1 ? "" : "s"} to ${regionLabel ?? "your region"}.`, "success");
+ }
  onSuccess();
  onClose();
 } catch (error) {
@@ -383,10 +452,13 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 }
 };
 
- const validCount = parsedRows.filter(r => r.isValid).length;
- const invalidCount = parsedRows.length - validCount;
+ // Duplicates are valid but already exist (exact load match) — they are shown
+ // as a separate count and excluded from the importable "valid" set.
+ const duplicateCount = parsedRows.filter(r => r.isValid && duplicateRowIds.has(r.id)).length;
+ const validCount = parsedRows.filter(r => r.isValid && !duplicateRowIds.has(r.id)).length;
+ const invalidCount = parsedRows.length - validCount - duplicateCount;
  const totalRevenue = parsedRows
- .filter(r => r.isValid)
+ .filter(r => r.isValid && !duplicateRowIds.has(r.id))
  .reduce((sum, r) => sum + (parseFloat(r.mappedValues.rate as string) || 0), 0);
 
  return (
@@ -514,10 +586,16 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
 
  {step ==="confirm" && (
  <div className="space-y-6">
- <div className="grid grid-cols-3 gap-4">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
  <div className="bg-green-50 p-4 rounded-lg border border-green-100">
  <div className="text-sm text-green-600 font-medium">Valid Records</div>
  <div className="text-2xl font-bold text-green-700">{validCount}</div>
+ </div>
+ <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+ <div className="text-sm text-amber-700 font-medium flex items-center gap-1">
+ <CopyX className="w-4 h-4" /> Duplicates
+ </div>
+ <div className="text-2xl font-bold text-amber-700">{duplicateCount}</div>
  </div>
  <div className="bg-red-50 p-4 rounded-lg border border-red-100">
  <div className="text-sm text-red-600 font-medium">Invalid Records</div>
@@ -530,6 +608,17 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  </div>
  </div>
  </div>
+
+ {duplicateCount > 0 && (
+ <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 p-3 rounded-md text-sm text-amber-800">
+ <CopyX className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+ <p>
+ <span className="font-semibold">{duplicateCount} duplicate{duplicateCount === 1 ? "" : "s"} detected.</span>{" "}
+ These already exist for the same date, truck, trailer, client and amount —
+ they will not be imported.
+ </p>
+ </div>
+ )}
 
  <div className="border rounded-md overflow-hidden">
  <table className="min-w-full divide-y divide-[var(--card-border)]">
@@ -545,10 +634,16 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  </tr>
  </thead>
  <tbody className="bg-[var(--card-bg)] divide-y divide-[var(--card-border)]">
- {parsedRows.slice(0, 50).map((row) => (
- <tr key={row.id} className={!row.isValid ?"bg-red-50" :""}>
+ {parsedRows.slice(0, 50).map((row) => {
+   const isDuplicate = row.isValid && duplicateRowIds.has(row.id);
+   return (
+ <tr key={row.id} className={!row.isValid ?"bg-red-50" : isDuplicate ?"bg-amber-50" :""}>
  <td className="px-4 py-2 whitespace-nowrap">
- {row.isValid ? (
+ {isDuplicate ? (
+ <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Already exists for this date, truck, trailer, client and amount — not imported">
+ Duplicate
+ </span>
+) : row.isValid ? (
  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Valid</span>
 ) : (
  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800" title={row.errors.join(",")}>
@@ -588,7 +683,8 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  {row.mappedValues.rate}
  </td>
  </tr>
-))}
+   );
+ })}
  </tbody>
  </table>
  {parsedRows.length > 50 && (

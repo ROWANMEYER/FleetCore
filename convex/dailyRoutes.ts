@@ -2,7 +2,7 @@
 import { mutation, query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { calculateLoadAmount } from "./utils";
+import { calculateLoadAmount, loadFingerprint } from "./utils";
 import { resolveUserScope, resolveEffectiveRegion } from "./userSessions";
 
 // Helper to Centralize logic 
@@ -321,6 +321,37 @@ export const createBulkDailyRoutes = mutation({
     }
     const now = Date.now();
     const createdIds = [];
+    let skippedDuplicates = 0;
+
+    // ── Duplicate detection ────────────────────────────────────────────────
+    // Build a fingerprint set of every load already in the database across the
+    // dates being imported (same region only). Each incoming route's load is
+    // then compared against this set: exact matches (date + truck + trailer +
+    // client + amount) are skipped instead of silently re-imported. Fresh
+    // fingerprints are added as we insert, so duplicate rows inside a single
+    // paste are caught too.
+    const seen = new Set<string>();
+    const importedDates = Array.from(new Set(args.routes.map((r) => r.routeDate).filter(Boolean)));
+    for (const date of importedDates) {
+      const existingRoutes = await ctx.db
+        .query("dailyRoutes")
+        .withIndex("by_routeDate_truckFleetNoStr", (q) => q.eq("routeDate", date))
+        .collect();
+      for (const existing of existingRoutes) {
+        if ((existing as any).isDeleted || existing.region !== region) continue;
+        for (const load of existing.loads ?? []) {
+          seen.add(
+            loadFingerprint(
+              existing.routeDate,
+              existing.truckFleetNoStr,
+              existing.trailerFleetNoStr,
+              load.client,
+              load.rate
+            )
+          );
+        }
+      }
+    }
 
     for (const route of args.routes) {
       const truckIdentifier = route.truckFleetNo ?? route.truckFleetNoStr;
@@ -329,6 +360,27 @@ export const createBulkDailyRoutes = mutation({
       }
 
       const normalizedLoads = route.loads;
+
+      // Skip the whole route if ANY of its loads is already known (an imported
+      // row is a single-load route, so this matches the "exact load" rule).
+      // Fingerprints are only added to the seen set AFTER the duplicate check
+      // passes, so a skipped route can never poison the set for later rows.
+      const routeFingerprints = normalizedLoads.map((load) =>
+        loadFingerprint(
+          route.routeDate,
+          truckIdentifier,
+          route.trailerFleetNoStr,
+          load.client,
+          load.rate
+        )
+      );
+      const isDuplicate = routeFingerprints.some((fp) => seen.has(fp));
+      if (isDuplicate) {
+        skippedDuplicates++;
+        continue;
+      }
+      for (const fp of routeFingerprints) seen.add(fp);
+
       const aggregates = deriveTripAggregates(normalizedLoads);
 
       let finalKilometers = route.kilometers;
@@ -362,7 +414,7 @@ export const createBulkDailyRoutes = mutation({
       });
       createdIds.push(id);
     }
-    return createdIds;
+    return { created: createdIds.length, skipped: skippedDuplicates };
   },
 });
 

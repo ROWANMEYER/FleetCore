@@ -286,6 +286,16 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Import loads: duplicate detection** — exact-load duplicates (same date +
+  truck + trailer + client + amount, normalized) are detected and skipped. The
+  import preview flags duplicate rows with an amber badge + row tint, adds a
+  Duplicates summary card and a warning banner, and excludes them from the
+  valid count/import. `createBulkDailyRoutes` is the authoritative guard: it
+  fingerprints existing loads per imported date (and fresh rows within the
+  same paste) and skips collisions, returning `{ created, skipped }`; the
+  success toast reports "Imported X, skipped Y duplicate(s)". Shared
+  `loadFingerprint` helper in `convex/utils.ts` keeps preview and backend in
+  sync.
 - **All Regions: month stepper + clickable KPI filters** — the native month
   input becomes a ‹ label › stepper (same as the dashboard; UTC-safe month
   arithmetic so Dec→Jan wrap and month-length shifts never corrupt the key).

@@ -44,6 +44,7 @@ type FiltersShape = {
   status: string[];
   amountMin: string;
   amountMax: string;
+  region: string;
 };
 
 type SortConfig = { column: string | null; direction: "asc" | "desc" };
@@ -343,6 +344,7 @@ export default function MobileSheetsView({
 
   const activeFilterCount =
     (quickSearch ? 1 : 0) +
+    (filters.region ? 1 : 0) +
     (filters.truck ? 1 : 0) +
     (filters.trailer ? 1 : 0) +
     (filters.client ? 1 : 0) +
@@ -635,6 +637,12 @@ export default function MobileSheetsView({
           {quickSearch && (
             <Chip label={`Search: "${quickSearch}"`} onClear={() => setQuickSearch("")} />
           )}
+          {filters.region && (
+            <Chip
+              label={`Region: ${REGION_META[filters.region]?.label ?? filters.region}`}
+              onClear={() => updateFilter("region", "")}
+            />
+          )}
           {filters.truck && <Chip label={`Truck: ${filters.truck}`} onClear={() => updateFilter("truck", "")} />}
           {filters.trailer && <Chip label={`Trailer: ${filters.trailer}`} onClear={() => updateFilter("trailer", "")} />}
           {filters.client && <Chip label={`Client: ${filters.client}`} onClear={() => updateFilter("client", "")} />}
@@ -809,6 +817,40 @@ export default function MobileSheetsView({
                           )}
                         </span>
                         <span className="truncate">{s.replace(/^\S+\s*/, "")}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Region filter — lets an admin on "All Regions" focus one
+                  region; regional users only ever receive their own. */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)] mb-2">
+                  Region
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: "", label: "All" },
+                    ...Object.entries(REGION_META).map(([value, meta]) => ({ value, label: meta.label })),
+                  ].map((opt) => {
+                    const checked = (filters.region ?? "") === opt.value;
+                    return (
+                      <button
+                        key={opt.value || "all"}
+                        onClick={() => updateFilter("region", opt.value)}
+                        className={`flex items-center justify-center gap-1.5 h-11 px-2 rounded-lg border text-xs font-semibold transition-all active:scale-[0.98] ${
+                          checked
+                            ? "border-[#06B6D4] bg-[rgba(6,182,212,0.1)] text-[var(--foreground)]"
+                            : "border-[var(--card-border)] bg-[var(--card-bg)]/60 text-[var(--nav-text-color)]"
+                        }`}
+                      >
+                        {opt.value && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${REGION_META[opt.value]?.dot ?? ""}`}
+                          />
+                        )}
+                        <span className="truncate">{opt.label}</span>
                       </button>
                     );
                   })}

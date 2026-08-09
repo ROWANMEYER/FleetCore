@@ -286,6 +286,12 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile sheets: region filter in the filter bottom sheet** — the filter
+  sheet gained a Region section (All / Garden Route / Eastern Cape segmented
+  buttons with region dots) so an admin on "All Regions" can focus one region.
+  Purely client-side: regional users are server-locked to their own region, so
+  the filter is a no-op for them. Shared state persists via SHEETS_UI_KEY, and
+  the desktop active-filter pills show a Region pill too.
 - **Mobile sheets: region badge on route cards** — each route card now shows a
   region pill in its meta row (Garden Route teal / Eastern Cape purple, plain
   em-dash for unassigned), matching the desktop sheets Region column colors so

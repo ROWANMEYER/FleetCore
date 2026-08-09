@@ -1001,8 +1001,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  status: string[];
  amountMin: string;
  amountMax: string;
+ region: string;
 }>(() => {
- if (typeof window === "undefined") return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
+ if (typeof window === "undefined") return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '', region: '' };
  try {
  const saved = localStorage.getItem(SHEETS_UI_KEY);
  if (saved) {
@@ -1020,11 +1021,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  status: Array.isArray(f.status) ? f.status : [],
  amountMin: typeof f.amountMin === 'string' ? f.amountMin : '',
  amountMax: typeof f.amountMax === 'string' ? f.amountMax : '',
+ region: typeof f.region === 'string' ? f.region : '',
  };
  }
  }
  } catch { /* ignore */ }
- return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '' };
+ return { date: '', truck: '', trailer: '', client: '', driver: '', from: '', to: '', status: [], amountMin: '', amountMax: '', region: '' };
 });
  const [dashboardDrilldown, setDashboardDrilldown] = useState<{
  date: { label: string; date: string } | null;
@@ -1441,6 +1443,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  status: [],
  amountMin: '',
  amountMax: '',
+ region: '',
 });
  setSortConfig({ column: null, direction: 'asc'});
 
@@ -1582,6 +1585,10 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const amount = route.rate || 0;
  if (filters.amountMin && amount < parseFloat(filters.amountMin)) return false;
  if (filters.amountMax && amount > parseFloat(filters.amountMax)) return false;
+
+ // Region filter (client-side, so an admin viewing "All Regions" can focus
+ // on a single region; regional users already only receive their own region)
+ if (filters.region && route.region !== filters.region) return false;
 
  return true;
 });
@@ -3360,6 +3367,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   {/* ── Active Filter Pills ── */}
   {(() => {
   const activeFilters: { key: string; label: string; onClear: () => void }[] = [];
+  if (filters.region) activeFilters.push({ key: "region", label: `Region: ${SHEETS_REGION_META[filters.region]?.label ?? filters.region}`, onClear: () => updateFilter("region", "") });
   if (filters.truck) activeFilters.push({ key: "truck", label: `Truck: ${filters.truck}`, onClear: () => updateFilter("truck", "") });
   if (filters.trailer) activeFilters.push({ key: "trailer", label: `Trailer: ${filters.trailer}`, onClear: () => updateFilter("trailer", "") });
   if (filters.client) activeFilters.push({ key: "client", label: `Client: ${filters.client}`, onClear: () => updateFilter("client", "") });

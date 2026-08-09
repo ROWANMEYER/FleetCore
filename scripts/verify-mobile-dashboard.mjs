@@ -202,6 +202,25 @@ async function main() {
             ['auto', 'scroll'].includes(getComputedStyle(el).overflowY)
         ) || main;
       const d = document.documentElement;
+      // The dashboard root is main's first child scroller (overflow-y auto).
+      // Its overflow-x must be explicitly hidden so the app can never scroll
+      // sideways inside this nested scroller (per CSS, overflow-y:auto would
+      // otherwise compute overflow-x to auto).
+      const root = [...(main ? main.querySelectorAll(':scope > div') : [])]
+        .find((el) => ['auto', 'scroll'].includes(getComputedStyle(el).overflowY)) || null;
+      const rootCS = root ? getComputedStyle(root) : null;
+      const tabBarTop = (() => {
+        const tb = document.querySelector('${TAB_BAR_SELECTOR}');
+        return tb ? Math.round(tb.getBoundingClientRect().top) : null;
+      })();
+      // Gap between the last visible dashboard section and the bottom tab bar —
+      // should be small (content stretches to fill, padding matches the tab bar).
+      const contentBottom = (() => {
+        const sections = [...document.querySelectorAll('main section')]
+          .filter((s) => s.getBoundingClientRect().height > 0 && s.getBoundingClientRect().bottom > 0);
+        if (!sections.length) return null;
+        return Math.round(Math.max(...sections.map((s) => s.getBoundingClientRect().bottom)));
+      })();
       const tabBar = document.querySelector('[aria-label="Dashboard sections"]');
       const tabs = tabBar
         ? [...tabBar.querySelectorAll('button')].map((b) => b.textContent.trim())
@@ -217,6 +236,9 @@ async function main() {
         scrollWidth: d.scrollWidth,
         overflowPx: d.scrollWidth - window.innerWidth,
         hasBottomTabBar: !!document.querySelector('${TAB_BAR_SELECTOR}'),
+        rootOverflowX: rootCS ? rootCS.overflowX : null,
+        mainPaddingBottom: getComputedStyle(main).paddingBottom,
+        contentToTabGap: tabBarTop != null && contentBottom != null ? tabBarTop - contentBottom : null,
         dashTabs: tabs,
         scrollerOverflowPx: scroller ? scroller.scrollHeight - scroller.clientHeight : null,
         titleVisible: (() => {
@@ -269,6 +291,23 @@ async function main() {
   if (layout.scrollerOverflowPx == null || layout.scrollerOverflowPx > 0) {
     failures.push(
       `dashboard content overflows the viewport by ${layout.scrollerOverflowPx ?? "unknown"}px on the default tab (expected 0 — no scrolling)`
+    );
+  }
+  // The dashboard root must have overflow-x hidden — this is the ONLY thing that
+  // prevents sideways scrolling inside the dashboard's own nested scroller.
+  if (layout.rootOverflowX !== "hidden") {
+    failures.push(`dashboard root overflow-x is "${layout.rootOverflowX}", expected "hidden"`);
+  }
+  // main's bottom padding must match the tab bar height (h-16 = 4rem + safe area)
+  // so content scrolls right up to the tab bar — no visible gap strip.
+  if (layout.mainPaddingBottom !== "64px") {
+    failures.push(`main bottom padding is "${layout.mainPaddingBottom}", expected "64px" (matches tab bar)`);
+  }
+  // Content must reach close to the tab bar (no big empty band between the data
+  // and the bottom navigation).
+  if (layout.contentToTabGap == null || layout.contentToTabGap > 48) {
+    failures.push(
+      `gap between dashboard content and bottom tab bar is ${layout.contentToTabGap ?? "unknown"}px (expected ≤ 48px)`
     );
   }
   // The mobile dashboard intentionally drops the page header: the h1 title row

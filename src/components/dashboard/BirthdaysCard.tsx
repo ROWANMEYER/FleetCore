@@ -64,14 +64,14 @@ export function BirthdaysCard() {
   };
 
   return (
-    <section className="glass-card rounded-xl overflow-hidden animate-fade-up">
+    <section className="glass-card-lg rounded-xl overflow-hidden animate-fade-up">
       {/* Mobile-only toggle header */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={bodyId}
-        className="lg:hidden w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left transition-colors"
+        className="lg:hidden w-full flex items-center justify-between gap-3 px-0 py-2 text-left transition-colors"
       >
         <span className="min-w-0">
           <span className="block text-sm font-bold text-[var(--nav-text-color)] uppercase tracking-widest">
@@ -100,7 +100,7 @@ export function BirthdaysCard() {
         id={bodyId}
         role="region"
         aria-label="Birthdays"
-        className={`${open ? "mt-3 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} px-4 sm:px-5 pb-5 lg:px-5 lg:pb-5`}
+        className={`${open ? "mt-1.5 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} px-0 pb-2 lg:px-5 lg:pb-5`}
       >
         {loading ? (
           <div className="px-2 py-4 space-y-3">

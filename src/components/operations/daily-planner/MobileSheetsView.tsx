@@ -649,7 +649,7 @@ export default function MobileSheetsView({
       )}
 
       {/* ── Content: loading / empty / day groups ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pb-6">
+      <div className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pb-6">
         {loading ? (
           <div className="space-y-3">
             {[0, 1, 2, 3].map((i) => (
@@ -756,7 +756,7 @@ export default function MobileSheetsView({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-y-contain px-5 py-4 space-y-4">
+            <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-5 py-4 space-y-4">
               {/* Status checkboxes */}
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)] mb-2">

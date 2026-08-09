@@ -139,7 +139,9 @@ function AppMain({ showApp, children }: { showApp: boolean; children: React.Reac
     // scrollable tables keep their own overflow-auto wrappers.
     <main
       className={`flex-1 min-w-0 relative flex flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain scrollbar-fleet ${
-        showApp && !minimized ? "pt-14 md:pt-0 pb-24 md:pb-0" : ""
+        // pb matches the mobile tab bar exactly (h-16 = 4rem + safe area) so
+        // content scrolls right up to the tab bar with no visible gap.
+        showApp && !minimized ? "pt-14 md:pt-0 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0" : ""
       }`}
     >
       {children}

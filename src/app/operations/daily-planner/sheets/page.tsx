@@ -2807,7 +2807,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
            </div>
 
            {/* scrollable body — detail, edit, or analytics view */}
-           <div className="flex-1 overflow-y-auto">
+           <div className="flex-1 overflow-x-hidden overflow-y-auto">
              {panelView === "edit" ? (
                <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
              ) : panelView === "analytics" ? (

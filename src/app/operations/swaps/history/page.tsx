@@ -209,7 +209,7 @@ export default function SwapHistoryScreen() {
  </div>
 )}
 
- <div className="flex-1 overflow-auto px-4 py-3 space-y-2" style={{backgroundColor:"var(--background)"}}>
+ <div className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-3 space-y-2" style={{backgroundColor:"var(--background)"}}>
  {filteredSwaps.map(swap => {
  const reason = swap.reason ||"Other";
  const badgeColor = reasonColorMap[reason] || reasonColorMap.Other;

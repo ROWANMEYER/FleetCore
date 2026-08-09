@@ -1021,18 +1021,14 @@ function CollapsibleSection({
   const bodyId = useId();
 
   return (
-    <section className={carded ? "glass-card rounded-xl overflow-hidden animate-fade-up" : ""}>
+    <section className={carded ? "glass-card-lg rounded-xl overflow-hidden animate-fade-up" : "flex-1 flex flex-col min-h-0"}>
       {/* Mobile-only toggle header */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={bodyId}
- className={`lg:hidden w-full flex items-center justify-between gap-3 text-left transition-colors ${
- carded
- ? "px-3 sm:px-5 py-2"
- : "px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm"
- }`}
+ className="lg:hidden w-full flex items-center justify-between gap-3 px-0 py-2 text-left transition-colors"
  >
  <span className="min-w-0">
  <span className="block text-sm font-bold text-[var(--nav-text-color)] uppercase tracking-widest">{title}</span>
@@ -1049,7 +1045,7 @@ function CollapsibleSection({
  <div className={`hidden lg:block ${carded ? "px-5 pt-5" : ""}`}>
  <SectionHeader title={title} />
  </div>      {/* Body */}
-      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-1.5 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-3 sm:px-5 pb-3 lg:px-5 lg:pb-4" : ""}`}>
+      <div id={bodyId} role="region" aria-label={title} className={`${open ? "mt-1.5 lg:mt-0 animate-fade-up-sm" : "hidden lg:block"} ${carded ? "px-0 pb-2 lg:px-5 lg:pb-4" : "flex-1 flex flex-col min-h-0"}`}>
         {children}
       </div>
  </section>
@@ -1199,11 +1195,6 @@ export default function DashboardPage() {
  return () => clearTimeout(id);
 }, []); // Theme colors
   const themeClasses = {
-   bg: {
-      primary: "bg-[var(--card-bg)]",
-      secondary: "bg-[var(--card-bg)]",
-      tertiary: "bg-[var(--card-bg)]",
-   },
    text: {
       primary: "text-[var(--foreground)]",
       secondary: "text-[var(--nav-text-color)]",
@@ -1224,7 +1215,7 @@ export default function DashboardPage() {
  <>
  {drill && <DrillDownPanel drill={drill} onClose={() => setDrill(null)} onAnalyticsClick={() => setShowAnalytics(true)} onAnalyticsClose={() => setShowAnalytics(false)} showAnalytics={showAnalytics} isDayMode={isDayMode} onDrill={(newDrill) => setDrill(newDrill)} />}
 
- <div className={`flex-1 overflow-y-auto ${themeClasses.bg.primary} ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-3 sm:py-8 space-y-3 lg:space-y-10 flex flex-col">
+ <div className={`flex-1 overflow-x-hidden overflow-y-auto bg-transparent lg:bg-[var(--card-bg)] ${themeClasses.text.primary} transition-colors duration-300`}>  <div className="w-full px-4 sm:px-6 py-3 sm:py-8 space-y-3 lg:space-y-10 flex flex-col min-h-full">
 
  {/* ── Header ── */}
  <div className="flex flex-col gap-2 sm:gap-4">
@@ -1254,9 +1245,9 @@ export default function DashboardPage() {
 ) : (
  <>
  {/* ── Period KPIs ── */}
- <div key={`kpis-${activeTab === "kpis"}`} className={activeTab === "kpis" ? "lg:block" : "hidden lg:block"}>
+ <div key={`kpis-${activeTab === "kpis"}`} className={activeTab === "kpis" ? "flex-1 flex flex-col min-h-0 lg:flex-none lg:block" : "hidden lg:block"}>
  <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>
- <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
+ <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 auto-rows-fr min-h-0">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue — all routes"})} />
               <KpiCard label="Routes" value={fmtNum(summary.totalRoutes)}
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"All routes this period"})} />

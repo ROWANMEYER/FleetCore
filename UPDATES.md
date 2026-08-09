@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v30); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v35); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -286,6 +286,22 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile dashboard: one seamless page, no sideways scroll** — the dashboard's
+  own inner scroller (the `flex-1 overflow-y-auto` root) now sets
+  `overflow-x-hidden` explicitly (before, `overflow-y:auto` alone computed
+  `overflow-x` to `auto`, which is how the phone could still scroll left-right
+  even after `main` was guarded). The root's `bg-[var(--card-bg)]` was dropped
+  on mobile so there's no container edge floating above the tab bar, and the
+  section containers (Revenue/Clients/Compare/Birthdays) switched to a new
+  `.glass-card-lg` class that is fully transparent below `lg` and only shows
+  the glass panel on desktop — on the phone the sections now read as one
+  continuous page. The KPI tab stretches (`flex-1` + `auto-rows-fr`) so cards
+  fill the viewport, and `main`'s bottom padding matches the tab bar exactly
+  (`pb-[calc(4rem+env(safe-area-inset-bottom))]` instead of `pb-24`) — the gap
+  between data and the bottom tab bar shrank from ~227px to ~35px. Nested
+  scrollers on Calendar, Swaps, and the sheets detail panel also got
+  `overflow-x-hidden` so nothing can scroll sideways. Desktop dashboard is
+  unchanged (glass sections, header, region filter all intact).
 - **No more sideways scrolling** — the app's main scroller is now
   `overflow-x-hidden` (vertical-only scrolling everywhere), and the sheets /
   input page roots got `overflow-x-clip` so their full-bleed `-mx-4` sticky

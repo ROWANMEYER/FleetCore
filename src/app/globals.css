@@ -159,6 +159,30 @@ body {
   transform: translateY(-1px);
 }
 
+/* ─── Glass card, desktop-only ─────────────────────────────────────
+   Dashboard sections are seamless on phones — one continuous page with
+   no visible containers — so the glass chrome only appears at lg+.
+   Sections keep rounded-xl/overflow/animations from their own classes;
+   this class only contributes the background/border/shadow at lg+. */
+.glass-card-lg {
+  /* no container chrome below lg */
+}
+
+@media (min-width: 1024px) {
+  .glass-card-lg {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--card-border);
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+
+  .glass-card-lg:hover {
+    box-shadow: var(--card-shadow-hover);
+  }
+}
+
 /* ─── Sidebar glass ──────────────────────────────────────────────── */
 .glass-sidebar {
   background: var(--sidebar-bg);

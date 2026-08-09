@@ -8,7 +8,6 @@ export const askLlama = action({
     prompt: v.string(),
   },
   handler: async (ctx, args) => {
-    console.log("🚀 Sending to Ollama:", args.prompt);
 
     const res = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
@@ -24,7 +23,6 @@ export const askLlama = action({
 
     const data = await res.json();
 
-    console.log("✅ Ollama response received");
 
     return data.response;
   },

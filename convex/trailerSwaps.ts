@@ -30,8 +30,6 @@ export const getDashboardData = query({
     const trucks = await ctx.db.query("trucks").collect();
     const trailers = await ctx.db.query("trailers").collect();
 
-    console.log("SWAPS:", swaps.length);
-    console.log("TRUCKS:", trucks.length);
 
     const totalSwaps = swaps.filter(s => s.swapType && s.swapType.toUpperCase() === "SWAP").length;
     const totalUnpairs = swaps.filter(s => s.swapType && s.swapType.toUpperCase() === "UNPAIR").length;

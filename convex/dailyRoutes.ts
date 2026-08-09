@@ -189,7 +189,6 @@ export const createDailyRoute = mutation({
     )),
   },
   handler: async (ctx, args) => {
-    console.log("📥 MUTATION HIT", args); // DEBUG LOG 
 
     const scope = await resolveUserScope(ctx, args.token);
     // Regional users are forced to their own region (never trusted from client)

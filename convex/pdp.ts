@@ -48,7 +48,6 @@ async function upsertApplicationForDriver(ctx: any, driverId: Id<"drivers">) {
     createdAt: now,
     updatedAt: now,
   });
-  console.log("Inserted pdpApplication with driverId:", driverId);
 
   const doc = await ctx.db.get(applicationId);
   if (!doc) {
@@ -123,7 +122,6 @@ export const markDeparted = mutation({
     departedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    console.log("markDeparted called with driverId:", args.driverId);
     const driver = await requireDriver(ctx, args.driverId);
     if (!driver) throw new Error("Driver not found");
 
@@ -386,7 +384,6 @@ export const undoStage = mutation({
     clearData: v.boolean(),
   },
   handler: async (ctx, args) => {
-    console.log("pdp.undoStage", args);
     const driver = await requireDriver(ctx, args.driverId);
     if (!driver) throw new Error("Driver not found");
     const app = await upsertApplicationForDriver(ctx, args.driverId);
@@ -462,7 +459,6 @@ export const resetFlow = mutation({
     clearData: v.boolean(),
   },
   handler: async (ctx, args) => {
-    console.log("pdp.resetFlow", args);
     const driver = await requireDriver(ctx, args.driverId);
     if (!driver) throw new Error("Driver not found");
     const app = await upsertApplicationForDriver(ctx, args.driverId);

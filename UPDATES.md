@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v29); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v30); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -325,7 +325,11 @@ npx convex codegen     # Regenerate convex/_generated/ types
   (`fleetcore-sheets-restore-pos`), matching the mobile sheets minimize/restore
   UX. `Esc` also restores. Fullscreen mode (fixed viewport overlay, Focus Mode
   title/badge, exit bar) was removed entirely.
-- **SW cache** bumped to `fleetcore-v29`.
+- **Mobile input: route details open by default** — the "Route details"
+  section on the New Route / Edit Route screen (mobile) no longer starts
+  collapsed; the truck/driver/date fields are visible immediately (the collapse
+  toggle is still available).
+- **SW cache** bumped to `fleetcore-v30`.
 - **Dead dashboard components removed** — `src/components/dashboard/DashboardCard.tsx`,
   `operations/*` (`DrillDownPanel`, `EditRouteModal`, `KpiCard`, `LoadsTab`,
   `RevenueTab`), and `ceo/TrendIcon.tsx` had zero imports (the dashboard page

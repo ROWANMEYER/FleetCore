@@ -98,8 +98,9 @@ function DailyPlannerInputForm() {
   );
   const [headerComplete, setHeaderComplete] = useState(true);
 
-  // Mobile: route details start collapsed so Loads are reachable quickly
-  const [detailsCollapsed, setDetailsCollapsed] = useState(true);
+  // Mobile: route details start expanded so the driver/truck/date fields are
+  // immediately visible (the toggle is still there to collapse if wanted).
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
 
   // Subcontractor mode
   const [isFleetMode, setIsFleetMode] = useState(true);

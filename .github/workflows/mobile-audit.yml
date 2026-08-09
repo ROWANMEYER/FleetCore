@@ -35,6 +35,10 @@ jobs:
     timeout-minutes: 10
     env:
       AUDIT_URL: ${{ vars.AUDIT_URL || 'https://fleetcore-mu.vercel.app' }}
+      # Credential for the seeded admin login. Prefer a repo variable so CI
+      # keeps working even if the script default changes. Falls back to the
+      # current seeded password when the variable isn't set.
+      AUDIT_PASSWORD: ${{ vars.AUDIT_PASSWORD || 'admin123' }}
     steps:
       - uses: actions/checkout@v4
 

@@ -286,6 +286,12 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile dashboard: header removed + compact filters** — the Dashboard title
+  row no longer renders on phones (desktop keeps its header). The region
+  selector and the Day/Month/Range tabs now share a single compact row, the
+  region pill drops its label and shrinks (MapPin + select only), and the
+  month arrows / date inputs are tighter — the whole filter area is now two
+  slim rows instead of three, freeing vertical space for the KPIs.
 - **Admin page: Users card** — the admin landing page now includes a Users
   card (alongside Trucks, Drivers, Trailers, Subcontractors and Fleet Import)
   linking to `/admin/users` for managing who can sign in and which region

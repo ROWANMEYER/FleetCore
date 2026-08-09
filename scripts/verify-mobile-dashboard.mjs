@@ -219,7 +219,27 @@ async function main() {
         hasBottomTabBar: !!document.querySelector('${TAB_BAR_SELECTOR}'),
         dashTabs: tabs,
         scrollerOverflowPx: scroller ? scroller.scrollHeight - scroller.clientHeight : null,
-        titleFontSize: getComputedStyle(document.querySelector('h1') || d).fontSize,
+        titleVisible: (() => {
+          // A hidden ANCESTOR (display:none, e.g. the hidden lg:flex wrapper)
+          // still reports the h1's own display as "block", so test real
+          // visibility: zero-size rect or a display:none ancestor = not rendered.
+          const h1 = [...document.querySelectorAll('h1')].find((h) => h.textContent.trim() === 'Dashboard');
+          if (!h1) return false;
+          const r = h1.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) return false;
+          let node = h1;
+          while (node && node !== document.body) {
+            if (getComputedStyle(node).display === 'none') return false;
+            node = node.parentElement;
+          }
+          return true;
+        })(),
+        // A desktop-only RegionMasterFilter also lives in the (display:none on
+        // mobile) header row, so require exactly ONE VISIBLE select: proves the
+        // compact mobile slot inside the filter bar actually rendered.
+        regionFilterVisible:
+          [...document.querySelectorAll('select[aria-label="Dashboard region filter"]')]
+            .filter((s) => s.offsetParent !== null).length === 1,
         kpiGridWidth: kpiGrid ? Math.round(kpiGrid.getBoundingClientRect().width) : null,
         completionWidth: completion ? Math.round(completion.getBoundingClientRect().width) : null,
         filterTabPadding: pad ? pad.paddingLeft + '/' + pad.paddingTop : null,
@@ -243,7 +263,14 @@ async function main() {
       `dashboard content overflows the viewport by ${layout.scrollerOverflowPx ?? "unknown"}px on the default tab (expected 0 — no scrolling)`
     );
   }
-  if (layout.titleFontSize !== "20px") failures.push(`title font-size is ${layout.titleFontSize}, expected 20px (text-xl)`);
+  // The mobile dashboard intentionally drops the page header: the h1 title row
+  // is display:none below lg (it only exists for the desktop layout).
+  if (layout.titleVisible) {
+    failures.push("mobile dashboard header (h1) should be hidden — remove the dashboard header on phones");
+  }
+  if (!layout.regionFilterVisible) {
+    failures.push("dashboard region filter select should be visible exactly once on mobile");
+  }
   if (layout.kpiGridWidth && layout.completionWidth) {
     if (layout.completionWidth < layout.kpiGridWidth * 0.9) {
       failures.push(

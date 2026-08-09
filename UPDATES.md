@@ -4,7 +4,7 @@
 > complete scope of the FleetCore project and what has changed recently.
 > Read it before making any change, then consult the deeper docs it links to.
 >
-> **Last updated:** 2026-08-08
+> **Last updated:** 2026-08-09
 >
 > **Related docs:**
 > - `README.md` — project philosophy & locked-baseline statement
@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v22); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v23); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -286,6 +286,11 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile sheets minimize view** — new Minimize button on the mobile sheets
+  screen collapses the sort/filter toolbar, the FleetCore top bar and the
+  bottom tab bar so only the route cards remain; a floating Restore pill
+  brings them back, and the state resets automatically when leaving the screen.
+- **SW cache** bumped to `fleetcore-v23`.
 - **Dead dashboard components removed** — `src/components/dashboard/DashboardCard.tsx`,
   `operations/*` (`DrillDownPanel`, `EditRouteModal`, `KpiCard`, `LoadsTab`,
   `RevenueTab`), and `ceo/TrendIcon.tsx` had zero imports (the dashboard page

@@ -97,11 +97,14 @@ export function WizardRouteHeader({
     return day === 0 || day === 6;
   })();
 
-  // C. Missing Fields (Optional but Expected)
+  // C. Missing Fields (Optional but Expected). In subcontractor mode the
+  // subcontractor (not the truck) is the key identifier, so the badge keys
+  // off the subcontractor selection instead of the truck number.
   const missingFields: string[] = [];
   if (!trailerFleetNo && truckFleetNo) missingFields.push("Trailer");
   if (!driverName && truckFleetNo) missingFields.push("Driver");
   if ((!routeKilometers || parseFloat(routeKilometers) === 0) && truckFleetNo) missingFields.push("KM");
+  const headerMissing = isFleetMode ? missingFields.length > 0 : !isFleetMode && !selectedSubId;
 
   // ---------------------------------------------------------------------------
   // DATA PREPARATION (Deduplication)
@@ -109,6 +112,11 @@ export function WizardRouteHeader({
   const uniqueTrucks = Array.from(new Map(trucks.map(t => [t._id, t])).values());
   const uniqueTrailers = Array.from(new Map(trailers.map(t => [t._id, t])).values());
   const uniqueDrivers = Array.from(new Map(drivers.map(d => [d._id, d])).values());
+
+  // Selected subcontractor's company name (shown in the summary line instead of
+  // the truck number, which is meaningless for subcontractor routes).
+  const selectedSubName =
+    subcontractors.find((s) => s._id === selectedSubId)?.companyName?.trim() || "";
 
   // ---------------------------------------------------------------------------
   // RENDER (Flat Form)
@@ -122,22 +130,29 @@ export function WizardRouteHeader({
         className="lg:hidden w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/60 dark:backdrop-blur-sm transition-colors"
         aria-expanded={!collapsed}
       >
-        <span className="min-w-0 text-left">
-          <span className="flex items-center gap-2 text-base font-bold text-[var(--foreground)]">
+        <span className="min-w-0 flex-1 text-left">
+          <span className="flex items-center gap-2 text-base font-bold text-[var(--foreground)] min-w-0">
             <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm shrink-0">
               <Truck size={14} strokeWidth={2.5} />
             </span>
-            Route details
-            {collapsed && (!truckFleetNo || !driverName) && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-600">
+            {/* The title truncates and the badge never shrinks, so a long
+                subcontractor name or the badge can never push into the
+                toggle control on the right (no wrap, no overlap). */}
+            <span className="truncate min-w-0">Route details</span>
+            {collapsed && headerMissing && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-600 shrink-0">
                 ● fields missing
               </span>
             )}
           </span>
           <span className="block mt-1 text-sm text-[var(--nav-text-color)] truncate">
             {collapsed
-              ? `${truckFleetNo || "No truck"} · ${driverName || "No driver"} · ${date || "No date"}`
-              : `Date: ${date} · Truck: ${truckFleetNo || "—"} · Driver: ${driverName || "—"}`}
+              ? !isFleetMode
+                ? `${selectedSubName || "No subcontractor"} · ${driverName || "No driver"} · ${date || "No date"}`
+                : `${truckFleetNo || "No truck"} · ${driverName || "No driver"} · ${date || "No date"}`
+              : !isFleetMode
+                ? `Date: ${date} · Sub: ${selectedSubName || "—"} · Driver: ${driverName || "—"}`
+                : `Date: ${date} · Truck: ${truckFleetNo || "—"} · Driver: ${driverName || "—"}`}
           </span>
         </span>
         <span className="flex items-center gap-1 shrink-0 text-sm font-semibold text-[#06B6D4]">

@@ -286,6 +286,19 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile input: banner removed + subcontractor summary** — the sticky
+  "New Route / Create and manage your fleet routes" header is hidden below the
+  `lg` breakpoint so the mobile form starts right under the app top bar.
+  The mobile "Route details" collapse bar now shows the selected
+  subcontractor's company name in its summary line when in subcontractor mode
+  (instead of the meaningless truck number): collapsed shows
+  `POOL VERVOER · Driver · Date`, expanded shows `Date · Sub: NAME · Driver`.
+  Anti-overlap hardening: the collapse-bar title truncates (`truncate min-w-0`)
+  and the "● fields missing" badge is `shrink-0`, so a long subcontractor name
+  or the badge can never wrap or push into the Edit/Collapse control (bar
+  height stays 78px; previously the badge could wrap and stretch it to 98px).
+  In subcontractor mode the missing-fields badge now keys off the subcontractor
+  selection instead of the truck.
 - **Modal focus fix (ModalShell / SlideInPanel)** — modals no longer steal
   focus from inputs on every keystroke. The effect that focuses the modal
   container on open depended on `[open, onClose]`, and parent pages pass a

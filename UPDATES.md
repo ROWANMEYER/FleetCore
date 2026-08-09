@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v28); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v29); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -316,7 +316,16 @@ npx convex codegen     # Regenerate convex/_generated/ types
   (KPIs `LayoutGrid`, Revenue `TrendingUp`, Clients `Users`, Compare
   `GitCompareArrows`, Birthdays `Cake`), matching the app's bottom-tab-bar style;
   still fits the 375px viewport with zero scroll on every tab.
-- **SW cache** bumped to `fleetcore-v28`.
+- **Sheets: table-only mode** — replaced the fullscreen "Focus Mode" feature
+  with a table-only toggle. The header icon button (and the toolbar's "Table
+  only" button) hide the filter/sort chrome (sticky header, toolbar, filter
+  pills, KPI summary, clear-filters bar) so only the spreadsheet table is
+  visible. A floating teal **Restore** pill brings the controls back — it is
+  draggable anywhere on the screen and its position persists in localStorage
+  (`fleetcore-sheets-restore-pos`), matching the mobile sheets minimize/restore
+  UX. `Esc` also restores. Fullscreen mode (fixed viewport overlay, Focus Mode
+  title/badge, exit bar) was removed entirely.
+- **SW cache** bumped to `fleetcore-v29`.
 - **Dead dashboard components removed** — `src/components/dashboard/DashboardCard.tsx`,
   `operations/*` (`DrillDownPanel`, `EditRouteModal`, `KpiCard`, `LoadsTab`,
   `RevenueTab`), and `ceo/TrendIcon.tsx` had zero imports (the dashboard page

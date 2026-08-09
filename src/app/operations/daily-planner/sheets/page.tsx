@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useRef, useCallback} from"react";
+import { useState, useEffect, Suspense, useMemo, useRef} from"react";
 import { useQuery, useMutation} from"convex/react";
 import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
@@ -35,6 +35,13 @@ const OFFLINE_CACHE_KEY = "fleetcore-sheets-cache-v1";
 // local const caused a TDZ ReferenceError in the filters initializer, which
 // silently reset all filters on every visit).
 const SHEETS_UI_KEY = "fleetcore-sheets-ui-v1";
+// Floating restore pill — the user can drag it anywhere on the screen; its
+// position survives in localStorage so it stays where they left it (same UX
+// as the mobile sheets minimize/restore).
+const RESTORE_PILL_POS_KEY = "fleetcore-sheets-restore-pos";
+// Approximate pill size used to keep it on-screen after resize; the drag
+// handler clamps with the real measured size.
+const RESTORE_PILL_EST_SIZE = { w: 120, h: 40 };
 import {
  ResponsiveContainer,
  AreaChart,
@@ -998,10 +1005,10 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  const [showFilterDropdown, setShowFilterDropdown] = useState<string | null>(null);  const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [showTableGrid, setShowTableGrid] = useState(true);
-  const [showFocusMode, setShowFocusMode] = useState(false);
-  const [isFullscreenExiting, setIsFullscreenExiting] = useState(false);
-  const [isFullscreenEntered, setIsFullscreenEntered] = useState(false);
-  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Table-only mode: hides the filter/sort toolbar + header chrome so only the
+  // spreadsheet table is visible (same UX as the mobile minimize). The floating
+  // restore pill brings everything back.
+  const [tableOnly, setTableOnly] = useState(false);
  // Persisted UI state: density, search, filters survive page lifecycle
  // (SHEETS_UI_KEY is declared at module scope so earlier initializers can use it)
  const [tableDensity, setTableDensity] = useState<'comfortable' | 'compact'>(() => {
@@ -1238,58 +1245,94 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // have been removed to avoid conflicting writes. Migration: the next time the user
  // changes a column, the unified key writes the full state (including the old values).
 
- // Escape key exits fullscreen mode
+ // Escape restores the controls when in table-only mode
  useEffect(() => {
    const handleKeyDown = (e: KeyboardEvent) => {
-     if (e.key === 'Escape' && showFocusMode) {
-       exitFullscreen();
+     if (e.key === 'Escape' && tableOnly) {
+       setTableOnly(false);
      }
    };
    window.addEventListener('keydown', handleKeyDown);
    return () => window.removeEventListener('keydown', handleKeyDown);
- }, [showFocusMode]);
+ }, [tableOnly]);
 
- // Exit fullscreen with exit animation
- const exitFullscreen = useCallback(() => {
-   setIsFullscreenExiting(true);
-   exitTimerRef.current = setTimeout(() => {
-     setShowFocusMode(false);
-     setIsFullscreenExiting(false);
-     setIsFullscreenEntered(false);
-     exitTimerRef.current = null;
-   }, 200);
- }, []);
+ // ── Floating (draggable) restore pill ──────────────────────────────────────
+ const [restorePos, setRestorePos] = useState<{ x: number; y: number } | null>(() => {
+   if (typeof window === "undefined") return null;
+   try {
+     const raw = localStorage.getItem(RESTORE_PILL_POS_KEY);
+     if (raw) {
+       const parsed = JSON.parse(raw);
+       if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+         return { x: parsed.x, y: parsed.y };
+       }
+     }
+   } catch { /* ignore */ }
+   return null;
+ });
+ const restoreDragRef = useRef<{
+   startX: number;
+   startY: number;
+   origX: number;
+   origY: number;
+ } | null>(null);
+ const restoreDraggedRef = useRef(false);
+ const restoreLatestPosRef = useRef<{ x: number; y: number } | null>(null);
 
- // Clean up exit timer on unmount
- useEffect(() => {
-   return () => {
-     if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+ const persistRestorePos = () => {
+   const latest = restoreLatestPosRef.current;
+   if (!latest) return;
+   try {
+     localStorage.setItem(RESTORE_PILL_POS_KEY, JSON.stringify(latest));
+   } catch { /* ignore */ }
+ };
+
+ const handleRestorePillPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+   const rect = e.currentTarget.getBoundingClientRect();
+   restoreDragRef.current = {
+     startX: e.clientX,
+     startY: e.clientY,
+     origX: restorePos?.x ?? rect.left,
+     origY: restorePos?.y ?? rect.top,
    };
- }, []);
+   restoreDraggedRef.current = false;
+   e.currentTarget.setPointerCapture(e.pointerId);
+ };
 
- // Enter animation: two-step pattern for smooth fade-in
- useEffect(() => {
-   if (showFocusMode && !isFullscreenExiting) {
-     setIsFullscreenEntered(false);
-     const raf = requestAnimationFrame(() => {
-       requestAnimationFrame(() => {
-         setIsFullscreenEntered(true);
-       });
-     });
-     return () => cancelAnimationFrame(raf);
-   }
- }, [showFocusMode, isFullscreenExiting]);
+ const handleRestorePillPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+   const drag = restoreDragRef.current;
+   if (!drag) return;
+   const dx = e.clientX - drag.startX;
+   const dy = e.clientY - drag.startY;
+   if (Math.abs(dx) > 5 || Math.abs(dy) > 5) restoreDraggedRef.current = true;
+   const w = e.currentTarget.offsetWidth;
+   const h = e.currentTarget.offsetHeight;
+   const next = {
+     x: Math.max(0, Math.min(drag.origX + dx, Math.max(0, window.innerWidth - w))),
+     y: Math.max(0, Math.min(drag.origY + dy, Math.max(0, window.innerHeight - h))),
+   };
+   restoreLatestPosRef.current = next;
+   setRestorePos(next);
+ };
 
- // Lock body scroll when entering fullscreen mode
- useEffect(() => {
-   if (showFocusMode) {
-     const prev = document.body.style.overflow;
-     document.body.style.overflow = 'hidden';
-     return () => {
-       document.body.style.overflow = prev || '';
-     };
+ const handleRestorePillPointerUp = () => {
+   restoreDragRef.current = null;
+   persistRestorePos();
+ };
+
+ // Saved position re-clamped to the current viewport (resize / rotation);
+ // before the user has dragged anywhere, fall back to bottom-right.
+ const restorePillStyle = (() => {
+   if (!restorePos || typeof window === "undefined") {
+     return { right: 16, bottom: 16 } as React.CSSProperties;
    }
- }, [showFocusMode]);
+   const maxX = Math.max(0, window.innerWidth - RESTORE_PILL_EST_SIZE.w);
+   const maxY = Math.max(0, window.innerHeight - RESTORE_PILL_EST_SIZE.h);
+   return {
+     left: Math.max(0, Math.min(restorePos.x, maxX)),
+     top: Math.max(0, Math.min(restorePos.y, maxY)),
+   } as React.CSSProperties;
+ })();
 
  // Sort handler
  const handleSort = (column: string) => {
@@ -2719,21 +2762,6 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  setDashboardDrilldown(prev => ({ ...prev, status: { label: focusLabel, values: [mapped]}}));
 };
 
- const isFullscreenActive = showFocusMode || isFullscreenExiting;
- const isEnterPhase = showFocusMode && !isFullscreenExiting && !isFullscreenEntered;
-
- // Inline transition style for smooth enter/exit
- // Enter: first frame at opacity 0/scale 0.97, then transitions to 1
- // Exit: transitions to opacity 0/scale 0.97
- const fullscreenTransitionStyle: React.CSSProperties =
-   isFullscreenActive
-     ? {
-         opacity: isFullscreenExiting || isEnterPhase ? 0 : 1,
-         transform: isFullscreenExiting || isEnterPhase ? 'scale(0.97)' : 'scale(1)',
-         transition: 'opacity 200ms ease-in-out, transform 200ms ease-in-out',
-       }
-     : {};
-
  // ── Route detail overlay (shared desktop/mobile) ─────────────────────────
  // The route detail/edit side panel and the confirmation dialog are rendered
  // on BOTH the desktop grid and the mobile card view (tapping a mobile card
@@ -2878,10 +2906,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  }
 
  return (
- <div
-   className={`h-full min-h-0 flex flex-col ${isFullscreenActive ? 'fixed inset-0 z-50 bg-[var(--background)] overflow-y-auto' : 'relative'}`}
-   style={fullscreenTransitionStyle}
- >
+ <div className="h-full min-h-0 flex flex-col relative">
  {isOffline && (
  <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">
  <span aria-hidden>📴</span>
@@ -2890,6 +2915,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </span>
  </div>
  )}
+ {!tableOnly && (
  <div className="flex-shrink-0 space-y-4 relative">
  {/* Sticky Header Wrapper */}
  <div className={`${isHeaderCompact ?"sticky top-0 z-10" :"relative"} bg-[var(--card-bg)]/60 -mx-4 px-4 pt-4 pb-2 border-b border-[var(--card-border)] shadow-sm mb-4 rounded-b-xl`}>
@@ -2897,84 +2923,63 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div className="mb-4 flex items-center justify-between">
  <div className="flex items-center gap-3">
  <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
- {showFocusMode ? 'Sheets — Focus Mode' : 'Sheets'}
+ Sheets
  </h1>
- {showFocusMode && (
-   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm">
-     FULLSCREEN
-   </span>
- )}
  <p className="text-[var(--nav-text-color)] text-xs">
  Read-only operational view
  </p>
  </div>
  <div className="flex items-center gap-1.5">
- {/* Fullscreen toggle */}
+ {/* Table-only toggle: hide filters/sort, show just the table */}
  <button
-   onClick={() => showFocusMode ? exitFullscreen() : setShowFocusMode(true)}
-   className={`p-3 rounded-md transition-colors ${
-     showFocusMode
-       ? 'bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm'
-       : 'text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]'
-   }`}
-   title={showFocusMode ? "Exit fullscreen mode" : "Enter fullscreen mode"}
+   onClick={() => setTableOnly(true)}
+   className="p-3 rounded-md text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
+   title="Hide filters and sort — show only the table"
+   aria-label="Hide filters and sort (show only the table)"
  >
-   {showFocusMode ? (
-     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-       <polyline points="4 14 10 14 10 20"></polyline>
-       <polyline points="20 10 14 10 14 4"></polyline>
-       <line x1="14" y1="10" x2="21" y2="3"></line>
-       <line x1="3" y1="21" x2="10" y2="14"></line>
+   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+     <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+     <line x1="9" y1="3" x2="9" y2="21"></line>
+     <line x1="3" y1="9" x2="21" y2="9"></line>
+     <line x1="3" y1="15" x2="21" y2="15"></line>
+   </svg>
+ </button>
+ {/* KPI summary toggle */}
+ <button
+   onClick={() => setSummaryCollapsed((c) => !c)}
+   className={`p-3 rounded-md transition-colors ${
+     summaryCollapsed
+       ? "text-[var(--nav-text-color)] opacity-50"
+       : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"
+   }`}
+   title={summaryCollapsed ? "Show KPI/chart summary" : "Hide KPI/chart summary"}
+ >
+   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+     <line x1="12" y1="20" x2="12" y2="10"></line>
+     <line x1="18" y1="20" x2="18" y2="4"></line>
+     <line x1="6" y1="20" x2="6" y2="16"></line>
+   </svg>
+ </button>
+
+ {/* Collapse button */}
+ <button
+   onClick={() => setIsHeaderCompact(!isHeaderCompact)}
+   className="p-3 rounded-md text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
+   title={isHeaderCompact ?"Expand" :"Collapse"}
+ >
+   {isHeaderCompact ? (
+     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+       <polyline points="6 9 12 15 18 9"></polyline>
      </svg>
    ) : (
-     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-       <polyline points="15 3 21 3 21 9"></polyline>
-       <polyline points="9 21 3 21 3 15"></polyline>
-       <line x1="21" y1="3" x2="14" y2="10"></line>
-       <line x1="3" y1="21" x2="10" y2="14"></line>
+     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+       <polyline points="18 15 12 9 6 15"></polyline>
      </svg>
    )}
  </button>
- {/* KPI summary toggle (hidden in fullscreen) */}
- {!showFocusMode && (
-   <button
-     onClick={() => setSummaryCollapsed((c) => !c)}
-     className={`p-3 rounded-md transition-colors ${
-       summaryCollapsed
-         ? "text-[var(--nav-text-color)] opacity-50"
-         : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]"
-     }`}
-     title={summaryCollapsed ? "Show KPI/chart summary" : "Hide KPI/chart summary"}
-   >
-     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-       <line x1="12" y1="20" x2="12" y2="10"></line>
-       <line x1="18" y1="20" x2="18" y2="4"></line>
-       <line x1="6" y1="20" x2="6" y2="16"></line>
-     </svg>
-   </button>
- )}
-
- {/* Collapse button (hidden in fullscreen) */}
- {!showFocusMode && (
-   <button
-     onClick={() => setIsHeaderCompact(!isHeaderCompact)}
-     className="p-3 rounded-md text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] transition-colors"
-     title={isHeaderCompact ?"Expand" :"Collapse"}
-   >
-     {isHeaderCompact ? (
-       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-         <polyline points="6 9 12 15 18 9"></polyline>
-       </svg>
-     ) : (
-       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-         <polyline points="18 15 12 9 6 15"></polyline>
-       </svg>
-     )}
-   </button>
- )}
  </div>
  </div>  {/* B. Date selector & Export */}
-  {!showFocusMode && !isHeaderCompact && (
+  {!isHeaderCompact && (
   <div className="mb-3 overflow-x-auto pb-1">
  <div className="grid min-w-[1180px] grid-cols-12 gap-3">
  <div className="col-span-3 bg-[var(--card-bg)]/60 p-2.5 rounded-lg border border-[var(--card-border)] shadow-sm">
@@ -3226,23 +3231,19 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   <span className="text-[10px] font-semibold tracking-wider">{tableDensity === 'compact' ? 'Compact' : 'Comfort'}</span>
   </button>
   
-  {/* Focus Mode */}
+  {/* Table Only — hide filters/sort, show just the table */}
   <button
-  onClick={() => showFocusMode ? exitFullscreen() : setShowFocusMode(true)}
-  title={showFocusMode ? 'Exit fullscreen mode' : 'Enter fullscreen mode'}
-  className={`flex h-9 items-center gap-1.5 px-2.5 rounded-lg border transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-[#06B6D4] ${
-  showFocusMode
-  ? 'bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white border-transparent'
-  : 'border-[var(--card-border)] bg-[var(--card-bg)]/60 text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]'
-  }`}
+  onClick={() => setTableOnly(true)}
+  title="Hide filters and sort — show only the table"
+  className="flex h-9 items-center gap-1.5 px-2.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#06B6D4]"
   >
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-  <path d="M12 3l4 4-4 4"></path>
-  <path d="M8 7h12"></path>
-  <path d="M12 13l4 4-4 4"></path>
-  <path d="M8 17h12"></path>
+  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+  <line x1="9" y1="3" x2="9" y2="21"></line>
+  <line x1="3" y1="9" x2="21" y2="9"></line>
+  <line x1="3" y1="15" x2="21" y2="15"></line>
   </svg>
-  <span className="text-[10px] font-semibold tracking-wider">{showFocusMode ? 'Focus ON' : 'Focus'}</span>
+  <span className="text-[10px] font-semibold tracking-wider">Table only</span>
   </button>
   
   <div className="w-px h-6 bg-[var(--card-border)] mx-1"></div>
@@ -3359,7 +3360,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {/* KPI Summary Bar (TRAE-ADDED) */}
  {isMounted && !isLoading && (
  <>  {/* Expanded View */}
-  {!showFocusMode && !isHeaderCompact && !summaryCollapsed && (
+  {!isHeaderCompact && !summaryCollapsed && (
   <div className="mb-4">
  <div className="overflow-auto rounded-lg pb-1">
  <div className="grid min-h-[164px] min-w-[1240px] grid-cols-12 gap-2">
@@ -3596,7 +3597,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 )}
 
- {/* Compact View */}  {!showFocusMode && isHeaderCompact && (
+ {/* Compact View */}  {isHeaderCompact && (
   <div className="mb-4 overflow-x-auto">
  <div className="flex min-w-max items-stretch gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/40 p-2.5 shadow-sm">
  <div className="flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 px-2 py-1.5">
@@ -3766,7 +3767,13 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </button>
  </div>
  </div>
-)}  </div>  </div>  <SpreadsheetDataTable 
+)}
+  </div>
+  </div>
+  )}
+
+  <SpreadsheetDataTable 
+    className={tableOnly ? "flex-1 min-h-0" : undefined}
     routes={filteredRoutes || []} 
     density={tableDensity}
    updateLoadFields={({ routeId, loadIndex, patch }: any) => updateLoadFields({ routeId, loadIndex, patch, token })}
@@ -3786,29 +3793,32 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   }}
   />
 
- {/* ── Fullscreen exit bar (bottom of viewport) ── */}
- {showFocusMode && (
-   <div className="sticky bottom-0 left-0 right-0 z-40 flex items-center justify-center px-4 py-3">
-     <div className="flex items-center gap-3 px-5 py-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-md shadow-xl">
-       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#06B6D4]">
-         <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-         <line x1="8" y1="21" x2="16" y2="21"></line>
-         <line x1="12" y1="17" x2="12" y2="21"></line>
-       </svg>
-       <span className="text-xs text-[var(--nav-text-color)]">
-         <span className="hidden sm:inline">Press </span>
-         <kbd className="px-1.5 py-0.5 rounded bg-[var(--card-border)] text-[10px] font-mono font-bold text-[var(--foreground)]">Esc</kbd>
-         <span className="hidden sm:inline"> to exit fullscreen</span>
-       </span>
-       <div className="w-px h-4 bg-[var(--card-border)]"></div>
-       <button
-         onClick={exitFullscreen}
-         className="px-3 py-1 text-xs font-semibold rounded-md bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm hover:opacity-90 transition-opacity"
-       >
-         Exit Fullscreen
-       </button>
-     </div>
-   </div>
+ {/* ── Floating restore pill (table-only mode) — drag to move, tap to restore ── */}
+ {tableOnly && (
+   <button
+     onPointerDown={handleRestorePillPointerDown}
+     onPointerMove={handleRestorePillPointerMove}
+     onPointerUp={handleRestorePillPointerUp}
+     onPointerCancel={() => {
+       restoreDragRef.current = null;
+       persistRestorePos();
+     }}
+     onClick={() => {
+       if (!restoreDraggedRef.current) setTableOnly(false);
+     }}
+     aria-label="Restore filters and sort (drag to move)"
+     title="Restore filters and sort — drag to move, tap to restore"
+     className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
+     style={restorePillStyle}
+   >
+     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75">
+       <polyline points="15 3 21 3 21 9"></polyline>
+       <polyline points="9 21 3 21 3 15"></polyline>
+       <line x1="21" y1="3" x2="14" y2="10"></line>
+       <line x1="3" y1="21" x2="10" y2="14"></line>
+     </svg>
+     Restore
+   </button>
  )}
 
  {/* Route detail overlay + confirmation dialog — shared with the mobile view */}

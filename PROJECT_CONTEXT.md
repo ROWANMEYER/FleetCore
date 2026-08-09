@@ -916,7 +916,7 @@ Stored in `.env.local` (not committed). Convex deployment: `dev:quixotic-gopher-
 
 ### Service Worker (`public/sw.js`)
 
-- Versioned cache name `fleetcore-vN` (currently **v24**) — bump on every deploy
+- Versioned cache name `fleetcore-vN` (currently **v25**) — bump on every deploy
   that changes bundles.
 - Stale-while-revalidate for hashed assets; Convex/cross-origin never cached.
 - On SW update, open app windows are force-reloaded so new bundles appear immediately.

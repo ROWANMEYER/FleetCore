@@ -224,7 +224,7 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 4. PWA / Mobile
 
-- `public/sw.js` with versioned cache `fleetcore-vN` (currently v24); on update,
+- `public/sw.js` with versioned cache `fleetcore-vN` (currently v25); on update,
   open app windows are force-reloaded. Bump the `CACHE_NAME` on every deploy
   that changes bundles.
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
@@ -293,7 +293,13 @@ npx convex codegen     # Regenerate convex/_generated/ types
 - **Floating restore pill** — the sheets minimize Restore button is now
   draggable so the user can place it anywhere on screen; position persists in
   localStorage and is re-clamped on resize/rotation.
-- **SW cache** bumped to `fleetcore-v24`.
+- **Pull-to-refresh disabled** — dragging down at the top of a screen used
+  to reload the page and reset every drill-down/filter/panel the user had
+  open (they had to navigate back down to their data). `overscroll-behavior:
+  none` on html/body + `overscroll-y-contain` on the app scroller kill it in
+  Chrome; a document-level touch guard (scrollable-ancestor check, cached per
+  gesture) covers the rest. Scrolling itself is unaffected.
+- **SW cache** bumped to `fleetcore-v25`.
 - **Dead dashboard components removed** — `src/components/dashboard/DashboardCard.tsx`,
   `operations/*` (`DrillDownPanel`, `EditRouteModal`, `KpiCard`, `LoadsTab`,
   `RevenueTab`), and `ceo/TrendIcon.tsx` had zero imports (the dashboard page

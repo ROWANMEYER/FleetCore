@@ -115,6 +115,10 @@
 /* ─── Base styles ────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
+  /* Kill pull-to-refresh / overscroll bounce — the browser reload would wipe
+     all in-app state (drill-downs, filters, open panels) and dump the user
+     back at the default screen. Chrome honors this on the root element. */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -123,6 +127,7 @@ body {
   font-family: var(--font-body), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
 }
 
 /* ─── Glass card utility ─────────────────────────────────────────── */

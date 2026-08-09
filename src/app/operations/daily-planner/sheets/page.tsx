@@ -24,6 +24,7 @@ import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/
 import SpreadsheetDataTable from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
 import MobileSheetsView from"@/src/components/operations/daily-planner/MobileSheetsView";
 import { useIsMobile } from"@/src/hooks/useIsMobile";
+import { AnalyticsKpiCard } from"@/src/components/common/AnalyticsKpiCard";
 import { gradients } from"@/src/lib/design-tokens";
 
 // Offline cache key — last-fetched sheets data for read-only offline viewing
@@ -236,6 +237,521 @@ function TruckRevenueTrendChart({
  </div>
  );
 }
+
+// ZAR + unit helpers (module scope so both the sheets table and the route
+// detail/analytics components share them).
+const formatZAR = (value: number) => {
+// [HYDRATION SAFE] Use deterministic formatting
+const parts = value.toFixed(2).split(".");
+const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"");
+return`R ${integerPart},${parts[1]}`;
+};
+
+const unitMap: Record<string, string> = {
+tons:"t",
+pallets:"pallets",
+bales:"bales",
+bags:"bags",
+};
+
+// ── Route Analytics view ──────────────────────────────────────────────
+// Route-scoped analytics, mirroring the dashboard's Analytics Dashboard:
+ // KPI cards with progress bars, revenue trend for the truck's last 7
+ // routes, and a per-client revenue breakdown. Opened from the ANALYTICS
+ // button on the route detail card (desktop + mobile).
+function RouteAnalyticsView({ route, onBarClick }: { route: any; onBarClick: (route: any) => void }) {
+ const { token } = useAuth();
+ const region = useRegionArg();
+ const routeKm = Number(route.kilometers) || 0;
+ const loads = route.loads ?? [];
+ const totalRevenue = loads.reduce((sum: number, l: any) => {
+ const qty = parseNumberSafe(l.quantity);
+ const rate = parseNumberSafe(l.rate);
+ return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
+}, 0);
+ const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
+ const totalQty = loads.reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
+ const qtyUnit = loads[0]?.quantityType ||"t";
+
+ // Truck revenue trend (same query as the detail card)
+ const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
+ truckFleetNoStr: route.truckFleetNoStr ??"",
+ limit: 7,
+ token,
+ region,
+});
+ const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
+
+ // Per-client revenue breakdown from this route's loads (inline — tiny
+ // per-load computation; useMemo here trips the React Compiler's
+ // "existing memoization could not be preserved" on the fresh loads array)
+ const clientBreakdown = (() => {
+ const map = new Map<string, number>();
+ for (const l of loads) {
+ const qty = parseNumberSafe(l.quantity);
+ const rate = parseNumberSafe(l.rate);
+ const amt = calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
+ const key = l.client ||"Unknown";
+ map.set(key, (map.get(key) || 0) + amt);
+}
+ return [...map.entries()]
+ .map(([name, value]) => ({ name, value }))
+ .sort((a, b) => b.value - a.value);
+})();
+ const maxClientValue = Math.max(...clientBreakdown.map((c) => c.value), 1);
+
+ return (
+ <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
+ {/* ── Breadcrumb + status ── */}
+ <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
+ <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
+ <span className="px-3 py-1 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] text-[10px] font-bold">
+ {(route.status ||"planned").toUpperCase()}
+ </span>
+ </div>
+
+ {/* ── KPI cards with progress bars (mirrors dashboard analytics) ── */}
+ <div className="grid grid-cols-2 gap-2.5">
+ <AnalyticsKpiCard
+ label="Revenue"
+ badge="Total"
+ value={formatZAR(totalRevenue)}
+ valueClass="text-xl font-black text-emerald-400"
+ barPercent={(totalRevenue / Math.max(chartMax, 1)) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Distance"
+ badge="Coverage"
+ badgeClass="text-cyan-400"
+ value={`${routeKm.toLocaleString()} km`}
+ valueClass="text-xl font-black text-cyan-400"
+ barClass="bg-cyan-500"
+ barPercent={(routeKm / 5000) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Revenue/KM"
+ badge="Efficiency"
+ badgeClass="text-purple-400"
+ value={formatZAR(rPerKm)}
+ valueClass="text-xl font-black text-purple-400"
+ barClass="bg-purple-500"
+ barPercent={(rPerKm / 50) * 100}
+ />
+ <AnalyticsKpiCard
+ label="Load Weight"
+ badge={qtyUnit}
+ badgeClass="text-orange-400"
+ value={totalQty.toLocaleString()}
+ valueClass="text-xl font-black text-orange-400"
+ barClass="bg-orange-500"
+ barPercent={(totalQty / 34) * 100}
+ />
+ </div>
+
+ {/* ── Revenue trend (last 7 routes, this truck) ── */}
+ <TruckRevenueTrendChart
+ routes={recentRoutes}
+ chartMax={chartMax}
+ currentRouteId={route._id}
+ truckFleetNoStr={route.truckFleetNoStr}
+ onBarClick={onBarClick}
+ />
+
+ {/* ── Client revenue breakdown ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Revenue by Client</p>
+ {clientBreakdown.length === 0 ? (
+ <p className="text-xs text-[var(--nav-text-color)] text-center py-4 italic">No loads</p>
+) : (
+ <div className="space-y-3">
+ {clientBreakdown.map((c) => (
+ <div key={c.name}>
+ <div className="flex items-center justify-between text-xs mb-1">
+ <span className="font-semibold truncate">{c.name}</span>
+ <span className="font-black text-[#06B6D4]">{formatZAR(c.value)}</span>
+ </div>
+ <div className="w-full bg-[var(--card-border)] rounded-full h-1.5">
+ <div className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] h-1.5 rounded-full" style={{ width:`${(c.value / maxClientValue) * 100}%` }} />
+ </div>
+ </div>
+))}
+ </div>
+)}
+ </div>   </div>
+ );
+}
+
+
+function RouteDetailsCard({
+ route,
+ isLocked,
+ mode ="primary",
+ onDrillDown,
+ onAnalytics,
+ actionLoading,
+ onStatusChange,
+ onDelete,
+ onEdit
+}: {
+ route: any;
+ isLocked: boolean;
+ mode?:"primary" |"secondary";
+ onDrillDown?: (route: any) => void;
+ onAnalytics?: () => void;
+ actionLoading: string | null;
+ onStatusChange: (routeId: Id<"dailyRoutes">, action:"complete" |"lock" |"unlock") => void;
+ onDelete: (routeId: Id<"dailyRoutes">) => void;
+ onEdit: () => void;
+}) {
+ const status = route.status ||"planned";
+ const { token } = useAuth();
+ const region = useRegionArg();
+ const { addToast } = useToast();
+ const trucks = useQuery(api.fleet.getTrucks, {});
+ const trailers = useQuery(api.fleet.getTrailers, {});
+ const customers = useQuery(api.customers.list, {});
+ const appSettings = useQuery(api.settings.getAppSettings);
+ const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+ const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+ const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
+ const [currentInvoiceData, setCurrentInvoiceData] = useState<InvoiceData | null>(null);
+
+ // Resolve assets
+ const truck = trucks?.find(t => t.truckFleetNo === route.truckFleetNoStr);
+ const truckReg = truck?.registration ||"";
+ const trailer = trailers?.find(t =>
+ String(t.trailerFleetNo) === route.trailerFleetNoStr || t.trailerFleetNoStr === route.trailerFleetNoStr
+);
+ const trailerType = trailer?.type ||"";
+ const trailerLength = (trailer as any)?.trailers?.[0]?.length || (trailer as any)?.length ||"";
+
+ // Derived metrics
+ const routeKm = Number(route.kilometers) || 0;
+ const totalRevenue = (route.loads ?? []).reduce((sum: number, l: any) => {
+ const qty = parseNumberSafe(l.quantity);
+ const rate = parseNumberSafe(l.rate);
+ return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
+}, 0);
+ const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
+ const totalQty = (route.loads ?? []).reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
+ const qtyUnit = route.loads?.[0]?.quantityType ||"t";
+ const maxCapacity = qtyUnit ==="bales" ? 490 : 34; // 490 bales or 34 tons
+ const capacityLabel = qtyUnit ==="bales" ?"bales" :"T";
+ const allFroms = [...new Set((route.loads ?? []).flatMap((l: any) => l.fromLocations ?? []))];
+ const allTos = [...new Set((route.loads ?? []).flatMap((l: any) => l.toLocations ?? []))];
+
+ // Last 7 routes for this truck (revenue chart)
+ const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
+ truckFleetNoStr: route.truckFleetNoStr ??"",
+ limit: 7,
+ token,
+ region,
+});
+ const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
+ const avgRevenue = recentRoutes && recentRoutes.length > 0
+ ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.rate) || 0), 0) / recentRoutes.length
+ : 0;
+
+ // Invoice helpers
+ const serializeInvoiceData = (data: any) => ({ ...data, date: data.date instanceof Date ? data.date.toISOString() : data.date});
+ const deserializeInvoiceData = (data: any) => ({ ...data, date: new Date(data.date)});
+ const saveInvoice = useMutation(api.invoices.getOrCreate);
+
+ const handleGenerateProforma = async () => {
+ const errors: string[] = [];
+ if (!route.client) errors.push("Client");
+ if (!route.rate || Number(route.rate) <= 0) errors.push("Rate");
+ const hasFrom = route.loads?.some((l: any) => l.fromLocations?.length > 0) || route.fromLocation;
+ const hasTo = route.loads?.some((l: any) => l.toLocations?.length > 0) || route.toLocations?.length > 0;
+ if (!hasFrom) errors.push("From location");
+ if (!hasTo) errors.push("To location");
+ if (!route.driverName) errors.push("Driver");
+ if (!route.truckFleetNoStr) errors.push("Truck");
+ if (errors.length > 0) { addToast(`Cannot generate invoice. Missing: ${errors.join(", ")}`, "error"); return;}
+ setIsGeneratingInvoice(true);
+ try {
+ const settings = appSettings as any;
+ const companySettings = settings ? {
+ companyName: settings.companyName,
+ companyPobox: settings.companyPobox,
+ companyCity: settings.companyCity,
+ companyPostal: settings.companyPostal,
+ companyPhone: settings.companyPhone,
+ companyFax: settings.companyFax,
+ vatNumber: settings.vatNumber,
+ defaultVatRate: settings.defaultVatRate,
+ bankName: settings.bankName,
+ accountNumber: settings.accountNumber,
+ branchCode: settings.branchCode,
+} : undefined;
+ const finalSnapshot = await saveInvoice({ routeId: route._id, invoiceData: serializeInvoiceData(buildInvoiceData(route, customers, companySettings))});
+ const finalData = deserializeInvoiceData(finalSnapshot);
+ const doc = generateInvoicePDF(finalData);
+ setCurrentInvoiceData(finalData);
+ setCurrentPdfBlob(doc.output("blob"));
+ setIsInvoiceModalOpen(true);
+} catch { addToast("Failed to generate invoice.", "error");}
+ finally {
+ setIsGeneratingInvoice(false);
+}
+};
+
+ const statusColour = status ==="locked" ?"bg-[var(--card-bg)] text-[var(--foreground)] border-[var(--card-border)]"
+ : status ==="completed" ?"bg-green-50 text-green-700 border-green-300"
+ :"bg-blue-50 text-blue-700 border-blue-300";
+ const statusLabel = status ==="locked" ?"● LOCKED" : status ==="completed" ?"● COMPLETED" :"● PLANNED";
+
+ return (
+ <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
+
+ {/* ── Breadcrumb + status ── */}
+ <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
+ <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
+ <span className={`px-3 py-1 rounded-full border text-[10px] font-bold ${statusColour}`}>{statusLabel}</span>
+ </div>
+
+ {/* ── Title + actions ── */}
+ <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+ <div className="min-w-0">
+ <h1 className="text-2xl font-black tracking-tight">
+ Truck {route.truckFleetNoStr}
+ <span className="text-[var(--nav-text-color)] font-light ml-2">/ Route Detail</span>
+ </h1>
+ <p className="text-xs text-[var(--nav-text-color)] mt-1 truncate">
+ {[truckReg, trailerType, trailerLength ?`${trailerLength}m` :"", route.routeDate, route.client].filter(Boolean).join(" ·")}
+ </p>
+ </div>
+ <div className="flex flex-col gap-2 sm:items-end sm:shrink-0">
+ {mode ==="primary" && (
+ <button onClick={onAnalytics}
+ className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold border border-[#06B6D4]/40 text-[#06B6D4] rounded-lg hover:bg-[rgba(6,182,212,0.08)] transition-colors">
+ <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+ <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+ </svg>
+ ANALYTICS
+ </button>
+ )}
+ {!isLocked && mode ==="primary" && (
+ <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:shrink-0">
+ {status ==="completed" && (
+ <button onClick={() => onStatusChange(route._id,"lock")}
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ LOCK ROUTE
+ </button>
+)}
+ {status ==="planned" && (
+ <button onClick={() => onStatusChange(route._id,"complete")}
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ COMPLETE
+ </button>
+)}
+ <button onClick={() => onEdit()}
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
+ EDIT
+ </button>
+ <button onClick={() => onDelete(route._id)} disabled={actionLoading === route._id}
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+ DELETE
+ </button>
+ </div>
+ )}
+ {isLocked && (
+ <button onClick={() => onStatusChange(route._id,"unlock")}
+ className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] sm:shrink-0">
+ UNLOCK
+ </button>
+ )}
+ </div>
+ </div>
+
+ {/* ── KPI strip ── */}
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+ {[  { label:"TOTAL REVENUE", value: formatZAR(totalRevenue), sub: null, accent:"border-l-cyan-500"},
+ { label:"DISTANCE", value:`${routeKm} km`, sub: allFroms[0] && allTos[0] ?`${allFroms[0]} → ${allTos[0]}` : null, accent:"border-l-green-500"},
+ { label:"LOAD WEIGHT", value:`${totalQty} ${unitMap[qtyUnit] || qtyUnit}`, sub: route.loads?.[0]?.rateType ==="flat" ?"Flat rate" : null, accent:"border-l-orange-400"},
+ { label:"R / KM", value:`R ${rPerKm.toFixed(2)}`, sub: rPerKm >= 30 ?"Efficient" : rPerKm > 0 ?"Below avg" :"—", accent:"border-l-purple-500"},
+].map((k) => (
+ <div key={k.label} className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3 border-l-4 ${k.accent}`}>
+ <p className="text-[10px] font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{k.label}</p>
+ <p className="text-lg font-black mt-1">{k.value}</p>
+ {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5 truncate">{k.sub}</p>}
+ </div>
+))}
+ </div>
+
+ {/* ── Revenue chart + Load gauge ── */}
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ {/* Revenue last 7 routes */}
+ <TruckRevenueTrendChart
+ routes={recentRoutes}
+ chartMax={chartMax}
+ currentRouteId={route._id}
+ truckFleetNoStr={route.truckFleetNoStr}
+ onBarClick={onDrillDown}
+ legend={
+ <>
+ <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> Revenue (R)</span>
+ <span className="flex items-center gap-1"><span className="w-3 h-1 bg-yellow-400 inline-block" /> Avg {formatZAR(avgRevenue)}</span>
+ </>
+ }
+ />
+
+ {/* Load vs capacity gauge */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <div className="flex items-center justify-between w-full mb-3">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Load vs Capacity</p>
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)]">{totalQty} {capacityLabel} / {maxCapacity} {capacityLabel}</span>
+ </div>
+ {/* Gauge + readout — side-by-side on phones, stacked on desktop */}
+ <div className="flex flex-row sm:flex-col items-center justify-center gap-4 sm:gap-0">
+ <div className="relative w-28 h-14 overflow-hidden shrink-0">
+ <div className="absolute inset-0 rounded-t-full border-8 border-[var(--card-border)]" style={{ borderBottomColor:"transparent"}} />
+ <div
+ className="absolute inset-0 rounded-t-full border-8 border-[#06B6D4] transition-all"
+ style={{
+ borderBottomColor:"transparent",
+ clipPath:`inset(0 ${100 - Math.min((totalQty / maxCapacity) * 100, 100)}% 0 0)`,
+ }}
+ />
+ </div>
+ <div className="sm:text-center">
+ <p className="text-2xl font-black text-[#06B6D4] sm:mt-1">{Math.round((totalQty / maxCapacity) * 100)}%</p>
+ <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5">
+ {totalQty >= maxCapacity ?"Full load · optimal utilisation" :`${(maxCapacity - totalQty).toFixed(1)} ${capacityLabel} remaining capacity`}
+ </p>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ {/* ── Route profile ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Route Profile</p>
+
+ {/* Journey line */}
+ <div className="relative mb-1">
+ <div className="h-1.5 bg-[var(--card-bg)] rounded-full">            <div className="h-1.5 bg-[#06B6D4] rounded-full w-full" />
+ </div>            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#06B6D4] border-2 border-white shadow" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#06B6D4] border-2 border-white shadow" />
+ </div>
+ <div className="flex justify-between text-xs font-semibold text-[var(--foreground)] mb-1">
+ <span>{allFroms.join(",") ||"—"}</span>
+ <span>{allTos.join(",") ||"—"}</span>
+ </div>
+ {routeKm > 0 && <p className="text-center text-[10px] text-[var(--nav-text-color)] mb-3">{routeKm} km total</p>}
+
+ {/* Loads table */}
+ <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
+ <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2 bg-[var(--card-bg)] text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider">
+ <div className="col-span-1">#</div>
+ <div className="col-span-3">Client</div>
+ <div className="col-span-2">From</div>
+ <div className="col-span-2">To</div>
+ <div className="col-span-1 text-right">Qty</div>
+ <div className="col-span-1 text-right">Rate</div>
+ <div className="col-span-2 text-right">Amount</div>
+ </div>
+ {(route.loads ?? []).length === 0 ? (
+ <p className="text-center text-xs text-[var(--nav-text-color)] py-4 italic">No loads</p>
+) : (
+ <>
+ {(route.loads ?? []).map((load: any, i: number) => {
+ const qty = parseNumberSafe(load.quantity);
+ const rate = parseNumberSafe(load.rate);
+ const amount = calculateLoadAmount(qty, rate, load.rateType ||"per_unit");
+ const unit = unitMap[load.quantityType] || load.quantityType ||"t";
+ return (
+ <div key={i}>
+ {/* Desktop grid row */}
+ <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2.5 text-xs border-t border-[var(--card-border)] hover:bg-[var(--card-bg)]">
+ <div className="col-span-1 text-[var(--nav-text-color)] font-mono">{String(i + 1).padStart(2,"0")}</div>
+ <div className="col-span-3 font-semibold truncate">{load.client}</div>
+ <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.fromLocations ?? []).join(",")}</div>
+ <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.toLocations ?? []).join(",")}</div>
+ <div className="col-span-1 text-right">{qty} {unit}</div>
+ <div className="col-span-1 text-right text-[var(--nav-text-color)]">{load.rateType ==="flat" ?"Flat" : formatZAR(rate)}</div>
+ <div className="col-span-2 text-right font-bold text-[#06B6D4]">{formatZAR(amount)}</div>
+ </div>
+ {/* Mobile stacked row */}
+ <div className="sm:hidden px-3 py-3 border-t border-[var(--card-border)] flex items-start justify-between gap-3">
+ <div className="min-w-0">
+ <div className="flex items-center gap-2">
+ <span className="text-[10px] font-mono text-[var(--nav-text-color)] shrink-0">{String(i + 1).padStart(2,"0")}</span>
+ <span className="text-xs font-semibold truncate">{load.client || "—"}</span>
+ </div>
+ <div className="text-[11px] text-[var(--nav-text-color)] mt-0.5 truncate">
+ {(load.fromLocations ?? []).join(", ") || "—"} → {(load.toLocations ?? []).join(", ") || "—"}
+ </div>
+ </div>
+ <div className="text-right shrink-0">
+ <div className="text-xs font-black text-[#06B6D4]">{formatZAR(amount)}</div>
+ <div className="text-[10px] text-[var(--nav-text-color)] mt-0.5">{qty} {unit} · {load.rateType === "flat" ? "Flat" : formatZAR(rate)}</div>
+ </div>
+ </div>
+ </div>
+);
+})}
+ </>
+)}
+ </div>
+ </div>
+
+ {/* ── Invoice + Asset card ── */}
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ {/* Invoice */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 flex items-center justify-between gap-3">
+ <div className="min-w-0">
+ <p className="text-sm font-bold mb-1">Invoice ready</p>
+ <p className="text-[10px] text-[var(--nav-text-color)] truncate">{route.client ||"—"}</p>
+ </div>
+ <button onClick={handleGenerateProforma} disabled={isGeneratingInvoice || !appSettings || !customers}
+ className="shrink-0 px-4 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] disabled:opacity-50">
+ {isGeneratingInvoice ? "Generating…" : !appSettings || !customers ? "Loading…" : "PDF"}
+ </button>
+ </div>
+
+ {/* Asset card */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <div className="flex items-center gap-3 mb-3">  <div className="w-8 h-8 bg-[rgba(6,182,212,0.08)] rounded-lg flex items-center justify-center text-[#06B6D4] text-lg">🚛</div>
+ <div>
+ <p className="text-sm font-bold">{truckReg || route.truckFleetNoStr}</p>
+ <p className="text-[10px] text-[var(--nav-text-color)] truncate">{[trailerType, trailerLength ?`${trailerLength} metre` :"",`Truck ${route.truckFleetNoStr}`].filter(Boolean).join(" ·")}</p>
+ </div>
+ </div>
+ <div className="grid grid-cols-3 gap-2 text-center">
+ <div>
+ <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Routes (30D)</p>
+ <p className="text-base font-black">{recentRoutes?.length ??"—"}</p>
+ </div>
+ <div>
+ <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Total KM</p>
+ <p className="text-base font-black">{recentRoutes ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.kilometers) || 0), 0).toLocaleString() :"—"}</p>
+ </div>
+ <div>
+ <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Utilisation</p>
+ <p className="text-base font-black">{Math.round((totalQty / maxCapacity) * 100)}%</p>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ {route.notes && (
+ <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+ <span className="font-bold">Notes: </span>{route.notes}
+ </div>
+)}
+
+ {isInvoiceModalOpen && currentInvoiceData && currentPdfBlob && (
+ <InvoiceDeliveryPanel
+ invoiceData={currentInvoiceData}
+ pdfBlob={currentPdfBlob}
+ onClose={() => setIsInvoiceModalOpen(false)}
+ />
+)}   </div>
+ );
+}
+
+
 
 type TableColumnKey =
  |"select"
@@ -1363,8 +1879,6 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  const trucks = useQuery(api.fleet.getTrucks, {});
  const trailers = useQuery(api.fleet.getTrailers, {});
  const drivers = useQuery(api.fleet.getDrivers, {});
- const customers = useQuery(api.customers.list, {});
- const appSettings = useQuery(api.settings.getAppSettings);
 
  // Helper to resolve Driver
  const getDriverDisplay = (driverName?: string) => {
@@ -1420,12 +1934,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  return driver ? driver.driverName : driverName;
 };
 
- const formatZAR = (value: number) => {
- // [HYDRATION SAFE] Use deterministic formatting
- const parts = value.toFixed(2).split(".");
- const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,"");
- return`R ${integerPart},${parts[1]}`;
-};
+
 
  // Fleet-specific risk status computation (pure, no hooks/mutations)
  const getRouteRiskStatus = (route: any): { label: string; level:"red" |"yellow" |"green" |"blue"} => {
@@ -1481,12 +1990,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  return { label:"🟢 Clean", level:"green"};
 };
 
- const unitMap: Record<string, string> = {
- tons:"t",
- pallets:"pallets",
- bales:"bales",
- bags:"bags",
-};
+
 
  const getStatusBadge = (status?: string, routeId?: Id<"dailyRoutes">) => {
  // Default to"planned" if no status (backward compatibility)
@@ -1547,491 +2051,6 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 );
 }
-};
-
- // ── Route Analytics view ──────────────────────────────────────────────
- // Route-scoped analytics, mirroring the dashboard's Analytics Dashboard:
- // KPI cards with progress bars, revenue trend for the truck's last 7
- // routes, and a per-client revenue breakdown. Opened from the ANALYTICS
- // button on the route detail card (desktop + mobile).
- const RouteAnalyticsView = ({ route }: { route: any }) => {
- const routeKm = Number(route.kilometers) || 0;
- const loads = route.loads ?? [];
- const totalRevenue = loads.reduce((sum: number, l: any) => {
- const qty = parseNumberSafe(l.quantity);
- const rate = parseNumberSafe(l.rate);
- return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
-}, 0);
- const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
- const totalQty = loads.reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
- const qtyUnit = loads[0]?.quantityType ||"t";
-
- // Truck revenue trend (same query as the detail card)
- const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
- truckFleetNoStr: route.truckFleetNoStr ??"",
- limit: 7,
- token,
- region,
-});
- const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
-
- // Per-client revenue breakdown from this route's loads
- const clientBreakdown = useMemo(() => {
- const map = new Map<string, number>();
- for (const l of loads) {
- const qty = parseNumberSafe(l.quantity);
- const rate = parseNumberSafe(l.rate);
- const amt = calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
- const key = l.client ||"Unknown";
- map.set(key, (map.get(key) || 0) + amt);
-}
- return [...map.entries()]
- .map(([name, value]) => ({ name, value }))
- .sort((a, b) => b.value - a.value);
-}, [route]);
- const maxClientValue = Math.max(...clientBreakdown.map((c) => c.value), 1);
-
- return (
- <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
- {/* ── Breadcrumb + status ── */}
- <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
- <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
- <span className="px-3 py-1 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] text-[10px] font-bold">
- {(route.status ||"planned").toUpperCase()}
- </span>
- </div>
-
- {/* ── KPI cards with progress bars (mirrors dashboard analytics) ── */}
- <div className="grid grid-cols-2 gap-2.5">
- <div className="glass-card rounded-lg p-3">
- <div className="flex items-baseline justify-between mb-1.5">
- <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Revenue</h3>
- <span className="text-xs text-emerald-400 font-bold">Total</span>
- </div>
- <p className="text-xl font-black text-emerald-400">{formatZAR(totalRevenue)}</p>
- <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
- <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (totalRevenue / Math.max(chartMax, 1)) * 100)}%` }} />
- </div>
- </div>
- <div className="glass-card rounded-lg p-3">
- <div className="flex items-baseline justify-between mb-1.5">
- <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Distance</h3>
- <span className="text-xs text-cyan-400 font-bold">Coverage</span>
- </div>
- <p className="text-xl font-black text-cyan-400">{routeKm.toLocaleString()} km</p>
- <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
- <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (routeKm / 5000) * 100)}%` }} />
- </div>
- </div>
- <div className="glass-card rounded-lg p-3">
- <div className="flex items-baseline justify-between mb-1.5">
- <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Revenue/KM</h3>
- <span className="text-xs text-purple-400 font-bold">Efficiency</span>
- </div>
- <p className="text-xl font-black text-purple-400">{formatZAR(rPerKm)}</p>
- <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
- <div className="bg-purple-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (rPerKm / 50) * 100)}%` }} />
- </div>
- </div>
- <div className="glass-card rounded-lg p-3">
- <div className="flex items-baseline justify-between mb-1.5">
- <h3 className="text-xs font-semibold text-[var(--nav-text-color)] uppercase">Load Weight</h3>
- <span className="text-xs text-orange-400 font-bold">{qtyUnit}</span>
- </div>
- <p className="text-xl font-black text-orange-400">{totalQty.toLocaleString()}</p>
- <div className="mt-2 w-full bg-[var(--card-border)] rounded-full h-1.5">
- <div className="bg-orange-500 h-1.5 rounded-full" style={{ width:`${Math.min(100, (totalQty / 34) * 100)}%` }} />
- </div>
- </div>
- </div>
-
- {/* ── Revenue trend (last 7 routes, this truck) ── */}
- <TruckRevenueTrendChart
- routes={recentRoutes}
- chartMax={chartMax}
- currentRouteId={route._id}
- truckFleetNoStr={route.truckFleetNoStr}
- onBarClick={openPanel}
- />
-
- {/* ── Client revenue breakdown ── */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Revenue by Client</p>
- {clientBreakdown.length === 0 ? (
- <p className="text-xs text-[var(--nav-text-color)] text-center py-4 italic">No loads</p>
-) : (
- <div className="space-y-3">
- {clientBreakdown.map((c) => (
- <div key={c.name}>
- <div className="flex items-center justify-between text-xs mb-1">
- <span className="font-semibold truncate">{c.name}</span>
- <span className="font-black text-[#06B6D4]">{formatZAR(c.value)}</span>
- </div>
- <div className="w-full bg-[var(--card-border)] rounded-full h-1.5">
- <div className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] h-1.5 rounded-full" style={{ width:`${(c.value / maxClientValue) * 100}%` }} />
- </div>
- </div>
-))}
- </div>
-)}
- </div>
- </div>
-);
-};
-
- const RouteDetailsCard = ({
- route,
- isLocked,
- mode ="primary",
- onDrillDown,
- onAnalytics
-}: {
- route: any;
- isLocked: boolean;
- mode?:"primary" |"secondary";
- onDrillDown?: (route: any) => void;
- onAnalytics?: () => void;
-}) => {
- const status = route.status ||"planned";
- const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
- const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
- const [currentPdfBlob, setCurrentPdfBlob] = useState<Blob | null>(null);
- const [currentInvoiceData, setCurrentInvoiceData] = useState<InvoiceData | null>(null);
-
- // Resolve assets
- const truck = trucks?.find(t => t.truckFleetNo === route.truckFleetNoStr);
- const truckReg = truck?.registration ||"";
- const trailer = trailers?.find(t =>
- String(t.trailerFleetNo) === route.trailerFleetNoStr || t.trailerFleetNoStr === route.trailerFleetNoStr
-);
- const trailerType = trailer?.type ||"";
- const trailerLength = (trailer as any)?.trailers?.[0]?.length || (trailer as any)?.length ||"";
-
- // Derived metrics
- const routeKm = Number(route.kilometers) || 0;
- const totalRevenue = (route.loads ?? []).reduce((sum: number, l: any) => {
- const qty = parseNumberSafe(l.quantity);
- const rate = parseNumberSafe(l.rate);
- return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
-}, 0);
- const rPerKm = routeKm > 0 ? totalRevenue / routeKm : 0;
- const totalQty = (route.loads ?? []).reduce((sum: number, l: any) => sum + parseNumberSafe(l.quantity), 0);
- const qtyUnit = route.loads?.[0]?.quantityType ||"t";
- const maxCapacity = qtyUnit ==="bales" ? 490 : 34; // 490 bales or 34 tons
- const capacityLabel = qtyUnit ==="bales" ?"bales" :"T";
- const allFroms = [...new Set((route.loads ?? []).flatMap((l: any) => l.fromLocations ?? []))];
- const allTos = [...new Set((route.loads ?? []).flatMap((l: any) => l.toLocations ?? []))];
-
- // Last 7 routes for this truck (revenue chart)
- const recentRoutes = useQuery(api.dailyRoutes.getRecentRoutesByTruck, {
- truckFleetNoStr: route.truckFleetNoStr ??"",
- limit: 7,
- token,
- region,
-});
- const chartMax = recentRoutes ? Math.max(...recentRoutes.map((r: any) => Number(r.rate) || 0), 1) : 1;
- const avgRevenue = recentRoutes && recentRoutes.length > 0
- ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.rate) || 0), 0) / recentRoutes.length
- : 0;
-
- // Invoice helpers
- const serializeInvoiceData = (data: any) => ({ ...data, date: data.date instanceof Date ? data.date.toISOString() : data.date});
- const deserializeInvoiceData = (data: any) => ({ ...data, date: new Date(data.date)});
- const saveInvoice = useMutation(api.invoices.getOrCreate);
-
- const handleGenerateProforma = async () => {
- const errors: string[] = [];
- if (!route.client) errors.push("Client");
- if (!route.rate || Number(route.rate) <= 0) errors.push("Rate");
- const hasFrom = route.loads?.some((l: any) => l.fromLocations?.length > 0) || route.fromLocation;
- const hasTo = route.loads?.some((l: any) => l.toLocations?.length > 0) || route.toLocations?.length > 0;
- if (!hasFrom) errors.push("From location");
- if (!hasTo) errors.push("To location");
- if (!route.driverName) errors.push("Driver");
- if (!route.truckFleetNoStr) errors.push("Truck");
- if (errors.length > 0) { addToast(`Cannot generate invoice. Missing: ${errors.join(", ")}`, "error"); return;}
- setIsGeneratingInvoice(true);
- try {
- const settings = appSettings as any;
- const companySettings = settings ? {
- companyName: settings.companyName,
- companyPobox: settings.companyPobox,
- companyCity: settings.companyCity,
- companyPostal: settings.companyPostal,
- companyPhone: settings.companyPhone,
- companyFax: settings.companyFax,
- vatNumber: settings.vatNumber,
- defaultVatRate: settings.defaultVatRate,
- bankName: settings.bankName,
- accountNumber: settings.accountNumber,
- branchCode: settings.branchCode,
-} : undefined;
- const finalSnapshot = await saveInvoice({ routeId: route._id, invoiceData: serializeInvoiceData(buildInvoiceData(route, customers, companySettings))});
- const finalData = deserializeInvoiceData(finalSnapshot);
- const doc = generateInvoicePDF(finalData);
- setCurrentInvoiceData(finalData);
- setCurrentPdfBlob(doc.output("blob"));
- setIsInvoiceModalOpen(true);
-} catch { addToast("Failed to generate invoice.", "error");}
- finally {
- setIsGeneratingInvoice(false);
-}
-};
-
- const statusColour = status ==="locked" ?"bg-[var(--card-bg)] text-[var(--foreground)] border-[var(--card-border)]"
- : status ==="completed" ?"bg-green-50 text-green-700 border-green-300"
- :"bg-blue-50 text-blue-700 border-blue-300";
- const statusLabel = status ==="locked" ?"● LOCKED" : status ==="completed" ?"● COMPLETED" :"● PLANNED";
-
- return (
- <div className="p-4 space-y-4 sm:p-5 sm:space-y-5 text-[var(--foreground)]">
-
- {/* ── Breadcrumb + status ── */}
- <div className="flex items-center justify-between flex-wrap gap-2 text-[11px] text-[var(--nav-text-color)] font-medium uppercase tracking-wider">
- <span>Fleet › Routes › Truck {route.truckFleetNoStr} · {route.routeDate}</span>
- <span className={`px-3 py-1 rounded-full border text-[10px] font-bold ${statusColour}`}>{statusLabel}</span>
- </div>
-
- {/* ── Title + actions ── */}
- <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
- <div className="min-w-0">
- <h1 className="text-2xl font-black tracking-tight">
- Truck {route.truckFleetNoStr}
- <span className="text-[var(--nav-text-color)] font-light ml-2">/ Route Detail</span>
- </h1>
- <p className="text-xs text-[var(--nav-text-color)] mt-1 truncate">
- {[truckReg, trailerType, trailerLength ?`${trailerLength}m` :"", route.routeDate, route.client].filter(Boolean).join(" ·")}
- </p>
- </div>
- <div className="flex flex-col gap-2 sm:items-end sm:shrink-0">
- {mode ==="primary" && (
- <button onClick={onAnalytics}
- className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-bold border border-[#06B6D4]/40 text-[#06B6D4] rounded-lg hover:bg-[rgba(6,182,212,0.08)] transition-colors">
- <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
- <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
- </svg>
- ANALYTICS
- </button>
- )}
- {!isLocked && mode ==="primary" && (
- <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:shrink-0">
- {status ==="completed" && (
- <button onClick={() => handleStatusChange(route._id,"lock")}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
- LOCK ROUTE
- </button>
-)}
- {status ==="planned" && (
- <button onClick={() => handleStatusChange(route._id,"complete")}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
- COMPLETE
- </button>
-)}
- <button onClick={() => openEditView()}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)]">
- EDIT
- </button>
- <button onClick={() => handleDelete(route._id)} disabled={actionLoading === route._id}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
- DELETE
- </button>
- </div>
- )}
- {isLocked && (
- <button onClick={() => handleStatusChange(route._id,"unlock")}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] sm:shrink-0">
- UNLOCK
- </button>
- )}
- </div>
- </div>
-
- {/* ── KPI strip ── */}
- <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
- {[  { label:"TOTAL REVENUE", value: formatZAR(totalRevenue), sub: null, accent:"border-l-cyan-500"},
- { label:"DISTANCE", value:`${routeKm} km`, sub: allFroms[0] && allTos[0] ?`${allFroms[0]} → ${allTos[0]}` : null, accent:"border-l-green-500"},
- { label:"LOAD WEIGHT", value:`${totalQty} ${unitMap[qtyUnit] || qtyUnit}`, sub: route.loads?.[0]?.rateType ==="flat" ?"Flat rate" : null, accent:"border-l-orange-400"},
- { label:"R / KM", value:`R ${rPerKm.toFixed(2)}`, sub: rPerKm >= 30 ?"Efficient" : rPerKm > 0 ?"Below avg" :"—", accent:"border-l-purple-500"},
-].map((k) => (
- <div key={k.label} className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3 border-l-4 ${k.accent}`}>
- <p className="text-[10px] font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{k.label}</p>
- <p className="text-lg font-black mt-1">{k.value}</p>
- {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5 truncate">{k.sub}</p>}
- </div>
-))}
- </div>
-
- {/* ── Revenue chart + Load gauge ── */}
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
- {/* Revenue last 7 routes */}
- <TruckRevenueTrendChart
- routes={recentRoutes}
- chartMax={chartMax}
- currentRouteId={route._id}
- truckFleetNoStr={route.truckFleetNoStr}
- onBarClick={onDrillDown}
- legend={
- <>
- <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#06B6D4] inline-block" /> Revenue (R)</span>
- <span className="flex items-center gap-1"><span className="w-3 h-1 bg-yellow-400 inline-block" /> Avg {formatZAR(avgRevenue)}</span>
- </>
- }
- />
-
- {/* Load vs capacity gauge */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <div className="flex items-center justify-between w-full mb-3">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]">Load vs Capacity</p>
- <span className="text-[10px] font-bold text-[var(--nav-text-color)]">{totalQty} {capacityLabel} / {maxCapacity} {capacityLabel}</span>
- </div>
- {/* Gauge + readout — side-by-side on phones, stacked on desktop */}
- <div className="flex flex-row sm:flex-col items-center justify-center gap-4 sm:gap-0">
- <div className="relative w-28 h-14 overflow-hidden shrink-0">
- <div className="absolute inset-0 rounded-t-full border-8 border-[var(--card-border)]" style={{ borderBottomColor:"transparent"}} />
- <div
- className="absolute inset-0 rounded-t-full border-8 border-[#06B6D4] transition-all"
- style={{
- borderBottomColor:"transparent",
- clipPath:`inset(0 ${100 - Math.min((totalQty / maxCapacity) * 100, 100)}% 0 0)`,
- }}
- />
- </div>
- <div className="sm:text-center">
- <p className="text-2xl font-black text-[#06B6D4] sm:mt-1">{Math.round((totalQty / maxCapacity) * 100)}%</p>
- <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5">
- {totalQty >= maxCapacity ?"Full load · optimal utilisation" :`${(maxCapacity - totalQty).toFixed(1)} ${capacityLabel} remaining capacity`}
- </p>
- </div>
- </div>
- </div>
- </div>
-
- {/* ── Route profile ── */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Route Profile</p>
-
- {/* Journey line */}
- <div className="relative mb-1">
- <div className="h-1.5 bg-[var(--card-bg)] rounded-full">            <div className="h-1.5 bg-[#06B6D4] rounded-full w-full" />
- </div>            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#06B6D4] border-2 border-white shadow" />
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#06B6D4] border-2 border-white shadow" />
- </div>
- <div className="flex justify-between text-xs font-semibold text-[var(--foreground)] mb-1">
- <span>{allFroms.join(",") ||"—"}</span>
- <span>{allTos.join(",") ||"—"}</span>
- </div>
- {routeKm > 0 && <p className="text-center text-[10px] text-[var(--nav-text-color)] mb-3">{routeKm} km total</p>}
-
- {/* Loads table */}
- <div className="border border-[var(--card-border)] rounded-lg overflow-hidden">
- <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2 bg-[var(--card-bg)] text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-wider">
- <div className="col-span-1">#</div>
- <div className="col-span-3">Client</div>
- <div className="col-span-2">From</div>
- <div className="col-span-2">To</div>
- <div className="col-span-1 text-right">Qty</div>
- <div className="col-span-1 text-right">Rate</div>
- <div className="col-span-2 text-right">Amount</div>
- </div>
- {(route.loads ?? []).length === 0 ? (
- <p className="text-center text-xs text-[var(--nav-text-color)] py-4 italic">No loads</p>
-) : (
- <>
- {(route.loads ?? []).map((load: any, i: number) => {
- const qty = parseNumberSafe(load.quantity);
- const rate = parseNumberSafe(load.rate);
- const amount = calculateLoadAmount(qty, rate, load.rateType ||"per_unit");
- const unit = unitMap[load.quantityType] || load.quantityType ||"t";
- return (
- <div key={i}>
- {/* Desktop grid row */}
- <div className="hidden sm:grid sm:grid-cols-12 gap-1 px-3 py-2.5 text-xs border-t border-[var(--card-border)] hover:bg-[var(--card-bg)]">
- <div className="col-span-1 text-[var(--nav-text-color)] font-mono">{String(i + 1).padStart(2,"0")}</div>
- <div className="col-span-3 font-semibold truncate">{load.client}</div>
- <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.fromLocations ?? []).join(",")}</div>
- <div className="col-span-2 text-[var(--nav-text-color)] truncate">{(load.toLocations ?? []).join(",")}</div>
- <div className="col-span-1 text-right">{qty} {unit}</div>
- <div className="col-span-1 text-right text-[var(--nav-text-color)]">{load.rateType ==="flat" ?"Flat" : formatZAR(rate)}</div>
- <div className="col-span-2 text-right font-bold text-[#06B6D4]">{formatZAR(amount)}</div>
- </div>
- {/* Mobile stacked row */}
- <div className="sm:hidden px-3 py-3 border-t border-[var(--card-border)] flex items-start justify-between gap-3">
- <div className="min-w-0">
- <div className="flex items-center gap-2">
- <span className="text-[10px] font-mono text-[var(--nav-text-color)] shrink-0">{String(i + 1).padStart(2,"0")}</span>
- <span className="text-xs font-semibold truncate">{load.client || "—"}</span>
- </div>
- <div className="text-[11px] text-[var(--nav-text-color)] mt-0.5 truncate">
- {(load.fromLocations ?? []).join(", ") || "—"} → {(load.toLocations ?? []).join(", ") || "—"}
- </div>
- </div>
- <div className="text-right shrink-0">
- <div className="text-xs font-black text-[#06B6D4]">{formatZAR(amount)}</div>
- <div className="text-[10px] text-[var(--nav-text-color)] mt-0.5">{qty} {unit} · {load.rateType === "flat" ? "Flat" : formatZAR(rate)}</div>
- </div>
- </div>
- </div>
-);
-})}
- </>
-)}
- </div>
- </div>
-
- {/* ── Invoice + Asset card ── */}
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
- {/* Invoice */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 flex items-center justify-between gap-3">
- <div className="min-w-0">
- <p className="text-sm font-bold mb-1">Invoice ready</p>
- <p className="text-[10px] text-[var(--nav-text-color)] truncate">{route.client ||"—"}</p>
- </div>
- <button onClick={handleGenerateProforma} disabled={isGeneratingInvoice}
- className="shrink-0 px-4 py-2 text-xs font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] disabled:opacity-50">
- {isGeneratingInvoice ? "Generating…" : "PDF"}
- </button>
- </div>
-
- {/* Asset card */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <div className="flex items-center gap-3 mb-3">  <div className="w-8 h-8 bg-[rgba(6,182,212,0.08)] rounded-lg flex items-center justify-center text-[#06B6D4] text-lg">🚛</div>
- <div>
- <p className="text-sm font-bold">{truckReg || route.truckFleetNoStr}</p>
- <p className="text-[10px] text-[var(--nav-text-color)] truncate">{[trailerType, trailerLength ?`${trailerLength} metre` :"",`Truck ${route.truckFleetNoStr}`].filter(Boolean).join(" ·")}</p>
- </div>
- </div>
- <div className="grid grid-cols-3 gap-2 text-center">
- <div>
- <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Routes (30D)</p>
- <p className="text-base font-black">{recentRoutes?.length ??"—"}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Total KM</p>
- <p className="text-base font-black">{recentRoutes ? recentRoutes.reduce((s: number, r: any) => s + (Number(r.kilometers) || 0), 0).toLocaleString() :"—"}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--nav-text-color)] uppercase">Utilisation</p>
- <p className="text-base font-black">{Math.round((totalQty / maxCapacity) * 100)}%</p>
- </div>
- </div>
- </div>
- </div>
-
- {route.notes && (
- <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
- <span className="font-bold">Notes: </span>{route.notes}
- </div>
-)}
-
- {isInvoiceModalOpen && currentInvoiceData && currentPdfBlob && (
- <InvoiceDeliveryPanel
- invoiceData={currentInvoiceData}
- pdfBlob={currentPdfBlob}
- onClose={() => setIsInvoiceModalOpen(false)}
- />
-)}
- </div>
-);
 };
 
  const isLoading = routes === undefined || trucks === undefined || trailers === undefined || drivers === undefined;
@@ -2122,6 +2141,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {dateMode ==="single" && (
  <input
  type="date"
+ name="sheet-single-date"
  value={singleDate}
  onChange={handleSingleDateChange}
  className={compactDateInputClass}
@@ -2132,6 +2152,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <>
  <input
  type="date"
+ name="sheet-from-date"
  value={fromDate}
  onChange={(e) => setFromDate(e.target.value)}
  className={compactDateInputClass}
@@ -2139,6 +2160,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <span className="text-xs text-[var(--nav-text-color)]">to</span>
  <input
  type="date"
+ name="sheet-to-date"
  value={toDate}
  onChange={(e) => setToDate(e.target.value)}
  className={compactDateInputClass}
@@ -2149,6 +2171,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {dateMode ==="month" && (
  <input
  type="month"
+ name="sheet-month"
  value={selectedMonth}
  onChange={(e) => setSelectedMonth(e.target.value)}
  className={compactDateInputClass}
@@ -2760,9 +2783,19 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
              {panelView === "edit" ? (
                <EditRouteForm routeId={selectedRoute._id} onSuccess={backToDetail} onCancel={backToDetail} />
              ) : panelView === "analytics" ? (
-               <RouteAnalyticsView route={selectedRoute} />
+               <RouteAnalyticsView route={selectedRoute} onBarClick={openPanel} />
              ) : (
-               <RouteDetailsCard route={selectedRoute} isLocked={(selectedRoute.status ?? "planned") === "locked"} mode="primary" onDrillDown={openPanel} onAnalytics={openAnalyticsView} />
+               <RouteDetailsCard
+                 route={selectedRoute}
+                 isLocked={(selectedRoute.status ?? "planned") === "locked"}
+                 mode="primary"
+                 onDrillDown={openPanel}
+                 onAnalytics={openAnalyticsView}
+                 actionLoading={actionLoading}
+                 onStatusChange={handleStatusChange}
+                 onDelete={handleDelete}
+                 onEdit={openEditView}
+               />
              )}
            </div>
          </div>
@@ -2950,6 +2983,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <label className="flex items-center gap-2 cursor-pointer">
  <input
  type="radio"
+ name="sheet-date-mode"
  checked={dateMode ==="single"}
  onChange={() => setDateMode("single")}
  className="h-3 w-3 text-black focus:ring-[#06B6D4]"
@@ -2959,6 +2993,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <label className="flex items-center gap-2 cursor-pointer">
  <input
  type="radio"
+ name="sheet-date-mode"
  checked={dateMode ==="range"}
  onChange={() => setDateMode("range")}
  className="h-3 w-3 text-black focus:ring-[#06B6D4]"
@@ -2968,6 +3003,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <label className="flex items-center gap-2 cursor-pointer">
  <input
  type="radio"
+ name="sheet-date-mode"
  checked={dateMode ==="month"}
  onChange={() => setDateMode("month")}
  className="h-3 w-3 text-black focus:ring-[#06B6D4]"
@@ -2981,6 +3017,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div>
  <input
  type="date"
+ name="filter-single-date"
  value={singleDate}
  onChange={handleSingleDateChange}
  className="w-full border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
@@ -2995,6 +3032,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div>
  <input
  type="date"
+ name="filter-from-date"
  value={fromDate}
  onChange={(e) => setFromDate(e.target.value)}
  className="border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
@@ -3004,6 +3042,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div>
  <input
  type="date"
+ name="filter-to-date"
  value={toDate}
  onChange={(e) => setToDate(e.target.value)}
  className="border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
@@ -3023,6 +3062,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div>
  <input
  type="month"
+ name="filter-month"
  value={selectedMonth}
  onChange={(e) => setSelectedMonth(e.target.value)}
  className="w-full border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
@@ -3084,13 +3124,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   <circle cx="11" cy="11" r="8"></circle>
   <path d="M21 21l-4.35-4.35"></path>
   </svg>
-  <input
-  type="text"
-  placeholder="Search across all fields..."
-  value={quickSearch}
-  onChange={(e) => setQuickSearch(e.target.value)}
-  className="w-full pl-9 pr-3 h-11 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent transition-all"
-  />
+ <input
+ type="text"
+ name="sheet-quick-search"
+ placeholder="Search across all fields..."
+ value={quickSearch}
+ onChange={(e) => setQuickSearch(e.target.value)}
+ className="w-full pl-9 pr-3 h-11 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent transition-all"
+ />
   {quickSearch && (
   <button
   onClick={() => setQuickSearch('')}

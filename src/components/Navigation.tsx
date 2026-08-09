@@ -100,7 +100,6 @@ export default function Navigation() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <BirthdayBell />
             <RegionSwitcher compact />
             {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
           </div>

@@ -286,6 +286,17 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **No more sideways scrolling** — the app's main scroller is now
+  `overflow-x-hidden` (vertical-only scrolling everywhere), and the sheets /
+  input page roots got `overflow-x-clip` so their full-bleed `-mx-4` sticky
+  headers no longer inflate `scrollWidth` (that 16px overhang was what let the
+  page scroll left-right). Tables that need it keep their own internal
+  horizontal scroll.
+- **Bell replaces the dashboard region select** — on mobile the Dashboard's
+  region dropdown is gone (the region select now lives only in the top bar);
+  the compact birthday bell sits in the Dashboard filter row instead.
+- **Mobile top bar trimmed** — now only the app logo/name, the region select
+  and the day/night toggle (the bell moved to the Dashboard).
 - **Mobile dashboard: header removed + compact filters** — the Dashboard title
   row no longer renders on phones (desktop keeps its header). The region
   selector and the Day/Month/Range tabs now share a single compact row, the

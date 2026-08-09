@@ -133,8 +133,12 @@ function AppMain({ showApp, children }: { showApp: boolean; children: React.Reac
   const { minimized } = useMobileChrome();
 
   return (
+    // overflow-x-hidden: the app must only ever scroll vertically — cards,
+    // text and native selects must stay within the viewport width (native iOS
+    // selects can render wider than Chrome headless emulation). Inner
+    // scrollable tables keep their own overflow-auto wrappers.
     <main
-      className={`flex-1 min-w-0 relative flex flex-col overflow-auto overscroll-y-contain scrollbar-fleet ${
+      className={`flex-1 min-w-0 relative flex flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain scrollbar-fleet ${
         showApp && !minimized ? "pt-14 md:pt-0 pb-24 md:pb-0" : ""
       }`}
     >

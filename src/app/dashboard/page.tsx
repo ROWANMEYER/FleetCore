@@ -13,6 +13,7 @@ import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast} from"@/src/components/common/Toast";
 import { Cake, ChevronDown, GitCompareArrows, LayoutGrid, MapPin, TrendingUp, Users } from "lucide-react";
 import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
+import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 import { useIsMobile } from "@/src/hooks/useIsMobile";
 
@@ -57,13 +58,13 @@ const calcLoadAmount = (quantity: string, rate: string, rateType: string) => {
 type FilterMode ="day" |"month" |"range";
 
 function FilterBar({
- startDate, endDate, onChange, regionSlot,
+ startDate, endDate, onChange, mobileSlot,
 }: {
  startDate: string;
  endDate: string;
  onChange: (start: string, end: string) => void;
- /** Compact region selector shown only on mobile, merged into the tabs row. */
- regionSlot?: ReactNode;
+ /** Mobile-only slot merged into the tabs row (e.g. the birthday bell). */
+ mobileSlot?: ReactNode;
 }) {
  const [mode, setMode] = useState<FilterMode>("range");
 
@@ -84,11 +85,11 @@ function FilterBar({
 
  return (
  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
- {/* Mobile: region selector + mode tabs share a single row so the filter
-     area is as short as possible. The region slot is mobile-only; on lg+
-     the header row renders its own copy. */}
+ {/* Mobile: birthday bell + mode tabs share a single row so the filter area
+     is as short as possible. The slot is mobile-only — desktop has its own
+     bell in the sidebar. */}
  <div className="flex items-center gap-2 w-full sm:w-auto">
- {regionSlot && <div className="lg:hidden shrink-0">{regionSlot}</div>}
+ {mobileSlot && <div className="lg:hidden shrink-0">{mobileSlot}</div>}
  {/* mode tabs */}
  <div className={`glass-card flex rounded-xl p-1 gap-1 flex-1 sm:flex-none`}>
  {tabs.map((t) => (
@@ -1067,16 +1068,16 @@ function ProgressBar({ pct, colour}: { pct: number; colour: string}) {
    this screen. Admins pick All / Garden Route / Eastern Cape here (synced with
    the sidebar switcher); regional users are server-locked to their own region
    and see a read-only badge. */
-function RegionMasterFilter({ compact = false }: { compact?: boolean }) {
+function RegionMasterFilter() {
  const { user, regionFilter, setRegionFilter } = useAuth();
 
  if (!user) return null;
  if (user.role !== "admin") {
  const locked = user?.region ?? null;
  return (
- <div className={`glass-card flex items-center ${compact ? "gap-1.5 rounded-lg px-2.5 py-1" : "gap-2 rounded-xl px-4 py-2.5"} shrink-0`} title="Your data is scoped to this region">
- <MapPin size={compact ? 12 : 14} className="text-[#06B6D4] shrink-0" />
- {!compact && <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>}
+ <div className="glass-card flex items-center gap-2 rounded-xl px-4 py-2.5 shrink-0" title="Your data is scoped to this region">
+ <MapPin size={14} className="text-[#06B6D4] shrink-0" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>
  <span className="text-sm font-black text-[var(--foreground)] capitalize">
  {locked ? locked.replace("_", " ") : "—"}
  </span>
@@ -1085,15 +1086,15 @@ function RegionMasterFilter({ compact = false }: { compact?: boolean }) {
  }
 
  return (
- <div className={`glass-card flex items-center ${compact ? "gap-1.5 rounded-lg pl-2 pr-1 py-1" : "gap-2 rounded-xl pl-3 pr-1 py-1.5"} shrink-0`}>
- <MapPin size={compact ? 12 : 14} className="text-[#06B6D4] shrink-0" />
- {!compact && <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>}
+ <div className="glass-card flex items-center gap-2 rounded-xl pl-3 pr-1 py-1.5 shrink-0">
+ <MapPin size={14} className="text-[#06B6D4] shrink-0" />
+ <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>
  <select
  value={regionFilter}
  onChange={(e) => setRegionFilter(e.target.value as RegionFilter)}
  aria-label="Dashboard region filter"
  title="Region — master filter for all dashboard data"
- className={`bg-transparent font-bold text-[var(--foreground)] py-1 pr-1 pl-1 focus:outline-none cursor-pointer ${compact ? "text-[13px]" : "text-sm"}`}
+ className="bg-transparent text-sm font-bold text-[var(--foreground)] py-1 pr-1 pl-1 focus:outline-none cursor-pointer"
  >
  <option value="all">All Regions</option>
  <option value="garden_route">Garden Route</option>
@@ -1238,7 +1239,7 @@ export default function DashboardPage() {
               startDate={startDate}
               endDate={endDate}
               onChange={(s, e) => { setStartDate(s); setEndDate(e);}}
-              regionSlot={<RegionMasterFilter compact />}
+              mobileSlot={<BirthdayBell compact />}
             />
  </div>
 

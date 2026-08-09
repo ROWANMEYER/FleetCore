@@ -2906,7 +2906,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  }
 
  return (
- <div className="h-full min-h-0 flex flex-col relative">
+ <div className="h-full min-h-0 flex flex-col relative overflow-x-clip">
  {isOffline && (
  <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">
  <span aria-hidden>📴</span>

@@ -17,7 +17,7 @@ const PANEL_H = 420; // upper bound (header + list + footer) for viewport clampi
  * the calendar. The bell intentionally ignores dismissals — it always shows
  * the full 7-day window (per spec).
  */
-export function BirthdayBell() {
+export function BirthdayBell({ compact = false }: { compact?: boolean }) {
   const { all, loading } = useBirthdays();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -52,9 +52,11 @@ export function BirthdayBell() {
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={`Upcoming birthdays: ${count}`}
-        className="relative flex items-center justify-center w-11 h-11 rounded-xl text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150 active:scale-95"
+        className={`relative flex items-center justify-center rounded-xl text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150 active:scale-95 ${
+          compact ? "w-9 h-9" : "w-11 h-11"
+        }`}
       >
-        <Bell size={20} strokeWidth={1.75} />
+        <Bell size={compact ? 16 : 20} strokeWidth={1.75} />
         {count > 0 && (
           <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-to-br from-[#F43F5E] to-[#E11D48] text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
             {count > 9 ? "9+" : count}

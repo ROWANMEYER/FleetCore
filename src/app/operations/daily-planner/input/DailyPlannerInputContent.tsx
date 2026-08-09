@@ -572,7 +572,7 @@ function DailyPlannerInputForm() {
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col relative">
+    <div className="h-full min-h-0 flex flex-col relative overflow-x-clip">
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 bg-[var(--card-bg)]/90 backdrop-blur-lg -mx-4 sm:-mx-8 px-4 sm:px-8 pt-3 sm:pt-6 pb-3 sm:pb-4 border-b border-[var(--card-border)] shadow-sm mb-6 -mt-4 sm:-mt-8">
         <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-[var(--foreground)]">

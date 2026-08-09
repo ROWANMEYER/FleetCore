@@ -234,12 +234,20 @@ async function main() {
           }
           return true;
         })(),
-        // A desktop-only RegionMasterFilter also lives in the (display:none on
-        // mobile) header row, so require exactly ONE VISIBLE select: proves the
-        // compact mobile slot inside the filter bar actually rendered.
-        regionFilterVisible:
+        // The dashboard itself no longer has a region select — it lives in the
+        // mobile top bar only (aria-label "Region filter"). The compact bell
+        // (BirthdayBell) sits in the dashboard filter row instead.
+        dashboardRegionSelectCount:
           [...document.querySelectorAll('select[aria-label="Dashboard region filter"]')]
-            .filter((s) => s.offsetParent !== null).length === 1,
+            .filter((s) => s.offsetParent !== null).length,
+        topBarRegionSelectVisible: (() => {
+          const sels = [...document.querySelectorAll('select[aria-label="Region filter"]')];
+          return sels.filter((s) => s.offsetParent !== null).length === 1;
+        })(),
+        bellVisible: (() => {
+          const bells = [...document.querySelectorAll('button[aria-label^="Upcoming birthdays"]')];
+          return bells.filter((b) => b.offsetParent !== null).length === 1;
+        })(),
         kpiGridWidth: kpiGrid ? Math.round(kpiGrid.getBoundingClientRect().width) : null,
         completionWidth: completion ? Math.round(completion.getBoundingClientRect().width) : null,
         filterTabPadding: pad ? pad.paddingLeft + '/' + pad.paddingTop : null,
@@ -268,8 +276,14 @@ async function main() {
   if (layout.titleVisible) {
     failures.push("mobile dashboard header (h1) should be hidden — remove the dashboard header on phones");
   }
-  if (!layout.regionFilterVisible) {
-    failures.push("dashboard region filter select should be visible exactly once on mobile");
+  if (layout.dashboardRegionSelectCount !== 0) {
+    failures.push(`dashboard should have no region filter select on mobile, found ${layout.dashboardRegionSelectCount}`);
+  }
+  if (!layout.topBarRegionSelectVisible) {
+    failures.push("top bar region filter select should be visible exactly once on mobile");
+  }
+  if (!layout.bellVisible) {
+    failures.push("birthday bell should be visible exactly once on the mobile dashboard");
   }
   if (layout.kpiGridWidth && layout.completionWidth) {
     if (layout.completionWidth < layout.kpiGridWidth * 0.9) {

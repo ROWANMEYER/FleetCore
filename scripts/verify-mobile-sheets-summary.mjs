@@ -7,6 +7,7 @@
  *   4. While the overlay is open the restore pill gains the summary-graph icon
  *   5. Tap the graph icon -> Route Summary bottom sheet (KPI cards + charts)
  *   6. Export row (Excel / CSV / JSON / PDF) -> click CSV -> file downloads
+ *      then click PDF -> the 1-page dashboard's save() fires (download artifact)
  *   7. Close the sheet; assert no console errors / horizontal overflow
  *
  * Reuses the launch/login/mobile-emulation plumbing from verify-mobile.mjs.
@@ -327,11 +328,21 @@ async function main() {
     8000
   );
   const exportButtons = await evalJs(`(() => {
-    const labels = ["Excel", "CSV", "JSON", "PDF"];
+    const labels = ["Excel", "CSV", "JSON"];
     return labels.every(l => [...document.querySelectorAll('button')].some(b => b.textContent.includes(l)));
   })()`);
-  step("7. Route Summary sheet opens (no revenue-by-route card)", iconClicked && sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pillBack,
-    sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pillBack ? "panel closed, pill returned, sheet header + KPI cards + status mix + 4 export buttons, no revenue-by-route" : `pillBack=${!!pillBack} header=${!!sheetHeader} exportLabel=${!!exportLabel} statusMix=${!!statusMix} revByRouteGone=${!!revenueByRouteGone} buttons=${!!exportButtons}`);
+  // The PDF button is relabeled "PDF Dashboard" (wraps to two lines on a 375px
+  // grid cell) — assert it renders and its content is not clipped by the h-14.
+  const pdfDashboard = await evalJs(`(() => {
+    const btns = [...document.querySelectorAll('button')];
+    // The label's textContent is the raw source text "PDF Dashboard" (the CSS
+    // uppercase only affects rendering) — match case-insensitively.
+    const pdf = btns.find(b => b.textContent.toLowerCase().includes("dashboard"));
+    if (!pdf) return { label: false, clipped: true };
+    return { label: true, clipped: pdf.scrollHeight > pdf.offsetHeight + 1 };
+  })()`);
+  step("7. Route Summary sheet opens (no revenue-by-route card)", iconClicked && sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pdfDashboard?.label && !pdfDashboard?.clipped && pillBack,
+    sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pdfDashboard?.label && !pdfDashboard?.clipped && pillBack ? "panel closed, pill returned, sheet header + KPI cards + status mix + export row (PDF button relabeled 'PDF Dashboard', not clipped), no revenue-by-route" : `pillBack=${!!pillBack} header=${!!sheetHeader} exportLabel=${!!exportLabel} statusMix=${!!statusMix} revByRouteGone=${!!revenueByRouteGone} buttons=${!!exportButtons} pdfLabel=${!!pdfDashboard?.label} pdfClipped=${!!pdfDashboard?.clipped}`);
 
   // ── Export: click CSV, expect a download ─────────────────────────────────
   const csvClicked = await clickContaining("CSV");
@@ -346,10 +357,26 @@ async function main() {
   }, 12000, 400);
   step("8. CSV export downloads", csvClicked && !!dlFile, dlFile ? `downloaded ${dlFile}` : "no CSV download captured");
 
+  // ── Export: click PDF, expect a download (the 1-page landscape dashboard) ─
+  // jsPDF's save() triggers a browser download; headless Chrome may capture it
+  // under a mangled name, so we assert that ANY new file appears in the dir.
+  const beforePdf = readdirSync(downloadDir).sort();
+  const pdfClicked = await clickContaining("PDF");
+  const pdfArtifact = await waitFor(() => {
+    try {
+      const now = readdirSync(downloadDir).sort();
+      const added = now.filter((x) => !beforePdf.includes(x));
+      return added.length > 0 ? added : null;
+    } catch {
+      return null;
+    }
+  }, 12000, 400);
+  step("9. PDF dashboard export fires", pdfClicked && !!pdfArtifact, pdfArtifact ? `PDF save() triggered — download artifact: ${pdfArtifact.join(", ")}` : "no download captured after clicking PDF");
+
   // ── Close the sheet ──────────────────────────────────────────────────────
   const closed = await clickBySelector('[aria-label="Close route summary"]');
   const sheetGone = await waitFor(() => evalJs(`!document.body.innerText.includes("Route Summary")`), 5000);
-  step("9. Sheet closes", closed && sheetGone, sheetGone ? "summary sheet closed" : "sheet still open");
+  step("10. Sheet closes", closed && sheetGone, sheetGone ? "summary sheet closed" : "sheet still open");
 
   // ── Layout / console assertions ──────────────────────────────────────────
   const layout = await evalJs(`(() => {
@@ -357,7 +384,7 @@ async function main() {
     return { innerWidth: window.innerWidth, scrollWidth: d.scrollWidth, overflowPx: d.scrollWidth - window.innerWidth };
   })()`);
   const overflow = layout.overflowPx > 0;
-  step("10. No horizontal overflow (375px)", !overflow, `${layout.overflowPx}px overflow (innerWidth ${layout.innerWidth})`);
+  step("11. No horizontal overflow (375px)", !overflow, `${layout.overflowPx}px overflow (innerWidth ${layout.innerWidth})`);
 
   const failures = [];
   for (const s of report.steps) if (!s.ok) failures.push(`${s.name}: ${s.details}`);

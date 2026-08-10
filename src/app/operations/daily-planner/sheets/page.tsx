@@ -3122,21 +3122,22 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
                  Export route data
                </p>
                <div className="grid grid-cols-4 gap-2">
-                 {([
-                   ["excel", "xlsx", "text-green-600", "Excel"],
-                   ["csv", "csv", "text-blue-600", "CSV"],
-                   ["json", "json", "text-yellow-600", "JSON"],
-                   ["pdf", "pdf", "text-red-600", "PDF"],
-                 ] as const).map(([type, ext, color, label]) => (
-                   <button
-                     key={type}
-                     onClick={() => handleExportVisibleRoutes(type)}
-                     className="flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--card-bg)] active:scale-[0.98] transition-all"
-                   >
-                     <span className={`${color} font-black text-sm leading-none`}>{ext}</span>
-                     <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
-                   </button>
-                 ))}
+                 {                   ([
+                     ["excel", "xlsx", "text-green-600", "Excel"],
+                     ["csv", "csv", "text-blue-600", "CSV"],
+                     ["json", "json", "text-yellow-600", "JSON"],
+                     ["pdf", "pdf", "text-red-600", "PDF Dashboard"],
+                   ] as const).map(([type, ext, color, label]) => (
+                     <button
+                       key={type}
+                       onClick={() => handleExportVisibleRoutes(type)}
+                       title={type === "pdf" ? "Export a 1-page PDF dashboard of the visible routes" : undefined}
+                       className="flex h-14 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--card-bg)] active:scale-[0.98] transition-all"
+                     >
+                       <span className={`${color} font-black text-sm leading-none`}>{ext}</span>
+                       <span className="text-[10px] font-semibold uppercase tracking-wide leading-tight text-center">{label}</span>
+                     </button>
+                   ))}
                </div>
              </div>
            </div>

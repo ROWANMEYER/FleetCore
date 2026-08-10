@@ -77,6 +77,9 @@ interface MobileSheetsViewProps {
   /** Opens the Route Summary sheet for the routes currently visible on
       screen (aggregate KPIs + export of all of them). */
   onOpenRouteSummary: () => void;
+  /** True while the route detail/edit/analytics panel is open on top — the
+      restore pill only belongs to the enlarged cards view, so it hides. */
+  routeDetailOpen: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -206,6 +209,7 @@ export default function MobileSheetsView({
   riskStatusOf,
   onRouteTap,
   onOpenRouteSummary,
+  routeDetailOpen,
 }: MobileSheetsViewProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -720,12 +724,13 @@ export default function MobileSheetsView({
         )}
       </div>
 
-      {/* ── Floating restore pill (visible only while minimized) — drag to
-             move it anywhere, tap to restore the toolbar and navigation. The
-             summary-graph icon is always part of the pill: tap it to open
-             the Route Summary sheet for the routes currently visible on
-             screen (aggregate KPIs + export, see the parent page). ── */}
-      {minimized && (
+      {/* ── Floating restore pill (visible only while minimized, and never
+             over a route detail panel) — drag to move it anywhere, tap to
+             restore the toolbar and navigation. The summary-graph icon is
+             always part of the pill: tap it to open the Route Summary sheet
+             for the routes currently visible on screen (aggregate KPIs +
+             export, see the parent page). ── */}
+      {minimized && !routeDetailOpen && (
         <div
           onPointerDown={handleRestorePillPointerDown}
           onPointerMove={handleRestorePillPointerMove}

@@ -8,7 +8,7 @@
  *   Step 1  Sheets screen (header + route cards)
  *   Step 2  Minimized view — floating Restore pill WITH the graph icon
  *           (available as soon as the screen is minimized, no route needed)
- *   Step 3  Route detail overlay open — icon still on the pill
+ *   Step 3  Route detail overlay open — restore pill hidden
  *   Step 4  Route Summary sheet (aggregate KPIs + charts + export row)
  *   Step 5  CSV export downloaded
  *
@@ -179,14 +179,18 @@ async function main() {
   await step(2, "Minimized with Restore pill + graph icon", () =>
     waitFor(() => evalJs(`(() => { const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Restore'); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`), 8000));
 
-  // ── Step 3: open a route — the icon stays (and the pill floats above the
-  //     detail/KPI view) ──
+  // ── Step 3: open a route — the restore pill must NOT float over the
+  //     detail/KPI view; it only belongs to the enlarged cards screen ──
   await clickSel(cardSel);
-  await step(3, "Route detail open, icon still on pill", async () => {
+  await step(3, "Route detail open (restore pill hidden)", async () => {
     const panel = await waitFor(() => evalJs(`!!document.querySelector('[data-testid="route-detail-panel"]')`), 10000);
-    const icon = await waitFor(() => evalJs(`(() => { const b = document.querySelector('[aria-label="Show route summary and export of visible routes"]'); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`), 8000);
-    return panel && icon;
+    const iconGone = await waitFor(() => evalJs(`(() => { const b = document.querySelector('[aria-label="Show route summary and export of visible routes"]'); if (!b) return true; const r = b.getBoundingClientRect(); return r.width === 0 || r.height === 0; })()`), 8000);
+    return panel && iconGone;
   });
+
+  // ── Step 3b: close the detail — the pill (with the graph icon) returns ──
+  await clickSel('[aria-label="Close panel"]');
+  await waitFor(() => evalJs(`(() => { const b = document.querySelector('[aria-label="Show route summary and export of visible routes"]'); if (!b) return false; const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`), 8000);
 
   // ── Step 4: tap the graph icon → Route Summary sheet (aggregate of the
   //     visible routes) ──

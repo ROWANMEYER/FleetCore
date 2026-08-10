@@ -284,17 +284,28 @@ async function main() {
   })()`), 8000);
   step("5. Summary-graph icon on pill as soon as minimized", !!graphIcon, graphIcon ? "graph icon visible with no route selected" : "graph icon missing");
 
-  // ── Open the route (detail overlay with KPI cards) — icon stays ──────────
+  // ── Open the route (detail overlay with KPI cards) — the pill must NOT
+  //    float over the detail view; it only belongs to the enlarged cards ────
   const opened = await clickBySelector('[aria-label="View details for Truck TEST-01"]');
   const panel = await waitForSelector('[data-testid="route-detail-panel"]', 10000);
   const kpis = await waitForText("TOTAL REVENUE", 10000);
-  const iconStill = await waitFor(() => evalJs(`(() => {
+  const pillHidden = await waitFor(() => evalJs(`(() => {
+    const b = document.querySelector(${JSON.stringify(GRAPH_ICON_SEL)});
+    if (!b) return true;
+    const r = b.getBoundingClientRect();
+    return r.width === 0 || r.height === 0;
+  })()`), 8000);
+  step("6. Route detail overlay open (pill hidden)", opened && panel && kpis && pillHidden, panel && kpis && pillHidden ? "panel + KPI strip visible, pill hidden" : `panel=${!!panel} kpis=${!!kpis} pillHidden=${!!pillHidden}`);
+
+  // ── Close the detail panel -> back on the enlarged cards view; the pill
+  //    (with the graph icon) returns ────────────────────────────────────────
+  await clickBySelector('[aria-label="Close panel"]');
+  const pillBack = await waitFor(() => evalJs(`(() => {
     const b = document.querySelector(${JSON.stringify(GRAPH_ICON_SEL)});
     if (!b) return false;
     const r = b.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   })()`), 8000);
-  step("6. Route detail overlay open (icon still on pill)", opened && panel && kpis && iconStill, panel && kpis && iconStill ? "panel + KPI strip + icon still present" : `panel=${!!panel} kpis=${!!kpis} icon=${!!iconStill}`);
 
   // ── Tap the graph icon -> Route Summary sheet (aggregate of visible) ─────
   const iconClicked = await clickBySelector(GRAPH_ICON_SEL);
@@ -314,8 +325,8 @@ async function main() {
     const labels = ["Excel", "CSV", "JSON", "PDF"];
     return labels.every(l => [...document.querySelectorAll('button')].some(b => b.textContent.includes(l)));
   })()`);
-  step("7. Route Summary sheet opens (aggregate of visible routes)", iconClicked && sheetHeader && exportLabel && aggregate && exportButtons,
-    sheetHeader && exportLabel && aggregate && exportButtons ? "sheet header + aggregate KPIs/charts + 4 export buttons" : `header=${!!sheetHeader} exportLabel=${!!exportLabel} aggregate=${!!aggregate} buttons=${!!exportButtons}`);
+  step("7. Route Summary sheet opens (aggregate of visible routes)", iconClicked && sheetHeader && exportLabel && aggregate && exportButtons && pillBack,
+    sheetHeader && exportLabel && aggregate && exportButtons && pillBack ? "panel closed, pill returned, sheet header + aggregate KPIs/charts + 4 export buttons" : `pillBack=${!!pillBack} header=${!!sheetHeader} exportLabel=${!!exportLabel} aggregate=${!!aggregate} buttons=${!!exportButtons}`);
 
   // ── Export: click CSV, expect a download ─────────────────────────────────
   const csvClicked = await clickContaining("CSV");

@@ -3109,6 +3109,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          riskStatusOf={getRouteRiskStatus}
          onRouteTap={openPanel}
          onOpenRouteSummary={() => setShowRouteSummary(true)}
+         routeDetailOpen={!!selectedRoute}
        />
        {routeDetailOverlay}
 

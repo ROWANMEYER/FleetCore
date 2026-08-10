@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { calculateLoadAmount } from "@/convex/utils";
+import { routeRevenue } from "@/convex/utils";
 import { useMobileChrome } from "@/src/components/MobileChromeContext";
 import {
   Search,
@@ -74,24 +74,13 @@ interface MobileSheetsViewProps {
   riskStatusOf: (route: any) => RiskStatus;
   /** Opens the shared route detail/edit panel (the page owns the panel state). */
   onRouteTap: (route: any) => void;
-  /** Route whose detail/KPI view is currently open on screen — the summary
-      graph icon on the restore pill targets this route (null = no overlay). */
-  selectedRoute: any | null;
-  /** Opens the summary + export sheet for the selected route. */
+  /** Opens the Route Summary sheet for the routes currently visible on
+      screen (aggregate KPIs + export of all of them). */
   onOpenRouteSummary: () => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function parseNumberSafe(value: unknown): number {
-  if (value == null) return 0;
-  const cleaned = String(value)
-    .replace(/[A-Za-z]/g, "")
-    .replace(/\s+/g, "")
-    .replace(/,/g, ".");
-  const n = parseFloat(cleaned);
-  return Number.isNaN(n) ? 0 : n;
-}
 
 // [HYDRATION SAFE] Deterministic ZAR formatting ("R 1 234,56"), matching the
 // rest of the app (never toLocaleString).
@@ -134,22 +123,6 @@ function uniqueTos(route: any): string[] {
   return [...new Set(tos.flatMap((l: any) => (l.toLocations ?? []) as string[]))];
 }
 
-// Route revenue — matches the desktop spreadsheet: the sum of load amounts, or
-// the route-level rate when the route has no loads.
-function routeRevenue(route: any): number {
-  const loads = route.loads ?? [];
-  if (loads.length === 0) return Number(route.rate) || 0;
-  return loads.reduce((sum: number, l: any) => {
-    return (
-      sum +
-      calculateLoadAmount(
-        parseNumberSafe(l.quantity),
-        parseNumberSafe(l.rate),
-        l.rateType || "per_unit"
-      )
-    );
-  }, 0);
-}
 
 // R / KM — identical to the desktop table column: route revenue ÷ kilometres
 // (0 when KM or revenue is missing, so the card just hides the badge).
@@ -232,7 +205,6 @@ export default function MobileSheetsView({
   syncDateToUrl,
   riskStatusOf,
   onRouteTap,
-  selectedRoute,
   onOpenRouteSummary,
 }: MobileSheetsViewProps) {
   const [showFilters, setShowFilters] = useState(false);
@@ -749,10 +721,10 @@ export default function MobileSheetsView({
       </div>
 
       {/* ── Floating restore pill (visible only while minimized) — drag to
-             move it anywhere, tap to restore the toolbar and navigation. When
-             a route's detail/KPI view is open on top of the screen, the pill
-             gains a summary-graph icon — tap it to open that route's summary
-             + export sheet (see the parent page). ── */}
+             move it anywhere, tap to restore the toolbar and navigation. The
+             summary-graph icon is always part of the pill: tap it to open
+             the Route Summary sheet for the routes currently visible on
+             screen (aggregate KPIs + export, see the parent page). ── */}
       {minimized && (
         <div
           onPointerDown={handleRestorePillPointerDown}
@@ -784,23 +756,21 @@ export default function MobileSheetsView({
             <ChevronDown size={14} strokeWidth={2.75} />
             Restore
           </button>
-          {selectedRoute && (
-            <button
-              type="button"
-              data-action="summary"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenRouteSummary();
-              }}
-              aria-label={`Route summary and export for Truck ${selectedRoute.truckFleetNoStr ?? ""}`}
-              title="Route summary & export"
-              className="inline-flex h-10 items-center justify-center gap-1.5 border-l border-white/30 pl-2.5 pr-3.5 touch-none transition-colors hover:bg-white/20 active:scale-95"
-            >
+          <button
+            type="button"
+            data-action="summary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenRouteSummary();
+            }}
+            aria-label="Show route summary and export of visible routes"
+            title="Route summary & export"
+            className="inline-flex h-10 items-center justify-center gap-1.5 border-l border-white/30 pl-2.5 pr-3.5 touch-none transition-colors hover:bg-white/20 active:scale-95"
+          >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2Zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z" />
               </svg>
             </button>
-          )}
         </div>
       )}
 

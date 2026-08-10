@@ -7,7 +7,7 @@ import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
 import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
-import { calculateLoadAmount} from"@/convex/utils";
+import { calculateLoadAmount, parseNumberSafe, routeRevenue} from"@/convex/utils";
 import { SkeletonLine, SkeletonKpiGrid} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast } from"@/src/components/common/Toast";
@@ -60,28 +60,15 @@ import {
  Tooltip,
 } from"recharts";
 
-function parseNumberSafe(value: unknown): number {
- if (value == null) return 0;
- const cleaned = String(value)
- .replace(/[A-Za-z]/g,"")
- .replace(/\s+/g,"")
- .replace(/,/g,".");
- const n = parseFloat(cleaned);
- return Number.isNaN(n) ? 0 : n;
-}
 
 // --- Export Utilities ---
+
 
 function mapSheetsToExportRows(sheets: any[]): SheetExportRow[] {
  return sheets.map((s) => {
  const routeKm = Number(s.kilometers) || 0;
  
- // Calculate total revenue from all loads (same as RouteDetailsCard)
- const totalRevenue = (s.loads ?? []).reduce((sum: number, l: any) => {
- const qty = parseNumberSafe(l.quantity);
- const rate = parseNumberSafe(l.rate);
- return sum + calculateLoadAmount(qty, rate, l.rateType ||"per_unit");
-}, 0);
+ const totalRevenue = routeRevenue(s); // matches the summary sheet & cards
  
  const amount = totalRevenue; // Actual total revenue from all loads
  const ratePerKm = routeKm > 0 ? Number((amount / routeKm).toFixed(2)) : 0;
@@ -434,6 +421,121 @@ function RouteAnalyticsView({ route, onBarClick }: { route: any; onBarClick: (ro
  );
 }
 
+
+// ── Aggregate route summary (mobile) ─────────────────────────────────────
+// Summarizes the routes currently visible on the mobile sheets screen:
+// aggregate KPI cards, per-route revenue bars (tap to drill into a route)
+// and a status mix. Opened from the graph icon on the restore pill, which
+// is always available once the screen is minimized.
+const SUMMARY_LEVEL_CLS: Record<string, string> = {
+ red: "bg-red-50 text-red-700 border-red-200",
+ yellow: "bg-amber-50 text-amber-700 border-amber-200",
+ green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+ blue: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
+function RoutesSummaryView({
+ routes,
+ riskStatusOf,
+ onBarClick,
+}: {
+ routes: any[];
+ riskStatusOf: (route: any) => { label: string; level: "red" | "yellow" | "green" | "blue" };
+ onBarClick: (route: any) => void;
+}) {
+ const totalRevenue = routes.reduce((s: number, r: any) => s + routeRevenue(r), 0);
+ const totalKm = routes.reduce((s: number, r: any) => s + (Number(r.kilometers) || 0), 0);
+ const rPerKm = totalKm > 0 ? totalRevenue / totalKm : 0;
+ const chartMax = Math.max(...routes.map(routeRevenue), 1);
+ const byRevenue = [...routes].sort((a: any, b: any) => routeRevenue(b) - routeRevenue(a));
+ const statusCounts = new Map<string, { count: number; level: "red" | "yellow" | "green" | "blue" }>();
+ for (const r of routes) {
+ const { label, level } = riskStatusOf(r);
+ const cur = statusCounts.get(label);
+ statusCounts.set(label, { count: (cur?.count ?? 0) + 1, level });
+}
+
+ if (routes.length === 0) {
+ return (
+ <div className="p-8 text-center">
+ <p className="text-sm font-semibold text-[var(--foreground)]">No routes to summarize</p>
+ <p className="text-xs text-[var(--nav-text-color)] mt-1">
+ There are no routes visible for the current filters and date.
+ </p>
+ </div>
+ );
+}
+
+ return (
+ <div className="p-4 space-y-4 text-[var(--foreground)]">
+ {/* ── Aggregate KPI cards ── */}
+ <div className="grid grid-cols-2 gap-2.5">
+ {[
+ { label: "ROUTES", value: String(routes.length), sub: "Visible", accent: "border-l-cyan-500" },
+ { label: "TOTAL REVENUE", value: formatZAR(totalRevenue), sub: "All loads", accent: "border-l-emerald-500" },
+ { label: "DISTANCE", value: `${totalKm.toLocaleString()} km`, sub: "Combined", accent: "border-l-green-500" },
+ { label: "REVENUE / KM", value: formatZAR(rPerKm), sub: rPerKm > 0 ? "Fleet average" : "—", accent: "border-l-purple-500" },
+ ].map((k) => (
+ <div key={k.label} className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3 border-l-4 ${k.accent}`}>
+ <p className="text-[10px] font-semibold text-[var(--nav-text-color)] uppercase tracking-wider">{k.label}</p>
+ <p className="text-lg font-black mt-1 truncate">{k.value}</p>
+ {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5 truncate">{k.sub}</p>}
+ </div>
+ ))}
+ </div>
+
+ {/* ── Revenue by route (tap a bar to open that route's detail) ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Revenue by Route</p>
+ <div className="space-y-2.5">
+ {byRevenue.map((r: any) => {
+ const rev = routeRevenue(r);
+ const pct = (rev / chartMax) * 100;
+ return (
+ <button
+ key={r._id}
+ type="button"
+ onClick={() => onBarClick(r)}
+ className="w-full text-left group"
+ title={`Open Truck ${r.truckFleetNoStr ?? ""}`}
+ >
+ <div className="flex items-center justify-between text-xs mb-1">
+ <span className="font-semibold truncate">
+ Truck {r.truckFleetNoStr ?? "—"}
+ <span className="text-[var(--nav-text-color)] font-medium ml-1.5">{r.routeDate?.slice(5) ?? ""}</span>
+ </span>
+ <span className="font-black text-[#06B6D4] tabular-nums">{formatZAR(rev)}</span>
+ </div>
+ <div className="w-full bg-[var(--card-border)] rounded-full h-2">
+ <div
+ className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] h-2 rounded-full transition-all group-hover:opacity-80"
+ style={{ width: `${Math.max(pct, 2)}%` }}
+ />
+ </div>
+ </button>
+ );
+ })}
+ </div>
+ </div>
+
+ {/* ── Status mix ── */}
+ <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+ <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Status Mix</p>
+ <div className="flex flex-wrap gap-1.5">
+ {[...statusCounts.entries()].map(([label, { count, level }]) => (
+ <span
+ key={label}
+ className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${SUMMARY_LEVEL_CLS[level] ?? "bg-[var(--card-bg)] text-[var(--nav-text-color)] border-[var(--card-border)]"}`}
+ >
+ {label}
+ <span className="font-black">{count}</span>
+ </span>
+ ))}
+ </div>
+ </div>
+ </div>
+ );
+}
 
 function RouteDetailsCard({
  route,
@@ -2552,15 +2654,16 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }
 };
 
- // Single-route export for the mobile route summary sheet — same exporters as
- // the toolbar dropdown, but scoped to the route currently open on screen.
- const handleExportRoute = (type: 'csv' | 'excel' | 'json' | 'pdf') => {
- if (!selectedRoute) return;
- const rows = mapSheetsToExportRows([selectedRoute]);
- const truck = selectedRoute.truckFleetNoStr ?? "";
- const rangeStr = selectedRoute.routeDate
- ?`Truck ${truck} · ${selectedRoute.routeDate}`
- :"Route Summary";
+ // Export for the mobile route summary sheet — same exporters as the toolbar
+ // dropdown, but scoped to the routes currently visible on screen.
+ const handleExportVisibleRoutes = (type: 'csv' | 'excel' | 'json' | 'pdf') => {
+ const rows = mapSheetsToExportRows(filteredRoutesMobile ?? []);
+ if (rows.length === 0) { addToast("No routes to export.", "error"); return; }
+ const rangeStr = dateMode === "single"
+ ? (singleDate || "Sheets")
+ : dateMode === "range"
+ ? (fromDate && toDate ?`${fromDate} to ${toDate}` :"Sheets")
+ : (selectedMonth || "Sheets");
  const timestamp = new Date().toLocaleString();
  try {
  if (type === 'csv') exportCSV(rows);
@@ -2568,7 +2671,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  else if (type === 'excel') exportExcelWithTemplate(rows, { dateRange: rangeStr, generatedAt: timestamp});
  else if (type === 'pdf') exportPDF(rows, { dateRange: rangeStr, generatedAt: timestamp});
  } catch {
- addToast("Failed to export route. See console for details.", "error");
+ addToast("Failed to export. See console for details.", "error");
 }
 };
 
@@ -3005,17 +3108,17 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          syncDateToUrl={syncDateToUrl}
          riskStatusOf={getRouteRiskStatus}
          onRouteTap={openPanel}
-         selectedRoute={selectedRoute}
          onOpenRouteSummary={() => setShowRouteSummary(true)}
        />
        {routeDetailOverlay}
 
-       {/* ── Route summary bottom sheet ──
-           Opened from the graph icon on the floating restore pill while a
-           route's detail/KPI view is maximized on screen. Reuses the route
-           analytics view (KPI cards + revenue charts + client breakdown) and
-           adds a per-route export row (CSV / Excel / JSON / PDF). */}
-       {showRouteSummary && selectedRoute && (
+       {/* ── Route Summary bottom sheet ──
+           Opened from the graph icon on the floating restore pill, which is
+           available as soon as the mobile screen is minimized. Summarizes the
+           routes currently visible on screen (aggregate KPIs, revenue by
+           route, status mix) and exports all of them (CSV / Excel / JSON /
+           PDF). */}
+       {showRouteSummary && (
          <div className="fixed inset-0 z-[70] flex flex-col justify-end">
            <div
              className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
@@ -3026,7 +3129,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
            >
              <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[var(--card-border)]">
-               <h3 className="text-base font-black tracking-tight text-[var(--foreground)]">Route Summary</h3>
+               <div className="min-w-0">
+                 <h3 className="text-base font-black tracking-tight text-[var(--foreground)]">Route Summary</h3>
+                 <p className="text-[11px] text-[var(--nav-text-color)] mt-0.5 truncate">
+                   {filteredRoutesMobile?.length ?? 0} route{(filteredRoutesMobile?.length ?? 0) === 1 ? "" : "s"} visible
+                 </p>
+               </div>
                <button
                  onClick={() => setShowRouteSummary(false)}
                  aria-label="Close route summary"
@@ -3040,8 +3148,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
              </div>
 
              <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
-               <RouteAnalyticsView
-                 route={selectedRoute}
+               <RoutesSummaryView
+                 routes={filteredRoutesMobile ?? []}
+                 riskStatusOf={getRouteRiskStatus}
                  onBarClick={(r) => {
                    setShowRouteSummary(false);
                    openPanel(r);
@@ -3062,7 +3171,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
                  ] as const).map(([type, ext, color, label]) => (
                    <button
                      key={type}
-                     onClick={() => handleExportRoute(type)}
+                     onClick={() => handleExportVisibleRoutes(type)}
                      className="flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--card-bg)] active:scale-[0.98] transition-all"
                    >
                      <span className={`${color} font-black text-sm leading-none`}>{ext}</span>

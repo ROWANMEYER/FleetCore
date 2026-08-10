@@ -265,6 +265,7 @@ async function main() {
   step("3. TEST-01 route card visible", !!routeCard, routeCard ? "found 'View details for Truck TEST-01'" : "route card missing — seed today's route first");
 
   // ── Minimize ─────────────────────────────────────────────────────────────
+  const GRAPH_ICON_SEL = '[aria-label="Show route summary and export of visible routes"]';
   const minimized = await clickBySelector('[aria-label="Minimize toolbar and navigation"]');
   const pill = await waitFor(() => evalJs(`(() => {
     const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === 'Restore');
@@ -274,23 +275,29 @@ async function main() {
   })()`), 8000);
   step("4. Minimize -> floating Restore pill", minimized && pill, pill ? "Restore pill visible" : "pill did not appear");
 
-  // ── Open the route (detail overlay with KPI cards) ───────────────────────
-  const opened = await clickBySelector('[aria-label="View details for Truck TEST-01"]');
-  const panel = await waitForSelector('[data-testid="route-detail-panel"]', 10000);
-  const kpis = await waitForText("TOTAL REVENUE", 10000);
-  step("5. Route detail overlay (KPI cards maximized)", opened && panel && kpis, panel && kpis ? "panel + KPI strip visible" : `panel=${!!panel} kpis=${!!kpis}`);
-
-  // ── Graph icon on the pill ───────────────────────────────────────────────
+  // ── Graph icon on the pill — available immediately, no route selected ────
   const graphIcon = await waitFor(() => evalJs(`(() => {
-    const b = document.querySelector('[aria-label="Route summary and export for Truck TEST-01"]');
+    const b = document.querySelector(${JSON.stringify(GRAPH_ICON_SEL)});
     if (!b) return false;
     const r = b.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   })()`), 8000);
-  step("6. Summary-graph icon on restore pill", !!graphIcon, graphIcon ? "graph icon visible while overlay open" : "graph icon missing");
+  step("5. Summary-graph icon on pill as soon as minimized", !!graphIcon, graphIcon ? "graph icon visible with no route selected" : "graph icon missing");
 
-  // ── Tap the graph icon -> Route Summary sheet ────────────────────────────
-  const iconClicked = await clickBySelector('[aria-label="Route summary and export for Truck TEST-01"]');
+  // ── Open the route (detail overlay with KPI cards) — icon stays ──────────
+  const opened = await clickBySelector('[aria-label="View details for Truck TEST-01"]');
+  const panel = await waitForSelector('[data-testid="route-detail-panel"]', 10000);
+  const kpis = await waitForText("TOTAL REVENUE", 10000);
+  const iconStill = await waitFor(() => evalJs(`(() => {
+    const b = document.querySelector(${JSON.stringify(GRAPH_ICON_SEL)});
+    if (!b) return false;
+    const r = b.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  })()`), 8000);
+  step("6. Route detail overlay open (icon still on pill)", opened && panel && kpis && iconStill, panel && kpis && iconStill ? "panel + KPI strip + icon still present" : `panel=${!!panel} kpis=${!!kpis} icon=${!!iconStill}`);
+
+  // ── Tap the graph icon -> Route Summary sheet (aggregate of visible) ─────
+  const iconClicked = await clickBySelector(GRAPH_ICON_SEL);
   const sheetHeader = await waitForText("Route Summary", 8000);
   // The label is styled with Tailwind's `uppercase`, so innerText reads
   // "EXPORT ROUTE DATA" — compare case-insensitively.
@@ -298,12 +305,17 @@ async function main() {
     () => evalJs(`document.body.innerText.toLowerCase().includes("export route data")`),
     8000
   );
+  // The heading is styled with Tailwind's `uppercase` — compare lowercase.
+  const aggregate = await waitFor(
+    () => evalJs(`document.body.innerText.toLowerCase().includes("revenue by route")`),
+    8000
+  );
   const exportButtons = await evalJs(`(() => {
     const labels = ["Excel", "CSV", "JSON", "PDF"];
     return labels.every(l => [...document.querySelectorAll('button')].some(b => b.textContent.includes(l)));
   })()`);
-  step("7. Route Summary sheet opens", iconClicked && sheetHeader && exportLabel && exportButtons,
-    sheetHeader && exportLabel && exportButtons ? "sheet header + KPI charts + 4 export buttons" : `header=${!!sheetHeader} exportLabel=${!!exportLabel} buttons=${!!exportButtons}`);
+  step("7. Route Summary sheet opens (aggregate of visible routes)", iconClicked && sheetHeader && exportLabel && aggregate && exportButtons,
+    sheetHeader && exportLabel && aggregate && exportButtons ? "sheet header + aggregate KPIs/charts + 4 export buttons" : `header=${!!sheetHeader} exportLabel=${!!exportLabel} aggregate=${!!aggregate} buttons=${!!exportButtons}`);
 
   // ── Export: click CSV, expect a download ─────────────────────────────────
   const csvClicked = await clickContaining("CSV");

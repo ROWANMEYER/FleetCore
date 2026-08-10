@@ -43,6 +43,8 @@ next-env.d.ts
 # local audit artifacts
 mobile-audit-report.json
 mobile-sheets-summary-report.json
+mobile-walkthrough-report.json
+mobile-walkthrough/
 
 .vercel
 .env*

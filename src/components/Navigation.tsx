@@ -19,7 +19,6 @@ import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { MobileTabBar } from "@/src/components/MobileTabBar";
 import { useMobileChrome } from "@/src/components/MobileChromeContext";
-import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
 const NAV_ITEMS = [
@@ -114,17 +113,20 @@ export default function Navigation() {
         aria-label="Navigation"
         className="hidden md:flex flex-col h-full glass-sidebar shrink-0 select-none transform-gpu transition-[width] duration-300 ease-in-out"
         style={{
-          width: collapsed ? 64 : 256,
+          // The collapsed rail is wide enough to keep the full FleetCore logo
+          // (mark + wordmark) visible — see the brand header below.
+          width: collapsed ? 168 : 256,
         }}
       >
-        {/* ─── Brand header ─────────────────────────────────── */}
+        {/* ─── Brand header (no bell — the FleetCore logo is the header) ── */}
         <div className="flex items-center h-14 px-4 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 overflow-hidden flex-1">
+          <div className="flex items-center gap-3 min-w-0 overflow-hidden">
             {/* Logo mark — teal-to-blue gradient square with bar-chart icon */}
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-lg shadow-[rgba(6,182,212,0.3)] shrink-0">
               <BarChart3 size={18} className="text-white" strokeWidth={2} />
             </div>
-            {/* Brand text */}
+            {/* Brand text — stays fully visible even when the sidebar is
+                collapsed, so the minimized rail still shows the whole logo */}
             <span
               className="font-[var(--font-heading)] font-bold text-base tracking-tight whitespace-nowrap"
               style={{
@@ -132,17 +134,10 @@ export default function Navigation() {
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
-                transition: `opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
-                opacity: collapsed ? 0 : 1,
-                maxWidth: collapsed ? 0 : 200,
-                overflow: "hidden",
               }}
             >
               FleetCore
             </span>
-          </div>
-          <div className="ml-auto pl-2">
-            <BirthdayBell />
           </div>
         </div>
 
@@ -162,6 +157,7 @@ export default function Navigation() {
                 className={`
                   group relative flex items-center gap-3 px-3 py-2.5 rounded-xl
                   transition-all duration-200
+                  ${collapsed ? "justify-center gap-0" : ""}
                   ${
                     active
                       ? "nav-item-active text-white font-bold"
@@ -192,11 +188,10 @@ export default function Navigation() {
                   {item.label}
                 </span>
 
-                {/* Collapsed tooltip */}
+                {/* Collapsed tooltip — label only, no pointer arrow */}
                 {collapsed && (
                   <div className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-[var(--foreground)] text-[var(--background)] text-xs font-medium whitespace-nowrap shadow-xl z-50 animate-fade-up-sm border border-[var(--card-border)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
                     {item.label}
-                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-[var(--foreground)]" />
                   </div>
                 )}
               </Link>

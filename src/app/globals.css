@@ -33,9 +33,9 @@
   --color-glass-light: rgba(255, 255, 255, 0.6);
   --color-glass-light-hover: rgba(255, 255, 255, 0.8);
 
-  /* Sidebar dimensions — the collapsed rail keeps the full FleetCore logo */
+  /* Sidebar dimensions — collapsed rail fits the enlarged nav icons */
   --spacing-sidebar-w: 256px;
-  --spacing-sidebar-w-collapsed: 168px;
+  --spacing-sidebar-w-collapsed: 72px;
 
   /* Animations */
   --animate-fade-up: fade-up 0.5s ease-out forwards;

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 // Desktop sidebar audit (1280x800): login, expand/collapse the sidebar and
-// assert the three sidebar changes — no birthday bell, no tooltip pointer
-// arrows on collapsed nav icons, and the full FleetCore logo (mark +
-// wordmark) stays visible when the sidebar is collapsed.
+// assert: no birthday bell, no tooltip pointer arrows on collapsed nav
+// icons, enlarged nav icons (22px), and the FleetCore wordmark hidden when
+// the sidebar is collapsed (icon-only rail with the logo mark).
 //
 // Usage: node scripts/verify-sidebar-desktop.mjs [baseUrl]
 //   baseUrl defaults to http://localhost:3000
@@ -185,22 +185,24 @@ async function main() {
     const expanded = await evalJs(`(() => {
       const aside = document.querySelector('aside[aria-label="Navigation"]');
       const wordmark = [...aside.querySelectorAll('span')].find(s => s.textContent.trim() === 'FleetCore');
+      const navIcon = aside ? aside.querySelector('nav svg') : null;
       return {
         width: aside ? Math.round(aside.getBoundingClientRect().width) : 0,
         wordmarkVisible: !!wordmark && wordmark.getBoundingClientRect().width > 40,
         bellPresent: !!aside.querySelector('[aria-label^="Upcoming birthdays"]'),
+        iconSize: navIcon ? Number(navIcon.getAttribute('width')) : 0,
       };
     })()`);
-    step("3. Expanded: width ~256, wordmark visible, no bell",
-      expanded.width >= 240 && expanded.width <= 270 && expanded.wordmarkVisible && !expanded.bellPresent,
-      `width=${expanded.width} wordmark=${expanded.wordmarkVisible} bell=${expanded.bellPresent}`);
+    step("3. Expanded: width ~256, wordmark visible, enlarged icons, no bell",
+      expanded.width >= 240 && expanded.width <= 270 && expanded.wordmarkVisible && !expanded.bellPresent && expanded.iconSize >= 20,
+      `width=${expanded.width} wordmark=${expanded.wordmarkVisible} iconSize=${expanded.iconSize} bell=${expanded.bellPresent}`);
     await shot("step-1-sidebar-expanded.png");
 
     // ── Collapse the sidebar ─────────────────────────────────────────────────
     await clickBySelector('[title="Collapse sidebar"]');
     const collapsed = await waitFor(
       () =>
-        evalJs(`(() => { const a = document.querySelector('aside[aria-label="Navigation"]'); if (!a) return null; const w = Math.round(a.getBoundingClientRect().width); return w <= 200 ? w : null; })()`),
+        evalJs(`(() => { const a = document.querySelector('aside[aria-label="Navigation"]'); if (!a) return null; const w = Math.round(a.getBoundingClientRect().width); return Math.abs(w - 72) <= 3 ? w : null; })()`),
       8000
     );
 
@@ -208,18 +210,18 @@ async function main() {
       const aside = document.querySelector('aside[aria-label="Navigation"]');
       const wordmark = [...aside.querySelectorAll('span')].find(s => s.textContent.trim() === 'FleetCore');
       const asideRect = aside ? aside.getBoundingClientRect() : null;
-      const wmRect = wordmark ? wordmark.getBoundingClientRect() : null;
+      const navIcon = aside ? aside.querySelector('nav svg') : null;
       return {
         width: asideRect ? Math.round(asideRect.width) : 0,
-        wordmarkVisible: !!wmRect && wmRect.width > 40 && wmRect.height > 0,
-        // Not clipped: the wordmark's right edge stays >= 4px inside the rail.
-        wordmarkFits: !!asideRect && !!wmRect && wmRect.right <= asideRect.right - 4 && wmRect.left >= asideRect.left + 4,
+        // Wordmark must be hidden when collapsed (fades to ~0 width).
+        wordmarkHidden: !!wordmark && wordmark.getBoundingClientRect().width < 5,
+        iconSize: navIcon ? Number(navIcon.getAttribute('width')) : 0,
         bellPresent: !!aside.querySelector('[aria-label^="Upcoming birthdays"]'),
         tooltipArrows: !!aside.querySelector('[class*="border-r-["]'),
       };
     })()`);
-    step("4. Collapsed: width ~168, full logo visible & unclipped", !!collapsed && coll.width >= 150 && coll.width <= 195 && coll.wordmarkVisible && coll.wordmarkFits,
-      `width=${coll.width} wordmark=${coll.wordmarkVisible} fits=${coll.wordmarkFits}`);
+    step("4. Collapsed: width ~72, wordmark hidden, enlarged icons", !!collapsed && coll.width >= 64 && coll.width <= 85 && coll.wordmarkHidden && coll.iconSize >= 20,
+      `width=${coll.width} wordmarkHidden=${coll.wordmarkHidden} iconSize=${coll.iconSize}`);
     step("5. Collapsed: no bell icon in sidebar", !coll.bellPresent, coll.bellPresent ? "bell still present" : "bell removed");
     step("6. Collapsed: no tooltip pointer arrows", !coll.tooltipArrows, coll.tooltipArrows ? "arrow element still rendered" : "no arrow elements");
     await shot("step-2-sidebar-collapsed.png");

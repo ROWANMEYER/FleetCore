@@ -113,9 +113,9 @@ export default function Navigation() {
         aria-label="Navigation"
         className="hidden md:flex flex-col h-full glass-sidebar shrink-0 select-none transform-gpu transition-[width] duration-300 ease-in-out"
         style={{
-          // The collapsed rail is wide enough to keep the full FleetCore logo
-          // (mark + wordmark) visible — see the brand header below.
-          width: collapsed ? 168 : 256,
+          // Collapsed rail fits the enlarged nav icons (icon-only — the
+          // wordmark fades out, see the brand header below).
+          width: collapsed ? 72 : 256,
         }}
       >
         {/* ─── Brand header (no bell — the FleetCore logo is the header) ── */}
@@ -125,8 +125,8 @@ export default function Navigation() {
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-lg shadow-[rgba(6,182,212,0.3)] shrink-0">
               <BarChart3 size={18} className="text-white" strokeWidth={2} />
             </div>
-            {/* Brand text — stays fully visible even when the sidebar is
-                collapsed, so the minimized rail still shows the whole logo */}
+            {/* Brand text — fades out when the sidebar is collapsed so the
+                minimized rail shows only the logo mark */}
             <span
               className="font-[var(--font-heading)] font-bold text-base tracking-tight whitespace-nowrap"
               style={{
@@ -134,6 +134,10 @@ export default function Navigation() {
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
+                transition: `opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
+                opacity: collapsed ? 0 : 1,
+                maxWidth: collapsed ? 0 : 200,
+                overflow: "hidden",
               }}
             >
               FleetCore
@@ -166,10 +170,10 @@ export default function Navigation() {
                 `}
                 title={collapsed ? item.label : undefined}
               >
-                {/* Icon */}
-                <div className="flex items-center justify-center w-5 h-5 shrink-0">
+                {/* Icon — enlarged (22px in a 24px box) */}
+                <div className="flex items-center justify-center w-6 h-6 shrink-0">
                   <Icon
-                    size={18}
+                    size={22}
                     strokeWidth={active ? 2.5 : 1.5}
                     className={active ? "text-white" : "text-[var(--nav-icon-color)] group-hover:text-[var(--nav-icon-active-color)]"}
                   />

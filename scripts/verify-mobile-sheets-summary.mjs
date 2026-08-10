@@ -316,17 +316,22 @@ async function main() {
     () => evalJs(`document.body.innerText.toLowerCase().includes("export route data")`),
     8000
   );
-  // The heading is styled with Tailwind's `uppercase` — compare lowercase.
-  const aggregate = await waitFor(
-    () => evalJs(`document.body.innerText.toLowerCase().includes("revenue by route")`),
+  // The headings are styled with Tailwind's `uppercase` — compare lowercase.
+  const statusMix = await waitFor(
+    () => evalJs(`document.body.innerText.toLowerCase().includes("status mix")`),
+    8000
+  );
+  // The Revenue by Route card must NOT be in the summary sheet.
+  const revenueByRouteGone = await waitFor(
+    () => evalJs(`!document.body.innerText.toLowerCase().includes("revenue by route")`),
     8000
   );
   const exportButtons = await evalJs(`(() => {
     const labels = ["Excel", "CSV", "JSON", "PDF"];
     return labels.every(l => [...document.querySelectorAll('button')].some(b => b.textContent.includes(l)));
   })()`);
-  step("7. Route Summary sheet opens (aggregate of visible routes)", iconClicked && sheetHeader && exportLabel && aggregate && exportButtons && pillBack,
-    sheetHeader && exportLabel && aggregate && exportButtons && pillBack ? "panel closed, pill returned, sheet header + aggregate KPIs/charts + 4 export buttons" : `pillBack=${!!pillBack} header=${!!sheetHeader} exportLabel=${!!exportLabel} aggregate=${!!aggregate} buttons=${!!exportButtons}`);
+  step("7. Route Summary sheet opens (no revenue-by-route card)", iconClicked && sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pillBack,
+    sheetHeader && exportLabel && statusMix && revenueByRouteGone && exportButtons && pillBack ? "panel closed, pill returned, sheet header + KPI cards + status mix + 4 export buttons, no revenue-by-route" : `pillBack=${!!pillBack} header=${!!sheetHeader} exportLabel=${!!exportLabel} statusMix=${!!statusMix} revByRouteGone=${!!revenueByRouteGone} buttons=${!!exportButtons}`);
 
   // ── Export: click CSV, expect a download ─────────────────────────────────
   const csvClicked = await clickContaining("CSV");

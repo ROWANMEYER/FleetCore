@@ -437,17 +437,13 @@ const SUMMARY_LEVEL_CLS: Record<string, string> = {
 function RoutesSummaryView({
  routes,
  riskStatusOf,
- onBarClick,
 }: {
  routes: any[];
  riskStatusOf: (route: any) => { label: string; level: "red" | "yellow" | "green" | "blue" };
- onBarClick: (route: any) => void;
 }) {
  const totalRevenue = routes.reduce((s: number, r: any) => s + routeRevenue(r), 0);
  const totalKm = routes.reduce((s: number, r: any) => s + (Number(r.kilometers) || 0), 0);
  const rPerKm = totalKm > 0 ? totalRevenue / totalKm : 0;
- const chartMax = Math.max(...routes.map(routeRevenue), 1);
- const byRevenue = [...routes].sort((a: any, b: any) => routeRevenue(b) - routeRevenue(a));
  const statusCounts = new Map<string, { count: number; level: "red" | "yellow" | "green" | "blue" }>();
  for (const r of routes) {
  const { label, level } = riskStatusOf(r);
@@ -482,40 +478,6 @@ function RoutesSummaryView({
  {k.sub && <p className="text-[10px] text-[var(--nav-text-color)] mt-0.5 truncate">{k.sub}</p>}
  </div>
  ))}
- </div>
-
- {/* ── Revenue by route (tap a bar to open that route's detail) ── */}
- <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
- <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)] mb-3">Revenue by Route</p>
- <div className="space-y-2.5">
- {byRevenue.map((r: any) => {
- const rev = routeRevenue(r);
- const pct = (rev / chartMax) * 100;
- return (
- <button
- key={r._id}
- type="button"
- onClick={() => onBarClick(r)}
- className="w-full text-left group"
- title={`Open Truck ${r.truckFleetNoStr ?? ""}`}
- >
- <div className="flex items-center justify-between text-xs mb-1">
- <span className="font-semibold truncate">
- Truck {r.truckFleetNoStr ?? "—"}
- <span className="text-[var(--nav-text-color)] font-medium ml-1.5">{r.routeDate?.slice(5) ?? ""}</span>
- </span>
- <span className="font-black text-[#06B6D4] tabular-nums">{formatZAR(rev)}</span>
- </div>
- <div className="w-full bg-[var(--card-border)] rounded-full h-2">
- <div
- className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] h-2 rounded-full transition-all group-hover:opacity-80"
- style={{ width: `${Math.max(pct, 2)}%` }}
- />
- </div>
- </button>
- );
- })}
- </div>
  </div>
 
  {/* ── Status mix ── */}
@@ -3152,10 +3114,6 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
                <RoutesSummaryView
                  routes={filteredRoutesMobile ?? []}
                  riskStatusOf={getRouteRiskStatus}
-                 onBarClick={(r) => {
-                   setShowRouteSummary(false);
-                   openPanel(r);
-                 }}
                />
              </div>
 

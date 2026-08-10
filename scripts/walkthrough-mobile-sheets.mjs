@@ -198,8 +198,9 @@ async function main() {
   await step(4, "Route Summary sheet with export row", async () => {
     const header = await waitFor(() => evalJs(`document.body.innerText.includes("Route Summary")`), 8000);
     const exportRow = await waitFor(() => evalJs(`document.body.innerText.toLowerCase().includes("export route data")`), 8000);
-    const aggregate = await waitFor(() => evalJs(`document.body.innerText.toLowerCase().includes("revenue by route")`), 8000);
-    return header && exportRow && aggregate;
+    const statusMix = await waitFor(() => evalJs(`document.body.innerText.toLowerCase().includes("status mix")`), 8000);
+    const revenueGone = await waitFor(() => evalJs(`!document.body.innerText.toLowerCase().includes("revenue by route")`), 8000);
+    return header && exportRow && statusMix && revenueGone;
   });
 
   // ── Step 5: export CSV ──

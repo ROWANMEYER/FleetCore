@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo, useRef} from"react";
 import { createPortal } from"react-dom";
-import { useQuery, useMutation} from"convex/react";
+import { useQuery, useMutation, useAction} from"convex/react";
 import { useSearchParams, useRouter} from"next/navigation";
 import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
@@ -20,6 +20,7 @@ import { exportPDF} from"@/src/lib/exports/exportPDF";
 import { generateInvoicePDF} from"@/src/pdf/invoiceTemplate";
 import { buildInvoiceData} from"@/src/pdf/invoiceBuilder";
 import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/src/components/operations/invoice/InvoiceDeliveryPanel";
+import { registerCaptureEscape} from"@/src/components/operations/invoice/invoiceEscape";
  import ImportLoadsModal from"./ImportLoadsModal";
  import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import SpreadsheetDataTable, { type SpreadsheetExtraColumn } from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
@@ -494,6 +495,140 @@ function RoutesSummaryView({
  </span>
  ))}
  </div>
+ </div>
+ </div>
+ );
+}
+
+// ── Email Route Summary modal ────────────────────────────────────────────
+// Themed recipient picker for emailing the routes currently visible on the
+// mobile summary sheet (HTML transport report in the body, like QuickSend).
+function SendSummaryEmailModal({
+ isOpen,
+ onClose,
+ initialSubject,
+ onSend,
+}: {
+ isOpen: boolean;
+ onClose: () => void;
+ initialSubject: string;
+ onSend: (recipientIds: Id<"recipients">[], subject: string) => Promise<void>;
+}) {
+ const recipients = useQuery(api.recipients.list);
+ const [selectedIds, setSelectedIds] = useState<Id<"recipients">[]>([]);
+ const [subject, setSubject] = useState(initialSubject);
+ const [isSending, setIsSending] = useState(false);
+ const { addToast } = useToast();
+
+ // Escape closes this modal first (capture phase + stopImmediatePropagation),
+ // so it wins over the summary sheet's own bubble-phase Escape handler.
+ useEffect(() => registerCaptureEscape(document, onClose), [onClose]);
+
+ useEffect(() => {
+ if (isOpen) {
+ setSubject(initialSubject);
+ setSelectedIds([]);
+ }
+ }, [isOpen, initialSubject]);
+
+ const toggleRecipient = (id: Id<"recipients">) => {
+ setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+ };
+
+ const handleSubmit = async (e: React.FormEvent) => {
+ e.preventDefault();
+ if (selectedIds.length === 0) { addToast("Please select at least one recipient.", "error"); return; }
+ setIsSending(true);
+ try {
+ await onSend(selectedIds, subject);
+ } catch { /* parent handles toasts */ }
+ finally {
+ setIsSending(false);
+ }
+ };
+
+ if (!isOpen) return null;
+
+ return (
+ <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+ <div
+ className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+ onClick={onClose}
+ />
+ <div className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto bg-[var(--background)] border border-[var(--card-border)] rounded-xl shadow-2xl animate-in zoom-in-95 duration-200">
+ <div className="px-5 py-4 border-b border-[var(--card-border)] flex items-center justify-between">
+ <div className="min-w-0">
+ <h3 className="text-base font-black tracking-tight text-[var(--foreground)]">Email Route Summary</h3>
+ <p className="text-[11px] text-[var(--nav-text-color)] mt-0.5">Sends the visible routes as an HTML report</p>
+ </div>
+ <button
+ onClick={onClose}
+ aria-label="Close email modal"
+ className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+ >
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+ <path d="M18 6 6 18" />
+ <path d="m6 6 12 12" />
+ </svg>
+ </button>
+ </div>
+
+ <form onSubmit={handleSubmit} className="p-5 space-y-4">
+ <div>
+ <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] mb-2">Recipients</label>
+ <div className="border border-[var(--card-border)] rounded-lg max-h-44 overflow-y-auto divide-y divide-[var(--card-border)]">
+ {!recipients ? (
+ <div className="p-3 text-sm text-[var(--nav-text-color)]">Loading recipients…</div>
+ ) : recipients.length === 0 ? (
+ <div className="p-3 text-sm text-[var(--nav-text-color)]">No recipients found.</div>
+ ) : (
+ recipients.map(r => (
+ <label key={r._id} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-[var(--card-bg)]">
+ <input
+ type="checkbox"
+ checked={selectedIds.includes(r._id)}
+ onChange={() => toggleRecipient(r._id)}
+ className="h-4 w-4 rounded accent-[#06B6D4]"
+ />
+ <div className="min-w-0">
+ <p className="text-sm font-medium text-[var(--foreground)]">{r.name}</p>
+ <p className="text-xs text-[var(--nav-text-color)] truncate">{r.email}</p>
+ </div>
+ </label>
+ ))
+ )}
+ </div>
+ </div>
+
+ <div>
+ <label htmlFor="summary-subject" className="block text-[11px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] mb-2">Subject</label>
+ <input
+ id="summary-subject"
+ type="text"
+ required
+ value={subject}
+ onChange={(e) => setSubject(e.target.value)}
+ className="w-full border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)] rounded-lg px-3 py-2.5 text-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none"
+ />
+ </div>
+
+ <div className="flex justify-end gap-2 pt-4 border-t border-[var(--card-border)]">
+ <button
+ type="button"
+ onClick={onClose}
+ className="px-4 py-2.5 text-sm font-bold border border-[var(--card-border)] rounded-lg hover:bg-[var(--card-bg)] text-[var(--foreground)]"
+ >
+ Cancel
+ </button>
+ <button
+ type="submit"
+ disabled={isSending || selectedIds.length === 0}
+ className="px-4 py-2.5 text-sm font-bold bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+ >
+ {isSending ? "Sending…" : "Send Report"}
+ </button>
+ </div>
+ </form>
  </div>
  </div>
  );
@@ -1028,6 +1163,10 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // Mobile-only route summary sheet (opened from the graph icon on the
  // restore pill while a route's detail/KPI view is open).
  const [showRouteSummary, setShowRouteSummary] = useState(false);
+ // Email the visible routes as an HTML report (Send Email button in the
+ // summary sheet's export row).
+ const [showEmailModal, setShowEmailModal] = useState(false);
+ const sendSummaryEmail = useAction(api.emails.sendSummaryEmail);
 
  const openPanel = (route: any) => {
  setSelectedRoute(route);
@@ -2637,6 +2776,25 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }
 };
 
+ // Email the visible routes (Send Email button in the summary sheet's export
+ // row) — HTML transport report in the body, no attachment.
+ const handleSendSummaryEmail = async (recipientIds: Id<"recipients">[], subject: string) => {
+ const rows = mapSheetsToExportRows(filteredRoutesMobile ?? []);
+ if (rows.length === 0) { addToast("No routes to email.", "error"); return; }
+ const rangeStr = dateMode === "single"
+ ? (singleDate || "Sheets")
+ : dateMode === "range"
+ ? (fromDate && toDate ?`${fromDate} to ${toDate}` :"Sheets")
+ : (selectedMonth || "Sheets");
+ try {
+ await sendSummaryEmail({ recipientIds, subject, dateRange: rangeStr, rows });
+ addToast("Summary emailed.", "success");
+ setShowEmailModal(false);
+ } catch {
+ addToast("Failed to send email. See console for details.", "error");
+ }
+};
+
  const renderColumnResizeHandle = (key: ResizableTableColumnKey) => (
  <div
  onMouseDown={(e) => startColumnResize(key, e)}
@@ -3139,10 +3297,33 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
                      </button>
                    ))}
                </div>
+
+               <button
+                 onClick={() => setShowEmailModal(true)}
+                 aria-label="Send email report"
+                 className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#06B6D4]/40 text-[#06B6D4] hover:bg-[rgba(6,182,212,0.08)] active:scale-[0.98] transition-all text-xs font-bold"
+               >
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                   <path d="M22 2 11 13" />
+                   <path d="M22 2 15 22l-4-9-9-4Z" />
+                 </svg>
+                 Send Email
+               </button>
              </div>
            </div>
          </div>
        )}
+
+       <SendSummaryEmailModal
+         isOpen={showEmailModal}
+         onClose={() => setShowEmailModal(false)}
+         initialSubject={`Route Summary: ${dateMode === "single"
+           ? (singleDate || "Sheets")
+           : dateMode === "range"
+           ? (fromDate && toDate ?`${fromDate} to ${toDate}` :"Sheets")
+           : (selectedMonth || "Sheets")}`}
+         onSend={handleSendSummaryEmail}
+       />
      </>
    );
  }

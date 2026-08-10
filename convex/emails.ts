@@ -5,6 +5,119 @@ import { api } from "./_generated/api";
 
 import { renderTransportReport } from "./templates/TransportReport";
 
+/**
+ * Escape user-supplied strings before they reach the transport-report HTML.
+ * Unlike QuickSend (whose data comes from the DB), sendSummaryEmail renders
+ * client-supplied rows, so markup in e.g. a client name must never leak into
+ * the email body.
+ */
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+/** Shared recipient validation — resolves ids to verified emails. */
+async function resolveRecipientEmails(ctx: any, recipientIds: string[]): Promise<string[]> {
+  const allRecipients = await ctx.runQuery(api.recipients.list);
+  const validEmails: string[] = [];
+  for (const id of recipientIds) {
+    const match = allRecipients.find((r: any) => r._id === id);
+    if (match && match.email) validEmails.push(match.email);
+  }
+  if (validEmails.length === 0) {
+    throw new Error("No valid recipients selected. Please select at least one recipient.");
+  }
+  return validEmails;
+}
+
+/**
+ * Emails the routes currently visible on the mobile Route Summary sheet as a
+ * QuickSend-style HTML transport report (table + totals) — no attachment.
+ * The rows are the client-side filtered set (search/filters/date mode applied),
+ * passed up as flat export rows exactly like the CSV/Excel/JSON/PDF exports.
+ */
+export const sendSummaryEmail = action({
+  args: {
+    recipientIds: v.array(v.id("recipients")),
+    subject: v.string(),
+    dateRange: v.string(),
+    rows: v.array(
+      v.object({
+        date: v.string(),
+        truck: v.string(),
+        trailer: v.string(),
+        driver: v.string(),
+        client: v.string(),
+        from: v.string(),
+        to: v.string(),
+        routeKm: v.number(),
+        amount: v.number(),
+        ratePerKm: v.number(),
+        status: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error("Email configuration error: API key missing.");
+    }
+    if (args.rows.length === 0) {
+      throw new Error("No routes to email.");
+    }
+
+    const validEmails = await resolveRecipientEmails(ctx, args.recipientIds);
+
+    // Map flat export rows into the transport-report renderer's load shape,
+    // HTML-escaping every user-supplied string first (see escapeHtml above).
+    const loads = args.rows.map((r) => ({
+      routeDate: escapeHtml(r.date),
+      truckFleetNo: escapeHtml(r.truck),
+      trailerFleetNo: escapeHtml(r.trailer),
+      driverName: escapeHtml(r.driver),
+      clientName: escapeHtml(r.client),
+      fromLocation: r.from ? r.from.split(",").map(escapeHtml) : [],
+      toLocation: r.to ? r.to.split(",").map(escapeHtml) : [],
+      rate: r.amount,
+      distance: r.routeKm,
+    }));
+
+    const [startDate, endDate] = args.dateRange.split(" to ");
+    const html = renderTransportReport({
+      data: {
+        loads,
+        summary: {
+          totalLoads: args.rows.length,
+          totalKm: args.rows.reduce((s, r) => s + r.routeKm, 0),
+          totalRevenue: args.rows.reduce((s, r) => s + r.amount, 0),
+        },
+      },
+      startDate: startDate || args.dateRange,
+      endDate: endDate || args.dateRange,
+      activeColumns: ["date", "truck", "trailer", "driver", "client", "from", "to", "rate", "distance"],
+      columnNotes: [],
+    });
+
+    const resend = new Resend(apiKey);
+    const result = await resend.emails.send({
+      from: "FleetCore <onboarding@resend.dev>",
+      to: validEmails,
+      subject: args.subject,
+      html,
+    });
+
+    if (result.error) {
+      console.error("Resend Error:", result.error);
+      throw new Error("Email delivery failed. Please try again later.");
+    }
+
+    return { success: true };
+  },
+});
+
 export const sendLoadReportEmail = action({
   args: {
     recipientIds: v.array(v.id("recipients")),

@@ -8,6 +8,7 @@
  *   5. Tap the graph icon -> Route Summary bottom sheet (KPI cards + charts)
  *   6. Export row (Excel / CSV / JSON / PDF) -> click CSV -> file downloads
  *      then click PDF -> the 1-page dashboard's save() fires (download artifact)
+ *      then Send Email -> recipient modal opens with seeded recipients + prefilled subject
  *   7. Close the sheet; assert no console errors / horizontal overflow
  *
  * Reuses the launch/login/mobile-emulation plumbing from verify-mobile.mjs.
@@ -373,10 +374,30 @@ async function main() {
   }, 12000, 400);
   step("9. PDF dashboard export fires", pdfClicked && !!pdfArtifact, pdfArtifact ? `PDF save() triggered — download artifact: ${pdfArtifact.join(", ")}` : "no download captured after clicking PDF");
 
+  // ── Email: Send Email button -> recipient modal (no real send) ───────────
+  const emailBtn = await clickBySelector('[aria-label="Send email report"]');
+  const emailHeader = await waitForText("Email Route Summary", 8000);
+  // Recipients were seeded on the dev deployment (recipients:seed).
+  const recipientShown = await waitFor(
+    () => evalJs(`document.body.innerText.includes("ops@fleetcore.app")`),
+    8000
+  );
+  const subjectPrefilled = await evalJs(`(() => {
+    const input = document.getElementById("summary-subject");
+    return input ? input.value : "";
+  })()`);
+  const emailClosed = await clickBySelector('[aria-label="Close email modal"]');
+  const sheetStillOpen = await waitFor(
+    () => evalJs(`document.body.innerText.includes("Route Summary")`),
+    5000
+  );
+  step("10. Send Email modal opens (recipients + subject)", emailBtn && emailHeader && recipientShown && subjectPrefilled.startsWith("Route Summary:") && emailClosed && sheetStillOpen,
+    emailHeader && recipientShown && subjectPrefilled.startsWith("Route Summary:") && sheetStillOpen ? `modal opened, recipient ops@fleetcore.app listed, subject prefilled "${subjectPrefilled}", closed back to the sheet` : `emailBtn=${!!emailBtn} header=${!!emailHeader} recipient=${!!recipientShown} subject="${subjectPrefilled}" closed=${!!emailClosed} sheetOpen=${!!sheetStillOpen}`);
+
   // ── Close the sheet ──────────────────────────────────────────────────────
   const closed = await clickBySelector('[aria-label="Close route summary"]');
   const sheetGone = await waitFor(() => evalJs(`!document.body.innerText.includes("Route Summary")`), 5000);
-  step("10. Sheet closes", closed && sheetGone, sheetGone ? "summary sheet closed" : "sheet still open");
+  step("11. Sheet closes", closed && sheetGone, sheetGone ? "summary sheet closed" : "sheet still open");
 
   // ── Layout / console assertions ──────────────────────────────────────────
   const layout = await evalJs(`(() => {
@@ -384,7 +405,7 @@ async function main() {
     return { innerWidth: window.innerWidth, scrollWidth: d.scrollWidth, overflowPx: d.scrollWidth - window.innerWidth };
   })()`);
   const overflow = layout.overflowPx > 0;
-  step("11. No horizontal overflow (375px)", !overflow, `${layout.overflowPx}px overflow (innerWidth ${layout.innerWidth})`);
+  step("12. No horizontal overflow (375px)", !overflow, `${layout.overflowPx}px overflow (innerWidth ${layout.innerWidth})`);
 
   const failures = [];
   for (const s of report.steps) if (!s.ok) failures.push(`${s.name}: ${s.details}`);

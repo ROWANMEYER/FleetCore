@@ -74,6 +74,11 @@ interface MobileSheetsViewProps {
   riskStatusOf: (route: any) => RiskStatus;
   /** Opens the shared route detail/edit panel (the page owns the panel state). */
   onRouteTap: (route: any) => void;
+  /** Route whose detail/KPI view is currently open on screen — the summary
+      graph icon on the restore pill targets this route (null = no overlay). */
+  selectedRoute: any | null;
+  /** Opens the summary + export sheet for the selected route. */
+  onOpenRouteSummary: () => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -227,6 +232,8 @@ export default function MobileSheetsView({
   syncDateToUrl,
   riskStatusOf,
   onRouteTap,
+  selectedRoute,
+  onOpenRouteSummary,
 }: MobileSheetsViewProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -271,6 +278,11 @@ export default function MobileSheetsView({
     origY: number;
   } | null>(null);
   const restoreDraggedRef = useRef(false);
+  // Where the last pointer press landed: the pill's restore area, or the
+  // summary-graph button. Pointer capture retargets the compatibility click
+  // to the container, so the container routes by this instead of relying on
+  // the button's own onClick (which browsers that don't retarget still use).
+  const restorePillPressRef = useRef<"restore" | "summary">("restore");
   const restoreLatestPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const persistRestorePos = () => {
@@ -283,7 +295,7 @@ export default function MobileSheetsView({
     }
   };
 
-  const handleRestorePillPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+  const handleRestorePillPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     restoreDragRef.current = {
       startX: e.clientX,
@@ -292,10 +304,15 @@ export default function MobileSheetsView({
       origY: restorePos?.y ?? rect.top,
     };
     restoreDraggedRef.current = false;
+    restorePillPressRef.current = (e.target as HTMLElement).closest(
+      '[data-action="summary"]'
+    )
+      ? "summary"
+      : "restore";
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleRestorePillPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+  const handleRestorePillPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = restoreDragRef.current;
     if (!drag) return;
     const dx = e.clientX - drag.startX;
@@ -732,9 +749,12 @@ export default function MobileSheetsView({
       </div>
 
       {/* ── Floating restore pill (visible only while minimized) — drag to
-             move it anywhere, tap to restore the toolbar and navigation ── */}
+             move it anywhere, tap to restore the toolbar and navigation. When
+             a route's detail/KPI view is open on top of the screen, the pill
+             gains a summary-graph icon — tap it to open that route's summary
+             + export sheet (see the parent page). ── */}
       {minimized && (
-        <button
+        <div
           onPointerDown={handleRestorePillPointerDown}
           onPointerMove={handleRestorePillPointerMove}
           onPointerUp={handleRestorePillPointerUp}
@@ -743,16 +763,45 @@ export default function MobileSheetsView({
             persistRestorePos();
           }}
           onClick={() => {
-            if (!restoreDraggedRef.current) setMinimized(false);
+            if (restoreDraggedRef.current) return;
+            // Pointer capture retargets the click to this container even when
+            // the press started on the summary-graph button, so route by the
+            // press target recorded on pointerdown.
+            if (restorePillPressRef.current === "summary") onOpenRouteSummary();
+            else setMinimized(false);
           }}
+          role="group"
           aria-label="Restore toolbar and navigation (drag to move)"
           title="Restore toolbar and navigation — drag to move, tap to restore"
-          className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
+          className="fixed z-[60] touch-none select-none cursor-grab active:cursor-grabbing inline-flex items-center overflow-hidden rounded-full bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-bold shadow-lg shadow-[rgba(6,182,212,0.35)]"
           style={restorePillStyle}
         >
-          <ChevronDown size={14} strokeWidth={2.75} />
-          Restore
-        </button>
+          <button
+            type="button"
+            aria-label="Restore toolbar and navigation (tap to restore)"
+            className="inline-flex h-10 items-center gap-1.5 pl-3.5 pr-2.5 touch-none"
+          >
+            <ChevronDown size={14} strokeWidth={2.75} />
+            Restore
+          </button>
+          {selectedRoute && (
+            <button
+              type="button"
+              data-action="summary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenRouteSummary();
+              }}
+              aria-label={`Route summary and export for Truck ${selectedRoute.truckFleetNoStr ?? ""}`}
+              title="Route summary & export"
+              className="inline-flex h-10 items-center justify-center gap-1.5 border-l border-white/30 pl-2.5 pr-3.5 touch-none transition-colors hover:bg-white/20 active:scale-95"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2Zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z" />
+              </svg>
+            </button>
+          )}
+        </div>
       )}
 
       {/* ── Filter bottom sheet ── */}

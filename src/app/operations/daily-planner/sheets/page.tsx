@@ -961,20 +961,29 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // Side panel state (replaces inline expand/collapse)
  const [selectedRoute, setSelectedRoute] = useState<any | null>(null);
  const [panelView, setPanelView] = useState<"detail" | "edit" | "analytics">("detail");
+ // Mobile-only route summary sheet (opened from the graph icon on the
+ // restore pill while a route's detail/KPI view is open).
+ const [showRouteSummary, setShowRouteSummary] = useState(false);
 
  const openPanel = (route: any) => {
  setSelectedRoute(route);
  setPanelView("detail");
  };
- const closePanel = () => setSelectedRoute(null);
+ const closePanel = () => {
+ setSelectedRoute(null);
+ setShowRouteSummary(false); // never let the sheet resurface for a later route
+ };
  const openEditView = () => setPanelView("edit");
  const openAnalyticsView = () => setPanelView("analytics");
  const backToDetail = () => setPanelView("detail");
- // Escape: step back from the edit/analytics views first, then close the panel
+ // Escape: step back from the edit/analytics views first, then close the panel.
+ // When the route summary sheet is open (it layers above the panel + pill),
+ // Escape closes it first instead of stepping the panel back.
  useEscapeToClose(() => {
  if (panelView !== "detail") backToDetail();
  else closePanel();
- }, !!selectedRoute);
+ }, !!selectedRoute && !showRouteSummary);
+ useEscapeToClose(() => setShowRouteSummary(false), showRouteSummary);
 
  // Sort and Filter State
  const [sortConfig, setSortConfig] = useState<{ column: string | null; direction: 'asc' | 'desc'}>(() => {
@@ -2543,6 +2552,26 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 }
 };
 
+ // Single-route export for the mobile route summary sheet — same exporters as
+ // the toolbar dropdown, but scoped to the route currently open on screen.
+ const handleExportRoute = (type: 'csv' | 'excel' | 'json' | 'pdf') => {
+ if (!selectedRoute) return;
+ const rows = mapSheetsToExportRows([selectedRoute]);
+ const truck = selectedRoute.truckFleetNoStr ?? "";
+ const rangeStr = selectedRoute.routeDate
+ ?`Truck ${truck} · ${selectedRoute.routeDate}`
+ :"Route Summary";
+ const timestamp = new Date().toLocaleString();
+ try {
+ if (type === 'csv') exportCSV(rows);
+ else if (type === 'json') exportJSON(rows);
+ else if (type === 'excel') exportExcelWithTemplate(rows, { dateRange: rangeStr, generatedAt: timestamp});
+ else if (type === 'pdf') exportPDF(rows, { dateRange: rangeStr, generatedAt: timestamp});
+ } catch {
+ addToast("Failed to export route. See console for details.", "error");
+}
+};
+
  const renderColumnResizeHandle = (key: ResizableTableColumnKey) => (
  <div
  onMouseDown={(e) => startColumnResize(key, e)}
@@ -2976,8 +3005,75 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
          syncDateToUrl={syncDateToUrl}
          riskStatusOf={getRouteRiskStatus}
          onRouteTap={openPanel}
+         selectedRoute={selectedRoute}
+         onOpenRouteSummary={() => setShowRouteSummary(true)}
        />
        {routeDetailOverlay}
+
+       {/* ── Route summary bottom sheet ──
+           Opened from the graph icon on the floating restore pill while a
+           route's detail/KPI view is maximized on screen. Reuses the route
+           analytics view (KPI cards + revenue charts + client breakdown) and
+           adds a per-route export row (CSV / Excel / JSON / PDF). */}
+       {showRouteSummary && selectedRoute && (
+         <div className="fixed inset-0 z-[70] flex flex-col justify-end">
+           <div
+             className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+             onClick={() => setShowRouteSummary(false)}
+           />
+           <div
+             className="relative bg-[var(--background)] rounded-t-2xl border-t border-[var(--card-border)] shadow-2xl max-h-[85dvh] flex flex-col animate-in slide-in-from-bottom duration-200"
+             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+           >
+             <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[var(--card-border)]">
+               <h3 className="text-base font-black tracking-tight text-[var(--foreground)]">Route Summary</h3>
+               <button
+                 onClick={() => setShowRouteSummary(false)}
+                 aria-label="Close route summary"
+                 className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+               >
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                   <path d="M18 6 6 18" />
+                   <path d="m6 6 12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+               <RouteAnalyticsView
+                 route={selectedRoute}
+                 onBarClick={(r) => {
+                   setShowRouteSummary(false);
+                   openPanel(r);
+                 }}
+               />
+             </div>
+
+             <div className="px-5 py-3 border-t border-[var(--card-border)]">
+               <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--nav-text-color)] mb-2">
+                 Export route data
+               </p>
+               <div className="grid grid-cols-4 gap-2">
+                 {([
+                   ["excel", "xlsx", "text-green-600", "Excel"],
+                   ["csv", "csv", "text-blue-600", "CSV"],
+                   ["json", "json", "text-yellow-600", "JSON"],
+                   ["pdf", "pdf", "text-red-600", "PDF"],
+                 ] as const).map(([type, ext, color, label]) => (
+                   <button
+                     key={type}
+                     onClick={() => handleExportRoute(type)}
+                     className="flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--card-bg)] active:scale-[0.98] transition-all"
+                   >
+                     <span className={`${color} font-black text-sm leading-none`}>{ext}</span>
+                     <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+                   </button>
+                 ))}
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
      </>
    );
  }

@@ -5,6 +5,11 @@ import { api } from "./_generated/api";
 
 import { renderTransportReport } from "./templates/TransportReport";
 
+// Resend sender — set RESEND_FROM once a domain is verified (e.g.
+// "FleetCore <reports@yourdomain.co.za>"). The onboarding@resend.dev fallback
+// only delivers to the account owner's own email address.
+const SENDER = process.env.RESEND_FROM || "FleetCore <onboarding@resend.dev>";
+
 /**
  * Escape user-supplied strings before they reach the transport-report HTML.
  * Unlike QuickSend (whose data comes from the DB), sendSummaryEmail renders
@@ -103,7 +108,7 @@ export const sendSummaryEmail = action({
 
     const resend = new Resend(apiKey);
     const result = await resend.emails.send({
-      from: "FleetCore <onboarding@resend.dev>",
+      from: SENDER,
       to: validEmails,
       subject: args.subject,
       html,
@@ -111,7 +116,9 @@ export const sendSummaryEmail = action({
 
     if (result.error) {
       console.error("Resend Error:", result.error);
-      throw new Error("Email delivery failed. Please try again later.");
+      // Surface Resend's real reason — it reaches the UI toast so the user
+      // doesn't need a console to understand what went wrong.
+      throw new Error(`Email delivery failed: ${result.error.message}`);
     }
 
     return { success: true };
@@ -191,7 +198,7 @@ export const sendLoadReportEmail = action({
     // NOTE: Using Resend’s verified sender for development. 
     // Replace with fleetcore.app once domain is verified.
     const result = await resend.emails.send({
-      from: "FleetCore <onboarding@resend.dev>",
+      from: SENDER,
       to: validEmails,
       subject: args.subject,
       html: html,
@@ -199,7 +206,7 @@ export const sendLoadReportEmail = action({
 
     if (result.error) {
       console.error("Resend Error:", result.error);
-      throw new Error("Email delivery failed. Please try again later.");
+      throw new Error(`Email delivery failed: ${result.error.message}`);
     }
 
     return { success: true };

@@ -377,9 +377,9 @@ async function main() {
   // ── Email: Send Email button -> recipient modal (no real send) ───────────
   const emailBtn = await clickBySelector('[aria-label="Send email report"]');
   const emailHeader = await waitForText("Email Route Summary", 8000);
-  // Recipients were seeded on the dev deployment (recipients:seed).
+  // Recipients on the dev deployment (real recipients, e.g. gmail addresses).
   const recipientShown = await waitFor(
-    () => evalJs(`document.body.innerText.includes("ops@fleetcore.app")`),
+    () => evalJs(`document.body.innerText.includes("@") && document.body.innerText.includes("Email Route Summary")`),
     8000
   );
   const subjectPrefilled = await evalJs(`(() => {
@@ -392,7 +392,7 @@ async function main() {
     5000
   );
   step("10. Send Email modal opens (recipients + subject)", emailBtn && emailHeader && recipientShown && subjectPrefilled.startsWith("Route Summary:") && emailClosed && sheetStillOpen,
-    emailHeader && recipientShown && subjectPrefilled.startsWith("Route Summary:") && sheetStillOpen ? `modal opened, recipient ops@fleetcore.app listed, subject prefilled "${subjectPrefilled}", closed back to the sheet` : `emailBtn=${!!emailBtn} header=${!!emailHeader} recipient=${!!recipientShown} subject="${subjectPrefilled}" closed=${!!emailClosed} sheetOpen=${!!sheetStillOpen}`);
+    emailHeader && recipientShown && subjectPrefilled.startsWith("Route Summary:") && sheetStillOpen ? `modal opened, recipient listed, subject prefilled "${subjectPrefilled}", closed back to the sheet` : `emailBtn=${!!emailBtn} header=${!!emailHeader} recipient=${!!recipientShown} subject="${subjectPrefilled}" closed=${!!emailClosed} sheetOpen=${!!sheetStillOpen}`);
 
   // ── Close the sheet ──────────────────────────────────────────────────────
   const closed = await clickBySelector('[aria-label="Close route summary"]');

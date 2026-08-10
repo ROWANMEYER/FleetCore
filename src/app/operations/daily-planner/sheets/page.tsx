@@ -2790,8 +2790,9 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  await sendSummaryEmail({ recipientIds, subject, dateRange: rangeStr, rows });
  addToast("Summary emailed.", "success");
  setShowEmailModal(false);
- } catch {
- addToast("Failed to send email. See console for details.", "error");
+ } catch (error) {
+ // Surface the real reason in the toast — mobile users can't open a console.
+ addToast(`Failed to send email: ${error instanceof Error ? error.message : "unknown error"}`, "error");
  }
 };
 

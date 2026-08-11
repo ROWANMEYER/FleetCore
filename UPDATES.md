@@ -289,6 +289,11 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile: refresh page button** — the mobile top bar gains a refresh
+  button (RefreshCw icon, next to the region switcher / theme toggle). PWA
+  users have no browser refresh, so tapping it spins the icon briefly for
+  feedback, then does a full `window.location.reload()` so every screen
+  re-fetches fresh data. Mobile top bar only, per request.
 - **Mobile: Swaps tab replaced with an admin-only Admin tab** — the mobile
   bottom tab bar drops the Swaps tab and gains an Admin tab (`/admin`, Shield
   icon) that stays highlighted on every `/admin/*` subpage. Regional users see

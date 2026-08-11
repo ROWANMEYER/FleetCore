@@ -14,6 +14,7 @@ import {
   Moon,
   LogOut,
   CalendarDays,
+  RefreshCw,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
@@ -100,6 +101,7 @@ export default function Navigation() {
 
           <div className="ml-auto flex items-center gap-2">
             <RegionSwitcher compact />
+            <RefreshButton />
             {mounted && <ThemeToggleButton collapsed={false} iconOnly />}
           </div>
         </header>
@@ -264,6 +266,33 @@ export default function Navigation() {
         </div>
       </aside>
     </>
+  );
+}
+
+/* ─── Refresh button (mobile top bar) ─────────────────────────────
+   PWA users have no browser refresh, so the top bar carries a
+   refresh icon. It spins briefly for feedback, then reloads the page
+   so every screen re-fetches fresh data. */
+function RefreshButton() {
+  const [spinning, setSpinning] = useState(false);
+
+  const refresh = () => {
+    if (spinning) return;
+    setSpinning(true);
+    setTimeout(() => window.location.reload(), 450);
+  };
+
+  return (
+    <button
+      onClick={refresh}
+      title="Refresh page"
+      aria-label="Refresh page"
+      className="flex items-center justify-center px-2 py-1.5 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)] hover:bg-[var(--card-bg)] transition-all duration-150 shrink-0"
+    >
+      <div className="flex items-center justify-center w-5 h-5 shrink-0">
+        <RefreshCw size={15} strokeWidth={1.75} className={spinning ? "animate-spin" : ""} />
+      </div>
+    </button>
   );
 }
 

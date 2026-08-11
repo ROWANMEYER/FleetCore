@@ -10,10 +10,53 @@ import { Camera, Loader, Trash2 } from "lucide-react";
 /* ─── Driver avatar with photo upload/remove (Admin → Drivers) ───
    Shows the driver's photo (drivers.photoUrl) when set, otherwise a
    deterministic initials placeholder (stable gradient per driver).
-   The camera button opens a file picker and uploads via the
-   fleet.uploadDriverPhoto action (base64 → Convex storage → photoUrl);
-   the trash button appears once a photo is set and calls
+   The camera button opens a file picker. The picked image is
+   downscaled client-side (canvas, max 900px, JPEG) before upload —
+   real camera photos are multi-MB, which blows past Convex's action
+   arg size limit and can make FileReader readAsDataURL fail on
+   low-memory phones. The small data URL goes to the
+   fleet.uploadDriverPhoto action (Convex storage → photoUrl); the
+   trash button appears once a photo is set and calls
    fleet.removeDriverPhoto. */
+
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // sanity cap before downscaling (decode memory on phones)
+const MAX_DIM = 900; // downscale target — avatars are tiny, so we save bandwidth
+const JPEG_QUALITY = 0.85;
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not decode this image"));
+    img.src = url;
+  });
+}
+
+/** Decode the file via an object URL (memory-friendly) and re-encode it
+    small as a JPEG data URL. Returns the original data URL on failure so
+    the user's file is never silently dropped. */
+async function fileToSmallDataUrl(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(objectUrl);
+    if (!img.naturalWidth || !img.naturalHeight) throw new Error("Could not decode this image");
+    const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas is not supported");
+    // White backdrop so transparent PNGs don't flatten to black in the JPEG.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 const GRADIENTS = [
   "from-[#06B6D4] to-[#0891B2]",
@@ -52,35 +95,35 @@ export function DriverAvatar({
   const seed = [...(name ?? driverId)].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   const gradient = GRADIENTS[seed % GRADIENTS.length];
 
-  const pickFile = (file?: File | null) => {
+  const pickFile = async (file?: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       addToast("Please choose an image file", "error");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      addToast("Image is too large (max 5MB)", "error");
+    if (file.size > MAX_PHOTO_BYTES) {
+      addToast("This image is very large — please use one under 15MB", "error");
       return;
     }
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        await uploadPhoto({ driverId, image: String(reader.result) });
-        addToast("Photo uploaded", "success");
-      } catch (e: any) {
-        addToast(e.message || String(e), "error");
-      } finally {
-        setUploading(false);
-        if (inputRef.current) inputRef.current.value = "";
-      }
-    };
-    reader.onerror = () => {
-      addToast("Could not read the file", "error");
+    try {
+      const image = await fileToSmallDataUrl(file);
+      await uploadPhoto({ driverId, image });
+      addToast("Photo uploaded", "success");
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      addToast(
+        msg.includes("Could not decode")
+          ? "Could not process this image — please use a JPEG or PNG"
+          : msg.includes("read the file") || msg.includes("readFile")
+            ? "Could not read the file — please try another image"
+            : msg,
+        "error"
+      );
+    } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleRemove = async () => {

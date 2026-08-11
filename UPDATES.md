@@ -293,9 +293,19 @@ npx convex codegen     # Regenerate convex/_generated/ types
   now shows a round driver avatar: the driver's photo when `drivers.photoUrl`
   is set, otherwise a deterministic initials placeholder (stable gradient per
   driver). A camera button on the avatar opens a file picker and uploads via
-  the `fleet.uploadDriverPhoto` action (base64 → Convex storage, 5MB cap,
-  image-type check); once a photo is set a trash button calls
-  `fleet.removeDriverPhoto`. New `src/components/admin/DriverAvatar.tsx`.
+  the `fleet.uploadDriverPhoto` action (base64 → Convex storage, image-type
+  check); once a photo is set a trash button calls `fleet.removeDriverPhoto`.
+  New `src/components/admin/DriverAvatar.tsx`.
+- **Drivers: photo upload fix (client-side downscaling)** — real camera
+  photos (multi-MB) previously failed with "Could not read the file":
+  `readAsDataURL` on a huge file hits memory limits on phones, and the full
+  base64 also blows past Convex's action-arg size cap. The upload now
+  decodes via object URL + canvas and re-encodes to a ≤900px JPEG (q0.85)
+  on a white backdrop (no black boxes for transparent PNGs), so any photo
+  uploads as a small payload. Sanity cap 15MB before downscaling;
+  non-decodable formats (e.g. HEIC on some browsers) get a clear "use a
+  JPEG or PNG" toast instead of a generic failure. Verified with an 11.6MB
+  4000x3000 JPEG: uploads fine, stored at 900x675.
 - **Admin: hamburger bar removed + compact single-row KPIs** — the admin
   section-nav header (with the mobile hamburger + dropdown) is now
   desktop-only (`hidden md:block` in `src/app/admin/layout.tsx`); on phones

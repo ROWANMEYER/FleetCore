@@ -289,6 +289,33 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Drivers: 3D flip cards** — tapping an Admin → Drivers card spins it
+  180° (perspective 3D, 500ms) to reveal a back panel with the driver's
+  licence expiry, PDP expiry (red "Expired"/amber "Due soon" badges when
+  relevant), birthday derived from the SA ID number, and member-since
+  date; tapping again spins back to the front. Only one card is flipped
+  at a time, and the Edit / Deactivate / Delete buttons no longer trigger
+  the flip (stopPropagation). New reusable
+  `src/components/common/FlipCard.tsx` + client-safe
+  `getBirthdayFromSAID` in `src/lib/birthdays.ts`. New
+  `scripts/verify-driver-flip.mjs` headless audit (12 checks, passed:
+  flip to back, back on top, flip to front, single-flip, edit/delete
+  don't flip, zero console errors). `public/sw.js` → `fleetcore-v56`.
+- **Photo upload: HEIC/HEIF support + 50MB cap** — iPhone/Android
+  "high efficiency" photos are now converted client-side (on-demand
+  `heic2any` WASM, only loaded when needed) and upload like any JPEG;
+  decoding uses `createImageBitmap` so EXIF orientation is respected
+  automatically. The pre-downscale sanity cap is raised 15MB → 50MB
+  (photos are re-encoded to ≤900px JPEG before hitting the backend, so
+  payloads stay ~100KB), and the image-type check no longer rejects
+  empty-MIME HEIC picks (some pickers report them with no type).
+  Unsupported formats get a clear "please save it as a JPEG or PNG"
+  toast instead of a generic failure. New
+  `scripts/verify-driver-upload.mjs` (headless end-to-end: a real HEIC
+  converts + uploads, a 23MB JPEG uploads past the old 15MB cap, and a
+  fake image surfaces the friendly error toast). `public/sw.js` bumped
+  to `fleetcore-v55` so installed PWA clients pick up the new bundle.
+  Verified in browser: zero console errors; stored images are 900px max.
 - **Photo upload: stale 5MB limit fixed everywhere** — the client-side
   downscaling fix was merged, but the PWA service worker cache still served
   the old bundle (`fleetcore-v53`), so installed clients kept hitting the

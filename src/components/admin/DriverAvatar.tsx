@@ -17,11 +17,39 @@ import { Camera, Loader, Trash2 } from "lucide-react";
    low-memory phones. The small data URL goes to the
    fleet.uploadDriverPhoto action (Convex storage → photoUrl); the
    trash button appears once a photo is set and calls
-   fleet.removeDriverPhoto. */
+   fleet.removeDriverPhoto.
 
-const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // sanity cap before downscaling (decode memory on phones)
+   HEIC/HEIF photos (iPhones, and Android "High efficiency" mode)
+   can't be decoded by canvas directly, so when one is picked (or a
+   file fails to decode) the on-demand heic2any WASM converts it to
+   JPEG first. Decoding uses createImageBitmap so EXIF orientation is
+   respected automatically. */
+
+const MAX_PHOTO_BYTES = 50 * 1024 * 1024; // sanity cap before downscaling (decode memory on phones)
 const MAX_DIM = 900; // downscale target — avatars are tiny, so we save bandwidth
 const JPEG_QUALITY = 0.85;
+
+function looksLikeHeic(file: File): boolean {
+  const type = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  return (
+    type.includes("heic") ||
+    type.includes("heif") ||
+    name.endsWith(".heic") ||
+    name.endsWith(".heif")
+  );
+}
+
+/** Convert a HEIC/HEIF file to a JPEG blob using the on-demand heic2any WASM. */
+async function convertHeicToJpeg(file: File): Promise<Blob> {
+  try {
+    const mod = await import("heic2any");
+    const result = await mod.default({ blob: file, toType: "image/jpeg", quality: 0.9 });
+    return Array.isArray(result) ? result[0] : result;
+  } catch {
+    throw new Error("Could not convert this photo");
+  }
+}
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -32,29 +60,60 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Decode the file via an object URL (memory-friendly) and re-encode it
-    small as a JPEG data URL. Returns the original data URL on failure so
-    the user's file is never silently dropped. */
-async function fileToSmallDataUrl(file: File): Promise<string> {
-  const objectUrl = URL.createObjectURL(file);
+/** Decode a blob to an image source (EXIF orientation respected). Falls
+    back to an <img> element when createImageBitmap is unavailable or
+    rejects (very large images, unusual formats). */
+async function decodeBlob(blob: Blob): Promise<{ source: CanvasImageSource; width: number; height: number }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
+      return { source: bmp, width: bmp.width, height: bmp.height };
+    } catch {
+      // fall through to the <img> path
+    }
+  }
+  const objectUrl = URL.createObjectURL(blob);
   try {
     const img = await loadImage(objectUrl);
     if (!img.naturalWidth || !img.naturalHeight) throw new Error("Could not decode this image");
-    const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
-    const w = Math.max(1, Math.round(img.naturalWidth * scale));
-    const h = Math.max(1, Math.round(img.naturalHeight * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas is not supported");
-    // White backdrop so transparent PNGs don't flatten to black in the JPEG.
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    return { source: img, width: img.naturalWidth, height: img.naturalHeight };
   } finally {
     URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function renderSmallJpeg(source: CanvasImageSource, width: number, height: number): string {
+  const scale = Math.min(1, MAX_DIM / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported");
+  // White backdrop so transparent PNGs don't flatten to black in the JPEG.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+}
+
+/** Decode the file (converting HEIC first if needed) and re-encode it
+    small as a JPEG data URL. */
+async function fileToSmallDataUrl(file: File): Promise<string> {
+  if (looksLikeHeic(file)) {
+    const jpeg = await convertHeicToJpeg(file);
+    const { source, width, height } = await decodeBlob(jpeg);
+    return renderSmallJpeg(source, width, height);
+  }
+  try {
+    const { source, width, height } = await decodeBlob(file);
+    return renderSmallJpeg(source, width, height);
+  } catch {
+    // Decode failed — could be a HEIC with a generic name/MIME. Try converting once.
+    const jpeg = await convertHeicToJpeg(file);
+    const { source, width, height } = await decodeBlob(jpeg);
+    return renderSmallJpeg(source, width, height);
   }
 }
 
@@ -97,12 +156,16 @@ export function DriverAvatar({
 
   const pickFile = async (file?: File | null) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    // Reject clearly non-image files, but let empty-typed files through
+    // (some platforms report HEIC/HEIF picks with an empty MIME type — the
+    // decode/conversion path then gives a precise error if it truly fails).
+    const hasImageType = file.type.startsWith("image/");
+    if (!hasImageType && !looksLikeHeic(file) && file.type !== "") {
       addToast("Please choose an image file", "error");
       return;
     }
     if (file.size > MAX_PHOTO_BYTES) {
-      addToast("This image is very large — please use one under 15MB", "error");
+      addToast("This image is very large — please use one under 50MB", "error");
       return;
     }
     setUploading(true);
@@ -113,10 +176,10 @@ export function DriverAvatar({
     } catch (e: any) {
       const msg = String(e?.message || e);
       addToast(
-        msg.includes("Could not decode")
-          ? "Could not process this image — please use a JPEG or PNG"
-          : msg.includes("read the file") || msg.includes("readFile")
-            ? "Could not read the file — please try another image"
+        msg.includes("Could not convert")
+          ? "Could not convert this photo — please save it as a JPEG or PNG"
+          : msg.includes("Could not decode")
+            ? "Could not process this image — please use a JPEG or PNG"
             : msg,
         "error"
       );
@@ -178,7 +241,7 @@ export function DriverAvatar({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         className="hidden"
         onChange={(e) => pickFile(e.target.files?.[0])}
       />

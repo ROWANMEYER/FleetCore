@@ -27,3 +27,27 @@ export function initialsOf(name: string): string {
     .map((w) => (w[0] ?? "").toUpperCase())
     .join("");
 }
+
+/**
+ * Client-safe copy of convex/birthdays.ts getBirthdayFromSAID: the first 6
+ * digits of a South African ID number encode YYMMDD. Two-digit years at or
+ * below (currentYY - 16) map to 20xx, everything else to 19xx. Returns null
+ * for IDs that can't encode a valid date.
+ */
+export function getBirthdayFromSAID(
+  idNumber?: string,
+  referenceYear = new Date().getFullYear()
+): { month: number; day: number; year: number } | null {
+  const digits = (idNumber || "").replace(/\D/g, "");
+  if (digits.length < 6) return null;
+  const yy = Number(digits.slice(0, 2));
+  const month = Number(digits.slice(2, 4));
+  const day = Number(digits.slice(4, 6));
+  if (!(month >= 1 && month <= 12)) return null;
+  const centuryCutoff = referenceYear - 2000 - 16;
+  const year = yy > centuryCutoff ? 1900 + yy : 2000 + yy;
+  // Reject impossible dates (e.g. Apr 31); Feb 29 only valid in leap years.
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if (!(day >= 1 && day <= daysInMonth)) return null;
+  return { month, day, year };
+}

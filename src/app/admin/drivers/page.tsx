@@ -10,7 +10,9 @@ import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
-import { Plus, Pencil, Trash2, Power, PowerOff, Search, X } from "lucide-react";
+import { FlipCard } from "@/src/components/common/FlipCard";
+import { getBirthdayFromSAID } from "@/src/lib/birthdays";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, FlipVertical2 } from "lucide-react";
 
 type SortDir = "asc" | "desc";
 
@@ -37,6 +39,55 @@ function OwnerBadge({ sub, subStatus }: { sub?: { _id: string; companyName: stri
       style={{backgroundColor:"var(--card-border)", color:"var(--nav-text-color)"}}>
       Fleet
     </span>
+  );
+}
+
+type ExpiryTone = "expired" | "soon" | "ok" | "none";
+
+function formatDate(value?: string | number): string {
+  if (value === undefined || value === null || value === "") return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function expiryTone(value?: string): ExpiryTone {
+  if (!value) return "none";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "ok";
+  const days = Math.floor((d.getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return "expired";
+  if (days <= 30) return "soon";
+  return "ok";
+}
+
+function formatBirthday(idNumber?: string): string {
+  const b = getBirthdayFromSAID(idNumber);
+  if (!b) return "—";
+  const label = new Date(b.year, b.month - 1, b.day).toLocaleDateString("en-ZA", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  return `${label} (${new Date().getFullYear() - b.year})`;
+}
+
+function ExpiryRow({ label, value, tone }: { label: string; value?: string; tone: ExpiryTone }) {
+  const valueColor =
+    tone === "expired" ? "#f87171" : tone === "soon" ? "#fbbf24" : tone === "ok" ? "var(--foreground)" : "var(--nav-text-color)";
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="font-medium" style={{ color: "var(--nav-text-color)" }}>{label}</span>
+      <span className="flex items-center gap-1.5">
+        {tone === "expired" && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-red-400 bg-red-500/10 border border-red-500/30 rounded px-1 py-0.5">Expired</span>
+        )}
+        {tone === "soon" && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-0.5">Due soon</span>
+        )}
+        <span style={{ color: valueColor }}>{formatDate(value)}</span>
+      </span>
+    </div>
   );
 }
 
@@ -84,6 +135,7 @@ export default function AdminDriversPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [flippedId, setFlippedId] = useState<string | null>(null);
 
   const drivers = driversQuery || [];
   const filteredDrivers =
@@ -359,47 +411,92 @@ export default function AdminDriversPage() {
             );
           }
 
+          const isFlipped = flippedId === (d._id as string);
+
           return (
-            <div key={d._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <DriverAvatar driverId={d._id} name={d.driverName} photoUrl={d.photoUrl} />
-                  <div className="min-w-0">
-                    <div className="text-lg font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
-                      {d.driverName}
+            <FlipCard
+              key={d._id}
+              flipped={isFlipped}
+              onToggle={() => setFlippedId(isFlipped ? null : (d._id as string))}
+              className="h-full"
+              front={
+                <div className="group glass-card rounded-xl p-5 h-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <DriverAvatar driverId={d._id} name={d.driverName} photoUrl={d.photoUrl} />
+                      <div className="min-w-0">
+                        <div className="text-lg font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
+                          {d.driverName}
+                        </div>
+                        <div className="text-xs mt-0.5 truncate" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
+                      </div>
                     </div>
-                    <div className="text-xs mt-0.5 truncate" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
+                    <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEdit(d); }}
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors"
+                        style={{color:"var(--nav-text-color)"}} title="Edit"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleStatus(d); }}
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors"
+                        style={{color:"var(--nav-text-color)"}} title={d.status === "inactive" ? "Activate" : "Deactivate"}
+                      >
+                        {d.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeletingId(d._id as string); }}
+                        className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors"
+                        style={{color:"var(--nav-text-color)"}} title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
+                      <span className="font-medium min-w-[80px]" style={{color:"var(--nav-text-color)"}}>ID Number</span>
+                      <span style={{color:"var(--foreground)"}}>{d.idNumber}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium min-w-[80px] text-xs" style={{color:"var(--nav-text-color)"}}>Phone</span>
+                      <span style={{color:"var(--foreground)"}}>{d.phone}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
+                    <OwnerBadge sub={sub} subStatus={d.subStatus} />
+                    <StatusBadge status={d.status} />
                   </div>
                 </div>
-                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
-                  <button onClick={() => startEdit(d)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => toggleStatus(d)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={d.status === "inactive" ? "Activate" : "Deactivate"}>
-                    {d.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                  </button>
-                  <button onClick={() => setDeletingId(d._id as string)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+              }
+              back={
+                <div className="glass-card rounded-xl p-5 h-full flex flex-col overflow-hidden" style={{borderColor:"#06B6D4"}}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-bold uppercase tracking-wider" style={{color:"#06B6D4"}}>Licence &amp; Permit</div>
+                    <FlipVertical2 className="w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />
+                  </div>
+                  <div className="space-y-2.5 text-xs flex-1">
+                    <ExpiryRow label="Licence Expiry" value={d.licenseExpiryDate} tone={expiryTone(d.licenseExpiryDate)} />
+                    <ExpiryRow label="PDP Expiry" value={d.pdpExpiryDate} tone={expiryTone(d.pdpExpiryDate)} />
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium" style={{color:"var(--nav-text-color)"}}>Birthday</span>
+                      <span style={{color:"var(--foreground)"}}>{formatBirthday(d.idNumber)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium" style={{color:"var(--nav-text-color)"}}>Member Since</span>
+                      <span style={{color:"var(--foreground)"}}>{formatDate(d.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-3 pt-2.5 text-[10px]" style={{borderTop:"1px solid var(--card-border)", color:"var(--nav-text-color)"}}>
+                    <FlipVertical2 className="w-3 h-3" /> Tap to flip back
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
-                  <span className="font-medium min-w-[80px]" style={{color:"var(--nav-text-color)"}}>ID Number</span>
-                  <span style={{color:"var(--foreground)"}}>{d.idNumber}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium min-w-[80px] text-xs" style={{color:"var(--nav-text-color)"}}>Phone</span>
-                  <span style={{color:"var(--foreground)"}}>{d.phone}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
-                <OwnerBadge sub={sub} subStatus={d.subStatus} />
-                <StatusBadge status={d.status} />
-              </div>
-            </div>
+              }
+            />
           );
         })}
       </div>

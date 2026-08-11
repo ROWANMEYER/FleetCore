@@ -289,6 +289,15 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Admin: hamburger bar removed + compact single-row KPIs** — the admin
+  section-nav header (with the mobile hamburger + dropdown) is now
+  desktop-only (`hidden md:block` in `src/app/admin/layout.tsx`); on phones
+  admins navigate via the /admin hub cards and the bottom Admin tab. The
+  Total / Active / Inactive KPI cards on the trucks, trailers, drivers,
+  subcontractors and fleet-import pages are now one compact row
+  (`grid grid-cols-3 max-w-sm`, smaller padding, `text-xl` numbers, truncated
+  labels) instead of wrapping.
+  New `scripts/verify-admin-mobile.mjs` audit covers this.
 - **Mobile: refresh page button** — the mobile top bar gains a refresh
   button (RefreshCw icon, next to the region switcher / theme toggle). PWA
   users have no browser refresh, so tapping it spins the icon briefly for

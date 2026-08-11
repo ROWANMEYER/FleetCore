@@ -678,21 +678,21 @@ export default function FleetImportPage() {
  {stage ==="preview" && (
  <>
  {/* KPI cards */}
- <div className="flex flex-wrap gap-4">
- <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-4 py-2 min-w-[120px]">
- <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5">Trucks</div>
- <div className="text-2xl font-bold text-[var(--foreground)]">{truckRows.length}</div>
- <div className="text-[10px] text-[var(--nav-text-color)]">{selectedCount(truckRows)} selected</div>
+ <div className="grid grid-cols-3 gap-2 max-w-sm">
+ <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-3 py-2">
+ <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5 truncate">Trucks</div>
+ <div className="text-xl font-bold text-[var(--foreground)]">{truckRows.length}</div>
+ <div className="text-[10px] text-[var(--nav-text-color)] truncate">{selectedCount(truckRows)} selected</div>
  </div>
- <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-4 py-2 min-w-[120px]">
- <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5">Trailers</div>
- <div className="text-2xl font-bold text-[var(--foreground)]">{trailerRows.length}</div>
- <div className="text-[10px] text-[var(--nav-text-color)]">{selectedCount(trailerRows)} selected</div>
+ <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-3 py-2">
+ <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5 truncate">Trailers</div>
+ <div className="text-xl font-bold text-[var(--foreground)]">{trailerRows.length}</div>
+ <div className="text-[10px] text-[var(--nav-text-color)] truncate">{selectedCount(trailerRows)} selected</div>
  </div>
- <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-4 py-2 min-w-[120px]">
- <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5">Drivers</div>
- <div className="text-2xl font-bold text-[var(--foreground)]">{driverRows.length}</div>
- <div className="text-[10px] text-[var(--nav-text-color)]">{selectedCount(driverRows)} selected</div>
+ <div className="bg-[var(--card-bg)] border border-transparent rounded-lg px-3 py-2">
+ <div className="text-[10px] uppercase tracking-wider font-semibold text-[var(--nav-text-color)] mb-0.5 truncate">Drivers</div>
+ <div className="text-xl font-bold text-[var(--foreground)]">{driverRows.length}</div>
+ <div className="text-[10px] text-[var(--nav-text-color)] truncate">{selectedCount(driverRows)} selected</div>
  </div>
  </div>
 

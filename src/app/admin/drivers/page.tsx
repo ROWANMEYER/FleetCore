@@ -203,14 +203,14 @@ export default function AdminDriversPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-3 gap-2 max-w-sm">
         {(["total", "active", "inactive"] as const).map((filter) => {
           const isActive = kpiFilter === filter;
           return (
             <button key={filter} onClick={() => setKpiFilter(kpiFilter === filter ? "total" : filter)}
-              className={`glass-card rounded-xl px-5 py-3 min-w-[110px] text-left transition-all cursor-pointer ${isActive ? "ring-2 ring-[#06B6D4]/50" : ""}`}>
-              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5" style={{color:"var(--nav-text-color)"}}>{filter === "total" ? "Total" : filter === "active" ? "Active" : "Inactive"}</div>
-              <div className={`text-2xl font-black ${filter === "active" ? "text-[var(--color-accent-emerald)]" : ""}`} style={{color: filter !== "active" ? "var(--foreground)" : undefined}}>{stats[filter]}</div>
+              className={`glass-card rounded-xl px-3 py-2 text-left transition-all cursor-pointer ${isActive ? "ring-2 ring-[#06B6D4]/50" : ""}`}>
+              <div className="text-[10px] uppercase tracking-wider font-semibold mb-0.5 truncate" style={{color:"var(--nav-text-color)"}}>{filter === "total" ? "Total" : filter === "active" ? "Active" : "Inactive"}</div>
+              <div className={`text-xl font-black ${filter === "active" ? "text-[var(--color-accent-emerald)]" : ""}`} style={{color: filter !== "active" ? "var(--foreground)" : undefined}}>{stats[filter]}</div>
             </button>
           );
         })}

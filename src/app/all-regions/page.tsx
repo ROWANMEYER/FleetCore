@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { calculateLoadAmount } from "@/convex/utils";
-import { BarChart3, ChevronDown } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import SpreadsheetDataTable, {
   type SpreadsheetRow,
   type SpreadsheetExtraColumn,
 } from "@/src/components/operations/daily-planner/SpreadsheetDataTable";
+import { RegionCell } from "@/src/components/operations/daily-planner/RegionCell";
 import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
 import { EmptyState } from "@/src/components/common/EmptyState";
-import { useToast } from "@/src/components/common/Toast";
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -73,155 +73,6 @@ function routeRevenueOf(route: any): number {
       )
     );
   }, 0);
-}
-
-const REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
-  garden_route: {
-    label: "Garden Route",
-    cls: "bg-[rgba(6,182,212,0.12)] text-[#06B6D4] dark:text-[#22D3EE]",
-    dot: "bg-[#06B6D4]",
-  },
-  eastern_cape: {
-    label: "Eastern Cape",
-    cls: "bg-[rgba(168,85,247,0.12)] text-purple-600 dark:text-purple-400",
-    dot: "bg-purple-500",
-  },
-};
-
-/* ─── Region cell with inline dropdown (change region right from the table) ── */
-
-const REGION_OPTIONS: {
-  value: string | null;
-  label: string;
-  dot: string | null;
-  cls: string;
-}[] = [
-  { value: "garden_route", label: "Garden Route", dot: "bg-[#06B6D4]", cls: "text-[#06B6D4] dark:text-[#22D3EE]" },
-  { value: "eastern_cape", label: "Eastern Cape", dot: "bg-purple-500", cls: "text-purple-600 dark:text-purple-400" },
-  { value: null, label: "Unassigned", dot: null, cls: "text-[var(--nav-text-color)]" },
-];
-
-function RegionCell({ row }: { row: SpreadsheetRow }) {
-  const { token } = useAuth();
-  const { addToast } = useToast();
-  const updateRouteRegion = useMutation(api.dailyRoutes.updateRouteRegion);
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-
-  const meta = REGION_META[row.region];
-
-  const openMenu = () => {
-    const el = anchorRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    // Open downward when there's room; otherwise flip above so rows near the
-    // bottom of the table keep all options reachable (any scroll closes the
-    // menu, so it must never extend past the viewport).
-    const MENU_HEIGHT = 150;
-    const top =
-      rect.bottom + 4 + MENU_HEIGHT > window.innerHeight
-        ? Math.max(8, rect.top - MENU_HEIGHT - 4)
-        : rect.bottom + 4;
-    setMenuPos({ top, left: rect.left });
-    setOpen(true);
-  };
-
-  // Close on outside click, on scroll (the menu is viewport-fixed, so any
-  // table scroll would leave it misaligned), or on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onScroll = () => setOpen(false);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("scroll", onScroll, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const choose = async (region: string | null) => {
-    setOpen(false);
-    if ((region ?? "") === (row.region ?? "")) return;
-    setSaving(true);
-    try {
-      await updateRouteRegion({ routeId: row.routeId as any, region: region as any, token });
-    } catch (err) {
-      console.error("Failed to update region:", err);
-      addToast("Couldn't update the region — please try again.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div ref={anchorRef} className={`px-2 ${row.region ? "py-1" : ""} flex items-center w-full h-full`}>
-      {meta ? (
-        <button
-          onClick={openMenu}
-          disabled={saving}
-          title="Change region"
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${meta.cls} transition-opacity ${
-            saving ? "opacity-60 cursor-wait" : "cursor-pointer hover:opacity-85"
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-          {meta.label}
-          <ChevronDown size={12} className="opacity-60" strokeWidth={2.5} />
-        </button>
-      ) : (
-        <button
-          onClick={openMenu}
-          disabled={saving}
-          title="Assign region"
-          className={`text-[var(--nav-text-color)] text-[11px] font-semibold px-2 py-1 rounded-full border border-dashed border-[var(--card-border)] transition-colors ${
-            saving ? "opacity-60 cursor-wait" : "cursor-pointer hover:text-[var(--foreground)] hover:border-[#06B6D4]/50"
-          }`}
-        >
-          — assign
-        </button>
-      )}
-
-      {open && menuPos && (
-        <div
-          className="fixed z-[100] min-w-[180px] rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl backdrop-blur-xl py-1"
-          style={{ top: menuPos.top, left: menuPos.left, backgroundColor: "var(--card-bg)" }}
-        >
-          {REGION_OPTIONS.map((opt) => {
-            const active = (opt.value ?? "") === (row.region ?? "");
-            return (
-              <button
-                key={opt.label}
-                onClick={() => choose(opt.value)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-left transition-colors ${
-                  active
-                    ? `bg-[rgba(6,182,212,0.1)] ${opt.cls}`
-                    : "text-[var(--foreground)] hover:bg-[var(--card-border)]"
-                }`}
-              >
-                {opt.dot ? (
-                  <span className={`w-1.5 h-1.5 rounded-full ${opt.dot}`} />
-                ) : (
-                  <span className="w-1.5 h-1.5 rounded-full border border-[var(--card-border)]" />
-                )}
-                {opt.label}
-                {active && <span className="ml-auto text-[#06B6D4]">✓</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 }
 
 /* ─── Region column for the spreadsheet table ────────────────────────────── */

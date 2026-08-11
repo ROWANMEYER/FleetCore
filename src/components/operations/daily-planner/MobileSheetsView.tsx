@@ -14,6 +14,7 @@ import {
   CalendarDays,
   RotateCcw,
 } from "lucide-react";
+import { RegionCell, REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Mobile Sheets screen (phone app)
@@ -158,21 +159,8 @@ const LEVEL_DOT: Record<string, string> = {
   blue: "bg-blue-500",
 };
 
-// Region badge metadata — same colors as the desktop sheets table's Region
-// column, so a route reads identically across web and phone.
-const REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
-  garden_route: {
-    label: "Garden Route",
-    cls: "bg-[rgba(6,182,212,0.12)] text-[#06B6D4] dark:text-[#22D3EE] border-[rgba(6,182,212,0.25)]",
-    dot: "bg-[#06B6D4]",
-  },
-  eastern_cape: {
-    label: "Eastern Cape",
-    cls: "bg-[rgba(168,85,247,0.12)] text-purple-600 dark:text-purple-400 border-[rgba(168,85,247,0.3)]",
-    dot: "bg-purple-500",
-  },
-};
-
+// Region metadata lives in RegionCell.tsx (shared with the desktop tables and
+// the All Regions page) so badges and the filter always read identically.
 const inputClass =
   "w-full h-9 px-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/60 text-sm text-[var(--foreground)] placeholder:text-[var(--nav-text-color)] shadow-sm focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none transition-colors";
 
@@ -989,12 +977,22 @@ function RouteCard({
   const tos = uniqueTos(route);
   const truck = route.truckFleetNoStr || String(route.truckFleetNo ?? "—");
   const km = Number(route.kilometers) || 0;
-  const regionMeta = REGION_META[route.region];
 
+  // A div with role=button instead of a <button>: the region control nests
+  // inside the card, and a button inside a button is invalid HTML. Keyboard
+  // activation is re-added below, scoped to the card itself so the nested
+  // dropdown keeps its own focus handling.
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onTap}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onTap();
+        }
+      }}
       className="glass-card rounded-xl p-3 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
       aria-label={`View details for Truck ${truck}`}
     >
@@ -1043,17 +1041,10 @@ function RouteCard({
       {/* Meta + tap affordance — the loads/trailer/km cluster truncates on
           narrow phones so the region badge and Details stay on one line. */}
       <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
-        {regionMeta ? (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold whitespace-nowrap shrink-0 ${regionMeta.cls}`}
-            title="Region"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${regionMeta.dot}`} />
-            {regionMeta.label}
-          </span>
-        ) : (
-          <span className="shrink-0">—</span>
-        )}
+        {/* Region — inline dropdown for admins, read-only badge otherwise */}
+        <div className="shrink-0">
+          <RegionCell row={{ routeId: route._id, region: route.region || "" }} />
+        </div>
         <span className="min-w-0 truncate">
           {route.loads?.length ?? 0} load{(route.loads?.length ?? 0) === 1 ? "" : "s"}
           {route.trailerFleetNoStr && (
@@ -1074,6 +1065,6 @@ function RouteCard({
           <ChevronRight size={11} strokeWidth={2.75} />
         </span>
       </div>
-    </button>
+    </div>
   );
 }

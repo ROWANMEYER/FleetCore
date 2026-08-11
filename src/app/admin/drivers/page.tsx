@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useKpiFilter } from "@/src/lib/useKpiFilter";
+import { DriverAvatar } from "@/src/components/admin/DriverAvatar";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
@@ -361,11 +362,14 @@ export default function AdminDriversPage() {
           return (
             <div key={d._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
-                    {d.driverName}
+                <div className="flex items-center gap-3 min-w-0">
+                  <DriverAvatar driverId={d._id} name={d.driverName} photoUrl={d.photoUrl} />
+                  <div className="min-w-0">
+                    <div className="text-lg font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
+                      {d.driverName}
+                    </div>
+                    <div className="text-xs mt-0.5 truncate" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
                   </div>
-                  <div className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
                 </div>
                 <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
                   <button onClick={() => startEdit(d)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">

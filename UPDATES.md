@@ -289,6 +289,13 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Drivers: photo placeholder + upload/remove** — each Admin → Drivers card
+  now shows a round driver avatar: the driver's photo when `drivers.photoUrl`
+  is set, otherwise a deterministic initials placeholder (stable gradient per
+  driver). A camera button on the avatar opens a file picker and uploads via
+  the `fleet.uploadDriverPhoto` action (base64 → Convex storage, 5MB cap,
+  image-type check); once a photo is set a trash button calls
+  `fleet.removeDriverPhoto`. New `src/components/admin/DriverAvatar.tsx`.
 - **Admin: hamburger bar removed + compact single-row KPIs** — the admin
   section-nav header (with the mobile hamburger + dropdown) is now
   desktop-only (`hidden md:block` in `src/app/admin/layout.tsx`); on phones

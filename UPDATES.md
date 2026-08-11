@@ -289,6 +289,13 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Photo upload: stale 5MB limit fixed everywhere** — the client-side
+  downscaling fix was merged, but the PWA service worker cache still served
+  the old bundle (`fleetcore-v53`), so installed clients kept hitting the
+  old "max 5MB" check. Bumped `public/sw.js` to `fleetcore-v54` (per the
+  repo's bump-on-every-bundle-deploy rule) and raised the backend safety
+  net in `fleet.uploadDriverPhoto` from 5MB to 10MB (downscaled uploads are
+  ~100KB, so it never fires for the new client).
 - **Drivers: photo placeholder + upload/remove** — each Admin → Drivers card
   now shows a round driver avatar: the driver's photo when `drivers.photoUrl`
   is set, otherwise a deterministic initials placeholder (stable gradient per

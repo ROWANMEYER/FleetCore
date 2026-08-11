@@ -842,9 +842,10 @@ export const uploadDriverPhoto = action({
     // 3. Validation
     if (!mimeType.startsWith("image/")) throw new Error("Invalid file type: must be an image");
     
-    // Check size (approximate: base64 length * 0.75)
+    // Check size (approximate: base64 length * 0.75). The client downscales
+    // to a small JPEG before upload, so this is only a safety net.
     const sizeInBytes = base64Data.length * 0.75;
-    if (sizeInBytes > 5 * 1024 * 1024) throw new Error("File size too large (max 5MB)");
+    if (sizeInBytes > 10 * 1024 * 1024) throw new Error("File size too large (max 10MB)");
 
     // 4. Store file
     const bytes = Uint8Array.from(

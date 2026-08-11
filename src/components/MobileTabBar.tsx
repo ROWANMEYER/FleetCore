@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, ClipboardPlus, ArrowLeftRight, FileSpreadsheet } from "lucide-react";
+import { LayoutGrid, ClipboardPlus, FileSpreadsheet, Shield } from "lucide-react";
+import { useAuth } from "@/src/components/auth/AuthProvider";
 
 /* ─── Mobile bottom tab bar (Android app) ─────────────────────────
-   The phone app has four screens: Dashboard, Input, Swaps and
+   The phone app has four screens: Dashboard, Input, Admin and
    Sheets. This fixed bottom bar is the only navigation on phones;
    the desktop sidebar is rendered separately by Navigation.tsx.
-   The Swaps tab lands on Swap History and stays highlighted on
-   Trailer Activity too (a History/Trailers toggle lives on those
-   screens). The Input tab also highlights the edit flow, which is
-   reached from the input screen. */
+   The Input tab also highlights the edit flow, which is reached
+   from the input screen. The Admin tab is admin-only (regional
+   users get the three core tabs) and stays highlighted on every
+   /admin subpage. */
 type Tab = {
   href: string;
   label: string;
   icon: typeof LayoutGrid;
   /** Extra path prefixes that should keep this tab highlighted. */
   match?: readonly string[];
+  /** Admin-only tab: hidden for regional users. */
+  adminOnly?: boolean;
 };
 
 const TABS: readonly Tab[] = [
@@ -28,17 +31,20 @@ const TABS: readonly Tab[] = [
     icon: ClipboardPlus,
     match: ["/operations/daily-planner/input", "/operations/daily-planner/edit"],
   },
-  { href: "/operations/swaps/history", label: "Swaps", icon: ArrowLeftRight },
+  { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
   { href: "/operations/daily-planner/sheets", label: "Sheets", icon: FileSpreadsheet },
 ];
 
 export function MobileTabBar() {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const isActive = (href: string, match?: readonly string[]) => {
     const paths = match ?? [href];
     return paths.some((p) => (p === "/dashboard" ? pathname === p : pathname.startsWith(p)));
   };
+
+  const tabs = TABS.filter((tab) => !tab.adminOnly || user?.role === "admin");
 
   return (
     <nav
@@ -47,7 +53,7 @@ export function MobileTabBar() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex items-stretch h-16">
-        {TABS.map(({ href, label, icon: Icon, match }) => {
+        {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = isActive(href, match);
           return (
             <Link

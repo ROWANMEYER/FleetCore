@@ -266,9 +266,9 @@ fleetcor/
 ### Mobile (PWA) Route Restriction
 
 On phones (`<768px`) the app is limited to: Dashboard, Input, Edit, Sheets,
-Swaps history, Swaps trailers, and Calendar. Every other route redirects to
-Dashboard. Enforced in `src/components/auth/AppShell.tsx` via
-`MOBILE_ALLOWED_PATHS`.
+Admin (admins only), and Calendar. The Swaps screens remain reachable by URL
+but no longer have a tab. Every other route redirects to Dashboard. Enforced
+in `src/components/auth/AppShell.tsx` via `MOBILE_ALLOWED_PATHS`.
 
 ---
 
@@ -937,7 +937,7 @@ Stored in `.env.local` (not committed). Convex deployment: `dev:quixotic-gopher-
 
 ### Mobile UI
 
-- Bottom tab bar (Dashboard / Input / Swaps / Sheets) + top bar on phones.
+- Bottom tab bar (Dashboard / Input / Admin / Sheets; Admin is admin-only) + top bar on phones.
 - Compact mobile components: `MobileSheetsView`, dashboard collapsible sections,
   h-11 inputs, 44px touch targets, solid panel backgrounds.
 
@@ -1060,5 +1060,5 @@ See `UPDATES.md` for the full changelog. Summary of the major phases since the
 | **Auth hardening** | Multi-device sessions (max 5, per-device logout), change-password, last-admin guards, session-expiry enforcement, seed password rotation |
 | **Birthdays** | SA-ID birthday derivation, bell + dashboard card + `/calendar` with WhatsApp wishes, ages, per-user/year dismissals |
 | **PWA** | Versioned SW cache, force-reload on update, no forced orientation, web push (VAPID) + daily dispatch, install banner |
-| **Mobile** | 4-screen phone app (Dashboard/Input/Swaps/Sheets + Calendar), bottom tab bar, mobile sheets redesign (day-grouped cards, search/filters/date nav, tappable detail), compact route cards, dashboard collapsible sections |
+| **Mobile** | 4-screen phone app (Dashboard/Input/Admin/Sheets + Calendar; Admin is admin-only), bottom tab bar, mobile sheets redesign (day-grouped cards, search/filters/date nav, tappable detail), compact route cards, dashboard collapsible sections |
 | **Sheets/planner** | R/KM column (desktop + mobile badge + all-regions aggregate), route-level-rate revenue fallback, invoice "Generating…" state, resizer pointer-event fix, solid modal backgrounds, new-column onboarding hint |

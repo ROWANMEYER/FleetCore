@@ -9,10 +9,10 @@ import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileCh
 
 /* ─── Android app: four-screen mode ────────────────────────────────
    On phones (<768px, same breakpoint the app uses for "mobile") the
-   app is limited to Dashboard, Input, Swaps and Sheets (both swaps
-   screens and the edit route are covered). Every other route
-   redirects to the Dashboard. Desktop keeps the full sidebar and all
-   screens. */
+   app is limited to Dashboard, Input, Admin, Sheets and Calendar (the
+   edit route is covered by Input, the swaps screens stay reachable by
+   URL but have no tab). Every other route redirects to the Dashboard.
+   Desktop keeps the full sidebar and all screens. */
 const MOBILE_ALLOWED_PATHS = [
   "/dashboard",
   "/operations/daily-planner/input",
@@ -20,6 +20,7 @@ const MOBILE_ALLOWED_PATHS = [
   "/operations/swaps/history",
   "/operations/swaps/trailers",
   "/operations/daily-planner/sheets",
+  "/admin",
   "/calendar",
 ];
 

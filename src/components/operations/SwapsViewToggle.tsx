@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /* ─── Swaps view toggle (mobile only) ─────────────────────────────
-   The Swaps tab in the mobile bottom bar leads to either swap screen;
-   this segmented control lets phone users flip between Swap History
-   and Trailer Activity. Desktop keeps its own navigation, so this is
-   hidden from md: up. */
+   The swap screens are no longer tabbed on mobile, but remain
+   reachable by URL; this segmented control lets phone users flip
+   between Swap History and Trailer Activity. Desktop keeps its own
+   navigation, so this is hidden from md: up. */
 const VIEWS = [
   { href: "/operations/swaps/history", label: "Swap History" },
   { href: "/operations/swaps/trailers", label: "Trailer Activity" },

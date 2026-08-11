@@ -118,7 +118,7 @@ fleetcor/
 │   │   │                     # WizardRouteHeader}, invoice/{InvoiceDeliveryPanel, invoiceEscape}, SwapsViewToggle
 │   │   ├── notifications/    # BirthdayBell
 │   │   ├── Navigation.tsx    # Desktop sidebar + mobile top bar + admin region switcher
-│   │   ├── MobileTabBar.tsx  # Mobile bottom tabs (Dashboard/Input/Swaps/Sheets)
+│   │   ├── MobileTabBar.tsx  # Mobile bottom tabs (Dashboard/Input/Admin/Sheets)
 │   │   ├── PwaInstaller.tsx  # Install banner + SW registration (production)
 │   │   ├── PushNotificationSettings.tsx
 │   │   ├── EmailReportModal.tsx
@@ -176,8 +176,9 @@ fleetcor/
 | `/import` | JSON import (drivers/trucks/trailers) |
 | `/planner`, `/sheets` | Declared legacy by `ARCHITECTURE_LOCK` — **no route files exist in the current codebase** |
 
-> **Mobile (PWA, <768px)**: limited to Dashboard, Input, Edit, Sheets, Swaps,
-> Calendar — everything else redirects to Dashboard (`AppShell.tsx`).
+> **Mobile (PWA, <768px)**: limited to Dashboard, Input, Edit, Sheets, Admin
+> (admin-only tab), Calendar — everything else redirects to Dashboard
+> (`AppShell.tsx`).
 
 ---
 

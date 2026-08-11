@@ -113,7 +113,8 @@ fleetcor/
 | `/planner`, `/sheets` | Declared legacy by `ARCHITECTURE_LOCK` (must not be reintroduced as new canonical routes) — **no such route files exist in the current codebase** |
 
 **Mobile (PWA) restriction:** On phones (<768px) the app is limited to
-Dashboard, Input, Edit, Sheets, Swaps history/trailers, and Calendar
+Dashboard, Input, Edit, Sheets, Admin (admins only), and Calendar — the
+Swaps history/trailers screens stay reachable by URL but no longer have a tab
 (`MOBILE_ALLOWED_PATHS` in `src/components/auth/AppShell.tsx`); every other
 route redirects to Dashboard.
 
@@ -230,8 +231,10 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 - `public/manifest.webmanifest` (no forced orientation — respects auto-rotate).
 - `PwaInstaller` (install prompt), `PushNotificationSettings`, `web-push`
   subscriptions with daily dispatch cron.
-- Mobile UI: bottom tab bar (`MobileTabBar`), compact sheets cards
-  (`MobileSheetsView`), solid backgrounds for panels/modals on phones.
+- Mobile UI: bottom tab bar (`MobileTabBar` — Dashboard/Input/Admin/Sheets;
+  Admin is admin-only and highlights on every `/admin/*` subpage), compact
+  sheets cards (`MobileSheetsView`), solid backgrounds for panels/modals on
+  phones.
 
 ---
 
@@ -286,6 +289,15 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Mobile: Swaps tab replaced with an admin-only Admin tab** — the mobile
+  bottom tab bar drops the Swaps tab and gains an Admin tab (`/admin`, Shield
+  icon) that stays highlighted on every `/admin/*` subpage. Regional users see
+  the three core tabs (Dashboard/Input/Sheets); admins get the fourth Admin
+  tab. `/admin` joins `MOBILE_ALLOWED_PATHS` in `AppShell.tsx` so the admin
+  screens are reachable on phones; the Swaps history/trailers screens remain
+  URL-reachable but are no longer tabbed on mobile.
+  `scripts/verify-mobile.mjs` updated (tab expectations now Dashboard/Input/
+  Admin/Sheets; `/admin/trucks` is now an allowed mobile page).
 - **Mobile input: banner removed + subcontractor summary** — the sticky
   "New Route / Create and manage your fleet routes" header is hidden below the
   `lg` breakpoint so the mobile form starts right under the app top bar.

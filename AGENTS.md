@@ -50,7 +50,7 @@ Legacy Convex and Planner files have `no-explicit-any` disabled via per-file `es
 - `/settings` — reminders, theme, push, change password, my devices
 - `/admin/*` — trucks, trailers, drivers, subcontractors, fleet-import, users
 - `/planner`, `/sheets` — declared legacy by `ARCHITECTURE_LOCK`; no route files exist in the current codebase (don't recreate them)
-- Mobile (PWA, <768px) is limited to Dashboard, Input, Edit, Sheets, Swaps, Calendar — everything else redirects to Dashboard (see `AppShell.tsx`)
+- Mobile (PWA, <768px) is limited to Dashboard, Input, Edit, Sheets, Admin (admin-only tab), Calendar — everything else redirects to Dashboard (see `AppShell.tsx`)
 
 ## Trailer Swaps — Source of Truth
 

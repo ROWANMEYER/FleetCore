@@ -5,9 +5,9 @@
  * phone, and asserts on every configured page:
  *   - no horizontal overflow
  *   - the Android UX is present: bottom tab bar with exactly the four
- *     mobile tabs (Dashboard, Input, Swaps, Sheets), NO hamburger, NO
+ *     mobile tabs (Dashboard, Input, Admin, Sheets), NO hamburger, NO
  *     drawer/sidebar
- *   - the mobile route guard: non-allowed paths (Admin, Settings, ...)
+ *   - the mobile route guard: non-allowed paths (Settings, ...)
  *     redirect to /dashboard
  *   - no console errors and no console warnings (except an allowlist of
  *     known-benign third-party/informational messages)
@@ -42,7 +42,7 @@ const PAGES = [
   { path: "/operations/daily-planner/sheets", allowed: true },
   { path: "/calendar", allowed: true },
   { path: "/settings", allowed: false },
-  { path: "/admin/trucks", allowed: false },
+  { path: "/admin/trucks", allowed: true },
 ];
 const REPORT_FILE = join(process.cwd(), "mobile-audit-report.json");
 const TAB_BAR_SELECTOR = '[aria-label="Bottom navigation"]';
@@ -290,7 +290,7 @@ async function main() {
       };
     })()`);
 
-    // Four-screen tab bar check: exactly Dashboard + Input + Swaps + Sheets
+    // Four-screen tab bar check: exactly Dashboard + Input + Admin + Sheets
     const tabs = await evalJs(`(() => {
       const nav = document.querySelector('${TAB_BAR_SELECTOR}');
       if (!nav) return { ok: false, reason: "tab bar not found" };
@@ -299,11 +299,11 @@ async function main() {
         href: a.getAttribute('href'),
       }));
       const texts = links.map((l) => l.text).filter(Boolean);
-      const expected = ["Dashboard", "Input", "Swaps", "Sheets"];
+      const expected = ["Dashboard", "Input", "Admin", "Sheets"];
       const expectedHrefs = [
         "/dashboard",
         "/operations/daily-planner/input",
-        "/operations/swaps/history",
+        "/admin",
         "/operations/daily-planner/sheets",
       ];
       return {
@@ -341,7 +341,7 @@ async function main() {
     if (p.hasHamburger) failures.push(`${p.requested}: hamburger button must not exist on mobile`);
     if (p.hasAside) failures.push(`${p.requested}: sidebar/drawer must not render on mobile`);
     if (p.tabs && !p.tabs.ok) {
-      failures.push(`${p.requested}: tab bar should have exactly Dashboard, Input, Swaps, Sheets -> ${JSON.stringify(p.tabs)}`);
+      failures.push(`${p.requested}: tab bar should have exactly Dashboard, Input, Admin, Sheets -> ${JSON.stringify(p.tabs)}`);
     }
     if (p.allowed && p.path !== p.requested) {
       failures.push(`${p.requested}: expected to render (allowed screen) but landed on ${p.path}`);

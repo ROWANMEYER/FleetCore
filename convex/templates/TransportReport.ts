@@ -175,7 +175,7 @@ export function renderTransportReport({
           George, 6536<br/>
           📞 063 257 0340<br/>
           📞 044 874 2292<br/>
-          ✉️ <a href="mailto:rowan@alrpt.co.za">rowan@alrpt.co.za</a><br/>
+          ✉️ <a href="mailto:rowan@alrtpt.co.za">rowan@alrtpt.co.za</a><br/>
           🌐 <a href="https://antonlerouxvervoer.co.za">antonlerouxvervoer.co.za</a>
         </div>
     </body>

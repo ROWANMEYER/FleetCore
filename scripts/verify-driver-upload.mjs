@@ -17,6 +17,7 @@
  * Env:   CHROME_PATH   (optional, path to Chrome/Chromium binary)
  *        AUDIT_URL     (optional, alternative to the positional arg)
  *        AUDIT_EMAIL / AUDIT_PASSWORD (optional, default admin@fleetcore.app / admin123)
+ *        AUDIT_MOBILE  (optional, set to 1 to emulate a 375x812 phone viewport)
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
@@ -158,6 +159,10 @@ async function main() {
   await send("Runtime.enable");
   await send("Log.enable");
   await send("DOM.enable");
+
+  if (process.env.AUDIT_MOBILE === "1") {
+    await send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 3, mobile: true });
+  }
 
   const evalJs = async (expression) => {
     const r = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });

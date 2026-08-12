@@ -16,6 +16,7 @@
  * Env:   CHROME_PATH   (optional, path to Chrome/Chromium binary)
  *        AUDIT_URL     (optional, alternative to the positional arg)
  *        AUDIT_EMAIL / AUDIT_PASSWORD (optional, default admin@fleetcore.app / admin123)
+ *        AUDIT_MOBILE  (optional, set to 1 to emulate a 375x812 phone viewport)
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
@@ -153,6 +154,10 @@ async function main() {
   await send("Runtime.enable");
   await send("Log.enable");
 
+  if (process.env.AUDIT_MOBILE === "1") {
+    await send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 3, mobile: true });
+  }
+
   const evalJs = async (expression) => {
     const r = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) return { __error: r.exceptionDetails.text };
@@ -207,34 +212,42 @@ async function main() {
 
   const flipCount = () => evalJs(`document.querySelectorAll('[role="button"][aria-pressed]').length`);
   const flippedCount = () => evalJs(`document.querySelectorAll('[role="button"][aria-pressed="true"]').length`);
-  const topmostAt = (selector) =>
+  // Which card face is painted on top at the card's centre? The front/back
+  // faces carry data-face="front"/"back" so this works for both the old
+  // text-heavy layout and the new image-first layout (icon/photo centres).
+  const faceInfo = () =>
     evalJs(`(() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector('[role="button"][aria-pressed]');
       if (!el) return null;
+      // Bring the card into the middle of the viewport first: the fixed
+      // mobile tab bar covers the bottom 64px, so a tall card whose centre
+      // happens to land there would make elementFromPoint return the tab.
+      el.scrollIntoView({ block: 'center' });
       const r = el.getBoundingClientRect();
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       if (!hit) return null;
-      return hit.closest('div,span') ? (hit.textContent || '').trim().slice(0, 80) : '';
+      const face = hit.closest('[data-face]');
+      if (!face) return null;
+      return { face: face.getAttribute('data-face'), text: (face.textContent || '').trim().slice(0, 120) };
     })()`);
-  const backVisible = () => topmostAt('[role="button"][aria-pressed]');
 
   // 1 — tap the first card → back face should be painted on top.
   await evalJs(`document.querySelector('[role="button"][aria-pressed]').click()`);
   await sleep(900);
-  const afterFirstFlip = await backVisible();
+  const afterFirstFlip = await faceInfo();
   check("flip to back", (await flippedCount()) === 1, `flipped count=${await flippedCount()}`);
-  check("back face on top", typeof afterFirstFlip === "string" && /Licence|Permit|PDP|Birthday/i.test(afterFirstFlip), `topmost="${afterFirstFlip}"`);
+  check(
+    "back face on top",
+    afterFirstFlip?.face === "back" && /Licence|Permit|PDP|Birthday|Member/i.test(afterFirstFlip?.text || ""),
+    `face=${afterFirstFlip?.face} text="${afterFirstFlip?.text}"`
+  );
 
   // 2 — tap again → front face should return.
   await evalJs(`document.querySelector('[role="button"][aria-pressed]').click()`);
   await sleep(900);
-  const afterSecondFlip = await backVisible();
+  const afterSecondFlip = await faceInfo();
   check("flip back to front", (await flippedCount()) === 0, `flipped count=${await flippedCount()}`);
-  check(
-    "front face on top",
-    typeof afterSecondFlip === "string" && !/Licence|Permit|PDP|Birthday|Member/i.test(afterSecondFlip) && afterSecondFlip.length > 0,
-    `topmost="${afterSecondFlip}"`
-  );
+  check("front face on top", afterSecondFlip?.face === "front", `face=${afterSecondFlip?.face}`);
 
   // 3 — only one card flips at a time (flip first, then second).
   await evalJs(`document.querySelectorAll('[role="button"][aria-pressed]')[0].click()`);

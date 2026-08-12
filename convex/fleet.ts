@@ -117,6 +117,10 @@ export const getTrailers = query({
         originalLength: item.length,
         originalRegistration: item.registration,
         currentExpiry: t.licenseExpiryDate,
+        licenseExpiryDate: t.licenseExpiryDate,
+        serviceDueDate: t.serviceDueDate,
+        currentKm: t.currentKm,
+        lastRenewalDate: t.lastRenewalDate,
       }));
     });
     const sortBy = args.sortBy || "trailerFleetNoStr";

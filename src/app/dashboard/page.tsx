@@ -16,6 +16,7 @@ import { BirthdaysCard } from "@/src/components/dashboard/BirthdaysCard";
 import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 import { useIsMobile } from "@/src/hooks/useIsMobile";
+import { useTilt } from "@/src/hooks/useTilt";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -983,10 +984,17 @@ function KpiCard({
  label: string; value: string; sub?: string; accent?: string; onClick?: () => void; icon?: ReactNode; className?: string;
 }) {
  const valueClass = accent ??"text-[var(--foreground)]";
+ // Cursor-tracking hover tilt — same affordance as the admin flip cards
+ // (see src/hooks/useTilt); composes with the existing hover:scale.
+ const tilt = useTilt();
  
  return (
  <button
  onClick={onClick}
+ onMouseMove={tilt.onMouseMove}
+ onMouseLeave={tilt.onMouseLeave}
+ style={tilt.style}
+ data-tilt
  className={`glass-card rounded-xl p-2 sm:p-4 flex flex-col gap-0.5 sm:gap-1 text-left w-full transition-all duration-200 group
  ${onClick ?"cursor-pointer hover:scale-[1.02] active:scale-[0.98]" :"cursor-default"} ${className}`}
  >

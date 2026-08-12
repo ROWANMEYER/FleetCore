@@ -9,7 +9,9 @@ import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
-import { Plus, Pencil, Trash2, Power, PowerOff, Search, X } from "lucide-react";
+import { FlipCard } from "@/src/components/common/FlipCard";
+import { AssetImage } from "@/src/components/admin/AssetImage";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, FlipVertical2, Truck } from "lucide-react";
 
 type SortDir = "asc" | "desc";
 
@@ -51,6 +53,58 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
+type ExpiryTone = "expired" | "soon" | "ok" | "none";
+
+function formatDate(value?: string | number): string {
+  if (value === undefined || value === null || value === "") return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatKm(value?: number): string {
+  if (value === undefined || value === null || Number.isNaN(value)) return "—";
+  return `${Math.round(value).toLocaleString("en-ZA")} km`;
+}
+
+function expiryTone(value?: string): ExpiryTone {
+  if (!value) return "none";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "ok";
+  const days = Math.floor((d.getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return "expired";
+  if (days <= 30) return "soon";
+  return "ok";
+}
+
+function ExpiryRow({ label, value, tone }: { label: string; value?: string; tone: ExpiryTone }) {
+  const valueColor =
+    tone === "expired" ? "#f87171" : tone === "soon" ? "#fbbf24" : tone === "ok" ? "var(--foreground)" : "var(--nav-text-color)";
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="font-medium" style={{ color: "var(--nav-text-color)" }}>{label}</span>
+      <span className="flex items-center gap-1.5">
+        {tone === "expired" && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-red-400 bg-red-500/10 border border-red-500/30 rounded px-1 py-0.5">Expired</span>
+        )}
+        {tone === "soon" && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-0.5">Due soon</span>
+        )}
+        <span style={{ color: valueColor }}>{formatDate(value)}</span>
+      </span>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className="font-medium" style={{ color: "var(--nav-text-color)" }}>{label}</span>
+      <span style={{ color: "var(--foreground)" }}>{value}</span>
+    </div>
+  );
+}
+
 export default function AdminTrucksPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"truckFleetNo" | "registration" | "make" | "model">("truckFleetNo");
@@ -82,6 +136,7 @@ export default function AdminTrucksPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [flippedId, setFlippedId] = useState<string | null>(null);
 
   const trucks = trucksQuery || [];
   const filteredTrucks =
@@ -371,44 +426,68 @@ export default function AdminTrucksPage() {
             );
           }
 
+          const isFlipped = flippedId === (t._id as string);
+
           return (
-            <div key={t._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
-              {/* Top row: fleet no + actions */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
-                  {t.truckFleetNo}
-                </div>
-                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(t)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => toggleStatus(t)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={t.status === "inactive" ? "Activate" : "Deactivate"}>
-                    {t.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                  </button>
-                  <button onClick={() => setDeletingId(t._id as string)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+            <FlipCard
+              key={t._id}
+              flipped={isFlipped}
+              onToggle={() => setFlippedId(isFlipped ? null : (t._id as string))}
+              className="h-full"
+              front={
+                <div data-face="front" className="group glass-card rounded-xl h-full flex flex-col overflow-hidden hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+                  {/* Big vehicle image — the main focus of the card */}
+                  <AssetImage
+                    icon={Truck}
+                    gradient="from-[#06B6D4] to-[#0E7490]"
+                    label={t.registration || "—"}
+                    sub={[t.make, t.model].filter(Boolean).join(" ") || undefined}
+                  />
 
-              {/* Details */}
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
-                  <span className="font-medium min-w-[80px]" style={{color:"var(--nav-text-color)"}}>Registration</span>
-                  <span style={{color:"var(--foreground)"}}>{t.registration}</span>
+                  {/* Bottom row: fleet no + badges + actions */}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-[var(--card-border)] mt-auto">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
+                        {t.truckFleetNo}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <OwnerBadge sub={sub} subStatus={t.subStatus} />
+                        <StatusBadge status={t.status} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); startEdit(t); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); toggleStatus(t); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={t.status === "inactive" ? "Activate" : "Deactivate"}>
+                        {t.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeletingId(t._id as string); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium min-w-[80px] text-xs" style={{color:"var(--nav-text-color)"}}>Make / Model</span>
-                  <span style={{color:"var(--foreground)"}}>{t.make} {t.model}</span>
+              }
+              back={
+                <div data-face="back" className="glass-card rounded-xl p-5 h-full flex flex-col overflow-hidden" style={{borderColor:"#06B6D4"}}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs font-bold uppercase tracking-wider" style={{color:"#06B6D4"}}>Licence &amp; Service</div>
+                    <FlipVertical2 className="w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />
+                  </div>
+                  <div className="space-y-2.5 text-xs flex-1">
+                    <ExpiryRow label="Licence Expiry" value={t.licenseExpiryDate} tone={expiryTone(t.licenseExpiryDate)} />
+                    <ExpiryRow label="Service Due" value={t.serviceDueDate} tone={expiryTone(t.serviceDueDate)} />
+                    <InfoRow label="Current KM" value={formatKm(t.currentKm)} />
+                    <InfoRow label="Last Renewal" value={formatDate(t.lastRenewalDate)} />
+                    <InfoRow label="Member Since" value={formatDate(t.createdAt)} />
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-3 pt-2.5 text-[10px]" style={{borderTop:"1px solid var(--card-border)", color:"var(--nav-text-color)"}}>
+                    <FlipVertical2 className="w-3 h-3" /> Tap to flip back
+                  </div>
                 </div>
-              </div>
-
-              {/* Badges */}
-              <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
-                <OwnerBadge sub={sub} subStatus={t.subStatus} />
-                <StatusBadge status={t.status} />
-              </div>
-            </div>
+              }
+            />
           );
         })}
       </div>

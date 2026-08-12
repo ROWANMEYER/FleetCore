@@ -1,9 +1,13 @@
 "use client";
 
+import { useTilt } from "@/src/hooks/useTilt";
+
 /**
  * AnalyticsKpiCard — the progress-bar KPI card used across analytics views
  * (dashboard Analytics Dashboard + route analytics). Extracted so both stay
  * visually identical: label + badge on top, big value, capped progress bar.
+ * Tilts toward the cursor on hover like every other KPI card in the app
+ * (see src/hooks/useTilt).
  */
 export function AnalyticsKpiCard({
   label,
@@ -25,8 +29,16 @@ export function AnalyticsKpiCard({
   /** 0–100 width for the progress bar (capped + floored internally). */
   barPercent: number;
 }) {
+  const tilt = useTilt();
+
   return (
-    <div className="glass-card rounded-lg p-3">
+    <div
+      data-tilt
+      onMouseMove={tilt.onMouseMove}
+      onMouseLeave={tilt.onMouseLeave}
+      style={tilt.style}
+      className="glass-card rounded-lg p-3 transition-transform duration-200 ease-out"
+    >
       <div className="flex items-baseline justify-between mb-1.5">
         <h3 className={`text-xs font-semibold ${labelClass} uppercase`}>{label}</h3>
         {badge && <span className={`text-xs font-bold ${badgeClass}`}>{badge}</span>}

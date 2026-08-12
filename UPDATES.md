@@ -289,6 +289,102 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Dashboard KPI cards: hover tilt for consistency** — the cursor-tracking
+  tilt from the admin flip cards is now a shared `src/hooks/useTilt.ts`
+  hook and applies to every KPI card in the app: the dashboard's five
+  main period KPIs (Revenue / Routes / Loads / Total KM / Completion,
+  `KpiCard` in `src/app/dashboard/page.tsx`) and the shared
+  `AnalyticsKpiCard` (dashboard analytics panel + sheets route-analytics
+  panel — same component, so the tilt follows everywhere it appears). Same
+  6° face-toward-cursor tilt, 200ms ease, prefers-reduced-motion and
+  coarse-pointer guards (desktop-only), `data-tilt` marker on all three
+  consumers (flip-card root, KpiCard, AnalyticsKpiCard) for audits.
+  `FlipCard` now reuses the hook — behavior unchanged.
+  `public/sw.js` → `fleetcore-v63`.
+- **Flip cards: hover 3D tilt** — every admin card now tilts a few degrees
+  toward the cursor on hover (max 6°, tracking mouse position) as a subtle
+  "tap me" affordance that invites the flip. The tilt lives on its own
+  wrapper in `src/components/common/FlipCard.tsx` with a snappy 200ms
+  transition, so it never fights the 500ms flip spin; it's zeroed while
+  the card is flipped, skipped when `prefers-reduced-motion` is set, and
+  touch devices are unaffected (no hover). Desktop-only by nature.
+  `public/sw.js` → `fleetcore-v62`.
+- **Flip hint is a one-time discoverability affordance** — the "Tap to
+  flip" pill on every admin card now disappears once the user has flipped
+  any card: `FlipCard` marks a shared `fleetcore-flip-hint-dismissed`
+  localStorage flag on the first toggle, every mounted hint fades out over
+  500ms (custom `fleetcore:flip-hint-dismissed` event), and the pill never
+  renders again on that browser (all pages share one flag — no repeat
+  hints on trucks/trailers/drivers/subs/users). New
+  `src/lib/flipHint.ts` (localStorage helpers + `useFlipHint` hook);
+  `FlipHint` renders nothing once dismissed. `public/sw.js` →
+  `fleetcore-v61`.
+- **Flip hints + audits for all admin cards** — Subcontractors and Users
+  cards now carry the same `data-face="front"` / `data-face="back"`
+  markers and a "Tap to flip" hint as the Trucks/Trailers/Drivers cards:
+  `FlipHint` gained an `inline` variant (static chip) for text-based cards
+  — Subcontractors show it in the top row beside the actions, Users rows
+  swap their lone flip icon for the full pill. `verify-fleet-flip.mjs` now
+  covers all four pages: the PAGES table gained per-page flags
+  (frontEdit/frontActivate/frontDelete — Users keeps its actions on the
+  back face, so those checks are skipped there) and a `backActions` suite
+  that verifies the back-panel buttons (Edit user / Reset password /
+  Delete user) exist and that opening the Reset-password modal doesn't
+  unflip the card. `public/sw.js` → `fleetcore-v60`.
+- **Flip hint on image-first cards** — a small "Tap to flip" pill (flip
+  icon + label, `pointer-events-none`) now sits in the top-left corner of
+  every Trucks / Trailers / Drivers card image area so users discover the
+  Licence & Service / details back panel. Reusable
+  `src/components/admin/FlipHint.tsx`, rendered inside `AssetImage`
+  (trucks + trailers) and over the `DriverAvatar` banner (drivers); it
+  never intercepts clicks, so tapping anywhere on the card still flips.
+  `public/sw.js` → `fleetcore-v59`.
+- **Admin cards: image-first redesign** — the Trucks, Trailers and Drivers
+  cards are now image-dominant: a big photo/vehicle panel (flex-fills the
+  card, so it's "as big as the card allows") sits on top, and the bottom
+  row carries fleet number (or driver name/phone) + owner/status badges +
+  the Edit / Activate-Deactivate / Delete buttons (all stopPropagation).
+  Trucks and Trailers use a new shared `src/components/admin/AssetImage.tsx`
+  — a large vehicle icon (Truck / Container) on a themed gradient with a
+  caption overlay (registration · make/model, or type · unit count); it
+  already accepts a `photoUrl` so a real vehicle photo can slot in later
+  without a layout change. Drivers use a new `banner` variant of
+  `DriverAvatar` that fills the card: photo (or huge initials) with the
+  `#driverId` caption and the camera/remove overlay on the panel
+  (buttons now stopPropagation so they never flip the card). The trailer
+  card keeps its per-unit component strip (length/registration + per-unit
+  Edit/Delete) under the image. Card faces now carry `data-face="front"` /
+  `data-face="back"`, and both flip audits
+  (`verify-driver-flip.mjs`, `verify-fleet-flip.mjs`) assert the visible
+  face via `elementFromPoint` + `data-face` instead of text heuristics
+  (icon/photo centres have no text). `FlipCard`'s inner wrapper is now
+  `h-full` so cards in a grid row stretch to equal height and the image
+  absorbs the difference. `public/sw.js` → `fleetcore-v58`.
+- **Fleet flip-card audit script** — new `scripts/verify-fleet-flip.mjs` runs
+  the same headless-Chrome checks as `verify-driver-flip.mjs` against both
+  Admin → Trucks and Admin → Trailers: flip to back (Licence & Service
+  panel topmost), flip back to front, only-one-card-flipped-at-a-time,
+  Edit/Delete open the form/dialog without flipping, keyboard Enter on an
+  inner button doesn't flip, and zero console errors. Page-specific strings
+  (back-panel markers, delete-dialog text) are parameterized in a `PAGES`
+  table. Usage: `node scripts/verify-fleet-flip.mjs [url]` (supports
+  `AUDIT_URL` / `AUDIT_MOBILE=1`; exits non-zero on failure for CI).
+- **Admin flip cards everywhere** — the 3D rotate animation from Admin →
+  Drivers is now on every card in the admin area. Trucks: front shows
+  fleet no/registration/make/model/badges, back shows "Licence & Service"
+  (licence expiry, service due with Expired/Due-soon badges, current KM,
+  last renewal, member since). Trailers: same back panel (licence expiry,
+  service due, current KM, last renewal) via new maintenance fields added
+  to `convex/fleet.ts getTrailers` flat rows; component Edit/Delete buttons
+  stopPropagation. Subcontractors: front keeps identity/contact/badges and
+  the expandable vehicles list, back shows the per-sub Financial Summary
+  (routes, customer revenue, sub cost, margin, member since); the expand
+  toggle no longer flips the card. Users: rows now flip — front is
+  identity/role/region/signed-in status, back reveals the account actions
+  (Edit, Reset password, Delete) so admins tap to flip before acting.
+  All action buttons call stopPropagation so they never trigger the flip.
+  `public/sw.js` → `fleetcore-v57`; Convex functions pushed to the dev
+  deployment.
 - **Drivers: 3D flip cards** — tapping an Admin → Drivers card spins it
   180° (perspective 3D, 500ms) to reveal a back panel with the driver's
   licence expiry, PDP expiry (red "Expired"/amber "Due soon" badges when

@@ -139,10 +139,17 @@ export function DriverAvatar({
   driverId,
   name,
   photoUrl,
+  variant = "avatar",
+  caption,
 }: {
   driverId: Id<"drivers">;
   name?: string;
   photoUrl?: string;
+  /* "avatar" = small round chip (default); "banner" = fills its parent and
+     becomes the main visual of the image-first driver card. */
+  variant?: "avatar" | "banner";
+  /* Optional caption shown over the banner (e.g. "#DRV-01"). */
+  caption?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -198,6 +205,70 @@ export function DriverAvatar({
     }
   };
 
+  if (variant === "banner") {
+    return (
+      // container-type makes the initials' cqw font size scale with the card
+      // width (not the viewport) — big initials fill the banner on any size.
+      <div className="relative w-full h-full overflow-hidden [container-type:inline-size]">
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`}>
+          {photoUrl ? (
+            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white font-black tracking-wide select-none">
+              <span className="drop-shadow-lg" style={{ fontSize: "clamp(3rem, 22cqw, 5.5rem)" }}>
+                {initialsOf(name)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {caption && (
+          <div className="absolute bottom-0 inset-x-0 px-3 pb-2 pt-6 bg-gradient-to-t from-black/45 to-transparent">
+            <div className="text-xs font-bold text-white truncate drop-shadow">{caption}</div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+          title={photoUrl ? "Change photo" : "Upload photo"}
+          aria-label={photoUrl ? "Change photo" : "Upload photo"}
+          disabled={uploading}
+          className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-[var(--card-bg)]/90 backdrop-blur border border-[var(--card-border)] flex items-center justify-center text-[var(--nav-text-color)] hover:text-[#06B6D4] hover:border-[#06B6D4] transition-all duration-150 shadow-md"
+        >
+          {uploading ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+        </button>
+
+        {photoUrl && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRemove();
+            }}
+            title="Remove photo"
+            aria-label="Remove photo"
+            disabled={uploading}
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[var(--card-bg)]/90 backdrop-blur border border-[var(--card-border)] flex items-center justify-center text-[var(--nav-text-color)] hover:text-red-500 hover:border-red-500 transition-all duration-150 shadow-md"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          className="hidden"
+          onChange={(e) => pickFile(e.target.files?.[0])}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative shrink-0">
       <div
@@ -216,7 +287,10 @@ export function DriverAvatar({
 
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={(e) => {
+          e.stopPropagation();
+          inputRef.current?.click();
+        }}
         title={photoUrl ? "Change photo" : "Upload photo"}
         aria-label={photoUrl ? "Change photo" : "Upload photo"}
         disabled={uploading}
@@ -228,7 +302,10 @@ export function DriverAvatar({
       {photoUrl && (
         <button
           type="button"
-          onClick={handleRemove}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRemove();
+          }}
           title="Remove photo"
           aria-label="Remove photo"
           disabled={uploading}

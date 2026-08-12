@@ -9,6 +9,8 @@ import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { ModalShell } from "@/src/components/common/ModalShell";
 import { useToast } from "@/src/components/common/Toast";
+import { FlipCard } from "@/src/components/common/FlipCard";
+import { FlipHint } from "@/src/components/admin/FlipHint";
 import {
   Users,
   Plus,
@@ -62,6 +64,8 @@ export default function AdminUsersPage() {
 
   const [deleting, setDeleting] = useState<UserRow | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
+
+  const [flippedId, setFlippedId] = useState<string | null>(null);
 
   const sorted = useMemo(() => users ?? [], [users]);
 
@@ -229,101 +233,127 @@ export default function AdminUsersPage() {
               const isSelf = me && u._id === me._id;
               const isLastAdmin =
                 u.role === "admin" && sorted.filter((x) => x.role === "admin").length <= 1;
+              const isFlipped = flippedId === (u._id as string);
               return (
-                <div
+                <FlipCard
                   key={u._id}
-                  className="glass-card-premium rounded-xl p-4 flex items-center gap-4"
-                >
-                  {/* Avatar */}
-                  <div className="flex items-center justify-center w-11 h-11 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] shrink-0">
-                    <span className="text-sm font-bold text-[#06B6D4]">
-                      {u.email.slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-
-                  {/* Email + badges */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-[var(--foreground)] truncate">
-                        {u.email}
-                      </span>
-                      {isSelf && (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
-                          you
+                  flipped={isFlipped}
+                  onToggle={() => setFlippedId(isFlipped ? null : (u._id as string))}
+                  className="w-full"
+                  front={
+                    <div data-face="front" className="glass-card-premium rounded-xl p-4 flex items-center gap-4 h-full">
+                      {/* Avatar */}
+                      <div className="flex items-center justify-center w-11 h-11 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] shrink-0">
+                        <span className="text-sm font-bold text-[#06B6D4]">
+                          {u.email.slice(0, 2).toUpperCase()}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          u.role === "admin"
-                            ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white"
-                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                        }`}
-                      >
-                        {u.role === "admin" ? "Admin" : "Regional"}
-                      </span>
-                      {u.region && (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
-                          <MapPin className="w-3 h-3" />
-                          {REGION_LABELS[u.region]}
-                        </span>
-                      )}
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
-                          u.signedIn
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-[var(--nav-text-color)]"
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            u.signedIn ? "bg-emerald-500" : "bg-[var(--card-border)]"
-                          }`}
-                        />
-                        {u.signedIn ? "Signed in" : "Signed out"}
-                      </span>
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => openEdit(u)}
-                      title="Edit user"
-                      aria-label={`Edit ${u.email}`}
-                      className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-[var(--card-bg)] hover:text-[var(--foreground)] transition-colors"
+                      {/* Email + badges */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-[var(--foreground)] truncate">
+                            {u.email}
+                          </span>
+                          {isSelf && (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
+                              you
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                              u.role === "admin"
+                                ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            }`}
+                          >
+                            {u.role === "admin" ? "Admin" : "Regional"}
+                          </span>
+                          {u.region && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
+                              <MapPin className="w-3 h-3" />
+                              {REGION_LABELS[u.region]}
+                            </span>
+                          )}
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
+                              u.signedIn
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-[var(--nav-text-color)]"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                u.signedIn ? "bg-emerald-500" : "bg-[var(--card-border)]"
+                              }`}
+                            />
+                            {u.signedIn ? "Signed in" : "Signed out"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Flip hint */}
+                      <FlipHint variant="inline" />
+                    </div>
+                  }
+                  back={
+                    <div
+                      data-face="back"
+                      className="glass-card-premium rounded-xl p-4 h-full flex items-center justify-between gap-4"
+                      style={{ borderColor: "#06B6D4" }}
                     >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setResetting(u);
-                        setResetPw("");
-                      }}
-                      title="Reset password"
-                      aria-label={`Reset password for ${u.email}`}
-                      className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-[var(--card-bg)] hover:text-[#06B6D4] transition-colors"
-                    >
-                      <KeyRound className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(u)}
-                      disabled={isSelf || isLastAdmin}
-                      title={
-                        isSelf
-                          ? "You cannot delete your own account"
-                          : isLastAdmin
-                          ? "Cannot delete the last admin"
-                          : "Delete user"
-                      }
-                      aria-label={`Delete ${u.email}`}
-                      className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                      <div className="text-xs font-bold uppercase tracking-wider" style={{ color: "#06B6D4" }}>
+                        Account actions
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(u);
+                          }}
+                          title="Edit user"
+                          aria-label={`Edit ${u.email}`}
+                          className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-[var(--card-bg)] hover:text-[var(--foreground)] transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResetting(u);
+                            setResetPw("");
+                          }}
+                          title="Reset password"
+                          aria-label={`Reset password for ${u.email}`}
+                          className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-[var(--card-bg)] hover:text-[#06B6D4] transition-colors"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleting(u);
+                          }}
+                          disabled={isSelf || isLastAdmin}
+                          title={
+                            isSelf
+                              ? "You cannot delete your own account"
+                              : isLastAdmin
+                              ? "Cannot delete the last admin"
+                              : "Delete user"
+                          }
+                          aria-label={`Delete ${u.email}`}
+                          className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  }
+                />
               );
             })}
           </div>

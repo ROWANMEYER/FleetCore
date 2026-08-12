@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
 import { FlipCard } from "@/src/components/common/FlipCard";
+import { FlipHint } from "@/src/components/admin/FlipHint";
 import { getBirthdayFromSAID } from "@/src/lib/birthdays";
 import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, FlipVertical2 } from "lucide-react";
 
@@ -420,18 +421,32 @@ export default function AdminDriversPage() {
               onToggle={() => setFlippedId(isFlipped ? null : (d._id as string))}
               className="h-full"
               front={
-                <div className="group glass-card rounded-xl p-5 h-full hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <DriverAvatar driverId={d._id} name={d.driverName} photoUrl={d.photoUrl} />
-                      <div className="min-w-0">
-                        <div className="text-lg font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
-                          {d.driverName}
-                        </div>
-                        <div className="text-xs mt-0.5 truncate" style={{color:"var(--nav-text-color)"}}>#{d.driverId}</div>
+                <div data-face="front" className="group glass-card rounded-xl h-full flex flex-col overflow-hidden hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+                  {/* Big driver photo — the main focus of the card */}
+                  <div className="relative flex-1 min-h-[150px] overflow-hidden">
+                    <FlipHint />
+                    <DriverAvatar
+                      variant="banner"
+                      driverId={d._id}
+                      name={d.driverName}
+                      photoUrl={d.photoUrl}
+                      caption={`#${d.driverId} · ${d.idNumber || "no ID"}`}
+                    />
+                  </div>
+
+                  {/* Bottom row: name + badges + actions */}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-[var(--card-border)] mt-auto">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
+                        {d.driverName}
+                      </div>
+                      <div className="text-[10px] truncate mt-0.5" style={{color:"var(--nav-text-color)"}}>{d.phone}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <OwnerBadge sub={sub} subStatus={d.subStatus} />
+                        <StatusBadge status={d.status} />
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); startEdit(d); }}
                         className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors"
@@ -455,26 +470,10 @@ export default function AdminDriversPage() {
                       </button>
                     </div>
                   </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center gap-2" style={{color:"var(--nav-text-color)"}}>
-                      <span className="font-medium min-w-[80px]" style={{color:"var(--nav-text-color)"}}>ID Number</span>
-                      <span style={{color:"var(--foreground)"}}>{d.idNumber}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium min-w-[80px] text-xs" style={{color:"var(--nav-text-color)"}}>Phone</span>
-                      <span style={{color:"var(--foreground)"}}>{d.phone}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
-                    <OwnerBadge sub={sub} subStatus={d.subStatus} />
-                    <StatusBadge status={d.status} />
-                  </div>
                 </div>
               }
               back={
-                <div className="glass-card rounded-xl p-5 h-full flex flex-col overflow-hidden" style={{borderColor:"#06B6D4"}}>
+                <div data-face="back" className="glass-card rounded-xl p-5 h-full flex flex-col overflow-hidden" style={{borderColor:"#06B6D4"}}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-xs font-bold uppercase tracking-wider" style={{color:"#06B6D4"}}>Licence &amp; Permit</div>
                     <FlipVertical2 className="w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />

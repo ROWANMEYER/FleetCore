@@ -9,7 +9,9 @@ import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
-import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, Truck, ChevronDown, ChevronRight, DollarSign, TrendingUp, Users, Route } from "lucide-react";
+import { FlipCard } from "@/src/components/common/FlipCard";
+import { FlipHint } from "@/src/components/admin/FlipHint";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, Truck, ChevronDown, ChevronRight, DollarSign, TrendingUp, Users, Route, FlipVertical2 } from "lucide-react";
 
 // ZAR formatter
 const fmtCurrency = (n: number) =>
@@ -21,6 +23,13 @@ const fmtCurrency = (n: number) =>
 
 const fmtNum = (n: number) =>
  new Intl.NumberFormat("en-ZA").format(Math.round(n));
+
+const formatDate = (value?: string | number) => {
+ if (value === undefined || value === null || value === "") return "—";
+ const d = new Date(value);
+ if (Number.isNaN(d.getTime())) return String(value);
+ return d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 const monthStart = () => {
  const d = new Date();
@@ -61,7 +70,9 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  const [editingId, setEditingId] = useState<string | null>(null);
  const [editingState, setEditingState] = useState<any | null>(null);
  const [deletingId, setDeletingId] = useState<string | null>(null);
- const [expandedId, setExpandedId] = useState<string | null>(null);  const subs = subsQuery || [];
+ const [expandedId, setExpandedId] = useState<string | null>(null);
+ const [flippedId, setFlippedId] = useState<string | null>(null);
+  const subs = subsQuery || [];
   const filteredSubs =
     kpiFilter === "total"
       ? subs
@@ -353,23 +364,34 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  );
  }
 
+ const isFlipped = flippedId === (s._id as string);
+
  return (
- <div key={s._id} className="group glass-card rounded-xl p-5 relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+ <FlipCard
+ key={s._id}
+ flipped={isFlipped}
+ onToggle={() => setFlippedId(isFlipped ? null : (s._id as string))}
+ className="h-full"
+ front={
+ <div data-face="front" className="group glass-card rounded-xl p-5 h-full relative hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
  {/* Top row */}
- <div className="flex items-start justify-between mb-3">
- <div className="text-lg font-bold tracking-tight" style={{color:"var(--foreground)"}}>
+ <div className="flex items-start justify-between gap-2 mb-3">
+ <div className="text-lg font-bold tracking-tight min-w-0 truncate" style={{color:"var(--foreground)"}}>
  {s.companyName}
  </div>
- <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
- <button onClick={() => startEdit(s)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
+ <div className="flex items-center gap-2 shrink-0">
+ <FlipHint variant="inline" />
+ <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+ <button onClick={(e) => { e.stopPropagation(); startEdit(s); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Edit">
  <Pencil className="w-3.5 h-3.5" />
  </button>
- <button onClick={() => toggleStatus(s)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={s.status === "inactive" ? "Activate" : "Deactivate"}>
+ <button onClick={(e) => { e.stopPropagation(); toggleStatus(s); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title={s.status === "inactive" ? "Activate" : "Deactivate"}>
  {s.status === "inactive" ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
  </button>
- <button onClick={() => setDeletingId(s._id as string)} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
+ <button onClick={(e) => { e.stopPropagation(); setDeletingId(s._id as string); }} className="p-1.5 rounded-lg hover:bg-[var(--card-border)] transition-colors" style={{color:"var(--nav-text-color)"}} title="Delete">
  <Trash2 className="w-3.5 h-3.5" />
  </button>
+ </div>
  </div>
  </div>
 
@@ -406,40 +428,6 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  {s.trailerCount || 0}
  </span>
  </div>
-
- {/* Financial Row (per sub) */}
- {(() => {
- const finData = finSummaryQuery?.subcontractors?.find(
- (f: any) => f.subcontractorId === s._id
- );
- if (!finData || finData.routeCount === 0) return null;
- const margin = finData.totalCustomerRevenue - finData.totalSubCost;
- const marginPct = finData.totalCustomerRevenue > 0
- ? (margin / finData.totalCustomerRevenue) * 100
- : 0;
- return (
- <div className="mt-3 pt-3 space-y-1.5" style={{borderTop:"1px dashed var(--card-border)"}}>
- <div className="flex items-center justify-between text-[10px]">
- <span style={{color:"var(--nav-text-color)"}}>Routes</span>
- <span className="font-semibold" style={{color:"var(--foreground)"}}>{finData.routeCount}</span>
- </div>
- <div className="flex items-center justify-between text-[10px]">
- <span className="text-emerald-600/80 font-medium">Customer Revenue</span>
- <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtCurrency(finData.totalCustomerRevenue)}</span>
- </div>
- <div className="flex items-center justify-between text-[10px]">
- <span className="text-orange-600/80 font-medium">Sub Cost</span>
- <span className="font-semibold text-orange-600 dark:text-orange-400">{fmtCurrency(finData.totalSubCost)}</span>
- </div>
- <div className="flex items-center justify-between text-[10px] pt-1" style={{borderTop:"1px dashed var(--card-border)"}}>
- <span className="text-blue-600/80 font-medium">Margin</span>
- <span className={`font-bold ${margin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
- {fmtCurrency(margin)} ({marginPct >= 0 ? '+' : ''}{marginPct.toFixed(1)}%)
- </span>
- </div>
- </div>
- );
- })()}
 
  {/* Expanded vehicles */}
  {isExpanded && (
@@ -480,7 +468,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
 
  {/* Expand toggle */}
  <button
- onClick={() => toggleExpanded(s._id as string)}
+ onClick={(e) => { e.stopPropagation(); toggleExpanded(s._id as string); }}
  className="mt-3 w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium transition-colors rounded-lg"
  style={{color:"var(--nav-text-color)"}}
  >
@@ -488,6 +476,63 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  {isExpanded ? "Hide vehicles" : `Show vehicles (${(s.truckCount || 0) + (s.trailerCount || 0)})`}
  </button>
  </div>
+ }
+ back={
+ <div data-face="back" className="glass-card rounded-xl p-5 h-full flex flex-col overflow-hidden" style={{borderColor:"#06B6D4"}}>
+ <div className="flex items-center justify-between mb-3">
+ <div className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{color:"#06B6D4"}}>
+ <DollarSign className="w-3.5 h-3.5" /> Financial Summary
+ </div>
+ <FlipVertical2 className="w-3.5 h-3.5" style={{color:"var(--nav-text-color)"}} />
+ </div>
+ {(() => {
+ const finData = finSummaryQuery?.subcontractors?.find(
+ (f: any) => f.subcontractorId === s._id
+ );
+ if (!finData || finData.routeCount === 0) {
+ return (
+ <div className="flex-1 flex items-center justify-center text-xs italic" style={{color:"var(--nav-text-color)"}}>
+ No subcontracted routes this period
+ </div>
+ );
+ }
+ const margin = finData.totalCustomerRevenue - finData.totalSubCost;
+ const marginPct = finData.totalCustomerRevenue > 0
+ ? (margin / finData.totalCustomerRevenue) * 100
+ : 0;
+ return (
+ <div className="space-y-2.5 text-xs flex-1">
+ <div className="flex items-center justify-between">
+ <span style={{color:"var(--nav-text-color)"}}>Routes</span>
+ <span className="font-semibold" style={{color:"var(--foreground)"}}>{finData.routeCount}</span>
+ </div>
+ <div className="flex items-center justify-between">
+ <span className="text-emerald-600/80 font-medium">Customer Revenue</span>
+ <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtCurrency(finData.totalCustomerRevenue)}</span>
+ </div>
+ <div className="flex items-center justify-between">
+ <span className="text-orange-600/80 font-medium">Sub Cost</span>
+ <span className="font-semibold text-orange-600 dark:text-orange-400">{fmtCurrency(finData.totalSubCost)}</span>
+ </div>
+ <div className="flex items-center justify-between pt-1" style={{borderTop:"1px dashed var(--card-border)"}}>
+ <span className="text-blue-600/80 font-medium">Margin</span>
+ <span className={`font-bold ${margin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+ {fmtCurrency(margin)} ({marginPct >= 0 ? '+' : ''}{marginPct.toFixed(1)}%)
+ </span>
+ </div>
+ <div className="flex items-center justify-between">
+ <span className="font-medium" style={{color:"var(--nav-text-color)"}}>Member Since</span>
+ <span style={{color:"var(--foreground)"}}>{formatDate(s.createdAt)}</span>
+ </div>
+ </div>
+ );
+ })()}
+ <div className="flex items-center justify-center gap-1 mt-3 pt-2.5 text-[10px]" style={{borderTop:"1px solid var(--card-border)", color:"var(--nav-text-color)"}}>
+ <FlipVertical2 className="w-3 h-3" /> Tap to flip back
+ </div>
+ </div>
+ }
+ />
  );
  })}
  </div>

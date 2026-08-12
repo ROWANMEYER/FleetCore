@@ -289,6 +289,25 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Fix: driver camera button invisible on mobile PWA** — the Admin →
+  Drivers photo panel collapsed on phones: its inner wrapper used
+  `height: 100%` inside a `flex-1` image area, which doesn't resolve on
+  mobile, so the panel shrank to nothing and the camera button (absolute,
+  `bottom-2`) floated ~40px above the card, clipped out of view by the
+  card's `overflow-hidden`. Users on the phone PWA saw no way to add a
+  photo (desktop worked because the flex chain resolves there). The
+  `DriverAvatar` banner variant now fills its parent with `absolute
+  inset-0` (same pattern as `AssetImage`), so the photo/initials panel and
+  the camera + remove buttons sit correctly inside the card on every
+  viewport. Verified headless on a 375x812 phone viewport: camera inside
+  card bounds and hit-testable, trusted tap opens the native file chooser,
+  upload renders the photo, zero console errors. Both flip audits still
+  pass; tsc clean, eslint 0 errors, 43 tests pass. `public/sw.js` →
+  `fleetcore-v64`. `scripts/verify-driver-upload.mjs` gained a mobile-only
+  camera-affordance section (`AUDIT_MOBILE=1`): asserts the camera button
+  is visible, inside the card, the tap-target at its centre, that a
+  trusted tap opens the native file chooser, and that a chooser-set image
+  uploads and renders — so this exact regression is caught in CI.
 - **Dashboard KPI cards: hover tilt for consistency** — the cursor-tracking
   tilt from the admin flip cards is now a shared `src/hooks/useTilt.ts`
   hook and applies to every KPI card in the app: the dashboard's five

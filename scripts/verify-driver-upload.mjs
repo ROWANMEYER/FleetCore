@@ -20,7 +20,7 @@
  *        AUDIT_MOBILE  (optional, set to 1 to emulate a 375x812 phone viewport)
  */
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -100,6 +100,7 @@ function makeClient(wsUrl) {
     const pending = new Map();
     const errors = [];
     const warnings = [];
+    const chooserEvents = [];
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.id && pending.has(msg.id)) {
@@ -107,6 +108,8 @@ function makeClient(wsUrl) {
         pending.delete(msg.id);
         if (msg.error) rej(new Error(msg.error.message));
         else res(msg.result);
+      } else if (msg.method === "Page.fileChooserOpened") {
+        chooserEvents.push(msg.params);
       } else if (msg.method === "Log.entryAdded") {
         const entry = msg.params.entry;
         if (entry.level === "error") errors.push({ kind: "log", text: entry.text });
@@ -128,7 +131,7 @@ function makeClient(wsUrl) {
           pending.set(id, { res, rej });
           ws.send(JSON.stringify({ id, method, params }));
         });
-      resolve({ ws, send, errors, warnings });
+      resolve({ ws, send, errors, warnings, chooserEvents });
     };
     ws.onerror = () => reject(new Error("WebSocket connection failed"));
   });
@@ -153,12 +156,15 @@ async function main() {
   const target = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(BASE + "/login")}`, {
     method: "PUT",
   }).then((r) => r.json());
-  const { ws, send, errors, warnings } = await makeClient(target.webSocketDebuggerUrl);
+  const { ws, send, errors, warnings, chooserEvents } = await makeClient(target.webSocketDebuggerUrl);
 
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Log.enable");
   await send("DOM.enable");
+  // Intercept the native file chooser so a trusted tap can be proven to open
+  // it (the mobile camera-affordance test below uses this + fileChooserOpened).
+  await send("Page.setInterceptFileChooserDialog", { enabled: true });
 
   if (process.env.AUDIT_MOBILE === "1") {
     await send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 3, mobile: true });
@@ -229,6 +235,69 @@ async function main() {
       await waitFor(async () => !(await hasTrash()), 30000);
     }
   };
+
+  // ── Mobile: camera affordance must be visible and tappable ───────
+  // Regression guard (AUDIT_MOBILE=1) for the PWA bug where the banner's
+  // h-full wrapper collapsed inside the flex-1 image area on phones and the
+  // camera button floated above the card, clipped out of view by
+  // overflow-hidden. Also proves a real (trusted) tap opens the native file
+  // chooser and a chooser-set image uploads and renders.
+  if (process.env.AUDIT_MOBILE === "1") {
+    const cam = await evalJs(`(() => {
+      const cam = document.querySelector('[title="Upload photo"], [title="Change photo"]');
+      if (!cam) return null;
+      const card = document.querySelector('[role="button"][aria-pressed]');
+      if (!card) return null;
+      const cr = cam.getBoundingClientRect();
+      const cardR = card.getBoundingClientRect();
+      const inside = cr.top >= cardR.top && cr.bottom <= cardR.bottom && cr.left >= cardR.left && cr.right <= cardR.right;
+      const hit = document.elementFromPoint(cr.left + cr.width / 2, cr.top + cr.height / 2);
+      const hitCam = !!(hit && (hit === cam || hit.closest('[title="Upload photo"], [title="Change photo"]')));
+      return {
+        visible: getComputedStyle(cam).display !== "none" && getComputedStyle(cam).visibility !== "hidden",
+        inside,
+        hitCam,
+        x: Math.round(cr.left + cr.width / 2),
+        y: Math.round(cr.top + cr.height / 2),
+      };
+    })()`);
+    const cameraChecks = { visible: !!cam?.visible, insideCard: !!cam?.inside, tapTarget: !!cam?.hitCam, chooserOpened: false, photoRendered: false };
+    report.mobileCamera = cameraChecks;
+    if (!cam) {
+      failures.push("mobile camera: button not found on the driver card");
+    } else {
+      if (!cameraChecks.visible) failures.push("mobile camera: button is not visible");
+      if (!cameraChecks.insideCard) failures.push("mobile camera: button outside card bounds (clipped)");
+      if (!cameraChecks.tapTarget) failures.push("mobile camera: button is not the tap target at its centre");
+      const before = chooserEvents.length;
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x: cam.x, y: cam.y, button: "left", clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: cam.x, y: cam.y, button: "left", clickCount: 1 });
+      const opened = await waitFor(() => (chooserEvents.length > before ? chooserEvents[chooserEvents.length - 1] : null), 8000, 200);
+      if (!opened) {
+        failures.push("mobile camera: trusted tap did not open the native file chooser");
+      } else {
+        cameraChecks.chooserOpened = true;
+        // Set a real (tiny) PNG through the chooser → upload → photo renders.
+        const png = Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+          "base64"
+        );
+        const pngPath = join(TMP, `fc-cam-${Date.now()}.png`);
+        writeFileSync(pngPath, png);
+        await send("DOM.setFileInputFiles", { files: [pngPath], backendNodeId: opened.backendNodeId });
+        await sleep(500);
+        rmSync(pngPath, { force: true });
+        const rendered = await waitFor(
+          () => evalJs(`!!document.querySelector('[title="Change photo"]') && !!document.querySelector('.bg-cover')`),
+          25000,
+          500
+        );
+        cameraChecks.photoRendered = !!rendered;
+        if (!rendered) failures.push("mobile camera: chooser-set photo did not upload/render");
+        await ensureNoPhoto();
+      }
+    }
+  }
 
   const bodyText = () => evalJs(`document.body.innerText`);
 

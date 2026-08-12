@@ -10,6 +10,9 @@ import { Camera, Loader, Trash2 } from "lucide-react";
 /* ─── Driver avatar with photo upload/remove (Admin → Drivers) ───
    Shows the driver's photo (drivers.photoUrl) when set, otherwise a
    deterministic initials placeholder (stable gradient per driver).
+   The "banner" variant fills its parent via absolute positioning — the
+   parent must be a positioned (relative) element, as the drivers card's
+   image area is.
    The camera button opens a file picker. The picked image is
    downscaled client-side (canvas, max 900px, JPEG) before upload —
    real camera photos are multi-MB, which blows past Convex's action
@@ -207,9 +210,15 @@ export function DriverAvatar({
 
   if (variant === "banner") {
     return (
-      // container-type makes the initials' cqw font size scale with the card
-      // width (not the viewport) — big initials fill the banner on any size.
-      <div className="relative w-full h-full overflow-hidden [container-type:inline-size]">
+      // Fills the parent by absolute positioning (the parent must be
+      // `relative`, as in the drivers card's image area) — NOT h-full:
+      // a `height: 100%` child of a `flex-1` item doesn't resolve on
+      // mobile, which collapsed the panel and floated the camera button
+      // above the card, clipped out of view. Same pattern as AssetImage.
+      // container-type makes the initials' cqw font size scale with the
+      // card width (not the viewport) — big initials fill the banner on
+      // any size.
+      <div className="absolute inset-0 overflow-hidden [container-type:inline-size]">
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`}>
           {photoUrl ? (
             <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />

@@ -347,3 +347,44 @@ export function DriverAvatar({
     </div>
   );
 }
+
+/* ─── Tiny driver avatar for dense list/table contexts ───
+   A small round photo (or deterministic initials on a gradient) used in
+   sheets, QuickSend and the calendar — anywhere a full DriverAvatar is
+   too heavy. Read-only: no camera/remove buttons, no upload logic. */
+export function DriverThumb({
+  name,
+  photoUrl,
+  size = 20,
+  className = "",
+}: {
+  name?: string;
+  photoUrl?: string;
+  size?: number;
+  className?: string;
+}) {
+  const seed = [...(name ?? "?")].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const gradient = GRADIENTS[seed % GRADIENTS.length];
+  const font = Math.max(8, Math.round(size * 0.42));
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name ? `${name} photo` : ""}
+        title={name}
+        loading="lazy"
+        className={`rounded-full object-cover shrink-0 ${className}`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className={`rounded-full bg-gradient-to-br ${gradient} text-white flex items-center justify-center font-bold select-none shrink-0 ${className}`}
+      style={{ width: size, height: size, fontSize: font }}
+      title={name}
+    >
+      {initialsOf(name)}
+    </div>
+  );
+}

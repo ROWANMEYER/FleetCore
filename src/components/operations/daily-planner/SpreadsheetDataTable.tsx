@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { calculateLoadAmount } from "@/convex/utils";
+import { DriverThumb } from "@/src/components/admin/DriverAvatar";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,8 @@ export interface SpreadsheetRow {
   /** Raw ISO date (YYYY-MM-DD) used for correct chronological sorting. */
   dateIso: string;
   driverName: string;
+  /** Driver photo URL when the route's driver has one (decorated by the caller). */
+  driverPhotoUrl?: string;
   origin: string;
   destination: string;
   customer: string;
@@ -668,6 +671,7 @@ export default function SpreadsheetDataTable({
           date: formatDate(route.routeDate),
           dateIso: route.routeDate || "",
           driverName: (route.driverName || "").toUpperCase(),
+          driverPhotoUrl: route.driverPhotoUrl || "",
           origin: "",
           destination: "",
           customer: route.client || "",
@@ -691,6 +695,7 @@ export default function SpreadsheetDataTable({
             date: formatDate(route.routeDate),
             dateIso: route.routeDate || "",
             driverName: (route.driverName || "").toUpperCase(),
+            driverPhotoUrl: route.driverPhotoUrl || "",
             origin: ((load.fromLocations && load.fromLocations[0]) || "").toUpperCase(),
             destination: ((load.toLocations && load.toLocations[0]) || "").toUpperCase(),
             customer: (load.client || "").toUpperCase(),
@@ -904,7 +909,8 @@ export default function SpreadsheetDataTable({
         );
       case "driverName":
         return (
-          <div className={`px-2 ${rowPad} truncate flex items-center w-full h-full text-[var(--foreground)]`}>
+          <div className={`px-2 ${rowPad} truncate flex items-center gap-1.5 w-full h-full text-[var(--foreground)]`}>
+            {row.driverPhotoUrl && <DriverThumb name={row.driverName} photoUrl={row.driverPhotoUrl} size={16} className="ring-1 ring-[var(--card-border)]" />}
             <span className="truncate">{row.driverName || "—"}</span>
           </div>
         );

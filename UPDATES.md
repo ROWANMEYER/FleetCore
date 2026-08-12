@@ -289,6 +289,28 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Driver photos across sheets, QuickSend and Calendar** — a driver's
+  uploaded photo (`drivers.photoUrl`) now follows them everywhere their
+  name appears. New tiny `DriverThumb` (photo, or deterministic initials on
+  a gradient; read-only, no upload buttons) in `DriverAvatar.tsx`,
+  rendered in: the calendar birthday badges (with the photo ring),
+  `MobileSheetsView` route cards, the desktop `SpreadsheetDataTable` driver
+  cell, and the QuickSend/email transport-report driver column (round
+  `<img>` with graceful degradation for email clients that block remote
+  images). Data plumbing: `getBirthdaysForMonth` returns `photoUrl`;
+  `getQuickSendReport` + `getLoadsForEmailReport` attach `driverPhotoUrl`
+  via a shared `buildDriverPhotoByName` helper (routes store driverName,
+  not id — matched by lowercased name, only truthy photos recorded so a
+  photo-less namesake never shadows a driver who has one); the sheets page
+  decorates both filtered-route choke points with `driverPhotoUrl` from a
+  photo-by-name map. `getDrivers` gained an `includeAll` mode so the sheets
+  map also covers subcontractor and inactive drivers (the default fleet
+  mode silently dropped them). Exports map explicit fields, so storage URLs
+  never leak into CSV/Excel/PDF. Verified headless (desktop + mobile):
+  calendar badge, mobile route card, desktop table cell, and the QuickSend
+  report all render the photo `<img>` with zero console errors. Convex
+  functions pushed to the dev deployment; `public/sw.js` →
+  `fleetcore-v66`.
 - **Drivers: photo picker inside the edit form** — the Edit card on Admin
   → Drivers now shows the driver photo chip (reuses the `DriverAvatar`
   avatar variant: camera to change, trash to remove, saved immediately)

@@ -273,26 +273,34 @@ export const getDrivers = query({
         sortDir: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         includeInactive: v.optional(v.boolean()),
         subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
+        // Bypass the fleet/sub + status filters entirely and return every
+        // driver. Used by the sheets page to build a name→photo map so route
+        // rows show photos for subcontractor and inactive drivers too (the
+        // default fleet mode silently drops those records).
+        includeAll: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const data = await ctx.db.query("drivers").collect();
+        const includeAll = Boolean(args.includeAll);
         const includeInactive = Boolean(args.includeInactive);
         let rows = data;
-        if (!includeInactive) {
-          if (args.subcontractorId === undefined) {
-            // Fleet mode: filter by fleet status
-            rows = data.filter((d) => (d as { status?: string }).status !== "inactive");
-          } else {
-            // Sub mode: filter by subStatus
-            rows = data.filter((d) => (d as { subStatus?: string }).subStatus !== "inactive");
+        if (!includeAll) {
+          if (!includeInactive) {
+            if (args.subcontractorId === undefined) {
+              // Fleet mode: filter by fleet status
+              rows = data.filter((d) => (d as { status?: string }).status !== "inactive");
+            } else {
+              // Sub mode: filter by subStatus
+              rows = data.filter((d) => (d as { subStatus?: string }).subStatus !== "inactive");
+            }
           }
+          rows = rows.filter((d) => {
+              const sid = (d as { subcontractorId?: string }).subcontractorId;
+              if (args.subcontractorId === undefined) return !sid;
+              if (args.subcontractorId === null) return !!sid;
+              return sid === args.subcontractorId;
+          });
         }
-        rows = rows.filter((d) => {
-            const sid = (d as { subcontractorId?: string }).subcontractorId;
-            if (args.subcontractorId === undefined) return !sid;
-            if (args.subcontractorId === null) return !!sid;
-            return sid === args.subcontractorId;
-        });
         const search = args.search;
         if (search && search.trim() !== "") {
             const q = search.toLowerCase();

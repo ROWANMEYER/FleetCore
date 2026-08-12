@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Cake, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ageThisYear, waWishLink } from "@/src/lib/birthdays";
+import { DriverThumb } from "@/src/components/admin/DriverAvatar";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -16,6 +17,7 @@ type BirthdayBadge = {
   driverId: string;
   name: string;
   phoneNumber: string;
+  photoUrl?: string;
   day: number;
   birthYear: number;
 };
@@ -164,7 +166,7 @@ export default function CalendarPage() {
                           title={`Wish ${b.name} a happy birthday`}
                           className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] hover:from-[#F472B6] hover:to-[#EC4899] hover:text-white text-[10px] font-semibold transition-colors"
                         >
-                          <Cake size={10} className="shrink-0" />
+                          <DriverThumb name={b.name} photoUrl={b.photoUrl} size={16} className="ring-1 ring-[#EC4899]/40" />
                           <span className="min-w-0 flex-1 truncate">{b.name.split(" ")[0]}</span>
                           <span className="shrink-0">· {ageThisYear(b.birthYear)}</span>
                         </a>
@@ -174,7 +176,7 @@ export default function CalendarPage() {
                           title={`${b.name} — no phone number`}
                           className="flex items-center gap-1 px-1.5 py-1 rounded-md bg-gradient-to-br from-[#F472B6]/15 to-[#EC4899]/15 text-[#EC4899] text-[10px] font-semibold"
                         >
-                          <Cake size={10} className="shrink-0" />
+                          <DriverThumb name={b.name} photoUrl={b.photoUrl} size={16} className="ring-1 ring-[#EC4899]/40" />
                           <span className="min-w-0 flex-1 truncate">{b.name.split(" ")[0]}</span>
                           <span className="shrink-0">· {ageThisYear(b.birthYear)}</span>
                         </span>

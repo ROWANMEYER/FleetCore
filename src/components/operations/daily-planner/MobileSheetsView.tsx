@@ -15,6 +15,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { RegionCell, REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
+import { DriverThumb } from "@/src/components/admin/DriverAvatar";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Mobile Sheets screen (phone app)
@@ -1019,8 +1020,11 @@ function RouteCard({
         <span className="text-[15px] font-black tracking-tight text-[#06B6D4]">
           {truck}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] truncate">
-          {route.driverName ? route.driverName.toUpperCase() : "—"}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <DriverThumb name={route.driverName} photoUrl={route.driverPhotoUrl} size={18} className="ring-1 ring-[var(--card-border)]" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] truncate">
+            {route.driverName ? route.driverName.toUpperCase() : "—"}
+          </span>
         </span>
       </div>
 

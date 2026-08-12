@@ -147,6 +147,7 @@ export const getBirthdaysForMonth = query({
       driverId: string;
       name: string;
       phoneNumber: string;
+      photoUrl: string;
       day: number;
       birthYear: number;
     }[] = [];
@@ -160,6 +161,7 @@ export const getBirthdaysForMonth = query({
         driverId: String(d._id),
         name: toName(d),
         phoneNumber: (d as any).phone ?? "",
+        photoUrl: (d as any).photoUrl ?? "",
         day: bd.day,
         birthYear: bd.year,
       });

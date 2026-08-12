@@ -111,6 +111,24 @@ async function generateSubNotes(
   return parts.join(" / ").toUpperCase();
 }
 
+/**
+ * Name → photoUrl map for the transport reports (QuickSend + email). Routes
+ * store driverName (not id), so drivers are matched by name. Only truthy
+ * photos are recorded — a photo-less driver sharing a name can never shadow
+ * a later driver that does have a photo.
+ */
+async function buildDriverPhotoByName(ctx: any): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (const d of await ctx.db.query("drivers").collect()) {
+    const n = (d as any).driverName as string | undefined;
+    const photo = (d as any).photoUrl as string | undefined;
+    if (n && photo && !map.has(n.toLowerCase())) {
+      map.set(n.toLowerCase(), photo);
+    }
+  }
+  return map;
+}
+
 function shouldAutoComplete(loads: any[]) {
   if (!loads || loads.length === 0) return false;
 
@@ -830,6 +848,10 @@ export const getLoadsForEmailReport = query({
     // and also filter by status which is not in the index.
     const flattenedLoads: any[] = [];
 
+    // Routes store driverName (not id), so match drivers by name for the
+    // report's driver-photo column (QuickSend / email transport reports).
+    const driverPhotoByName = await buildDriverPhotoByName(ctx);
+
     for (const route of routes) {
       // Exclude deleted routes + out-of-region routes
       if ((route as any).isDeleted) continue;
@@ -856,6 +878,7 @@ export const getLoadsForEmailReport = query({
             routeDate: route.routeDate,
             truckFleetNo: route.truckFleetNoStr,
             driverName: route.driverName,
+            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase()) || "",
             clientName: load.client,
             fromLocation: load.fromLocations?.[0] || "",
             toLocation: load.toLocations?.[0] || "",
@@ -923,6 +946,10 @@ export const getQuickSendReport = query({
     let totalKm = 0;
     const processedRouteIds = new Set<string>();
 
+    // Routes store driverName (not id), so match drivers by name for the
+    // report's driver-photo column (QuickSend / email transport reports).
+    const driverPhotoByName = await buildDriverPhotoByName(ctx);
+
     for (const route of routes) {
       // Exclude deleted routes + out-of-region routes
       if ((route as any).isDeleted) continue;
@@ -961,6 +988,7 @@ export const getQuickSendReport = query({
             truckFleetNo: route.truckFleetNoStr,
             trailerFleetNo: route.trailerFleetNoStr ?? route.trailerFleetNo?.toString() ?? "-",
             driverName: route.driverName,
+            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase()) || "",
             clientName: load.client,
             fromLocation: load.fromLocations || [],
             toLocation: load.toLocations || [],

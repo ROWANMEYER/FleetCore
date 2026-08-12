@@ -2159,8 +2159,10 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // 1️⃣ Read reference data (queries)
  // Fetch all reference data to resolve names in-memory
  const trucks = useQuery(api.fleet.getTrucks, {});
- const trailers = useQuery(api.fleet.getTrailers, {});
- const drivers = useQuery(api.fleet.getDrivers, {});
+ const trailers = useQuery(api.fleet.getTrailers, {});  // includeAll: the photo map below must cover subcontractor and inactive
+  // drivers too — the default fleet mode silently drops them, so a sub-driver
+  // route would show no photo even though the driver has one on file.
+  const drivers = useQuery(api.fleet.getDrivers, { includeAll: true });
 
  // Helper to resolve Driver
  const getDriverDisplay = (driverName?: string) => {
@@ -2340,18 +2342,40 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // TRAE-ADDED: Memoize filtered routes for KPIs and Table consistency
  // We use the existing getFilteredAndSortedRoutes function but memoize the result
  // to prevent recalculation and ensure KPIs match the table exactly.
+  // Routes store driverName (not id), so look up each driver's photo by name
+  // and attach it to the route — the sheets views (mobile cards, spreadsheet   // table) render a small DriverThumb from route.driverPhotoUrl.
+   const driverPhotoByName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const d of (drivers ?? []) as any[]) {
+      const n = (d as any).driverName as string | undefined;
+      const photo = (d as any).photoUrl as string | undefined;
+      // Only truthy photos are recorded, so a photo-less driver with a shared
+      // name can never shadow a later driver that does have a photo.
+      if (n && photo && !(n.toLowerCase() in m)) m[n.toLowerCase()] = photo;
+    }
+    return m;
+  }, [drivers]);
+
   const filteredRoutes = useMemo(() => {
-  return getFilteredAndSortedRoutes(routes || []);
+  return (getFilteredAndSortedRoutes(routes || []) as any[]).map((r: any) => {
+    if (!r.driverName) return r;
+    const photo = driverPhotoByName[String(r.driverName).toLowerCase()];
+    return photo ? { ...r, driverPhotoUrl: photo } : r;
+  });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [routes, filters, sortConfig, dashboardDrilldown, quickSearch]);
+}, [routes, filters, sortConfig, dashboardDrilldown, quickSearch, driverPhotoByName]);
 
  // Mobile route list: same filters/sort as the desktop grid, but dashboard
  // drilldown state is excluded — phones can't see the drilldown chips or
  // clear them, so it must never silently apply (e.g. a persisted drillSort).
  const filteredRoutesMobile = useMemo(() => {
- return getFilteredAndSortedRoutes(routes || [], { includeDashboard: false });
+ return (getFilteredAndSortedRoutes(routes || [], { includeDashboard: false }) as any[]).map((r: any) => {
+   if (!r.driverName) return r;
+   const photo = driverPhotoByName[String(r.driverName).toLowerCase()];
+   return photo ? { ...r, driverPhotoUrl: photo } : r;
+ });
  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [routes, filters, sortConfig, quickSearch]);
+}, [routes, filters, sortConfig, quickSearch, driverPhotoByName]);
 
  const baseRoutes = useMemo(() => {
  return getFilteredAndSortedRoutes(routes || [], { includeDashboard: false, applySorting: false});

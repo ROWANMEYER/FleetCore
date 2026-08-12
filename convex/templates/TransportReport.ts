@@ -36,7 +36,19 @@ const COLUMN_DEFINITIONS: Record<string, { label: string; field?: string; align?
   date: { label: "Date", field: "routeDate" },
   truck: { label: "Truck", field: "truckFleetNo" },
   trailer: { label: "Trailer", field: "trailerFleetNo" },
-  driver: { label: "Driver", field: "driverName" },
+  driver: {
+    label: "Driver",
+    // Small round driver photo before the name when one exists (routes carry
+    // driverPhotoUrl from getQuickSendReport / getLoadsForEmailReport). The
+    // URL is a public Convex storage link; email clients that block remote
+    // images degrade gracefully to the name alone.
+    getValue: (row) => {
+      const name = String(row.driverName || "").replace(/[<>&"]/g, "");
+      const photo = String(row.driverPhotoUrl || "").replace(/[<>&"]/g, "");
+      if (!photo) return name;
+      return `<img src="${photo}" alt="" width="18" height="18" style="border-radius:50%;vertical-align:middle;object-fit:cover;margin-right:6px;display:inline-block;" />${name}`;
+    },
+  },
   client: { label: "Client", field: "clientName" },
   from: { 
     label: "From", 

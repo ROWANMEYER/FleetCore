@@ -300,7 +300,10 @@ npx convex codegen     # Regenerate convex/_generated/ types
   coarse-pointer guards (desktop-only), `data-tilt` marker on all three
   consumers (flip-card root, KpiCard, AnalyticsKpiCard) for audits.
   `FlipCard` now reuses the hook — behavior unchanged.
-  `public/sw.js` → `fleetcore-v63`.
+  `public/sw.js` → `fleetcore-v63`. Backend (incl. the trailer maintenance
+  fields in `convex/fleet.ts`) deployed to the **production** deployment
+  `dependable-quail-107` (2026-08-12, `npx convex deploy`); additive only —
+  no indexes deleted, two new `sessions` indexes added.
 - **Flip cards: hover 3D tilt** — every admin card now tilts a few degrees
   toward the cursor on hover (max 6°, tracking mouse position) as a subtle
   "tap me" affordance that invites the flip. The tilt lives on its own

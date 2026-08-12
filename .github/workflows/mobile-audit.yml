@@ -32,7 +32,7 @@ jobs:
   mobile-audit:
     name: Mobile viewport audit (375px)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       AUDIT_URL: ${{ vars.AUDIT_URL || 'https://fleetcore-mu.vercel.app' }}
       # Credential for the seeded admin login. Prefer a repo variable so CI
@@ -48,6 +48,24 @@ jobs:
 
       - name: Run mobile audit
         run: node scripts/verify-mobile.mjs "$AUDIT_URL"
+
+      - name: Run driver flip audit (mobile viewport)
+        # Read-only: flips cards, opens/closes the edit and delete dialogs.
+        run: AUDIT_MOBILE=1 node scripts/verify-driver-flip.mjs "$AUDIT_URL"
+
+      - name: Create cheap upload fixture (fake image)
+        # The HEIC / 23MB-JPEG fixtures live outside the repo; those tests
+        # skip when absent. The fake-image error path needs no fixture, so
+        # generate it so that check still runs here.
+        run: |
+          mkdir -p /tmp/heictest
+          printf 'not really an image' > /tmp/heictest/fake.png
+
+      - name: Run driver upload audit (mobile viewport)
+        # Camera affordance (visible / tap-target / no-flip), trusted tap
+        # opens the native chooser, chooser-set photo uploads and renders.
+        # Uploads a tiny photo to the first driver and removes it afterwards.
+        run: AUDIT_MOBILE=1 node scripts/verify-driver-upload.mjs "$AUDIT_URL"
 
       - name: Upload audit report
         if: always()

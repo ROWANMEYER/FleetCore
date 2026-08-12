@@ -261,7 +261,7 @@ async function main() {
         y: Math.round(cr.top + cr.height / 2),
       };
     })()`);
-    const cameraChecks = { visible: !!cam?.visible, insideCard: !!cam?.inside, tapTarget: !!cam?.hitCam, chooserOpened: false, photoRendered: false };
+    const cameraChecks = { visible: !!cam?.visible, insideCard: !!cam?.inside, tapTarget: !!cam?.hitCam, cardStayedFront: false, chooserOpened: false, photoRendered: false };
     report.mobileCamera = cameraChecks;
     if (!cam) {
       failures.push("mobile camera: button not found on the driver card");
@@ -272,6 +272,13 @@ async function main() {
       const before = chooserEvents.length;
       await send("Input.dispatchMouseEvent", { type: "mousePressed", x: cam.x, y: cam.y, button: "left", clickCount: 1 });
       await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: cam.x, y: cam.y, button: "left", clickCount: 1 });
+      // Tapping the camera must NOT flip the card: the button stops its own
+      // click, but input.click() fires a second click that used to bubble to
+      // the flip-card root. Guarded in DriverAvatar; assert it here too.
+      await sleep(800);
+      const flippedCount = await evalJs(`document.querySelectorAll('[role="button"][aria-pressed="true"]').length`);
+      cameraChecks.cardStayedFront = flippedCount === 0;
+      if (!cameraChecks.cardStayedFront) failures.push(`mobile camera: tapping the camera flipped the card (${flippedCount} flipped)`);
       const opened = await waitFor(() => (chooserEvents.length > before ? chooserEvents[chooserEvents.length - 1] : null), 8000, 200);
       if (!opened) {
         failures.push("mobile camera: trusted tap did not open the native file chooser");
@@ -352,22 +359,41 @@ async function main() {
     return test;
   };
 
+  // Fixture-based upload tests. The HEIC / big-JPEG fixtures are heavy and
+  // live outside the repo, so CI runs with the camera checks + the cheap
+  // fake fixture only; any missing fixture is recorded as "skipped" rather
+  // than failing the audit.
+  const runFixture = async (label, filePath, run) => {
+    if (!existsSync(filePath)) {
+      report.tests.push({ label, file: filePath, outcome: "skipped", note: "fixture not present in this environment" });
+      console.log(`  SKIP ${label} — missing fixture ${filePath}`);
+      return null;
+    }
+    return run();
+  };
+
   // Test 1 — real HEIC (iPhone photo), should convert + upload.
-  const heic = await uploadFile(HEIC_FILE, "HEIC conversion + upload", { expectSuccess: true });
-  if (heic.photoUrl && Array.isArray(heic.storedDims)) {
+  const heic = await runFixture("HEIC conversion + upload", HEIC_FILE, () =>
+    uploadFile(HEIC_FILE, "HEIC conversion + upload", { expectSuccess: true })
+  );
+  if (heic?.photoUrl && Array.isArray(heic.storedDims)) {
     const maxDim = Math.max(...heic.storedDims);
     if (maxDim > 900) failures.push(`HEIC: stored image not downscaled -> ${heic.storedDims.join("x")}`);
   }
 
   // Test 2 — 23MB JPEG (over the old 15MB cap), should upload.
-  const jpg = await uploadFile(JPG_FILE, "23MB JPEG upload (over old 15MB cap)", { expectSuccess: true });
-  if (jpg.photoUrl && Array.isArray(jpg.storedDims)) {
+  const jpg = await runFixture("23MB JPEG upload (over old 15MB cap)", JPG_FILE, () =>
+    uploadFile(JPG_FILE, "23MB JPEG upload (over old 15MB cap)", { expectSuccess: true })
+  );
+  if (jpg?.photoUrl && Array.isArray(jpg.storedDims)) {
     const maxDim = Math.max(...jpg.storedDims);
     if (maxDim > 900) failures.push(`23MB JPEG: stored image not downscaled -> ${jpg.storedDims.join("x")}`);
   }
 
   // Test 3 — fake image, should surface the friendly error toast.
-  const fake = await uploadFile(FAKE_FILE, "Non-image error path", { expectSuccess: false });
+  await runFixture("Non-image error path", FAKE_FILE, () =>
+    uploadFile(FAKE_FILE, "Non-image error path", { expectSuccess: false })
+  );
 
   // Clean up any photo left on the first driver.
   await ensureNoPhoto();

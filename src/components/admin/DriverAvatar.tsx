@@ -199,6 +199,19 @@ export function DriverAvatar({
     }
   };
 
+  /* Open the hidden file input WITHOUT flipping the card. The camera
+     button's own click stops propagation, but input.click() then fires a
+     FRESH click event on the input that bubbles up to the flip-card root's
+     onClick and spins the card — so a one-time native listener swallows it
+     before it reaches the card (the chooser still opens: stopPropagation
+     doesn't cancel the default action). */
+  const openFilePicker = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.addEventListener("click", (ev) => ev.stopPropagation(), { once: true });
+    input.click();
+  };
+
   const handleRemove = async () => {
     try {
       await removePhoto({ driverId });
@@ -241,7 +254,7 @@ export function DriverAvatar({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            inputRef.current?.click();
+            openFilePicker();
           }}
           title={photoUrl ? "Change photo" : "Upload photo"}
           aria-label={photoUrl ? "Change photo" : "Upload photo"}
@@ -298,7 +311,7 @@ export function DriverAvatar({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          inputRef.current?.click();
+          openFilePicker();
         }}
         title={photoUrl ? "Change photo" : "Upload photo"}
         aria-label={photoUrl ? "Change photo" : "Upload photo"}

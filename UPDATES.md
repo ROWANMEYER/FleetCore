@@ -289,6 +289,35 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Drivers: photo picker inside the edit form** — the Edit card on Admin
+  → Drivers now shows the driver photo chip (reuses the `DriverAvatar`
+  avatar variant: camera to change, trash to remove, saved immediately)
+  with a hint line. The chip reads `photoUrl` from the live query, so a
+  fresh upload appears in the form without saving first. Verified
+  headless on a 375px viewport: chip + camera render in the form, Cancel
+  closes cleanly, no card flips, zero console errors.
+- **CI: mobile camera + flip audits wired into the Mobile audit workflow**
+  — `.github/workflows/mobile-audit.yml` now runs
+  `verify-driver-flip.mjs` and `verify-driver-upload.mjs` in
+  `AUDIT_MOBILE=1` mode against the live site on every push to main (and
+  the daily cron), so the camera-affordance / no-flip / upload-regression
+  checks fail the build instead of reaching phones. The upload audit's
+  fixture tests (HEIC, 23MB JPEG) now skip cleanly when their heavy,
+  repo-external fixtures are absent (CI generates only the cheap fake
+  image); local runs keep full coverage.
+- **Fix: tapping the driver camera no longer flips the card** — the camera
+  button's onClick stopped its own click from bubbling, but it then calls
+  `input.click()` on the hidden file input, which fires a FRESH click event
+  that bubbled to the flip-card root's onClick and spun the card 180° on
+  phones. `DriverAvatar` now opens the picker via a one-time native
+  `stopPropagation` listener on the input (the chooser still opens —
+  stopPropagation never cancels the default action). Verified headless on a
+  375x812 phone viewport: tapping the camera leaves the card on the front
+  face, the native chooser opens, and the upload still renders — zero
+  console errors. `verify-driver-upload.mjs` gained a `cardStayedFront`
+  assertion in its mobile camera section so this regression is caught in
+  CI. Both flip audits pass; tsc clean, eslint 0 errors, 43 tests pass.
+  `public/sw.js` → `fleetcore-v65`.
 - **Fix: driver camera button invisible on mobile PWA** — the Admin →
   Drivers photo panel collapsed on phones: its inner wrapper used
   `height: 100%` inside a `flex-1` image area, which doesn't resolve on

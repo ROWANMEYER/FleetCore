@@ -364,6 +364,21 @@ export default function AdminDriversPage() {
             return (
               <div key={d._id} className="glass-card-premium p-5 space-y-3" style={{borderColor:"#06B6D4"}}>
                 <h3 className="text-xs font-semibold uppercase tracking-wider" style={{color:"#06B6D4"}}>Editing</h3>
+                {/* Photo: uploads immediately via the same pipeline as the
+                    card camera. photoUrl comes from the live query (d), so a
+                    fresh upload shows up here without saving first. */}
+                <div className="flex items-center gap-3">
+                  <DriverAvatar
+                    variant="avatar"
+                    driverId={d._id}
+                    name={editingState.driverName}
+                    photoUrl={d.photoUrl}
+                  />
+                  <div className="text-[10px] leading-snug" style={{color:"var(--nav-text-color)"}}>
+                    <div className="text-xs font-semibold" style={{color:"var(--foreground)"}}>Driver photo</div>
+                    Tap the camera to change it, or the trash to remove — saved immediately.
+                  </div>
+                </div>
                 <input
                   className="w-full rounded-lg px-3 py-2 text-xs settings-input"
                   value={editingState.driverName} onChange={(e) => setEditingState({ ...editingState, driverName: e.target.value })} placeholder="Name" />

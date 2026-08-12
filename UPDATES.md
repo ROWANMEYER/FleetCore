@@ -289,6 +289,29 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Driver photos: long-press to view full-size** — holding a driver photo
+  for ~550ms (touch or mouse) opens a full-screen lightbox showing the full,
+  uncropped image centered on a dark blurred backdrop — tap anywhere, the ✕,
+  or Escape to close (body scroll locked while open). New reusable
+  `src/components/common/LongPressPhoto.tsx` wired into `DriverAvatar`
+  (banner + avatar variants) and `DriverThumb`, so it works everywhere
+  driver photos render: the Admin → Drivers image-first cards, the Calendar
+  birthday badges, mobile sheets route cards and the desktop spreadsheet
+  table. The release-click after a long-press is swallowed at document
+  level (capture phase, disarmed on the next pointerdown/unmount), so the
+  gesture never flips a card, opens route details, or follows the WhatsApp
+  link; a quick tap behaves exactly as before (probe verifies the card still
+  flips). Pointer capture retargets the release even if the finger slides;
+  touch pointers' immediate pointerleave is ignored (touch has no hover
+  state); the overlay is portaled to `<body>` so 3D flip transforms can't
+  clip it. Keyboard: the trigger is focusable (role=button, Enter/Space
+  opens) and focus moves to the close button on open. New
+  `scripts/verify-longpress-photo.mjs` headless audit (desktop + mobile):
+  long-press opens the lightbox with the full image + blurred backdrop,
+  doesn't flip the card, Escape closes, quick tap still flips, and a
+  calendar long-press doesn't navigate the WhatsApp link — zero console
+  errors; fixtures auto-cleaned. tsc clean, eslint 0 errors, 48 tests pass.
+  `public/sw.js` → `fleetcore-v68`.
 - **Driver photos in the email reports** — the sheets summary email (Send
   Email on the mobile Route Summary sheet) now renders the driver photo
   too: `handleSendSummaryEmail` attaches `driverPhotoUrl` (from the photo

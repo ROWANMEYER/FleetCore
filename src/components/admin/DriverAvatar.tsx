@@ -5,6 +5,7 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/src/components/common/Toast";
+import { LongPressPhoto } from "@/src/components/common/LongPressPhoto";
 import { Camera, Loader, Trash2 } from "lucide-react";
 
 /* ─── Driver avatar with photo upload/remove (Admin → Drivers) ───
@@ -234,7 +235,13 @@ export function DriverAvatar({
       <div className="absolute inset-0 overflow-hidden [container-type:inline-size]">
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`}>
           {photoUrl ? (
-            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+            <LongPressPhoto
+              src={photoUrl}
+              alt={name ? `${name} photo` : "Driver photo"}
+              className="w-full h-full"
+            >
+              <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+            </LongPressPhoto>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white font-black tracking-wide select-none">
               <span className="drop-shadow-lg" style={{ fontSize: "clamp(3rem, 22cqw, 5.5rem)" }}>
@@ -299,7 +306,13 @@ export function DriverAvatar({
         }`}
       >
         {photoUrl ? (
-          <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+          <LongPressPhoto
+            src={photoUrl}
+            alt={name ? `${name} photo` : "Driver photo"}
+            className="w-full h-full"
+          >
+            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+          </LongPressPhoto>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm tracking-wide select-none">
             {initialsOf(name)}
@@ -368,14 +381,20 @@ export function DriverThumb({
   const font = Math.max(8, Math.round(size * 0.42));
   if (photoUrl) {
     return (
-      <img
+      <LongPressPhoto
         src={photoUrl}
         alt={name ? `${name} photo` : ""}
-        title={name}
-        loading="lazy"
-        className={`rounded-full object-cover shrink-0 ${className}`}
-        style={{ width: size, height: size }}
-      />
+        className={`rounded-full ${className}`}
+      >
+        <img
+          src={photoUrl}
+          alt={name ? `${name} photo` : ""}
+          title={name}
+          loading="lazy"
+          className="rounded-full object-cover shrink-0"
+          style={{ width: size, height: size }}
+        />
+      </LongPressPhoto>
     );
   }
   return (

@@ -25,9 +25,13 @@ const client = new ConvexHttpClient(CONVEX_URL);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ── 1px PNG (tiny, decodes anywhere) ─────────────────────────────────────────
+// ── 1px PNGs (tiny, decode anywhere) — two distinct ones so the display crop
+// (PNG_1PX) and the stored original (PNG_ORIG) have different storage URLs and
+// the lightbox check can prove it shows the FULL original, not the crop.
 const PNG_1PX =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const PNG_ORIG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 async function seed() {
   // The calendar query shows birthdays of the CURRENT month, and the first 6
@@ -42,30 +46,43 @@ async function seed() {
   // Reuse a leftover probe driver (keyed by driverId, which is unique) so a
   // crashed earlier run can't make createDriver throw "already exists".
   const existing = drivers.find((d) => d.driverId === "LPR-01");
+  let driverId;
   if (existing) {
-    if (!existing.photoUrl) {
-      await client.action("fleet:uploadDriverPhoto", { driverId: existing._id, image: PNG_1PX });
+    driverId = existing._id;
+  } else {
+    try {
+      driverId = await client.mutation("fleet:createDriver", {
+        driverId: "LPR-01",
+        driverName: "Longpress Test Driver",
+        idNumber,
+        phone: "0820000000",
+        status: "active",
+      });
+    } catch (e) {
+      // Raced with a parallel probe run — reuse the one that won.
+      const again = await client.query("fleet:getDrivers", { includeInactive: true });
+      const winner = again.find((d) => d.driverId === "LPR-01");
+      if (!winner) throw e;
+      driverId = winner._id;
     }
-    return { driverId: existing._id, created: false, needsIdFix: existing.idNumber !== idNumber };
   }
-  let id;
-  try {
-    id = await client.mutation("fleet:createDriver", {
-      driverId: "LPR-01",
-      driverName: "Longpress Test Driver",
-      idNumber,
-      phone: "0820000000",
-      status: "active",
-    });
-  } catch (e) {
-    // Raced with a parallel probe run — reuse the one that won.
-    const again = await client.query("fleet:getDrivers", { includeInactive: true });
-    const winner = again.find((d) => d.driverId === "LPR-01");
-    if (!winner) throw e;
-    id = winner._id;
-  }
-  await client.action("fleet:uploadDriverPhoto", { driverId: id, image: PNG_1PX });
-  return { driverId: id, created: true };
+  // Re-upload both images every run (idempotent) so photoUrl + photoOriginalUrl
+  // are always set — the lightbox must show the ORIGINAL.
+  await client.action("fleet:uploadDriverPhoto", {
+    driverId,
+    image: PNG_1PX,
+    originalImage: PNG_ORIG,
+  });
+  const fresh = (await client.query("fleet:getDrivers", { includeInactive: true })).find(
+    (d) => d.driverId === "LPR-01"
+  );
+  return {
+    driverId,
+    created: !existing,
+    needsIdFix: existing ? existing.idNumber !== idNumber : false,
+    photoUrl: fresh?.photoUrl || "",
+    photoOriginalUrl: fresh?.photoOriginalUrl || "",
+  };
 }
 
 async function cleanup(driverId) {
@@ -169,7 +186,7 @@ function makeClient(wsUrl) {
 }
 
 async function main() {
-  const { driverId, created, needsIdFix } = await seed();
+  const { driverId, created, needsIdFix, photoUrl, photoOriginalUrl } = await seed();
   if (needsIdFix) {
     // A leftover probe driver exists but with a stale birthday ID — point it at
     // the current month so the calendar check can find it.
@@ -221,10 +238,11 @@ async function main() {
     };
 
     // Long-press via CDP Input.dispatchTouchEvent / mouse: simulate pointerdown,
-    // hold 750ms, then release.
-    const longPress = async (selectorExpr) => {
+    // hold 750ms, then release. `elExpr` is a JS expression that evaluates to
+    // the target element (a CSS selector or a scoped card query).
+    const longPress = async (elExpr) => {
       await evalJs(`(() => {
-        const el = document.querySelector(${JSON.stringify(selectorExpr)});
+        const el = (${elExpr});
         if (!el) return false;
         el.scrollIntoView({ block: 'center' });
         return true;
@@ -233,7 +251,7 @@ async function main() {
       // the same tick as scrollIntoView gives a stale (pre-scroll) position.
       await sleep(500);
       const pos = await evalJs(`(() => {
-        const el = document.querySelector(${JSON.stringify(selectorExpr)});
+        const el = (${elExpr});
         if (!el) return null;
         const r = el.getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -278,19 +296,40 @@ async function main() {
     check("login", !!loggedIn, "login failed");
 
     // ── Admin → Drivers: long-press banner photo ────────────────────
+    // Scope to the SEEDED driver's card (the page shows many drivers and the
+    // first photo'd card may belong to real data — never assert on it). The
+    // seeded driver may sit beyond the first page of cards, so type its name
+    // into the search box first — the filtered list then shows only it.
+    const CARD_EXPR = `(() => {
+      const cards = [...document.querySelectorAll('[role="button"][aria-pressed]')];
+      return cards.find((c) => (c.textContent || "").includes("Longpress Test Driver")) || null;
+    })()`;
     await send("Page.navigate", { url: BASE + "/admin/drivers" });
     await waitFor(() => evalJs("document.readyState === 'complete'"), 20000);
+    const pageReady = await waitFor(
+      () => evalJs(`location.pathname === "/admin/drivers" && !!document.querySelector('input[placeholder*="Search name"]')`),
+      25000
+    );
+    if (pageReady) {
+      // Filter to the seeded driver so its card is on the visible page.
+      await evalJs(`(async () => {
+        const input = document.querySelector('input[placeholder*="Search name"]');
+        if (!input) return;
+        const setNative = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setNative.call(input, 'Longpress');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await sleep(800);
+    }
     const cardReady = await waitFor(
-      () =>
-        evalJs(
-          `location.pathname === "/admin/drivers" && !!document.querySelector('[role="button"][aria-pressed] [title="Hold to view full photo"]')`
-        ),
+      () => evalJs(`!!(${CARD_EXPR}?.querySelector('[title="Hold to view full photo"]'))`),
       25000
     );
     check("drivers: card with photo rendered", !!cardReady, "no long-press target found");
 
     // Long-press → lightbox opens, card must NOT flip.
-    const didPress = await longPress('[role="button"][aria-pressed] [title="Hold to view full photo"]');
+    const LONGPRESS_TARGET = `${CARD_EXPR}?.querySelector('[title="Hold to view full photo"]')`;
+    const didPress = await longPress(LONGPRESS_TARGET);
     const lightbox = await waitFor(() => evalJs(`!!document.querySelector('[role="dialog"][aria-modal="true"] img')`), 6000);
     const flipped = await evalJs(`document.querySelectorAll('[role="button"][aria-pressed="true"]').length`);
     const lpSrc = await evalJs(
@@ -308,6 +347,52 @@ async function main() {
     check("long-press does not flip card", flipped === 0, `flipped=${flipped}`);
     check("lightbox has full image src", typeof lpSrc === "string" && lpSrc.startsWith("http"), `src=${lpSrc.slice(0, 60)}`);
     check("backdrop is blurred", /blur/.test(backdropBlur), backdropBlur);
+    // The lightbox must show the FULL (uncropped) original, not the display
+    // crop — the two seeded storage URLs are different so this is provable.
+    check(
+      "lightbox shows the full original (not the crop)",
+      !!photoOriginalUrl && lpSrc === photoOriginalUrl && lpSrc !== photoUrl,
+      `display=${photoUrl.slice(0, 50)} lightbox=${lpSrc.slice(0, 50)}`
+    );
+
+    // Pinch-zoom inside the lightbox: two touch points spread apart must
+    // increase the image's scale (data-lightbox-img transform). Only on touch
+    // emulation — desktop uses mouse, which can't pinch.
+    if (process.env.AUDIT_MOBILE === "1") {
+      const scaleBefore = await evalJs(`(() => {
+        const w = document.querySelector('[data-lightbox-img]');
+        if (!w) return null;
+        const m = getComputedStyle(w).transform.match(/matrix\\(([^,]+),/);
+        return m ? parseFloat(m[1]) : 1;
+      })()`);
+      await send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [
+          { x: 130, y: 380 },
+          { x: 245, y: 380 },
+        ],
+      });
+      await send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          { x: 80, y: 380 },
+          { x: 295, y: 380 },
+        ],
+      });
+      await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await sleep(400);
+      const scaleAfter = await evalJs(`(() => {
+        const w = document.querySelector('[data-lightbox-img]');
+        if (!w) return null;
+        const m = getComputedStyle(w).transform.match(/matrix\\(([^,]+),/);
+        return m ? parseFloat(m[1]) : 1;
+      })()`);
+      check(
+        "pinch zooms the lightbox image",
+        typeof scaleBefore === "number" && typeof scaleAfter === "number" && scaleAfter > scaleBefore + 0.1,
+        `scale ${scaleBefore} -> ${scaleAfter}`
+      );
+    }
 
     // Escape closes it.
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
@@ -316,10 +401,11 @@ async function main() {
     check("escape closes lightbox", !!closedAfterEsc);
 
     // Quick tap still flips the card (long-press didn't break normal taps).
-    await evalJs(`document.querySelector('[role="button"][aria-pressed]').click()`);
+    await evalJs(`${CARD_EXPR}?.click()`);
     await sleep(900);
-    check("quick tap still flips card", (await evalJs(`document.querySelectorAll('[role="button"][aria-pressed="true"]').length`)) === 1);
-    await evalJs(`document.querySelector('[role="button"][aria-pressed="true"]').click()`);
+    const flippedCount = await evalJs(`document.querySelectorAll('[role="button"][aria-pressed="true"]').length`);
+    check("quick tap still flips card", flippedCount === 1, `flipped=${flippedCount}`);
+    await evalJs(`document.querySelector('[role="button"][aria-pressed="true"]')?.click()`);
     await sleep(900);
 
     // ── Calendar: long-press thumb does NOT navigate the WhatsApp link ──
@@ -334,7 +420,7 @@ async function main() {
     } else {
       check("calendar: thumb with photo rendered", true);
       const urlBefore = await evalJs("location.href");
-      await longPress('a[title*="happy birthday"] [title="Hold to view full photo"]');
+      await longPress(`document.querySelector('a[title*="happy birthday"] [title="Hold to view full photo"]')`);
       const calLightbox = await waitFor(() => evalJs(`!!document.querySelector('[role="dialog"][aria-modal="true"] img')`), 6000);
       await sleep(300);
       const urlAfter = await evalJs("location.href");

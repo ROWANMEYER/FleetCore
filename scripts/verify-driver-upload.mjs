@@ -23,12 +23,51 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ConvexHttpClient } from "convex/browser";
 
 const BASE = process.argv[2] || process.env.AUDIT_URL || "http://localhost:3000";
+const CONVEX_URL = process.env.CONVEX_URL || "https://quixotic-gopher-969.convex.cloud";
+const client = new ConvexHttpClient(CONVEX_URL);
 const TMP = process.env.TEMP || tmpdir();
 const HEIC_FILE = process.argv[3] || join(TMP, "heictest", "sample.heic");
 const JPG_FILE = process.argv[4] || join(TMP, "heictest", "big-photo.jpg");
 const FAKE_FILE = process.argv[5] || join(TMP, "heictest", "fake.png");
+
+// The audit uploads to the FIRST driver card on the page, so a dedicated
+// "AAA …" driver sorts to the top and all its global selectors safely target
+// the sandbox driver — never a real driver's photo.
+const SEED_NAME = "AAA Audit Sandbox";
+const SEED_DRIVER_ID = "AUDIT-SANDBOX";
+
+async function seedSandbox() {
+  const drivers = await client.query("fleet:getDrivers", { includeInactive: true });
+  const existing = drivers.find((d) => d.driverId === SEED_DRIVER_ID);
+  if (existing) return { id: existing._id, created: false };
+  try {
+    const id = await client.mutation("fleet:createDriver", {
+      driverId: SEED_DRIVER_ID,
+      driverName: SEED_NAME,
+      idNumber: "9001015800085",
+      phone: "0829999999",
+      status: "active",
+    });
+    return { id, created: true };
+  } catch (e) {
+    const again = await client.query("fleet:getDrivers", { includeInactive: true });
+    const winner = again.find((d) => d.driverId === SEED_DRIVER_ID);
+    if (!winner) throw e;
+    return { id: winner._id, created: true };
+  }
+}
+
+async function cleanupSandbox(id) {
+  try {
+    await client.mutation("fleet:removeDriverPhoto", { driverId: id });
+    await client.mutation("fleet:deleteDriver", { id });
+  } catch (e) {
+    console.error("sandbox cleanup failed:", e.message);
+  }
+}
 
 const WARNING_ALLOWLIST = [
   /beforeinstallprompt/i,
@@ -151,6 +190,7 @@ async function waitForEndpoint(url, tries = 60) {
 }
 
 async function main() {
+  const sandbox = await seedSandbox();
   const port = await getDebugPort();
   await waitForEndpoint(`http://127.0.0.1:${port}/json/version`);
   const target = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(BASE + "/login")}`, {
@@ -218,23 +258,35 @@ async function main() {
   await waitFor(() => evalJs(`location.pathname === "/admin/drivers" && !!document.querySelector('input[type="file"]')`), 25000);
   await sleep(1500);
 
+  // Every photo assertion is scoped to the SANDBOX card (AAA sorts first), so
+  // real drivers' photos are never read, removed, or replaced.
+  const CARD_EXPR = `(() => {
+    const cards = [...document.querySelectorAll('[role="button"][aria-pressed]')];
+    return cards.find((c) => (c.textContent || "").includes(${JSON.stringify(SEED_NAME)})) || null;
+  })()`;
   const getPhotoUrl = () =>
     evalJs(`(() => {
-      const el = document.querySelector('.bg-cover');
+      const el = (${CARD_EXPR})?.querySelector('.bg-cover');
       if (!el) return null;
       const bg = getComputedStyle(el).backgroundImage || '';
       const m = bg.match(/url\\(["']?(.+?)["']?\\)/);
       return m ? m[1] : bg;
     })()`);
 
-  const hasTrash = () => evalJs(`!!document.querySelector('[aria-label="Remove photo"]')`);
+  const hasTrash = () => evalJs(`!!(${CARD_EXPR}?.querySelector('[aria-label="Remove photo"]'))`);
 
   const ensureNoPhoto = async () => {
     if (await hasTrash()) {
-      await evalJs(`document.querySelector('[aria-label="Remove photo"]').click()`);
+      await evalJs(`${CARD_EXPR}?.querySelector('[aria-label="Remove photo"]')?.click()`);
       await waitFor(async () => !(await hasTrash()), 30000);
     }
   };
+
+  // The sandbox card must be visible before scoped selectors can find it.
+  await waitFor(async () => {
+    const found = await evalJs(`!!(${CARD_EXPR})`);
+    return found || null;
+  }, 25000);
 
   // ── Mobile: camera affordance must be visible and tappable ───────
   // Regression guard (AUDIT_MOBILE=1) for the PWA bug where the banner's
@@ -244,10 +296,10 @@ async function main() {
   // chooser and a chooser-set image uploads and renders.
   if (process.env.AUDIT_MOBILE === "1") {
     const cam = await evalJs(`(() => {
-      const cam = document.querySelector('[title="Upload photo"], [title="Change photo"]');
-      if (!cam) return null;
-      const card = document.querySelector('[role="button"][aria-pressed]');
+      const card = (${CARD_EXPR});
       if (!card) return null;
+      const cam = card.querySelector('[title="Upload photo"], [title="Change photo"]');
+      if (!cam) return null;
       const cr = cam.getBoundingClientRect();
       const cardR = card.getBoundingClientRect();
       const inside = cr.top >= cardR.top && cr.bottom <= cardR.bottom && cr.left >= cardR.left && cr.right <= cardR.right;
@@ -294,12 +346,16 @@ async function main() {
         await send("DOM.setFileInputFiles", { files: [pngPath], backendNodeId: opened.backendNodeId });
         await sleep(500);
         rmSync(pngPath, { force: true });
+        // The picked file now opens the crop editor — confirm it to upload.
+        const confirmed = await confirmCropIfOpen();
         const rendered = await waitFor(
           () => evalJs(`!!document.querySelector('[title="Change photo"]') && !!document.querySelector('.bg-cover')`),
           25000,
           500
         );
+        cameraChecks.cropShown = !!confirmed;
         cameraChecks.photoRendered = !!rendered;
+        if (!confirmed) failures.push("mobile camera: crop editor did not open after picking a photo");
         if (!rendered) failures.push("mobile camera: chooser-set photo did not upload/render");
         await ensureNoPhoto();
       }
@@ -308,12 +364,52 @@ async function main() {
 
   const bodyText = () => evalJs(`document.body.innerText`);
 
+  // After a file is picked the crop editor opens (the picked image isn't
+  // uploaded until the user confirms the crop) — click "Use photo". Returns
+  // false if the modal never appeared. The confirm handler is inert until the
+  // image has loaded (naturalWidth > 0), so wait for that before clicking.
+  // Function declaration so it hoists above the mobile camera block that
+  // calls it (a const arrow would hit the TDZ).
+  async function confirmCropIfOpen() {
+    const modal = await waitFor(
+      () => evalJs(`!!document.querySelector('[aria-label="Crop photo"]')`),
+      30000,
+      250
+    );
+    if (!modal) return false;
+    const loaded = await waitFor(
+      () =>
+        evalJs(`(() => {
+          const img = document.querySelector('[aria-label="Crop photo"] img');
+          return !!img && img.complete && img.naturalWidth > 0;
+        })()`),
+      60000,
+      250
+    );
+    if (!loaded) return false;
+    await evalJs(`(() => {
+      const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Use photo'));
+      btn?.click();
+      return !!btn;
+    })()`);
+    return true;
+  }
+
   const uploadFile = async (filePath, label, { expectSuccess = true } = {}) => {
     await ensureNoPhoto();
     const started = Date.now();
+    // Tag the SANDBOX card's input (never the first input on the page — that
+    // could belong to a real driver if the sort/pagination ever changes).
+    await evalJs(`${CARD_EXPR}?.querySelector('input[type="file"]')?.setAttribute('data-audit-input', '1')`);
     const { root } = await send("DOM.getDocument");
-    const { nodeId } = await send("DOM.querySelector", { nodeId: root.nodeId, selector: 'input[type="file"]' });
+    const { nodeId } = await send("DOM.querySelector", {
+      nodeId: root.nodeId,
+      selector: 'input[data-audit-input="1"]',
+    });
     await send("DOM.setFileInputFiles", { nodeId, files: [filePath] });
+    // Pick → crop editor → confirm (skip for the non-image error path, where
+    // no crop modal appears because the file never decodes).
+    if (expectSuccess) await confirmCropIfOpen();
     let photoUrl = null;
     let toast = null;
     const outcome = await waitFor(async () => {
@@ -326,8 +422,10 @@ async function main() {
           return "error-toast";
         }
       } else {
-        if (text.includes("Could not convert this photo")) {
-          toast = text.split("\n").find((l) => /could not convert this photo/i.test(l)) || "Could not convert this photo";
+        if (text.includes("Could not convert this photo") || text.includes("Could not process this image")) {
+          toast =
+            text.split("\n").find((l) => /could not (convert this photo|process this image)/i.test(l)) ||
+            "friendly error toast";
           return "error-toast";
         }
         if (photoUrl) return "unexpected-upload";
@@ -420,6 +518,7 @@ async function main() {
       await sleep(500);
     }
   }
+  if (sandbox.created) await cleanupSandbox(sandbox.id);
   process.exit(passed ? 0 : 1);
 }
 

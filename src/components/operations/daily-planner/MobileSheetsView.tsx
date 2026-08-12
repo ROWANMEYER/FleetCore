@@ -1021,7 +1021,7 @@ function RouteCard({
           {truck}
         </span>
         <span className="flex items-center gap-1.5 min-w-0">
-          <DriverThumb name={route.driverName} photoUrl={route.driverPhotoUrl} size={18} className="ring-1 ring-[var(--card-border)]" />
+          <DriverThumb name={route.driverName} photoUrl={route.driverPhotoUrl} photoOriginalUrl={route.driverPhotoOriginalUrl} size={18} className="ring-1 ring-[var(--card-border)]" />
           <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] truncate">
             {route.driverName ? route.driverName.toUpperCase() : "—"}
           </span>

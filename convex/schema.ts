@@ -145,6 +145,7 @@ export default defineSchema({
     phone: v.optional(v.string()),
     photoStorageId: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
+    photoOriginalUrl: v.optional(v.string()),
     status: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     subStatus: v.optional(v.string()),

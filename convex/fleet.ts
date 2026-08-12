@@ -789,11 +789,14 @@ export const updateDriverPhotoInternal = internalMutation({
     driverId: v.id("drivers"),
     storageId: v.string(),
     url: v.string(),
+    originalStorageId: v.optional(v.string()),
+    originalUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.driverId, {
       photoStorageId: args.storageId,
       photoUrl: args.url,
+      photoOriginalUrl: args.originalUrl,
     });
   },
 });
@@ -830,6 +833,7 @@ export const removeDriverPhoto = mutation({
     await ctx.db.patch(args.driverId, {
       photoStorageId: undefined,
       photoUrl: undefined,
+      photoOriginalUrl: undefined,
     });
   },
 });
@@ -837,47 +841,54 @@ export const removeDriverPhoto = mutation({
 export const uploadDriverPhoto = action({
   args: {
     driverId: v.id("drivers"),
-    image: v.string(), // Base64 data URL
+    image: v.string(), // Base64 data URL — the cropped square shown everywhere
+    originalImage: v.optional(v.string()), // Base64 data URL — untouched original for the full-photo view
   },
   handler: async (ctx, args) => {
     // 1. Auth check
     // const identity = await ctx.auth.getUserIdentity();
     // if (!identity) throw new Error("Unauthorized");
 
-    // 2. Parse Base64 Data URL
-    const matches = args.image.match(/^data:(.+);base64,(.+)$/);
-    if (!matches) throw new Error("Invalid image data URL");
+    // 2. Parse + store the cropped image (required)
+    const storeImage = async (dataUrl: string) => {
+      const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) throw new Error("Invalid image data URL");
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      if (!mimeType.startsWith("image/")) throw new Error("Invalid file type: must be an image");
+      // Approximate size (base64 length * 0.75). The client downscales before
+      // upload, so this is only a safety net.
+      if (base64Data.length * 0.75 > 10 * 1024 * 1024) {
+        throw new Error("File size too large (max 10MB)");
+      }
+      const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: mimeType });
+      const storageId = await ctx.storage.store(blob);
+      const url = await ctx.storage.getUrl(storageId);
+      if (!url) throw new Error("Failed to generate storage URL");
+      return { storageId, url };
+    };
 
-    const mimeType = matches[1];
-    const base64Data = matches[2];
+    const { storageId, url } = await storeImage(args.image);
 
-    // 3. Validation
-    if (!mimeType.startsWith("image/")) throw new Error("Invalid file type: must be an image");
-    
-    // Check size (approximate: base64 length * 0.75). The client downscales
-    // to a small JPEG before upload, so this is only a safety net.
-    const sizeInBytes = base64Data.length * 0.75;
-    if (sizeInBytes > 10 * 1024 * 1024) throw new Error("File size too large (max 10MB)");
+    // 3. Store the original (optional — older clients only send the crop)
+    let originalStorageId: string | undefined;
+    let originalUrl: string | undefined;
+    if (args.originalImage) {
+      const stored = await storeImage(args.originalImage);
+      originalStorageId = stored.storageId;
+      originalUrl = stored.url;
+    }
 
-    // 4. Store file
-    const bytes = Uint8Array.from(
-      atob(base64Data),
-      (c) => c.charCodeAt(0)
-    );
-    const blob = new Blob([bytes], { type: mimeType });
-    
-    const storageId = await ctx.storage.store(blob);
-    const url = await ctx.storage.getUrl(storageId);
-
-    if (!url) throw new Error("Failed to generate storage URL");
-
-    // 5. Update driver record
+    // 4. Update driver record
     await ctx.runMutation(internal.fleet.updateDriverPhotoInternal, {
       driverId: args.driverId,
       storageId,
       url,
+      originalStorageId,
+      originalUrl,
     });
 
-    return { storageId, url };
+    return { storageId, url, originalUrl };
   },
 });

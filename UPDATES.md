@@ -289,6 +289,33 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Driver photos: crop on upload + pinch-zoom lightbox** — picking a
+  driver photo now opens a square (1:1) crop editor before anything is
+  uploaded: pan by dragging, zoom via two-finger pinch / mouse-wheel /
+  + − buttons / double-tap, rule-of-thirds grid, corner brackets and a
+  live circular preview that matches the card avatar exactly. Confirm
+  stores BOTH the cropped square (photoUrl) and the untouched original
+  (photoOriginalUrl, downscaled to 2× the crop edge) — both are rendered
+  from the single already-decoded modal image, so a 23MB camera photo
+  crops+uploads in ~2s instead of re-decoding (which could hang for
+  minutes). The long-press lightbox gained pinch-zoom / pan /
+  double-tap and now shows the FULL original instead of the crop by
+  default (lightboxSrc prop), everywhere photos render (admin cards,
+  calendar, mobile sheets, spreadsheet table). Corrupt/fake files now
+  surface the friendly toast from the crop modal's onError instead of
+  silently opening a broken editor. New pure crop math in
+  `src/lib/photoCrop.ts` (cover scale, offset clamp, zoom-at-focus,
+  visible source rect — unit-tested) and `src/components/common/
+  CropPhotoModal.tsx`. Backend: `uploadDriverPhoto` accepts
+  `originalImage`, `drivers.photoOriginalUrl` plumbed through
+  `getDrivers`, birthdays, and the sheets name→photo map. New headless
+  `scripts/verify-driver-crop.mjs` (crop editor → zoom → confirm → both
+  stored); `verify-longpress-photo.mjs` now also asserts the lightbox
+  shows the original + pinch-zoom works; `verify-driver-upload.mjs`
+  drives the crop-confirm step (HEIC + 23MB JPEG + fake-image paths all
+  pass, desktop + mobile). All audits scope to a seeded sandbox driver
+  so real driver data is never touched. tsc clean, eslint 0 errors, 62
+  tests pass.
 - **Driver photos: long-press to view full-size** — holding a driver photo
   for ~550ms (touch or mouse) opens a full-screen lightbox showing the full,
   uncropped image centered on a dark blurred backdrop — tap anywhere, the ✕,

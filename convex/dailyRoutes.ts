@@ -117,13 +117,16 @@ async function generateSubNotes(
  * photos are recorded — a photo-less driver sharing a name can never shadow
  * a later driver that does have a photo.
  */
-async function buildDriverPhotoByName(ctx: any): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+async function buildDriverPhotoByName(ctx: any): Promise<Map<string, { photoUrl: string; photoOriginalUrl: string }>> {
+  const map = new Map<string, { photoUrl: string; photoOriginalUrl: string }>();
   for (const d of await ctx.db.query("drivers").collect()) {
     const n = (d as any).driverName as string | undefined;
     const photo = (d as any).photoUrl as string | undefined;
     if (n && photo && !map.has(n.toLowerCase())) {
-      map.set(n.toLowerCase(), photo);
+      map.set(n.toLowerCase(), {
+        photoUrl: photo,
+        photoOriginalUrl: (d as any).photoOriginalUrl ?? "",
+      });
     }
   }
   return map;
@@ -878,7 +881,8 @@ export const getLoadsForEmailReport = query({
             routeDate: route.routeDate,
             truckFleetNo: route.truckFleetNoStr,
             driverName: route.driverName,
-            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase()) || "",
+            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase())?.photoUrl || "",
+            driverPhotoOriginalUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase())?.photoOriginalUrl || "",
             clientName: load.client,
             fromLocation: load.fromLocations?.[0] || "",
             toLocation: load.toLocations?.[0] || "",
@@ -988,7 +992,8 @@ export const getQuickSendReport = query({
             truckFleetNo: route.truckFleetNoStr,
             trailerFleetNo: route.trailerFleetNoStr ?? route.trailerFleetNo?.toString() ?? "-",
             driverName: route.driverName,
-            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase()) || "",
+            driverPhotoUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase())?.photoUrl || "",
+            driverPhotoOriginalUrl: driverPhotoByName.get(String(route.driverName || "").toLowerCase())?.photoOriginalUrl || "",
             clientName: load.client,
             fromLocation: load.fromLocations || [],
             toLocation: load.toLocations || [],

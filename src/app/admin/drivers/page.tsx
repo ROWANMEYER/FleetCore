@@ -373,6 +373,7 @@ export default function AdminDriversPage() {
                     driverId={d._id}
                     name={editingState.driverName}
                     photoUrl={d.photoUrl}
+                    photoOriginalUrl={d.photoOriginalUrl}
                   />
                   <div className="text-[10px] leading-snug" style={{color:"var(--nav-text-color)"}}>
                     <div className="text-xs font-semibold" style={{color:"var(--foreground)"}}>Driver photo</div>
@@ -445,6 +446,7 @@ export default function AdminDriversPage() {
                       driverId={d._id}
                       name={d.driverName}
                       photoUrl={d.photoUrl}
+                      photoOriginalUrl={d.photoOriginalUrl}
                       caption={`#${d.driverId} · ${d.idNumber || "no ID"}`}
                     />
                   </div>

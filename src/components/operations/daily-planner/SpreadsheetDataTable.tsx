@@ -18,6 +18,8 @@ export interface SpreadsheetRow {
   driverName: string;
   /** Driver photo URL when the route's driver has one (decorated by the caller). */
   driverPhotoUrl?: string;
+  /** Uncropped original driver photo (long-press in the thumb lightbox). */
+  driverPhotoOriginalUrl?: string;
   origin: string;
   destination: string;
   customer: string;
@@ -910,7 +912,7 @@ export default function SpreadsheetDataTable({
       case "driverName":
         return (
           <div className={`px-2 ${rowPad} truncate flex items-center gap-1.5 w-full h-full text-[var(--foreground)]`}>
-            {row.driverPhotoUrl && <DriverThumb name={row.driverName} photoUrl={row.driverPhotoUrl} size={16} className="ring-1 ring-[var(--card-border)]" />}
+            {row.driverPhotoUrl && <DriverThumb name={row.driverName} photoUrl={row.driverPhotoUrl} photoOriginalUrl={row.driverPhotoOriginalUrl} size={16} className="ring-1 ring-[var(--card-border)]" />}
             <span className="truncate">{row.driverName || "—"}</span>
           </div>
         );

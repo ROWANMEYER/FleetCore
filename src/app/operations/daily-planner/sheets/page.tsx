@@ -2341,17 +2341,23 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  // TRAE-ADDED: Memoize filtered routes for KPIs and Table consistency
  // We use the existing getFilteredAndSortedRoutes function but memoize the result
- // to prevent recalculation and ensure KPIs match the table exactly.
-  // Routes store driverName (not id), so look up each driver's photo by name
-  // and attach it to the route — the sheets views (mobile cards, spreadsheet   // table) render a small DriverThumb from route.driverPhotoUrl.
+ // to prevent recalculation and ensure KPIs match the table exactly.   // Routes store driverName (not id), so look up each driver's photo by name
+   // and attach it to the route — the sheets views (mobile cards, spreadsheet
+   // table) render a small DriverThumb from route.driverPhotoUrl. The original
+   // (uncropped) photo is carried alongside so long-press shows the full image.
    const driverPhotoByName = useMemo(() => {
-    const m: Record<string, string> = {};
+    const m: Record<string, { photoUrl: string; photoOriginalUrl: string }> = {};
     for (const d of (drivers ?? []) as any[]) {
       const n = (d as any).driverName as string | undefined;
       const photo = (d as any).photoUrl as string | undefined;
       // Only truthy photos are recorded, so a photo-less driver with a shared
       // name can never shadow a later driver that does have a photo.
-      if (n && photo && !(n.toLowerCase() in m)) m[n.toLowerCase()] = photo;
+      if (n && photo && !(n.toLowerCase() in m)) {
+        m[n.toLowerCase()] = {
+          photoUrl: photo,
+          photoOriginalUrl: (d as any).photoOriginalUrl ?? "",
+        };
+      }
     }
     return m;
   }, [drivers]);
@@ -2360,7 +2366,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   return (getFilteredAndSortedRoutes(routes || []) as any[]).map((r: any) => {
     if (!r.driverName) return r;
     const photo = driverPhotoByName[String(r.driverName).toLowerCase()];
-    return photo ? { ...r, driverPhotoUrl: photo } : r;
+    return photo ? { ...r, driverPhotoUrl: photo.photoUrl, driverPhotoOriginalUrl: photo.photoOriginalUrl } : r;
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routes, filters, sortConfig, dashboardDrilldown, quickSearch, driverPhotoByName]);
@@ -2369,12 +2375,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  // drilldown state is excluded — phones can't see the drilldown chips or
  // clear them, so it must never silently apply (e.g. a persisted drillSort).
  const filteredRoutesMobile = useMemo(() => {
- return (getFilteredAndSortedRoutes(routes || [], { includeDashboard: false }) as any[]).map((r: any) => {
-   if (!r.driverName) return r;
-   const photo = driverPhotoByName[String(r.driverName).toLowerCase()];
-   return photo ? { ...r, driverPhotoUrl: photo } : r;
- });
- // eslint-disable-next-line react-hooks/exhaustive-deps
+  return (getFilteredAndSortedRoutes(routes || [], { includeDashboard: false }) as any[]).map((r: any) => {
+    if (!r.driverName) return r;
+    const photo = driverPhotoByName[String(r.driverName).toLowerCase()];
+    return photo ? { ...r, driverPhotoUrl: photo.photoUrl, driverPhotoOriginalUrl: photo.photoOriginalUrl } : r;
+  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [routes, filters, sortConfig, quickSearch, driverPhotoByName]);
 
  const baseRoutes = useMemo(() => {
@@ -2779,10 +2785,13 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   if (rows.length === 0) { addToast("No routes to email.", "error"); return; }
   // Attach the driver photo for the email's transport report (the export rows
   // stay photo-free so storage URLs never reach CSV/Excel/JSON/PDF).
-  const emailRows = rows.map((r) => ({
-  ...r,
-  driverPhotoUrl: driverPhotoByName[String(r.driver).toLowerCase()] || "",
-}));
+  const emailRows = rows.map((r) => {
+   const photo = driverPhotoByName[String(r.driver).toLowerCase()];
+   return {
+   ...r,
+   driverPhotoUrl: photo?.photoUrl || "",
+   };
+ });
  const rangeStr = dateMode === "single"
  ? (singleDate || "Sheets")
  : dateMode === "range"

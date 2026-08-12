@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/src/components/common/Toast";
 import { LongPressPhoto } from "@/src/components/common/LongPressPhoto";
+import { CropPhotoModal } from "@/src/components/common/CropPhotoModal";
 import { Camera, Loader, Trash2 } from "lucide-react";
 
 /* ─── Driver avatar with photo upload/remove (Admin → Drivers) ───
@@ -30,8 +31,6 @@ import { Camera, Loader, Trash2 } from "lucide-react";
    respected automatically. */
 
 const MAX_PHOTO_BYTES = 50 * 1024 * 1024; // sanity cap before downscaling (decode memory on phones)
-const MAX_DIM = 900; // downscale target — avatars are tiny, so we save bandwidth
-const JPEG_QUALITY = 0.85;
 
 function looksLikeHeic(file: File): boolean {
   const type = (file.type || "").toLowerCase();
@@ -55,70 +54,16 @@ async function convertHeicToJpeg(file: File): Promise<Blob> {
   }
 }
 
-function loadImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Could not decode this image"));
-    img.src = url;
-  });
-}
-
-/** Decode a blob to an image source (EXIF orientation respected). Falls
-    back to an <img> element when createImageBitmap is unavailable or
-    rejects (very large images, unusual formats). */
-async function decodeBlob(blob: Blob): Promise<{ source: CanvasImageSource; width: number; height: number }> {
-  if (typeof createImageBitmap === "function") {
-    try {
-      const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
-      return { source: bmp, width: bmp.width, height: bmp.height };
-    } catch {
-      // fall through to the <img> path
-    }
-  }
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    const img = await loadImage(objectUrl);
-    if (!img.naturalWidth || !img.naturalHeight) throw new Error("Could not decode this image");
-    return { source: img, width: img.naturalWidth, height: img.naturalHeight };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-function renderSmallJpeg(source: CanvasImageSource, width: number, height: number): string {
-  const scale = Math.min(1, MAX_DIM / Math.max(width, height));
-  const w = Math.max(1, Math.round(width * scale));
-  const h = Math.max(1, Math.round(height * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas is not supported");
-  // White backdrop so transparent PNGs don't flatten to black in the JPEG.
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(source, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
-}
-
-/** Decode the file (converting HEIC first if needed) and re-encode it
-    small as a JPEG data URL. */
-async function fileToSmallDataUrl(file: File): Promise<string> {
+/** Decode the file (converting HEIC first if needed) and return an object URL
+    for the crop editor (the HEIC case yields a converted JPEG URL — a raw
+    HEIC URL won't render in an <img>). The URL must be revoked by the caller
+    when the crop flow finishes. */
+async function fileToObjectUrl(file: File): Promise<string> {
   if (looksLikeHeic(file)) {
     const jpeg = await convertHeicToJpeg(file);
-    const { source, width, height } = await decodeBlob(jpeg);
-    return renderSmallJpeg(source, width, height);
+    return URL.createObjectURL(jpeg);
   }
-  try {
-    const { source, width, height } = await decodeBlob(file);
-    return renderSmallJpeg(source, width, height);
-  } catch {
-    // Decode failed — could be a HEIC with a generic name/MIME. Try converting once.
-    const jpeg = await convertHeicToJpeg(file);
-    const { source, width, height } = await decodeBlob(jpeg);
-    return renderSmallJpeg(source, width, height);
-  }
+  return URL.createObjectURL(file);
 }
 
 const GRADIENTS = [
@@ -143,12 +88,16 @@ export function DriverAvatar({
   driverId,
   name,
   photoUrl,
+  photoOriginalUrl,
   variant = "avatar",
   caption,
 }: {
   driverId: Id<"drivers">;
   name?: string;
   photoUrl?: string;
+  /* Untouched original photo — long-press shows this full-size instead of the
+     cropped display photo. */
+  photoOriginalUrl?: string;
   /* "avatar" = small round chip (default); "banner" = fills its parent and
      becomes the main visual of the image-first driver card. */
   variant?: "avatar" | "banner";
@@ -157,6 +106,7 @@ export function DriverAvatar({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const uploadPhoto = useAction(api.fleet.uploadDriverPhoto);
   const removePhoto = useMutation(api.fleet.removeDriverPhoto);
   const { addToast } = useToast();
@@ -179,11 +129,46 @@ export function DriverAvatar({
       addToast("This image is very large — please use one under 50MB", "error");
       return;
     }
+    try {
+      // Open the crop editor immediately — decoding a big camera photo takes
+      // seconds, so never block on it here. If the file is corrupt/fake, the
+      // crop modal's <img> fails to load and its onError surfaces the friendly
+      // toast (the old direct-upload flow showed it at pick time; same UX, no
+      // double decode of large files).
+      const url = await fileToObjectUrl(file);
+      setCropSrc(url);
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      addToast(
+        msg.includes("Could not convert")
+          ? "Could not convert this photo — please save it as a JPEG or PNG"
+          : msg.includes("Could not decode")
+            ? "Could not process this image — please use a JPEG or PNG"
+            : msg,
+        "error"
+      );
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const cancelCrop = () => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+  };
+
+  const confirmCrop = async (croppedImage: string, originalImage: string) => {
+    const srcUrl = cropSrc;
+    if (!srcUrl) return;
     setUploading(true);
     try {
-      const image = await fileToSmallDataUrl(file);
-      await uploadPhoto({ driverId, image });
+      // Both images come from the crop editor (already decoded there) — the
+      // original is the untouched photo downscaled to 2x the crop edge, stored
+      // alongside so long-press can show the full image.
+      await uploadPhoto({ driverId, image: croppedImage, originalImage });
       addToast("Photo uploaded", "success");
+      URL.revokeObjectURL(srcUrl);
+      setCropSrc(null);
     } catch (e: any) {
       const msg = String(e?.message || e);
       addToast(
@@ -196,7 +181,6 @@ export function DriverAvatar({
       );
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
@@ -232,11 +216,13 @@ export function DriverAvatar({
       // container-type makes the initials' cqw font size scale with the
       // card width (not the viewport) — big initials fill the banner on
       // any size.
+      <>
       <div className="absolute inset-0 overflow-hidden [container-type:inline-size]">
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`}>
           {photoUrl ? (
             <LongPressPhoto
               src={photoUrl}
+              lightboxSrc={photoOriginalUrl || photoUrl}
               alt={name ? `${name} photo` : "Driver photo"}
               className="w-full h-full"
             >
@@ -295,6 +281,20 @@ export function DriverAvatar({
           onChange={(e) => pickFile(e.target.files?.[0])}
         />
       </div>
+
+      {/* Crop editor — shown after picking a file, before upload */}
+      <CropPhotoModal
+        open={cropSrc !== null}
+        src={cropSrc ?? ""}
+        alt={name ? `${name} photo` : "Driver photo"}
+        onCancel={cancelCrop}
+        onConfirm={confirmCrop}
+        onError={() => {
+          cancelCrop();
+          addToast("Could not process this image — please use a JPEG or PNG", "error");
+        }}
+      />
+      </>
     );
   }
 
@@ -308,6 +308,7 @@ export function DriverAvatar({
         {photoUrl ? (
           <LongPressPhoto
             src={photoUrl}
+            lightboxSrc={photoOriginalUrl || photoUrl}
             alt={name ? `${name} photo` : "Driver photo"}
             className="w-full h-full"
           >
@@ -357,6 +358,19 @@ export function DriverAvatar({
         className="hidden"
         onChange={(e) => pickFile(e.target.files?.[0])}
       />
+
+      {/* Crop editor — shown after picking a file, before upload */}
+      <CropPhotoModal
+        open={cropSrc !== null}
+        src={cropSrc ?? ""}
+        alt={name ? `${name} photo` : "Driver photo"}
+        onCancel={cancelCrop}
+        onConfirm={confirmCrop}
+        onError={() => {
+          cancelCrop();
+          addToast("Could not process this image — please use a JPEG or PNG", "error");
+        }}
+      />
     </div>
   );
 }
@@ -368,11 +382,13 @@ export function DriverAvatar({
 export function DriverThumb({
   name,
   photoUrl,
+  photoOriginalUrl,
   size = 20,
   className = "",
 }: {
   name?: string;
   photoUrl?: string;
+  photoOriginalUrl?: string;
   size?: number;
   className?: string;
 }) {
@@ -383,6 +399,7 @@ export function DriverThumb({
     return (
       <LongPressPhoto
         src={photoUrl}
+        lightboxSrc={photoOriginalUrl || photoUrl}
         alt={name ? `${name} photo` : ""}
         className={`rounded-full ${className}`}
       >

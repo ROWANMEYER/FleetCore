@@ -43,8 +43,13 @@ const COLUMN_DEFINITIONS: Record<string, { label: string; field?: string; align?
     // URL is a public Convex storage link; email clients that block remote
     // images degrade gracefully to the name alone.
     getValue: (row) => {
-      const name = String(row.driverName || "").replace(/[<>&"]/g, "");
-      const photo = String(row.driverPhotoUrl || "").replace(/[<>&"]/g, "");
+      // Escape & (so names like "J&J TRANSPORT" keep their ampersand in the
+      // email) and remove < > " which could break out of the tag. Applied to
+      // the name and the photo URL alike; the URL may also carry a signed
+      // query string, so stripping & there would corrupt the link.
+      const sanitize = (s: string) => String(s || "").replace(/&/g, "&amp;").replace(/[<>"]/g, "");
+      const name = sanitize(row.driverName);
+      const photo = sanitize(row.driverPhotoUrl);
       if (!photo) return name;
       return `<img src="${photo}" alt="" width="18" height="18" style="border-radius:50%;vertical-align:middle;object-fit:cover;margin-right:6px;display:inline-block;" />${name}`;
     },

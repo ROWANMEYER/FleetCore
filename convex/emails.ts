@@ -62,6 +62,9 @@ export const sendSummaryEmail = action({
         amount: v.number(),
         ratePerKm: v.number(),
         status: v.string(),
+        // Driver photo URL from the sheets rows (decorated onto routes by the
+        // sheets page) so the summary email renders the driver photo too.
+        driverPhotoUrl: v.optional(v.string()),
       })
     ),
   },
@@ -82,7 +85,11 @@ export const sendSummaryEmail = action({
       routeDate: escapeHtml(r.date),
       truckFleetNo: escapeHtml(r.truck),
       trailerFleetNo: escapeHtml(r.trailer),
-      driverName: escapeHtml(r.driver),
+      // Passed raw (not escapeHtml'd): the transport report's driver column
+      // sanitizes the name itself, so escaping here would double-encode "&"
+      // in names like "J&J TRANSPORT". Same for the photo URL.
+      driverName: r.driver,
+      driverPhotoUrl: r.driverPhotoUrl || "",
       clientName: escapeHtml(r.client),
       fromLocation: r.from ? r.from.split(",").map(escapeHtml) : [],
       toLocation: r.to ? r.to.split(",").map(escapeHtml) : [],

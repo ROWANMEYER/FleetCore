@@ -2772,20 +2772,23 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  } catch {
  addToast("Failed to export. See console for details.", "error");
 }
-};
-
- // Email the visible routes (Send Email button in the summary sheet's export
- // row) — HTML transport report in the body, no attachment.
- const handleSendSummaryEmail = async (recipientIds: Id<"recipients">[], subject: string) => {
- const rows = mapSheetsToExportRows(filteredRoutesMobile ?? []);
- if (rows.length === 0) { addToast("No routes to email.", "error"); return; }
+};  // Email the visible routes (Send Email button in the summary sheet's export
+  // row) — HTML transport report in the body, no attachment.
+  const handleSendSummaryEmail = async (recipientIds: Id<"recipients">[], subject: string) => {
+  const rows = mapSheetsToExportRows(filteredRoutesMobile ?? []);
+  if (rows.length === 0) { addToast("No routes to email.", "error"); return; }
+  // Attach the driver photo for the email's transport report (the export rows
+  // stay photo-free so storage URLs never reach CSV/Excel/JSON/PDF).
+  const emailRows = rows.map((r) => ({
+  ...r,
+  driverPhotoUrl: driverPhotoByName[String(r.driver).toLowerCase()] || "",
+}));
  const rangeStr = dateMode === "single"
  ? (singleDate || "Sheets")
  : dateMode === "range"
  ? (fromDate && toDate ?`${fromDate} to ${toDate}` :"Sheets")
- : (selectedMonth || "Sheets");
- try {
- await sendSummaryEmail({ recipientIds, subject, dateRange: rangeStr, rows });
+ : (selectedMonth || "Sheets");  try {
+  await sendSummaryEmail({ recipientIds, subject, dateRange: rangeStr, rows: emailRows });
  addToast("Summary emailed.", "success");
  setShowEmailModal(false);
  } catch (error) {

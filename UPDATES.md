@@ -289,6 +289,25 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Driver photos in the email reports** — the sheets summary email (Send
+  Email on the mobile Route Summary sheet) now renders the driver photo
+  too: `handleSendSummaryEmail` attaches `driverPhotoUrl` (from the photo
+  map) to the export rows it passes to `sendSummaryEmail`, whose schema and
+  load-mapping now accept it. The QuickSend email already flowed photos via
+  `getQuickSendReport` — both emails share `renderTransportReport`. While
+  in there, the transport report's driver cell now HTML-escapes `&` (so
+  names like "J&J TRANSPORT" and signed storage URLs keep their ampersands)
+  instead of stripping it, and `sendSummaryEmail` passes the driver name
+  through unescaped (the template sanitizes it — double-escaping mangled
+  `&`). Export rows stay photo-free so Convex storage URLs never leak into
+  CSV/Excel/JSON/PDF (the JSON/CSV exporters serialize whole row objects).
+  New unit tests in `convex/templates/TransportReport.test.ts` cover the
+  photo cell, its absence, query-string preservation, name ampersands and
+  tag-breakout stripping. Verified headless: the QuickSend iframe (same
+  renderer both emails use) embeds the round photo img with zero console
+  errors; fixtures cleaned up. tsc clean, eslint 0 errors, 48 tests pass.
+  Convex functions pushed to the dev deployment. `public/sw.js` →
+  `fleetcore-v67`.
 - **Driver photos across sheets, QuickSend and Calendar** — a driver's
   uploaded photo (`drivers.photoUrl`) now follows them everywhere their
   name appears. New tiny `DriverThumb` (photo, or deterministic initials on

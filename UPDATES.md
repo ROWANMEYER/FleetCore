@@ -289,6 +289,21 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Sheets table: inline Amount + Notes editing (web)** — the spreadsheet
+  now lets you click-to-edit Amount and Notes alongside the existing
+  Origin / Dest / Client cells. Amount is a derived value (qty × rate), so
+  `updateLoadFields` converts the typed amount back into the load's stored
+  rate using its own rateType + quantity (flat/full = the amount; per-unit
+  = amount ÷ qty; 0-qty loads fall back to storing the amount as-is).
+  Notes live at route level, so a Notes edit patches the route document
+  directly regardless of which load row you clicked. No-loads routes
+  (single row per route) now also show their route-level origin/destination
+  so those cells edit the route scalars coherently, and a double-save guard
+  stops Enter + blur from firing the same mutation twice. New headless
+  audit `scripts/verify-sheets-inline-edit.mjs` (seeds a unique-truck
+  sandbox route, edits Amount/Notes/Origin, reload persistence check,
+  Convex read-back, cleanup). Convex functions pushed to the dev
+  deployment.
 - **Driver photos: crop on upload + pinch-zoom lightbox** — picking a
   driver photo now opens a square (1:1) crop editor before anything is
   uploaded: pan by dragging, zoom via two-finger pinch / mouse-wheel /

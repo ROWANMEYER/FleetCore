@@ -47,7 +47,7 @@ export interface SpreadsheetExtraColumn {
 interface EditingCell {
   routeId: string;
   loadIndex: number;
-  field: keyof Pick<SpreadsheetRow, "customer" | "origin" | "destination">;
+  field: keyof Pick<SpreadsheetRow, "customer" | "origin" | "destination" | "amount" | "notes">;
 }
 
 interface Props {
@@ -674,8 +674,8 @@ export default function SpreadsheetDataTable({
           dateIso: route.routeDate || "",
           driverName: (route.driverName || "").toUpperCase(),
           driverPhotoUrl: route.driverPhotoUrl || "",
-          origin: "",
-          destination: "",
+          origin: ((route.fromLocations && route.fromLocations[0]) || "").toUpperCase(),
+          destination: ((route.toLocations && route.toLocations[0]) || "").toUpperCase(),
           customer: route.client || "",
           amount: Number(route.rate) || 0,
           rkm: routeRkm,
@@ -772,7 +772,9 @@ export default function SpreadsheetDataTable({
     });
   }, []);
 
-  // Start editing a cell
+  // Start editing a cell. Amount is a number in the row but a string in the
+  // input — seed it with the raw value (e.g. "1234.56"), not the R-formatted
+  // display, so the user edits a clean number.
   const startEditing = useCallback(
     (row: SpreadsheetRow, field: EditingCell["field"]) => {
       setEditingCell({
@@ -780,7 +782,7 @@ export default function SpreadsheetDataTable({
         loadIndex: row.loadIndex,
         field,
       });
-      setEditValue(row[field]);
+      setEditValue(field === "amount" ? String(row.amount || "") : String(row[field] ?? ""));
     },
     []
   );
@@ -791,6 +793,10 @@ export default function SpreadsheetDataTable({
 
     const { routeId, loadIndex, field } = editingCell;
     const cellKey = `${routeId}_${loadIndex}_${field}`;
+    // Guard against Enter + blur firing the same save twice: the input is
+    // disabled while saving, which can blur it and re-enter here before the
+    // first mutation settles.
+    if (savingCell === cellKey) return;
     setSavingCell(cellKey);
 
     try {
@@ -801,6 +807,12 @@ export default function SpreadsheetDataTable({
         patch.fromLocations = [editValue];
       } else if (field === "destination") {
         patch.toLocations = [editValue];
+      } else if (field === "amount") {
+        // Amount is derived (qty × rate / flat rate) — send the raw amount and
+        // let the backend convert it back into the stored rate.
+        patch.amount = parseNumberSafe(editValue);
+      } else if (field === "notes") {
+        patch.notes = editValue;
       }
 
       await updateLoadFields({
@@ -815,7 +827,7 @@ export default function SpreadsheetDataTable({
       setEditingCell(null);
       setEditValue("");
     }
-  }, [editingCell, editValue, updateLoadFields]);
+  }, [editingCell, editValue, savingCell, updateLoadFields]);
 
   // Cancel editing
   const cancelEdit = useCallback(() => {
@@ -952,6 +964,7 @@ export default function SpreadsheetDataTable({
           >
             {isEditing(row, "destination") ? (
               <input
+                ref={inputRef}
                 type="text"
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
@@ -977,6 +990,7 @@ export default function SpreadsheetDataTable({
           >
             {isEditing(row, "customer") ? (
               <input
+                ref={inputRef}
                 type="text"
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
@@ -998,8 +1012,31 @@ export default function SpreadsheetDataTable({
         );
       case "amount":
         return (
-          <div className={`px-2 ${rowPad} truncate flex items-center justify-end w-full h-full text-[var(--foreground)] font-mono font-semibold tabular-nums`}>
-            {row.amount > 0 ? formatZAR(row.amount) : "—"}
+          <div
+            className={`px-2 ${rowPad} truncate flex items-center justify-end cursor-pointer hover:bg-[rgba(6,182,212,0.06)] w-full h-full ${
+              isEditing(row, "amount") ? "p-0" : ""
+            }`}
+            onClick={() => !isEditing(row, "amount") && startEditing(row, "amount")}
+            title="Click to edit amount"
+          >
+            {isEditing(row, "amount") ? (
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="decimal"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={saveEdit}
+                onKeyDown={handleKeyDown}
+                disabled={isSaving(row, "amount")}
+                placeholder="0.00"
+                className={`w-full px-2 ${rowPad} bg-[var(--card-bg)] border-2 border-[#06B6D4] outline-none text-[12px] text-right font-mono tabular-nums text-[var(--foreground)]`}
+              />
+            ) : (
+              <span className="text-[var(--foreground)] font-mono font-semibold tabular-nums truncate">
+                {row.amount > 0 ? formatZAR(row.amount) : "—"}
+              </span>
+            )}
           </div>
         );
       case "rkm":
@@ -1011,18 +1048,36 @@ export default function SpreadsheetDataTable({
       case "notes":
         return (
           <div
-            className={`px-2 ${rowPad} truncate flex items-center w-full h-full ${
-              isShipmentRef(row.notes) ? "bg-[var(--table-highlight-bg)]" : ""
-            }`}
-            title={isShipmentRef(row.notes) ? "Shipment reference — highlighted" : row.notes}
+            className={`px-2 ${rowPad} truncate flex items-center cursor-pointer hover:bg-[rgba(6,182,212,0.06)] w-full h-full ${
+              isEditing(row, "notes") ? "p-0" : ""
+            } ${!isEditing(row, "notes") && isShipmentRef(row.notes) ? "bg-[var(--table-highlight-bg)]" : ""}`}
+            onClick={() => !isEditing(row, "notes") && startEditing(row, "notes")}
+            title={
+              isShipmentRef(row.notes)
+                ? "Shipment reference — highlighted · click to edit"
+                : "Click to edit"
+            }
           >
-            <span
-              className={`truncate w-full ${
-                isShipmentRef(row.notes) ? "text-[var(--table-highlight-text)] font-bold" : "text-[var(--foreground)]"
-              }`}
-            >
-              {row.notes || ""}
-            </span>
+            {isEditing(row, "notes") ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={saveEdit}
+                onKeyDown={handleKeyDown}
+                disabled={isSaving(row, "notes")}
+                className={`w-full px-2 ${rowPad} bg-[var(--card-bg)] border-2 border-[#06B6D4] outline-none text-[12px] text-[var(--foreground)]`}
+              />
+            ) : (
+              <span
+                className={`truncate w-full ${
+                  isShipmentRef(row.notes) ? "text-[var(--table-highlight-text)] font-bold" : "text-[var(--foreground)]"
+                }`}
+              >
+                {row.notes || ""}
+              </span>
+            )}
           </div>
         );
       default:

@@ -1071,6 +1071,14 @@ export const updateLoadFields = mutation({
       rate: v.optional(v.string()),
       fromLocations: v.optional(v.array(v.string())),
       toLocations: v.optional(v.array(v.string())),
+      // Amount is a DERIVED display value (qty × rate, or rate for flat rates)
+      // — not a stored field. The client sends the amount the user typed and
+      // this handler converts it back into the stored rate using the load's
+      // own quantity + rateType, so the spreadsheet cell edits the real data.
+      amount: v.optional(v.number()),
+      // Notes live at ROUTE level (route.notes), so this patch path patches
+      // the route document directly regardless of which load row was clicked.
+      notes: v.optional(v.string()),
     }),
   },
   handler: async (ctx, args) => {
@@ -1089,15 +1097,53 @@ export const updateLoadFields = mutation({
       throw new Error("Cannot edit a locked route.");
     }
 
+    // ── Route-level patch: notes (and the no-loads single-row route) ──
+    // Notes are stored on the route, not the load — patch the document and
+    // return before the load-index logic runs.
+    if (args.patch.notes !== undefined) {
+      await ctx.db.patch(args.routeId, { notes: args.patch.notes });
+      return;
+    }
+
     const loads = [...(route.loads || [])];
-    if (args.loadIndex < 0 || args.loadIndex >= loads.length) {
+
+    // A route with NO loads renders as a single spreadsheet row (loadIndex
+    // -1) — edit the route's own scalar fields there (amount = route rate).
+    if (args.loadIndex < 0) {
+      const patch: Record<string, unknown> = {};
+      if (args.patch.client !== undefined) patch.client = args.patch.client;
+      if (args.patch.fromLocations !== undefined) patch.fromLocations = args.patch.fromLocations;
+      if (args.patch.toLocations !== undefined) patch.toLocations = args.patch.toLocations;
+      if (args.patch.rate !== undefined) patch.rate = args.patch.rate;
+      if (args.patch.amount !== undefined) patch.rate = String(args.patch.amount);
+      await ctx.db.patch(args.routeId, patch);
+      return;
+    }
+
+    if (args.loadIndex >= loads.length) {
       throw new Error("Invalid load index");
+    }
+
+    // ── Load-level patch ──
+    const patch: Record<string, unknown> = { ...args.patch };
+    if (patch.amount !== undefined) {
+      // Convert the edited amount back into the stored rate. Flat/full rates
+      // ARE the amount; per-unit amounts need dividing by the load's quantity.
+      const load = loads[args.loadIndex] as any;
+      const rateType = load.rateType || "per_unit";
+      const qty = parseFloat(String(load.quantity || "").replace(",", ".")) || 0;
+      const amount = Number(patch.amount) || 0;
+      patch.rate =
+        rateType === "flat" || rateType === "full" || qty <= 0
+          ? String(amount)
+          : String(amount / qty);
+      delete patch.amount;
     }
 
     // Update the specific load
     loads[args.loadIndex] = {
       ...loads[args.loadIndex],
-      ...args.patch,
+      ...patch,
     };
 
     // Recalculate aggregates

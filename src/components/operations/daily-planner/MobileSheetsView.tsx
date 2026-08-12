@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { RegionCell, REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
 import { DriverThumb } from "@/src/components/admin/DriverAvatar";
+import CommitDateInput from "@/src/components/common/CommitDateInput";
 
 /* ────────────────────────────────────────────────────────────────────────────
    Mobile Sheets screen (phone app)
@@ -463,13 +464,12 @@ export default function MobileSheetsView({
                 size={15}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nav-text-color)] pointer-events-none"
               />
-              <input
-                type="date"
+              <CommitDateInput
                 name="mobile-single-date"
                 value={singleDate}
-                onChange={(e) => changeSingleDate(e.target.value)}
+                onChange={changeSingleDate}
                 className={`${inputClass} pl-9`}
-                aria-label="Select date"
+                ariaLabel="Select date"
               />
             </label>
             <button
@@ -486,21 +486,19 @@ export default function MobileSheetsView({
           <div className="grid grid-cols-2 gap-1.5">
             <label className="text-[10px] font-semibold text-[var(--nav-text-color)]">
               From
-              <input
-                type="date"
+              <CommitDateInput
                 name="mobile-from-date"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={setFromDate}
                 className={`${inputClass} mt-0.5`}
               />
             </label>
             <label className="text-[10px] font-semibold text-[var(--nav-text-color)]">
               To
-              <input
-                type="date"
+              <CommitDateInput
                 name="mobile-to-date"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={setToDate}
                 className={`${inputClass} mt-0.5`}
               />
             </label>

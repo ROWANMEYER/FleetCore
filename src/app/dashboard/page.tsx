@@ -17,6 +17,7 @@ import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 import { useIsMobile } from "@/src/hooks/useIsMobile";
 import { useTilt } from "@/src/hooks/useTilt";
+import CommitDateInput from "@/src/components/common/CommitDateInput";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -114,10 +115,10 @@ function FilterBar({
  {/* inputs */}
  <div className={`glass-card flex items-center gap-1.5 rounded-xl px-2.5 py-1 sm:px-4 sm:py-2`}>
  {mode ==="day" && (
- <input
- type="date"
+ <CommitDateInput
  value={startDate}
- onChange={(e) => setDay(e.target.value)} className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
+ ariaLabel="Start date"
+ onChange={setDay} className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
                 />
               )}
               {mode ==="month" && (
@@ -145,16 +146,17 @@ function FilterBar({
 )}
  {mode ==="range" && (
  <>
- <input
- type="date"
+ <CommitDateInput
  value={startDate}
- onChange={(e) => onChange(e.target.value, endDate)}                  className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
+ ariaLabel="Start date"
+ onChange={(v) => onChange(v, endDate)} className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
                   />
                   <span className="text-[var(--nav-text-color)]">→</span>
-                  <input
-                    type="date"value={endDate}
- onChange={(e) => onChange(startDate, e.target.value)}
- className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
+                  <CommitDateInput
+                    value={endDate}
+                    ariaLabel="End date"
+                    onChange={(v) => onChange(startDate, v)}
+                    className="bg-transparent text-sm sm:text-base py-1 sm:py-2 focus:outline-none text-[var(--foreground)]"
  />
  </>
 )}

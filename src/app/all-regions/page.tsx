@@ -11,6 +11,7 @@ import SpreadsheetDataTable, {
   type SpreadsheetExtraColumn,
 } from "@/src/components/operations/daily-planner/SpreadsheetDataTable";
 import { RegionCell } from "@/src/components/operations/daily-planner/RegionCell";
+import CommitDateInput from "@/src/components/common/CommitDateInput";
 import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
 import { EmptyState } from "@/src/components/common/EmptyState";
 
@@ -281,10 +282,10 @@ export default function AllRegionsPage() {
 
               <div className="glass-card flex items-center gap-2 rounded-xl px-3 py-1.5">
                 {dateMode === "day" && (
-                  <input
-                    type="date"
+                  <CommitDateInput
                     value={singleDate}
-                    onChange={(e) => setSingleDate(e.target.value)}
+                    ariaLabel="Date"
+                    onChange={setSingleDate}
                     className="bg-transparent text-sm py-1.5 focus:outline-none text-[var(--foreground)]"
                   />
                 )}
@@ -313,17 +314,17 @@ export default function AllRegionsPage() {
                 )}
                 {dateMode === "range" && (
                   <>
-                    <input
-                      type="date"
+                    <CommitDateInput
                       value={rangeStart}
-                      onChange={(e) => setRangeStart(e.target.value)}
+                      ariaLabel="Start date"
+                      onChange={setRangeStart}
                       className="bg-transparent text-sm py-1.5 focus:outline-none text-[var(--foreground)]"
                     />
                     <span className="text-[var(--nav-text-color)]">→</span>
-                    <input
-                      type="date"
+                    <CommitDateInput
                       value={rangeEnd}
-                      onChange={(e) => setRangeEnd(e.target.value)}
+                      ariaLabel="End date"
+                      onChange={setRangeEnd}
                       className="bg-transparent text-sm py-1.5 focus:outline-none text-[var(--foreground)]"
                     />
                   </>

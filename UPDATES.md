@@ -289,6 +289,27 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Commit-on-select date pickers across the app** — the sheets fix is now
+  the shared `CommitDateInput` (moved to `src/components/common/`),
+  applied to the dashboard filter (Day + Range From/To), the all-regions
+  table (Day + Range From/To) and the swaps history filter (From/To). On
+  every one of those screens, browsing months in the native calendar no
+  longer re-runs the query — the filter only applies when a day is actually
+  picked. Inputs carry `ariaLabel`s for screen readers, and new headless
+  audit `scripts/verify-date-commit-all.mjs` proves browse-doesn't-commit /
+  real-selection-commits on all three screens including the closure-
+  sensitive Range To input. `sw.js` → `fleetcore-v72`.
+- **Sheets date range: no more mid-browse refetching** — the date pickers
+  (single day + range From/To, web compact header, full header and mobile
+  view) now only commit a date once you actually pick one. Browsing months
+  with the native calendar arrows used to fire intermediate `input` events
+  that re-ran the query and re-filtered the table on every arrow click
+  (with a visible delay); a new `CommitDateInput` keeps a local draft and
+  commits to the parent only from the browser's native `change` event (the
+  real picker commit), reverting stray drafts on blur when no day was
+  chosen. New headless audit `scripts/verify-date-commit.mjs` proves
+  month-browsing leaves the committed filter untouched while a real
+  selection updates it (and persists). `sw.js` → `fleetcore-v71`.
 - **Sheets table: inline Amount + Notes editing (web)** — the spreadsheet
   now lets you click-to-edit Amount and Notes alongside the existing
   Origin / Dest / Client cells. Amount is a derived value (qty × rate), so

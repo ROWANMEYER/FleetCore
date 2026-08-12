@@ -24,6 +24,7 @@ import { registerCaptureEscape} from"@/src/components/operations/invoice/invoice
  import ImportLoadsModal from"./ImportLoadsModal";
  import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
 import SpreadsheetDataTable, { type SpreadsheetExtraColumn } from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
+import CommitDateInput from"@/src/components/common/CommitDateInput";
 import { RegionCell, REGION_META } from"@/src/components/operations/daily-planner/RegionCell";
 import MobileSheetsView from"@/src/components/operations/daily-planner/MobileSheetsView";
 import { useIsMobile } from"@/src/hooks/useIsMobile";
@@ -2060,8 +2061,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  } catch { /* ignore */ }
  }, [dateMode, singleDate, fromDate, toDate, selectedMonth]);
 
- const handleSingleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
- const newDate = e.target.value;
+ const handleSingleDateChange = (newDate: string) => {
  setSingleDate(newDate);
  syncDateToUrl(newDate);
 };
@@ -2465,8 +2465,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
 
  {dateMode ==="single" && (
- <input
- type="date"
+ <CommitDateInput
  name="sheet-single-date"
  value={singleDate}
  onChange={handleSingleDateChange}
@@ -2476,19 +2475,17 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  {dateMode ==="range" && (
  <>
- <input
- type="date"
+ <CommitDateInput
  name="sheet-from-date"
  value={fromDate}
- onChange={(e) => setFromDate(e.target.value)}
+ onChange={setFromDate}
  className={compactDateInputClass}
  />
  <span className="text-xs text-[var(--nav-text-color)]">to</span>
- <input
- type="date"
+ <CommitDateInput
  name="sheet-to-date"
  value={toDate}
- onChange={(e) => setToDate(e.target.value)}
+ onChange={setToDate}
  className={compactDateInputClass}
  />
  </>
@@ -3449,13 +3446,10 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Month</span>
  </label>
- </div>
-
- {/* Single Mode Input */}
+ </div> {/* Single Mode Input */}
  {dateMode ==="single" && (
  <div>
- <input
- type="date"
+ <CommitDateInput
  name="filter-single-date"
  value={singleDate}
  onChange={handleSingleDateChange}
@@ -3469,21 +3463,19 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <div className="space-y-1.5">
  <div className="flex gap-2 items-center">
  <div>
- <input
- type="date"
+ <CommitDateInput
  name="filter-from-date"
  value={fromDate}
- onChange={(e) => setFromDate(e.target.value)}
+ onChange={setFromDate}
  className="border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
  />
  </div>
  <span className="text-[var(--nav-text-color)] text-xs">→</span>
  <div>
- <input
- type="date"
+ <CommitDateInput
  name="filter-to-date"
  value={toDate}
- onChange={(e) => setToDate(e.target.value)}
+ onChange={setToDate}
  className="border border-[var(--card-border)] rounded-md px-3 py-2 text-sm bg-[var(--card-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#06B6D4] focus:border-transparent"
  />
  </div>
@@ -3492,7 +3484,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <p className="text-xs text-red-600 font-medium animate-pulse">
  ⚠ From date cannot be after To date
  </p>
-)}
+ )}
  </div>
 )}
 

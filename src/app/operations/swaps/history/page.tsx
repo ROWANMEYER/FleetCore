@@ -7,6 +7,7 @@ import { SkeletonPage} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { BarChart3, ArrowRight} from"lucide-react";
 import { SwapsViewToggle} from"@/src/components/operations/SwapsViewToggle";
+import CommitDateInput from"@/src/components/common/CommitDateInput";
 
 type QuickFilter ="today" |"week" |"month";
 
@@ -184,19 +185,19 @@ export default function SwapHistoryScreen() {
  <div className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-end gap-2" style={{borderBottom:"1px solid var(--card-border)", backgroundColor:"var(--card-bg)"}}>
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>From Date</span>
- <input
- type="date"
+ <CommitDateInput
  value={fromDate ??""}
- onChange={e => setFromDate(e.target.value || undefined)}
+ ariaLabel="From date"
+ onChange={v => setFromDate(v || undefined)}
  className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>To Date</span>
- <input
- type="date"
+ <CommitDateInput
  value={toDate ??""}
- onChange={e => setToDate(e.target.value || undefined)}
+ ariaLabel="To date"
+ onChange={v => setToDate(v || undefined)}
  className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>

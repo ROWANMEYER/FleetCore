@@ -33,6 +33,8 @@ export default function SwapHistoryScreen() {
  const [trailerSearch, setTrailerSearch] = useState("");
  const [fromDate, setFromDate] = useState<string | undefined>();
  const [toDate, setToDate] = useState<string | undefined>();
+ const [draftFrom, setDraftFrom] = useState<string | undefined>();
+ const [draftTo, setDraftTo] = useState<string | undefined>();
 
  const filteredSwaps = useMemo(() => {
  if (!swaps) return [];
@@ -186,26 +188,40 @@ export default function SwapHistoryScreen() {
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>From Date</span>
  <CommitDateInput
- value={fromDate ??""}
+ value={draftFrom ??""}
  ariaLabel="From date"
- onChange={v => setFromDate(v || undefined)}
+ onChange={v => setDraftFrom(v || undefined)}
  className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>
  <div className="flex flex-col gap-1">
  <span className="text-[11px] font-medium" style={{color:"var(--nav-text-color)"}}>To Date</span>
  <CommitDateInput
- value={toDate ??""}
+ value={draftTo ??""}
  ariaLabel="To date"
- onChange={v => setToDate(v || undefined)}
+ onChange={v => setDraftTo(v || undefined)}
  className="settings-input rounded-lg px-3 py-2.5 text-sm"
  />
  </div>
  <button
- onClick={() => {}}
+ onClick={() => {
+   setFromDate(draftFrom);
+   setToDate(draftTo);
+ }}
  className="ml-auto px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 shadow-sm"
  >
  Apply
+ </button>
+ <button
+ onClick={() => {
+   setDraftFrom(undefined);
+   setDraftTo(undefined);
+   setFromDate(undefined);
+   setToDate(undefined);
+ }}
+ className="px-4 py-2.5 rounded-lg text-sm font-semibold text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)] transition-colors"
+ >
+ Clear
  </button>
  </div>
 )}

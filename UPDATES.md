@@ -289,6 +289,25 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Notes in the sheets/all-regions tables are now per-load, not synced** —
+  notes previously lived only at route level, so every load row of a route
+  showed (and edited) the same `route.notes`: copy a note from one row to
+  another and editing the original silently changed the copy. Notes now
+  live on each load (`loads[].notes`, optional schema field); editing a
+  row's Notes cell writes only that load, leaving the other rows of the
+  route untouched. Rows without their own note still fall back to the
+  route-level note (the one edited by the route forms/imports), and routes
+  with no loads still edit the route document directly. Requires a schema
+  push (`npx convex push`) before the mutation can persist per-load notes.
+- **Swaps history: Apply button now commits the date filter** — the From/To
+  inputs edit draft dates and the swap list stays put while you browse;
+  clicking **Apply** commits the drafts into the live filter (which ANDs
+  with the Today/Week/Month quick filter), and a new **Clear** button
+  resets both the drafts and the applied filter. New headless audit
+  `scripts/verify-swaps-apply.mjs` seeds a today-dated swap via
+  `pairTruckAndTrailer` on an unpaired truck, proves draft-no-filter /
+  apply-filters / clear-resets against real cards, then restores the truck
+  via `unpairByTruck`. `sw.js` → `fleetcore-v73`.
 - **Commit-on-select date pickers across the app** — the sheets fix is now
   the shared `CommitDateInput` (moved to `src/components/common/`),
   applied to the dashboard filter (Day + Range From/To), the all-regions

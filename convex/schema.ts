@@ -96,6 +96,7 @@ export default defineSchema({
         fromLocations: v.array(v.string()),
         kilometers: v.optional(v.float64()),
         loadId: v.optional(v.string()),
+        notes: v.optional(v.string()),
         quantity: v.string(),
         quantityType: v.string(),
         rate: v.string(),

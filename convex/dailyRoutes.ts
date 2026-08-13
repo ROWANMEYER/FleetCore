@@ -1076,8 +1076,9 @@ export const updateLoadFields = mutation({
       // this handler converts it back into the stored rate using the load's
       // own quantity + rateType, so the spreadsheet cell edits the real data.
       amount: v.optional(v.number()),
-      // Notes live at ROUTE level (route.notes), so this patch path patches
-      // the route document directly regardless of which load row was clicked.
+      // Notes live PER LOAD (each spreadsheet row edits its own load's notes,
+      // keeping rows of the same route independent) — except for routes with
+      // no loads, where the single row edits the route document directly.
       notes: v.optional(v.string()),
     }),
   },
@@ -1097,18 +1098,11 @@ export const updateLoadFields = mutation({
       throw new Error("Cannot edit a locked route.");
     }
 
-    // ── Route-level patch: notes (and the no-loads single-row route) ──
-    // Notes are stored on the route, not the load — patch the document and
-    // return before the load-index logic runs.
-    if (args.patch.notes !== undefined) {
-      await ctx.db.patch(args.routeId, { notes: args.patch.notes });
-      return;
-    }
-
     const loads = [...(route.loads || [])];
 
     // A route with NO loads renders as a single spreadsheet row (loadIndex
-    // -1) — edit the route's own scalar fields there (amount = route rate).
+    // -1) — edit the route's own scalar fields there (notes and amount =
+    // route rate live on the route document for these single-row routes).
     if (args.loadIndex < 0) {
       const patch: Record<string, unknown> = {};
       if (args.patch.client !== undefined) patch.client = args.patch.client;
@@ -1116,6 +1110,7 @@ export const updateLoadFields = mutation({
       if (args.patch.toLocations !== undefined) patch.toLocations = args.patch.toLocations;
       if (args.patch.rate !== undefined) patch.rate = args.patch.rate;
       if (args.patch.amount !== undefined) patch.rate = String(args.patch.amount);
+      if (args.patch.notes !== undefined) patch.notes = args.patch.notes;
       await ctx.db.patch(args.routeId, patch);
       return;
     }
@@ -1125,6 +1120,9 @@ export const updateLoadFields = mutation({
     }
 
     // ── Load-level patch ──
+    // Notes ride along in the spread below, so each row edits its own load's
+    // notes — rows of the same route stay independent (route.notes remains
+    // the route-wide fallback shown by the table until a row is edited).
     const patch: Record<string, unknown> = { ...args.patch };
     if (patch.amount !== undefined) {
       // Convert the edited amount back into the stored rate. Flat/full rates

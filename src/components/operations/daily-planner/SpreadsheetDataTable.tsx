@@ -703,7 +703,9 @@ export default function SpreadsheetDataTable({
             customer: (load.client || "").toUpperCase(),
             amount,
             rkm: routeRkm,
-            notes: route.notes || "",
+            // Notes are per-load; fall back to the route-wide note so
+            // existing routes keep showing their notes on every row.
+            notes: (load.notes ?? route.notes) || "",
             region: route.region || "",
           });
         });

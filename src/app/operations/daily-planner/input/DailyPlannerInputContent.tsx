@@ -105,8 +105,11 @@ function DailyPlannerInputForm() {
   const [driverName, setDriverName] = useState("");
   const [notes, setNotes] = useState("");
   const [routeKilometers, setRouteKilometers] = useState("");
+  // Region follows the sidebar: admins inherit the region selected there (or
+  // stay unselected on "All Regions", forcing an explicit pick via the red
+  // alert); regional users are locked to their own region.
   const [region, setRegion] = useState<string>(
-    user?.role === "regional" ? (user.region ?? "garden_route") : "garden_route"
+    user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
   );
   const [headerComplete, setHeaderComplete] = useState(true);
 
@@ -386,14 +389,17 @@ function DailyPlannerInputForm() {
     }
   }, [existingRoute, routeId, router, user]);
 
-  // Regional users: keep the new-route region locked to their own region
-  // (the populate effect above only runs for existing routes).
+  // New-route region follows the sidebar's region selection (admins), and
+  // stays locked to the user's own region for regional roles. Sidebar on
+  // "All Regions" leaves the field unselected so the form demands an
+  // explicit pick (red alert under Region). Edit mode is skipped — the
+  // existing route's own region is restored by the populate effect above.
   useEffect(() => {
-    const ownRegion = user?.role === "regional" ? user?.region : null;
-    if (!routeId && ownRegion) {
-      setRegion(ownRegion);
-    }
-  }, [routeId, user]);
+    if (routeId) return;
+    setRegion(
+      user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
+    );
+  }, [routeId, user, regionArg]);
 
   // Helper to update specific location in draft
   const updateDraftLocation = (type: "from" | "to", index: number, value: string) => {
@@ -566,10 +572,16 @@ function DailyPlannerInputForm() {
     draftLoad.toLocations.some((l) => l.trim() !== "");
 
   const handleSave = async () => {
-    // STAGE 4: Defensive check (Save should not proceed with missing fields)
-    if (!date || !truckFleetNo || !driverName) {
+    // STAGE 4: Defensive check (Save should not proceed with missing fields).
+    // Region is only ever empty in create mode with the sidebar on "All
+    // Regions" — the red alert under the field demands an explicit pick.
+    if (!date || !truckFleetNo || !driverName || !region) {
       setSaveStatus("error");
-      setSaveError("Please complete all required fields (Date, Truck, Driver).");
+      setSaveError(
+        !region
+          ? "Please select a region for this route."
+          : "Please complete all required fields (Date, Truck, Driver)."
+      );
       return;
     }
 

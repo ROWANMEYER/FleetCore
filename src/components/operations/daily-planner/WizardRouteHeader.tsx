@@ -163,13 +163,14 @@ export function WizardRouteHeader({
 
       {/* Body — hidden on mobile when collapsed, always visible on desktop */}
       <div className={collapsed ? "hidden lg:block" : ""}>
-      {/* Fleet / Subcontractor Toggle */}
-      <div className="flex items-center gap-3 sm:gap-4 mb-4">
+      {/* Fleet / Subcontractor Toggle — wraps on narrow screens so the wide
+          Subcontractor button never gets cut off at the screen edge. */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4">
         <span className="text-base font-semibold text-[var(--foreground)]">Mode:</span>
         <button
           type="button"
           onClick={() => onFleetModeChange(true)}
-          className={`px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
+          className={`px-3 sm:px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
             isFleetMode
               ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]"
               : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
@@ -180,7 +181,7 @@ export function WizardRouteHeader({
         <button
           type="button"
           onClick={() => onFleetModeChange(false)}
-          className={`px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
+          className={`px-3 sm:px-5 py-3 text-base rounded-xl font-semibold transition-colors ${
             !isFleetMode
               ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]"
               : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border border-[var(--card-border)]"
@@ -341,11 +342,24 @@ export function WizardRouteHeader({
             value={region}
             onChange={(e) => setRegion(e.target.value)}
             disabled={isRegional}
-            className="w-full p-2 settings-input rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
+            className={`w-full p-2 settings-input rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
+              region === "" ? "input-error" : ""
+            }`}
           >
+            {region === "" && (
+              <option value="" disabled>
+                Select region...
+              </option>
+            )}
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
+          {region === "" && !isRegional && (
+            <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
+              <span aria-hidden>⚠</span>
+              Select a region — your sidebar is set to All Regions.
+            </p>
+          )}
           {isRegional && (
             <p className="text-xs text-[var(--nav-text-color)]">
               Locked to your region ({region === "eastern_cape" ? "Eastern Cape" : "Garden Route"})

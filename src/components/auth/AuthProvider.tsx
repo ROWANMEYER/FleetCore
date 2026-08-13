@@ -11,6 +11,9 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 const TOKEN_KEY = "fleetcore-session-token";
+// Last-known session user, cached so the app can render (and queue offline
+// saves) before the session query resolves — essential for field use offline.
+const CACHED_USER_KEY = "fleetcore.cache.sessionUser";
 
 export type AuthUser = {
   _id: string;
@@ -111,8 +114,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const session = useQuery(api.userSessions.getSessionUser, token ? { token } : "skip");
-  const user = session?.user ?? null;
-  const loading = !initialized || (token ? session === undefined : false);
+
+  // While the session query is pending (or unreachable because we're offline),
+  // fall back to the last-known user so the app shell renders instead of
+  // spinning on the splash screen. Once the query resolves, its result wins.
+  const [cachedUser, setCachedUser] = useState<AuthUser | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(CACHED_USER_KEY);
+      return raw ? (JSON.parse(raw) as AuthUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Write-through / clear as the live session resolves (a resolved null means
+  // the session is gone — don't keep serving the cached user). The cached-user
+  // state itself is only consulted while the query is pending, so no state
+  // update is needed here — the resolved session takes precedence.
+  useEffect(() => {
+    if (session === undefined) return;
+    try {
+      if (session.user) {
+        window.localStorage.setItem(CACHED_USER_KEY, JSON.stringify(session.user));
+      } else {
+        window.localStorage.removeItem(CACHED_USER_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [session]);
+
+  const hasToken = !!token;
+  const user = hasToken && session === undefined ? cachedUser : (session?.user ?? null);
+  const loading = !initialized || (hasToken ? session === undefined && !cachedUser : false);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
@@ -152,10 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(CACHED_USER_KEY);
     } catch {
       /* ignore */
     }
     setToken(null);
+    setCachedUser(null);
     setRegionFilter("all");
   }, [token, logoutMutation]);
 

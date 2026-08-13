@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
+import { useOnlineStatus, isOfflineError } from "@/src/lib/offline/useOnline";
+import { useCachedValue } from "@/src/lib/offline/useCachedValue";
+import {
+  enqueueRoute,
+  getPendingRoutes,
+  removeRoute,
+  markFailed,
+  subscribe,
+  newClientId,
+} from "@/src/lib/offline/routeQueue";
+import type { QueuedRoute } from "@/src/lib/offline/routeQueue";
 
 import { WizardRouteHeader } from "@/src/components/operations/daily-planner/WizardRouteHeader";
-import { PackageOpen, Plus, X, CheckCircle, Loader2, Pencil, Trash2 } from "lucide-react";
+import PendingSyncBanner from "@/src/components/operations/daily-planner/input/PendingSyncBanner";
+import { PackageOpen, Plus, X, CheckCircle, Loader2, Pencil, Trash2, CloudOff } from "lucide-react";
 
 type Load = {
   id: string;
@@ -190,7 +202,9 @@ function DailyPlannerInputForm() {
   const loadsListRef = useRef<HTMLDivElement>(null);
 
   // Feedback state
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "success" | "error" | "queued"
+  >("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // 2) Draft load form state
@@ -206,14 +220,26 @@ function DailyPlannerInputForm() {
     subcontractorRateType: "per_unit",
   });
 
-  // Queries
+  // Connectivity: drives whether saves go straight to the server or into the
+  // offline queue, and whether the fleet lists fall back to their local cache.
+  const isOnline = useOnlineStatus();
+
+  // Queries — raw values are cached so the truck/trailer/driver selects still
+  // work offline (the queries themselves cannot resolve without a connection).
   const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId, token, region: regionArg } : "skip");
   const appSettings = useQuery(api.settings.getAppSettings);
-  const subcontractors = useQuery(api.subcontractors.getAll, {}) || [];
   const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
-  const trucks = useQuery(api.fleet.getTrucks, { subcontractorId: subcontractorIdFilter }) || [];
-  const trailers = useQuery(api.fleet.getTrailers, { subcontractorId: subcontractorIdFilter }) || [];
-  const drivers = useQuery(api.fleet.getDrivers, { subcontractorId: subcontractorIdFilter }) || [];
+  const trucksLive = useQuery(api.fleet.getTrucks, { subcontractorId: subcontractorIdFilter });
+  const trucks =
+    useCachedValue(`fleet.trucks:${subcontractorIdFilter ?? "all"}`, trucksLive, !isOnline) ?? [];
+  const trailersLive = useQuery(api.fleet.getTrailers, { subcontractorId: subcontractorIdFilter });
+  const trailers =
+    useCachedValue(`fleet.trailers:${subcontractorIdFilter ?? "all"}`, trailersLive, !isOnline) ?? [];
+  const driversLive = useQuery(api.fleet.getDrivers, { subcontractorId: subcontractorIdFilter });
+  const drivers =
+    useCachedValue(`fleet.drivers:${subcontractorIdFilter ?? "all"}`, driversLive, !isOnline) ?? [];
+  const subcontractorsLive = useQuery(api.subcontractors.getAll, {});
+  const subcontractors = useCachedValue("subcontractors.all", subcontractorsLive, !isOnline) ?? [];
 
   // Track if initial defaults have been applied (for new routes only)
   const [defaultsApplied, setDefaultsApplied] = useState(false);
@@ -245,6 +271,66 @@ function DailyPlannerInputForm() {
   // Mutations
   const createRoute = useMutation(api.dailyRoutes.createDailyRoute);
   const updateRoute = useMutation(api.dailyRoutes.updateDailyRoute);
+
+  // ── Offline queue: replay pending saves when a connection returns ─────────
+  const [pendingItems, setPendingItems] = useState<QueuedRoute[]>(() => getPendingRoutes());
+  const [syncing, setSyncing] = useState(false);
+  const syncingRef = useRef(false);
+
+  useEffect(() => subscribe(() => setPendingItems(getPendingRoutes())), []);
+
+  // `force` bypasses the isOnline gate for the manual retry button (the hook's
+  // online state can lag reality right after a reconnect).
+  const syncPending = useCallback(
+    async (force = false) => {
+      if (syncingRef.current) return;
+      const items = getPendingRoutes();
+      if (items.length === 0) return;
+      if (!isOnline && !force) return;
+      syncingRef.current = true;
+      setSyncing(true);
+      try {
+        for (const item of items) {
+          try {
+            // Idempotent: the offlineKey guarantees a route created server-side
+            // (e.g. a lost response) is returned instead of duplicated.
+            await createRoute(item.payload);
+            removeRoute(item.id);
+            setPendingItems(getPendingRoutes());
+          } catch (err) {
+            if (isOfflineError(err)) break; // still offline — keep everything
+            // Server-side rejection (auth/validation) — flag it for the user.
+            markFailed(item.id, err instanceof Error ? err.message : "Sync failed");
+            setPendingItems(getPendingRoutes());
+            break;
+          }
+        }
+      } finally {
+        syncingRef.current = false;
+        setSyncing(false);
+      }
+    },
+    [createRoute, isOnline]
+  );
+
+  // Sync on mount (a previous session may have left items behind) and whenever
+  // the connection comes back. Triggering off the isOnline flip (instead of the
+  // browser's online event) avoids a closure race where the old listener, still
+  // seeing isOnline=false, swallows the reconnect.
+  useEffect(() => {
+    if (isOnline) syncPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+
+  // Safety net: if the online event is missed entirely (flaky mobile radios),
+  // re-check the connection periodically and sync whatever is pending.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (typeof navigator !== "undefined" && navigator.onLine) syncPending();
+    }, 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Derived State
   const routeStatus = existingRoute?.status || "planned";
@@ -508,6 +594,11 @@ function DailyPlannerInputForm() {
 
     try {
       if (mode === "edit" && routeId) {
+        if (!isOnline) {
+          setSaveStatus("error");
+          setSaveError("You're offline — connect to the internet to save edits to an existing route.");
+          return;
+        }
         await updateRoute({
           id: routeId,
           routeDate: date,
@@ -536,7 +627,11 @@ function DailyPlannerInputForm() {
         setEditingLoadState(null);
         router.push("/operations/daily-planner/input"); // Clear URL param
       } else {
-        await createRoute({
+        // Offline-aware create. The payload is built once with a stable
+        // client-generated idempotency key: if the request is lost mid-flight
+        // (or queued for replay), the server returns the already-created route
+        // instead of inserting a duplicate.
+        const payload = {
           routeDate: date,
           truckFleetNo: truckFleetNo, // Canonical
           truckFleetNoStr: truckFleetNo, // Legacy
@@ -549,7 +644,41 @@ function DailyPlannerInputForm() {
           region: region as "garden_route" | "eastern_cape",
           token,
           loads: schemaLoads,
-        });
+          offlineKey: newClientId(),
+        };
+
+        const queueOfflineSave = () => {
+          enqueueRoute(payload);
+          // Clear session draft (STAGE 5) — the route is "saved" (queued).
+          sessionStorage.removeItem(DRAFT_KEY);
+          setWizardStep(0);
+          // Reset the form so the next route can be entered.
+          setTruckFleetNo("");
+          setTrailerFleetNo("");
+          setDriverName("");
+          setNotes("");
+          setLoads([]);
+          setEditingLoadId(null);
+          setEditingLoadState(null);
+          setSaveStatus("queued");
+          setTimeout(() => setSaveStatus("idle"), 4000);
+        };
+
+        if (!isOnline) {
+          queueOfflineSave();
+          return;
+        }
+
+        try {
+          await createRoute(payload);
+        } catch (error) {
+          // The connection dropped mid-save — queue it instead of losing it.
+          if (isOfflineError(error)) {
+            queueOfflineSave();
+            return;
+          }
+          throw error;
+        }
 
         // Clear session draft (STAGE 5)
         sessionStorage.removeItem(DRAFT_KEY);
@@ -573,6 +702,20 @@ function DailyPlannerInputForm() {
 
   return (
     <div className="h-full min-h-0 flex flex-col relative overflow-x-clip">
+      {/* Offline queue banner — shows queued saves and syncs them on reconnect */}
+      <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-2">
+        <PendingSyncBanner
+          items={pendingItems}
+          syncing={syncing}
+          online={isOnline}
+          onRetry={() => syncPending(true)}
+          onDiscard={(id) => {
+            removeRoute(id);
+            setPendingItems(getPendingRoutes());
+          }}
+        />
+      </div>
+
       {/* Sticky Header — desktop only; mobile drops the banner so the form
           starts right under the app top bar (more room for the fields). The
           layout's mobile/desktop split is at lg, so hide below lg to match. */}
@@ -1119,6 +1262,12 @@ function DailyPlannerInputForm() {
             <div className="bg-green-50 dark:bg-green-500/20 text-green-900 dark:text-green-200 p-4 rounded-lg text-sm border border-green-200 dark:border-green-500/40 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
               <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
               <span>Route saved successfully!</span>
+            </div>
+          )}
+          {saveStatus === "queued" && (
+            <div className="bg-amber-50 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 p-4 rounded-lg text-sm border border-amber-200 dark:border-amber-500/40 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <CloudOff className="w-5 h-5 text-amber-600 shrink-0" />
+              <span>Route saved offline — it will sync automatically when you&apos;re back online.</span>
             </div>
           )}
 

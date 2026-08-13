@@ -107,6 +107,7 @@ export default defineSchema({
       })
     ),
     notes: v.string(),
+    offlineKey: v.optional(v.string()),
     rate: v.float64(),
     region: v.optional(
       v.union(v.literal("garden_route"), v.literal("eastern_cape"))

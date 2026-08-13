@@ -177,6 +177,10 @@ export const createDailyRoute = mutation({
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
     notes: v.optional(v.string()),
+    // Client-generated idempotency key: offline-queued saves (and creates whose
+    // response was lost mid-flight) replay with the same key, and the handler
+    // returns the existing route instead of inserting a duplicate.
+    offlineKey: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.string()), // Canonical
     truckFleetNoStr: v.optional(v.string()), // Legacy
@@ -228,6 +232,17 @@ export const createDailyRoute = mutation({
     const now = Date.now();
     const aggregates = deriveTripAggregates(normalizedLoads);
 
+    // Idempotency: a replayed offline save (or a create whose response was lost)
+    // must never insert the route twice — a route already carrying the key is
+    // returned as-is.
+    if (args.offlineKey) {
+      const existing = await ctx.db
+        .query("dailyRoutes")
+        .filter((q) => q.eq(q.field("offlineKey"), args.offlineKey))
+        .first();
+      if (existing) return existing._id;
+    }
+
     // Auto-calculate kilometers (Priority: Route KM > Legs > Max Load KM > Legacy Input)
     let finalKilometers = args.kilometers;
     
@@ -264,6 +279,7 @@ export const createDailyRoute = mutation({
       kilometers: finalKilometers,
       routeKilometers: args.routeKilometers,
       notes: args.notes ?? "",
+      offlineKey: args.offlineKey,
       truckFleetNoStr: truckIdentifier,
       trailerFleetNoStr: args.trailerFleetNoStr,
 
@@ -1003,7 +1019,10 @@ export const getQuickSendReport = query({
             rateType: load.rateType,
             amount: amountVal, // Return number, formatting in UI/Email
             status: (route as any).status || "planned",
-            notes: route.notes || "",
+            // Notes are per-load in the sheets table (each row edits its own
+            // load's notes via updateLoadFields); the route-level note remains
+            // the fallback for loads that were never individually edited.
+            notes: (load.notes ?? route.notes) || "",
             _routeId: route._id,
             _sequence: index,
           });

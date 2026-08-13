@@ -41,8 +41,24 @@ export default function QuickSendPage() {
  // 2. Data Fetching
  const [completedOnly, setCompletedOnly] = useState(true);
 
- const { token } = useAuth();
- const region = useRegionArg();
+const { token, user, regionFilter } = useAuth();
+const region = useRegionArg();
+
+// Human-readable label for the report's region, shown to recipients in the
+// email subject. Admins may filter to one region or send everything; regional
+// users always send their own region (server-enforced).
+const REGION_LABELS: Record<string, string> = {
+ garden_route: "Garden Route",
+ eastern_cape: "Eastern Cape",
+};
+const subjectRegion =
+ user?.role === "admin"
+   ? regionFilter === "all"
+     ? "All Regions"
+     : REGION_LABELS[regionFilter]
+   : user?.region
+     ? REGION_LABELS[user.region]
+     : "All Regions";
  const reportData = useQuery(
  api.dailyRoutes.getQuickSendReport,
  dateError !==""
@@ -326,7 +342,7 @@ export default function QuickSendPage() {
  <EmailReportModal
  isOpen={isEmailModalOpen}
  onClose={() => setIsEmailModalOpen(false)}
- initialSubject={`Transport Report: ${queryStartDate} to ${queryEndDate}`}
+ initialSubject={`Transport Report: ${subjectRegion} – ${queryStartDate} to ${queryEndDate}`}
  onSend={handleSendEmail}
  />
  </div>

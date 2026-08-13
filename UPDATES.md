@@ -289,6 +289,34 @@ npx convex codegen     # Regenerate convex/_generated/ types
 > Chronological, most recent first. Also see `git log --oneline`.
 
 ### 2026-08 (current work — some uncommitted)
+- **Transport email subject includes the report region** — the QuickSend
+  "Send Report" subject is prefilled as
+  `Transport Report: <region> – <start> to <end>` so recipients see the
+  report's scope at a glance. Admins see their selected filter (or "All
+  Regions"); regional users see their own region. Subject stays editable
+  in the modal before sending.
+- **QuickSend now sends the per-load notes edited in the sheets table** —
+  the transport report (preview, PDF and email) previously read only the
+  route-level `route.notes`, so Notes edited on individual rows of the
+  sheets table never reached the report. `getQuickSendReport` now reports
+  each load's own note (`loads[].notes`) with the route-level note as
+  fallback, matching how the sheets table displays them. Requires a
+  backend push (`npx convex push`).
+- **Offline route entry: save routes with no signal, sync on reconnect** — the
+  Input page now works fully offline. The session user and the fleet
+  truck/trailer/driver/subcontractor lists are cached to localStorage, so the
+  app shell renders and the selects stay populated without a connection.
+  Saving a new route while offline (or when a save's response is lost
+  mid-flight) stores the full payload in a persistent queue
+  (`fleetcor_offline_route_queue`), shows an amber "saved offline" banner with
+  per-item discard + retry, and auto-replays the queue when the connection
+  returns. Each save carries a client-generated `offlineKey`; `createDailyRoute`
+  is now idempotent on it (a replayed or re-sent payload returns the existing
+  route instead of inserting a duplicate). New headless audit
+  `scripts/verify-offline-route-queue.mjs` emulates offline via CDP, proves
+  cache-fallback selects / queued save / auto-sync / no-duplicate replay, then
+  deletes the audited route. Unit tests for the queue in
+  `src/lib/offline/routeQueue.test.ts`. `sw.js` → `fleetcore-v74`.
 - **Notes in the sheets/all-regions tables are now per-load, not synced** —
   notes previously lived only at route level, so every load row of a route
   showed (and edited) the same `route.notes`: copy a note from one row to

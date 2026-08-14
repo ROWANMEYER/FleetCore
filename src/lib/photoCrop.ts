@@ -77,6 +77,12 @@ export function zoomAt(
 /**
  * The rectangle of the SOURCE image (natural px) that the square viewport
  * currently shows — what a confirm-crop drawImage should sample.
+ *
+ * The editor renders the image TOP-LEFT aligned inside the viewport
+ * (objectPosition "0 0"): the rendered image's top-left sits exactly at the
+ * pan offset, and the offset is clamped so the image always covers the
+ * viewport. So the visible source rect is simply the viewport window mapped
+ * back into the source image — this is what the user actually sees.
  */
 export function visibleSourceRect(
   viewportSize: number,
@@ -86,10 +92,10 @@ export function visibleSourceRect(
 ): { sx: number; sy: number; sw: number; sh: number } {
   const base = coverScale(viewportSize, imgW, imgH);
   const scale = base * t.zoom;
-  // The rendered image is CENTERED in the viewport (offset 0 = centered), so
-  // the image's top-left sits at (viewport - rendered)/2 + pan offset.
-  const imgLeft = (viewportSize - imgW * scale) / 2 + t.offsetX;
-  const imgTop = (viewportSize - imgH * scale) / 2 + t.offsetY;
+  // The rendered image's top-left corner sits at the pan offset (clamped to
+  // [-(rendered - viewport), 0], so it always covers the viewport).
+  const imgLeft = t.offsetX;
+  const imgTop = t.offsetY;
   const sx = Math.max(0, -imgLeft / scale);
   const sy = Math.max(0, -imgTop / scale);
   const sw = Math.min(imgW - sx, viewportSize / scale);

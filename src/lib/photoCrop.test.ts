@@ -103,29 +103,31 @@ describe("visibleSourceRect", () => {
     expect(r.sh).toBeCloseTo(300);
   });
 
-  it("returns a centered horizontal slice for a landscape image", () => {
-    // 600x300 at zoom 1 → baseline 1 → rendered 600x300 → viewport shows the
-    // middle 300x300: sx=150, sw=300, sy=0, sh=300
+  it("returns the top-left slice for a landscape image (display-accurate)", () => {
+    // 600x300 at zoom 1 → baseline 1 → rendered 600x300 → the editor renders
+    // top-left aligned (objectPosition "0 0"), so offset 0 shows the LEFT
+    // 300x300 of the image: sx=0, sw=300, sy=0, sh=300
     const r = visibleSourceRect(S, 600, 300, { zoom: 1, offsetX: 0, offsetY: 0 });
-    expect(r.sx).toBeCloseTo(150);
+    expect(r.sx).toBeCloseTo(0);
     expect(r.sw).toBeCloseTo(300);
     expect(r.sy).toBeCloseTo(0);
     expect(r.sh).toBeCloseTo(300);
   });
 
   it("respects pan offsets", () => {
+    // 600x300 at zoom 1, panned left by 120px → source starts at sx=120
     const r = visibleSourceRect(S, 600, 300, { zoom: 1, offsetX: -120, offsetY: 0 });
-    expect(r.sx).toBeCloseTo(270);
+    expect(r.sx).toBeCloseTo(120);
     expect(r.sw).toBeCloseTo(300);
   });
 
   it("respects zoom", () => {
     const r = visibleSourceRect(S, 600, 600, { zoom: 2, offsetX: 0, offsetY: 0 });
     // baseline 0.5, scale 1.0 → viewport shows 300x300 of the 600x600 image,
-    // centered: sx=150, sw=300
-    expect(r.sx).toBeCloseTo(150);
+    // top-left aligned: sx=0, sw=300, sy=0, sh=300
+    expect(r.sx).toBeCloseTo(0);
     expect(r.sw).toBeCloseTo(300);
-    expect(r.sy).toBeCloseTo(150);
+    expect(r.sy).toBeCloseTo(0);
     expect(r.sh).toBeCloseTo(300);
   });
 });

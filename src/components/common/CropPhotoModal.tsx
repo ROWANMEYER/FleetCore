@@ -7,6 +7,7 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   clampOffset,
+  coverScale,
   visibleSourceRect,
   zoomAt,
   type CropTransform,
@@ -118,8 +119,17 @@ export function CropPhotoModal({
     const h = img.naturalHeight;
     if (!w || !h) return;
     setNatural({ w, h });
-    // Start fully zoomed-out, centered (offset 0 = cover-fit baseline).
-    setT({ zoom: 1, offsetX: 0, offsetY: 0 });
+    // Start fully zoomed-out AND centered on the photo — the cover-fit
+    // baseline (offset 0) shows the top-left corner (objectPosition "0 0"),
+    // which for a portrait photo is the hair/forehead, not the face. Centering
+    // the offset puts the useful middle of the image in the crop square by
+    // default, exactly where driver faces usually are.
+    const base = coverScale(viewportSize, w, h);
+    setT({
+      zoom: 1,
+      offsetX: -(w * base - viewportSize) / 2,
+      offsetY: -(h * base - viewportSize) / 2,
+    });
   }, [viewportSize]);
 
   const doZoomAt = (factor: number, fx: number, fy: number) => {

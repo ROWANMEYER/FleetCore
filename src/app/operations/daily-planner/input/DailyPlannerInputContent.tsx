@@ -129,6 +129,21 @@ function DailyPlannerInputForm() {
   const isEditMode = !!routeId;
   const mode: "create" | "edit" = isEditMode ? "edit" : "create";
 
+  // Loads + in-progress load form state. Declared above the session-draft
+  // recovery so it can restore them on mount.
+  const [loads, setLoads] = useState<Load[]>([]);
+  const [draftLoad, setDraftLoad] = useState({
+    clientName: "",
+    fromLocations: [""] as string[], // Initialize with one empty string
+    toLocations: [""] as string[], // Initialize with one empty string
+    quantity: "",
+    quantityType: "tons", // Default
+    rate: "",
+    rateType: "per_unit", // Default
+    subcontractorRate: "",
+    subcontractorRateType: "per_unit",
+  });
+
   // ---------------------------------------------------------------------------
   // SESSION RECOVERY (STAGE 5)
   // ---------------------------------------------------------------------------
@@ -155,6 +170,8 @@ function DailyPlannerInputForm() {
         return;
       }
 
+      restoredDraftRef.current = true;
+
       // Restore State (Silent)
       if (draft.data) {
         if (draft.data.date) setDate(draft.data.date);
@@ -163,6 +180,14 @@ function DailyPlannerInputForm() {
         if (draft.data.driverName) setDriverName(draft.data.driverName);
         if (draft.data.routeKilometers) setRouteKilometers(draft.data.routeKilometers);
         if (draft.data.notes) setNotes(draft.data.notes);
+        if (typeof draft.data.region === "string" && draft.data.region) setRegion(draft.data.region);
+        if (typeof draft.data.isFleetMode === "boolean") setIsFleetMode(draft.data.isFleetMode);
+        if (typeof draft.data.selectedSubId === "string") setSelectedSubId(draft.data.selectedSubId);
+        if (typeof draft.data.detailsCollapsed === "boolean") setDetailsCollapsed(draft.data.detailsCollapsed);
+        if (Array.isArray(draft.data.loads)) setLoads(draft.data.loads);
+        if (draft.data.draftLoad && typeof draft.data.draftLoad === "object") {
+          setDraftLoad((prev) => ({ ...prev, ...draft.data.draftLoad }));
+        }
       }
 
       // Restore Step
@@ -194,14 +219,34 @@ function DailyPlannerInputForm() {
         driverName,
         routeKilometers,
         notes,
+        region,
+        isFleetMode,
+        selectedSubId,
+        detailsCollapsed,
+        loads,
+        draftLoad,
       },
     };
 
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [isEditMode, wizardStep, date, truckFleetNo, trailerFleetNo, driverName, routeKilometers, notes]);
+  }, [
+    isEditMode,
+    wizardStep,
+    date,
+    truckFleetNo,
+    trailerFleetNo,
+    driverName,
+    routeKilometers,
+    notes,
+    region,
+    isFleetMode,
+    selectedSubId,
+    detailsCollapsed,
+    loads,
+    draftLoad,
+  ]);
 
-  // 1) Loads state (single source of truth)
-  const [loads, setLoads] = useState<Load[]>([]);
+  // 1) Loads list container (scroll target for newly added cards)
   const loadsListRef = useRef<HTMLDivElement>(null);
 
   // Feedback state
@@ -209,19 +254,6 @@ function DailyPlannerInputForm() {
     "idle" | "saving" | "success" | "error" | "queued"
   >("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  // 2) Draft load form state
-  const [draftLoad, setDraftLoad] = useState({
-    clientName: "",
-    fromLocations: [""] as string[], // Initialize with one empty string
-    toLocations: [""] as string[], // Initialize with one empty string
-    quantity: "",
-    quantityType: "tons", // Default
-    rate: "",
-    rateType: "per_unit", // Default
-    subcontractorRate: "",
-    subcontractorRateType: "per_unit",
-  });
 
   // Connectivity: drives whether saves go straight to the server or into the
   // offline queue, and whether the fleet lists fall back to their local cache.
@@ -247,10 +279,14 @@ function DailyPlannerInputForm() {
   // Track if initial defaults have been applied (for new routes only)
   const [defaultsApplied, setDefaultsApplied] = useState(false);
   const [showSubMargin, setShowSubMargin] = useState(true);
+  // True when a session draft was restored on mount — the draft's explicit
+  // choices (region, quantity/rate types) must not be overridden by the
+  // sidebar-region or defaults logic that only applies to brand-new forms.
+  const restoredDraftRef = useRef(false);
 
   // Apply fleet & subcontractor defaults from settings to new routes
   useEffect(() => {
-    if (appSettings && !isEditMode && !defaultsApplied) {
+    if (appSettings && !isEditMode && !defaultsApplied && !restoredDraftRef.current) {
       const settings = appSettings as any;
       const qty = settings.defaultQuantityType;
       const rate = settings.defaultRateType;
@@ -395,7 +431,7 @@ function DailyPlannerInputForm() {
   // explicit pick (red alert under Region). Edit mode is skipped — the
   // existing route's own region is restored by the populate effect above.
   useEffect(() => {
-    if (routeId) return;
+    if (routeId || restoredDraftRef.current) return;
     setRegion(
       user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
     );

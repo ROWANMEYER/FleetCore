@@ -119,17 +119,11 @@ export function CropPhotoModal({
     const h = img.naturalHeight;
     if (!w || !h) return;
     setNatural({ w, h });
-    // Start fully zoomed-out AND centered on the photo — the cover-fit
-    // baseline (offset 0) shows the top-left corner (objectPosition "0 0"),
-    // which for a portrait photo is the hair/forehead, not the face. Centering
-    // the offset puts the useful middle of the image in the crop square by
-    // default, exactly where driver faces usually are.
-    const base = coverScale(viewportSize, w, h);
-    setT({
-      zoom: 1,
-      offsetX: -(w * base - viewportSize) / 2,
-      offsetY: -(h * base - viewportSize) / 2,
-    });
+    // Start fully zoomed-out. The image is rendered at its real size and
+    // CENTERED in the viewport at offset 0 — so the default crop shows the
+    // middle of the photo (where the face usually is), and the whole image
+    // covers the square (no black gaps, any aspect ratio).
+    setT({ zoom: 1, offsetX: 0, offsetY: 0 });
   }, [viewportSize]);
 
   const doZoomAt = (factor: number, fx: number, fy: number) => {
@@ -276,7 +270,19 @@ export function CropPhotoModal({
   };
 
   if (!open) return null;
-  const zoomPct = Math.round((t.zoom * 100)) + "%";
+  const zoomPct = Math.round(t.zoom * 100) + "%";
+
+  // The image is rendered at its REAL size (natural × cover × zoom) and
+  // centered in the viewport at offset 0 — so the crop square shows exactly
+  // what visibleSourceRect samples, for any aspect ratio and any zoom. Before
+  // the image decodes (natural unknown) a cover box is shown instead.
+  const sized = viewportSize > 0 && natural.w > 0 && natural.h > 0;
+  const cover = sized ? coverScale(viewportSize, natural.w, natural.h) : 1;
+  const renderedW = sized ? natural.w * cover * t.zoom : 0;
+  const renderedH = sized ? natural.h * cover * t.zoom : 0;
+  const imgLeft = sized ? (viewportSize - renderedW) / 2 + t.offsetX : 0;
+  const imgTop = sized ? (viewportSize - renderedH) / 2 + t.offsetY : 0;
+  const k = PREVIEW_SIZE / viewportSize;
 
   return createPortal(
     <div
@@ -319,10 +325,12 @@ export function CropPhotoModal({
           className="relative w-full aspect-square overflow-hidden rounded-xl bg-black select-none"
           style={{ touchAction: "none" }}
         >
-          {/* The image — objectFit cover fills the square at the baseline;
-              the transform applies the user's pan (offset) and zoom. Renders
-              as soon as the viewport is measured; onLoad captures natural
-              dims to drive the crop math. */}
+          {/* The image — rendered at its real size (natural × cover × zoom)
+              and centered, with the pan offset applied. This matches
+              visibleSourceRect pixel-for-pixel: the square shows exactly the
+              crop that gets stored. Before the image decodes a cover box is
+              shown (same centered look at zoom 1 / offset 0, so there's no
+              visible jump when natural dimensions arrive). */}
           {viewportSize > 0 && (
             <img
               ref={imgRef}
@@ -332,14 +340,20 @@ export function CropPhotoModal({
               onLoad={onImageLoad}
               onError={onError}
               className="absolute top-0 left-0 max-w-none"
-              style={{
-                width: viewportSize,
-                height: viewportSize,
-                objectFit: "cover",
-                objectPosition: "0 0",
-                transform: `translate(${t.offsetX}px, ${t.offsetY}px) scale(${t.zoom})`,
-                transformOrigin: "0 0",
-              }}
+              style={
+                sized
+                  ? {
+                      width: renderedW,
+                      height: renderedH,
+                      transform: `translate(${imgLeft}px, ${imgTop}px)`,
+                    }
+                  : {
+                      width: viewportSize,
+                      height: viewportSize,
+                      objectFit: "cover",
+                      objectPosition: "50% 50%",
+                    }
+              }
             />
           )}
 
@@ -359,9 +373,9 @@ export function CropPhotoModal({
           </div>
 
           {/* Live round preview — matches the card avatar exactly. The image
-              is rendered at the full viewport size (same cover baseline) and
-              transformed with the same pan/zoom, then scaled down to the chip
-              — so the circle shows the exact square that will be stored. */}
+              is rendered at the same real size / pan / zoom as the main
+              viewport, scaled down to the chip — so the circle shows the exact
+              square that will be stored. */}
           <div
             className="pointer-events-none absolute bottom-2 right-2 h-[72px] w-[72px] rounded-full overflow-hidden shadow-lg ring-2 ring-white/60 bg-black"
             aria-hidden
@@ -372,16 +386,20 @@ export function CropPhotoModal({
                 alt=""
                 draggable={false}
                 className="absolute top-0 left-0 max-w-none"
-                style={{
-                  width: viewportSize,
-                  height: viewportSize,
-                  objectFit: "cover",
-                  objectPosition: "0 0",
-                  transform: `translate(${(t.offsetX * PREVIEW_SIZE) / viewportSize}px, ${
-                    (t.offsetY * PREVIEW_SIZE) / viewportSize
-                  }px) scale(${t.zoom * (PREVIEW_SIZE / viewportSize)})`,
-                  transformOrigin: "0 0",
-                }}
+                style={
+                  sized
+                    ? {
+                        width: renderedW * k,
+                        height: renderedH * k,
+                        transform: `translate(${imgLeft * k}px, ${imgTop * k}px)`,
+                      }
+                    : {
+                        width: PREVIEW_SIZE,
+                        height: PREVIEW_SIZE,
+                        objectFit: "cover",
+                        objectPosition: "50% 50%",
+                      }
+                }
               />
             )}
           </div>

@@ -53,13 +53,13 @@ describe("clampOffset", () => {
     expect(offsetY).toBe(0);
   });
 
-  it("clamps a pan so the image never uncovers the viewport", () => {
-    // 300x150, zoom 1 → rendered 600x300 → can pan x in [-300, 0], y in [0, 0]
+  it("clamps a pan so the image never uncovers the viewport (symmetric)", () => {
+    // 300x150, zoom 1 → rendered 600x300 → centered, so x pans within ±150
     const a = clampOffset(S, 300, 150, 1, -500, 0);
-    expect(a.offsetX).toBe(-300);
+    expect(a.offsetX).toBe(-150);
     expect(a.offsetY).toBe(0);
     const b = clampOffset(S, 300, 150, 1, 999, 0);
-    expect(b.offsetX).toBe(0);
+    expect(b.offsetX).toBe(150);
   });
 });
 
@@ -103,31 +103,29 @@ describe("visibleSourceRect", () => {
     expect(r.sh).toBeCloseTo(300);
   });
 
-  it("returns the top-left slice for a landscape image (display-accurate)", () => {
-    // 600x300 at zoom 1 → baseline 1 → rendered 600x300 → the editor renders
-    // top-left aligned (objectPosition "0 0"), so offset 0 shows the LEFT
-    // 300x300 of the image: sx=0, sw=300, sy=0, sh=300
+  it("returns a centered horizontal slice for a landscape image", () => {
+    // 600x300 at zoom 1 → baseline 1 → rendered 600x300 → viewport shows the
+    // middle 300x300: sx=150, sw=300, sy=0, sh=300
     const r = visibleSourceRect(S, 600, 300, { zoom: 1, offsetX: 0, offsetY: 0 });
-    expect(r.sx).toBeCloseTo(0);
+    expect(r.sx).toBeCloseTo(150);
     expect(r.sw).toBeCloseTo(300);
     expect(r.sy).toBeCloseTo(0);
     expect(r.sh).toBeCloseTo(300);
   });
 
   it("respects pan offsets", () => {
-    // 600x300 at zoom 1, panned left by 120px → source starts at sx=120
     const r = visibleSourceRect(S, 600, 300, { zoom: 1, offsetX: -120, offsetY: 0 });
-    expect(r.sx).toBeCloseTo(120);
+    expect(r.sx).toBeCloseTo(270);
     expect(r.sw).toBeCloseTo(300);
   });
 
   it("respects zoom", () => {
     const r = visibleSourceRect(S, 600, 600, { zoom: 2, offsetX: 0, offsetY: 0 });
     // baseline 0.5, scale 1.0 → viewport shows 300x300 of the 600x600 image,
-    // top-left aligned: sx=0, sw=300, sy=0, sh=300
-    expect(r.sx).toBeCloseTo(0);
+    // centered: sx=150, sw=300, sy=150, sh=300
+    expect(r.sx).toBeCloseTo(150);
     expect(r.sw).toBeCloseTo(300);
-    expect(r.sy).toBeCloseTo(0);
+    expect(r.sy).toBeCloseTo(150);
     expect(r.sh).toBeCloseTo(300);
   });
 });

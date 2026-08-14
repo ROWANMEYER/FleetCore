@@ -31,6 +31,11 @@ export function renderedSize(viewportSize: number, imgW: number, imgH: number, z
 /**
  * Clamp the offset so the image always covers the viewport on both axes
  * (a zoomed image can be panned only within the area it still covers).
+ *
+ * The rendered image is CENTERED at offset 0 (its top-left sits at
+ * (viewport - rendered)/2), so the pan room is symmetric: the image can
+ * move half of its overflow in each direction before an edge uncovers the
+ * viewport.
  */
 export function clampOffset(
   viewportSize: number,
@@ -41,12 +46,12 @@ export function clampOffset(
   offsetY: number
 ): { offsetX: number; offsetY: number } {
   const { w, h } = renderedSize(viewportSize, imgW, imgH, zoom);
-  const maxX = Math.max(0, w - viewportSize);
-  const maxY = Math.max(0, h - viewportSize);
+  const maxX = Math.max(0, (w - viewportSize) / 2);
+  const maxY = Math.max(0, (h - viewportSize) / 2);
   // The + 0 normalizes -0 → 0 so tests and callers can compare with ===/toBe.
   return {
-    offsetX: Math.max(-maxX, Math.min(0, offsetX)) + 0,
-    offsetY: Math.max(-maxY, Math.min(0, offsetY)) + 0,
+    offsetX: Math.max(-maxX, Math.min(maxX, offsetX)) + 0,
+    offsetY: Math.max(-maxY, Math.min(maxY, offsetY)) + 0,
   };
 }
 
@@ -78,11 +83,11 @@ export function zoomAt(
  * The rectangle of the SOURCE image (natural px) that the square viewport
  * currently shows — what a confirm-crop drawImage should sample.
  *
- * The editor renders the image TOP-LEFT aligned inside the viewport
- * (objectPosition "0 0"): the rendered image's top-left sits exactly at the
- * pan offset, and the offset is clamped so the image always covers the
- * viewport. So the visible source rect is simply the viewport window mapped
- * back into the source image — this is what the user actually sees.
+ * The editor renders the image at its real rendered size (natural × cover ×
+ * zoom), CENTERED in the viewport at offset 0 (top-left at
+ * (viewport - rendered)/2 + pan offset). The offset is clamped symmetrically
+ * so the image always covers the viewport — what you see is exactly what
+ * gets cropped, at every zoom level and for any image shape.
  */
 export function visibleSourceRect(
   viewportSize: number,
@@ -92,10 +97,8 @@ export function visibleSourceRect(
 ): { sx: number; sy: number; sw: number; sh: number } {
   const base = coverScale(viewportSize, imgW, imgH);
   const scale = base * t.zoom;
-  // The rendered image's top-left corner sits at the pan offset (clamped to
-  // [-(rendered - viewport), 0], so it always covers the viewport).
-  const imgLeft = t.offsetX;
-  const imgTop = t.offsetY;
+  const imgLeft = (viewportSize - imgW * scale) / 2 + t.offsetX;
+  const imgTop = (viewportSize - imgH * scale) / 2 + t.offsetY;
   const sx = Math.max(0, -imgLeft / scale);
   const sy = Math.max(0, -imgTop / scale);
   const sw = Math.min(imgW - sx, viewportSize / scale);

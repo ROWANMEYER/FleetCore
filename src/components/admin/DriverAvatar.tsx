@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/src/components/common/Toast";
 import { LongPressPhoto } from "@/src/components/common/LongPressPhoto";
 import { CropPhotoModal } from "@/src/components/common/CropPhotoModal";
-import { Camera, Loader, Trash2 } from "lucide-react";
+import { Camera, ImagePlus, Loader, Trash2, X } from "lucide-react";
 
 /* ─── Driver avatar with photo upload/remove (Admin → Drivers) ───
    Shows the driver's photo (drivers.photoUrl) when set, otherwise a
@@ -104,9 +105,11 @@ export function DriverAvatar({
   /* Optional caption shown over the banner (e.g. "#DRV-01"). */
   caption?: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const uploadPhoto = useAction(api.fleet.uploadDriverPhoto);
   const removePhoto = useMutation(api.fleet.removeDriverPhoto);
   const { addToast } = useToast();
@@ -148,7 +151,8 @@ export function DriverAvatar({
         "error"
       );
     } finally {
-      if (inputRef.current) inputRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
     }
   };
 
@@ -184,18 +188,24 @@ export function DriverAvatar({
     }
   };
 
-  /* Open the hidden file input WITHOUT flipping the card. The camera
-     button's own click stops propagation, but input.click() then fires a
-     FRESH click event on the input that bubbles up to the flip-card root's
-     onClick and spins the card — so a one-time native listener swallows it
-     before it reaches the card (the chooser still opens: stopPropagation
-     doesn't cancel the default action). */
-  const openFilePicker = () => {
-    const input = inputRef.current;
+  /* Open a hidden file input WITHOUT flipping the card. The button's own
+     click stops propagation, but input.click() then fires a FRESH click event
+     on the input that bubbles up to the flip-card root's onClick and spins the
+     card — so a one-time native listener swallows it before it reaches the
+     card (the chooser still opens: stopPropagation doesn't cancel the default
+     action). */
+  const triggerInput = (ref: React.RefObject<HTMLInputElement | null>) => {
+    const input = ref.current;
     if (!input) return;
     input.addEventListener("click", (ev) => ev.stopPropagation(), { once: true });
     input.click();
   };
+
+  /* Camera button → small action sheet: take a photo with the native camera
+     or choose from the gallery. Two separate inputs keep capture="environment"
+     (opens the phone's camera) and the plain file picker as independent
+     fallbacks — if one misbehaves on a device, the other still works. */
+  const openPickerMenu = () => setPickerOpen(true);
 
   const handleRemove = async () => {
     try {
@@ -247,10 +257,10 @@ export function DriverAvatar({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            openFilePicker();
+            openPickerMenu();
           }}
-          title={photoUrl ? "Change photo" : "Upload photo"}
-          aria-label={photoUrl ? "Change photo" : "Upload photo"}
+          title={photoUrl ? "Change photo" : "Add photo"}
+          aria-label={photoUrl ? "Change photo" : "Add photo"}
           disabled={uploading}
           className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-[var(--card-bg)]/90 backdrop-blur border border-[var(--card-border)] flex items-center justify-center text-[var(--nav-text-color)] hover:text-[#06B6D4] hover:border-[#06B6D4] transition-all duration-150 shadow-md"
         >
@@ -274,9 +284,17 @@ export function DriverAvatar({
         )}
 
         <input
-          ref={inputRef}
+          ref={galleryRef}
           type="file"
           accept="image/*,.heic,.heif"
+          className="hidden"
+          onChange={(e) => pickFile(e.target.files?.[0])}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*,.heic,.heif"
+          capture="environment"
           className="hidden"
           onChange={(e) => pickFile(e.target.files?.[0])}
         />
@@ -287,11 +305,26 @@ export function DriverAvatar({
         open={cropSrc !== null}
         src={cropSrc ?? ""}
         alt={name ? `${name} photo` : "Driver photo"}
+        outputSize={1200}
         onCancel={cancelCrop}
         onConfirm={confirmCrop}
         onError={() => {
           cancelCrop();
           addToast("Could not process this image — please use a JPEG or PNG", "error");
+        }}
+      />
+
+      {/* Photo source sheet — take a photo or choose from the gallery */}
+      <PhotoPickerSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onTake={() => {
+          setPickerOpen(false);
+          triggerInput(cameraRef);
+        }}
+        onGallery={() => {
+          setPickerOpen(false);
+          triggerInput(galleryRef);
         }}
       />
       </>
@@ -325,10 +358,10 @@ export function DriverAvatar({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          openFilePicker();
+          openPickerMenu();
         }}
-        title={photoUrl ? "Change photo" : "Upload photo"}
-        aria-label={photoUrl ? "Change photo" : "Upload photo"}
+        title={photoUrl ? "Change photo" : "Add photo"}
+        aria-label={photoUrl ? "Change photo" : "Add photo"}
         disabled={uploading}
         className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[var(--card-bg)] border border-[var(--card-border)] flex items-center justify-center text-[var(--nav-text-color)] hover:text-[#06B6D4] hover:border-[#06B6D4] transition-all duration-150 shadow-sm"
       >
@@ -352,9 +385,17 @@ export function DriverAvatar({
       )}
 
       <input
-        ref={inputRef}
+        ref={galleryRef}
         type="file"
         accept="image/*,.heic,.heif"
+        className="hidden"
+        onChange={(e) => pickFile(e.target.files?.[0])}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*,.heic,.heif"
+        capture="environment"
         className="hidden"
         onChange={(e) => pickFile(e.target.files?.[0])}
       />
@@ -364,6 +405,7 @@ export function DriverAvatar({
         open={cropSrc !== null}
         src={cropSrc ?? ""}
         alt={name ? `${name} photo` : "Driver photo"}
+        outputSize={1200}
         onCancel={cancelCrop}
         onConfirm={confirmCrop}
         onError={() => {
@@ -371,7 +413,85 @@ export function DriverAvatar({
           addToast("Could not process this image — please use a JPEG or PNG", "error");
         }}
       />
+
+      {/* Photo source sheet — take a photo or choose from the gallery */}
+      <PhotoPickerSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onTake={() => {
+          setPickerOpen(false);
+          triggerInput(cameraRef);
+        }}
+        onGallery={() => {
+          setPickerOpen(false);
+          triggerInput(galleryRef);
+        }}
+      />
     </div>
+  );
+}
+
+/* ─── Photo source sheet ──────────────────────────────────────────
+   Small action sheet (portaled to <body> so the flip-card transforms can
+   never clip it) with the two ways to add a driver photo: the native camera
+   (capture input) and the gallery file picker. */
+function PhotoPickerSheet({
+  open,
+  onClose,
+  onTake,
+  onGallery,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onTake: () => void;
+  onGallery: () => void;
+}) {
+  if (!open) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-sm m-3 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--card-border)]">
+          <span className="text-sm font-bold text-[var(--foreground)]">Add photo</span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-border)]/40 transition-colors"
+          >
+            <X size={15} strokeWidth={2.5} />
+          </button>
+        </div>
+        <div className="p-1.5">
+          <button
+            type="button"
+            onClick={onTake}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--card-border)]/40 transition-colors"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]">
+              <Camera size={17} strokeWidth={2.25} />
+            </span>
+            Take photo
+            <span className="ml-auto text-[10px] text-[var(--nav-text-color)]">camera</span>
+          </button>
+          <button
+            type="button"
+            onClick={onGallery}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--card-border)]/40 transition-colors"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-md shadow-[rgba(6,182,212,0.3)]">
+              <ImagePlus size={17} strokeWidth={2.25} />
+            </span>
+            Choose from gallery
+            <span className="ml-auto text-[10px] text-[var(--nav-text-color)]">files</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 

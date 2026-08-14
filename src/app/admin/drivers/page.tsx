@@ -138,7 +138,15 @@ export default function AdminDriversPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [flippedId, setFlippedId] = useState<string | null>(null);
 
-  const drivers = driversQuery || [];
+  // Keep the last successfully loaded result so a refetch (every search
+  // keystroke) never unmounts the page — an unmounted input dismisses the
+  // mobile keyboard. Only the very first load shows the skeleton.
+  const [loadedDrivers, setLoadedDrivers] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (driversQuery !== undefined) setLoadedDrivers(driversQuery);
+  }, [driversQuery]);
+
+  const drivers = driversQuery ?? loadedDrivers ?? [];
   const filteredDrivers =
     kpiFilter === "total"
       ? drivers
@@ -154,7 +162,7 @@ export default function AdminDriversPage() {
 
   useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter]);
 
-  if (driversQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
+  if (loadedDrivers === null && (driversQuery === undefined || statsQuery === undefined)) return <SkeletonPage />;
 
   const handleSort = (col: typeof sortBy) => {
     if (sortBy === col) {

@@ -72,7 +72,15 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  const [deletingId, setDeletingId] = useState<string | null>(null);
  const [expandedId, setExpandedId] = useState<string | null>(null);
  const [flippedId, setFlippedId] = useState<string | null>(null);
-  const subs = subsQuery || [];
+  // Keep the last successfully loaded result so a refetch (every search
+  // keystroke) never unmounts the page — an unmounted input dismisses the
+  // mobile keyboard. Only the very first load shows the skeleton.
+  const [loadedSubs, setLoadedSubs] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (subsQuery !== undefined) setLoadedSubs(subsQuery);
+  }, [subsQuery]);
+
+  const subs = subsQuery ?? loadedSubs ?? [];
   const filteredSubs =
     kpiFilter === "total"
       ? subs
@@ -88,7 +96,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
 
   useEffect(() => { setPage(1); }, [search, includeInactive, kpiFilter]);
 
- if (subsQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
+ if (loadedSubs === null && (subsQuery === undefined || statsQuery === undefined)) return <SkeletonPage />;
 
  const toggleStatus = async (s: any) => {
  try {

@@ -138,7 +138,15 @@ export default function AdminTrucksPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [flippedId, setFlippedId] = useState<string | null>(null);
 
-  const trucks = trucksQuery || [];
+  // Keep the last successfully loaded result so a refetch (every search
+  // keystroke) never unmounts the page — an unmounted input dismisses the
+  // mobile keyboard. Only the very first load shows the skeleton.
+  const [loadedTrucks, setLoadedTrucks] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (trucksQuery !== undefined) setLoadedTrucks(trucksQuery);
+  }, [trucksQuery]);
+
+  const trucks = trucksQuery ?? loadedTrucks ?? [];
   const filteredTrucks =
     kpiFilter === "total"
       ? trucks
@@ -154,7 +162,7 @@ export default function AdminTrucksPage() {
 
   useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter]);
 
-  if (trucksQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
+  if (loadedTrucks === null && (trucksQuery === undefined || statsQuery === undefined)) return <SkeletonPage />;
 
   const handleSort = (col: typeof sortBy) => {
     if (sortBy === col) {

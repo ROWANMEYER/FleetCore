@@ -7,6 +7,7 @@ import { ToastProvider } from "@/src/components/common/Toast";
 import { AuthProvider } from "@/src/components/auth/AuthProvider";
 import { AppShell } from "@/src/components/auth/AppShell";
 import { PwaInstaller } from "@/src/components/PwaInstaller";
+import MobileSplashGate from "@/src/components/MobileSplashGate";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -64,7 +65,9 @@ export default function RootLayout({
           <ConvexClientProvider>
             <ToastProvider>
               <AuthProvider>
-                <AppShell>{children}</AppShell>
+                <MobileSplashGate>
+                  <AppShell>{children}</AppShell>
+                </MobileSplashGate>
               </AuthProvider>
 
               {/* PWA install prompt + service worker registration */}

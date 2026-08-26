@@ -568,10 +568,20 @@ export const createTrailer = mutation({
                 )
              );
              
+             const patch: Record<string, unknown> = {};
+             
              // If we have new items, append them
              if (newItems.length > 0) {
-                 const updatedTrailers = [...existing.trailers, ...newItems];
-                 await ctx.db.patch(existing._id, { trailers: updatedTrailers });
+                 patch.trailers = [...existing.trailers, ...newItems];
+             }
+             
+             // Reactivate if the existing trailer was inactive
+             if ((existing as { status?: string }).status === "inactive") {
+                 patch.status = "active";
+             }
+             
+             if (Object.keys(patch).length > 0) {
+                 await ctx.db.patch(existing._id, patch);
              }
              return existing._id;
         } else {
@@ -731,27 +741,25 @@ export const deleteTrailerComponent = mutation({
         const doc = await ctx.db.get(args.id);
         if (!doc) throw new Error("Trailer not found");
         
-        // Safety Check: Is the Fleet Number used in any route?
-        const referenced = await ctx.db
-            .query("dailyRoutes")
-            .filter((q) => {
-                const numMatch = q.eq(q.field("trailerFleetNo"), doc.trailerFleetNo);
-                if (doc.trailerFleetNoStr) {
-                    return q.or(numMatch, q.eq(q.field("trailerFleetNoStr"), doc.trailerFleetNoStr));
-                }
-                return numMatch;
-            })
-            .first();
-            
-        if (referenced) {
-            throw new Error("This trailer is used in existing routes and cannot be removed.");
-        }
-        
         // Remove item
         const newTrailers = doc.trailers.filter(t => !(t.length === args.length && t.registration === args.registration));
         
         if (newTrailers.length === 0) {
-            // Delete parent if empty
+            // Safety Check: only prevent deleting the LAST component if the fleet number is used in routes
+            const referenced = await ctx.db
+                .query("dailyRoutes")
+                .filter((q) => {
+                    const numMatch = q.eq(q.field("trailerFleetNo"), doc.trailerFleetNo);
+                    if (doc.trailerFleetNoStr) {
+                        return q.or(numMatch, q.eq(q.field("trailerFleetNoStr"), doc.trailerFleetNoStr));
+                    }
+                    return numMatch;
+                })
+                .first();
+                
+            if (referenced) {
+                throw new Error("This trailer is the last component and is used in existing routes — cannot remove.");
+            }
             await ctx.db.delete(args.id);
         } else {
             await ctx.db.patch(args.id, { trailers: newTrailers });

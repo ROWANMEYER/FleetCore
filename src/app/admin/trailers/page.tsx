@@ -112,7 +112,7 @@ export default function AdminTrailersPage() {
   const [includeInactive, setIncludeInactive] = useState(true);
   const [kpiFilter, setKpiFilter] = useKpiFilter();
 
-  const trailersQuery = useQuery(api.fleet.getTrailers, {});
+  const trailersQuery = useQuery(api.fleet.getTrailers, { includeInactive });
   const statsQuery = useQuery(api.fleet.getTrailerStats);
   const subcontractorsQuery = useQuery(api.subcontractors.list, {});
   const createTrailer = useMutation(api.fleet.createTrailer);
@@ -222,13 +222,15 @@ export default function AdminTrailersPage() {
 
   const handleCreate = async () => {
     try {
-      if (!newTrailer.trailerFleetNo || !newTrailer.type) {
-        addToast("Fleet number (numeric) and type are required", "error");
+      const fleetNoStr = newTrailer.trailerFleetNoStr || String(newTrailer.trailerFleetNo || "");
+      const fleetNoNum = newTrailer.trailerFleetNo ? Number(newTrailer.trailerFleetNo) : (parseInt(fleetNoStr, 10) || 0);
+      if (!fleetNoStr || !newTrailer.type) {
+        addToast("Fleet number and type are required", "error");
         return;
       }
       await createTrailer({
-        trailerFleetNo: Number(newTrailer.trailerFleetNo),
-        trailerFleetNoStr: newTrailer.trailerFleetNoStr || String(newTrailer.trailerFleetNo),
+        trailerFleetNo: fleetNoNum,
+        trailerFleetNoStr: fleetNoStr,
         trailers: [{ length: newTrailer.length || "", registration: newTrailer.registration || "" }],
         type: newTrailer.type,
         subcontractorId: newTrailer.subcontractorId ? (newTrailer.subcontractorId as Id<"subcontractors">) : undefined,

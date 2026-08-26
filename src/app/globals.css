@@ -130,6 +130,11 @@ body {
   overscroll-behavior-y: none;
 }
 
+.dark body {
+  background: linear-gradient(180deg, #0B1220 0%, #0F172A 40%, #0891B2 100%);
+  background-attachment: fixed;
+}
+
 /* ─── Glass card utility ─────────────────────────────────────────── */
 .glass-card {
   background: var(--card-bg);

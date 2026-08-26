@@ -34,8 +34,18 @@ export default function MobileSplashGate({ children }: { children: React.ReactNo
   }, [])
 
   // Desktop: render children immediately, no splash
-  if (!checked || (!isMobile && splashDone)) {
+  if (checked && !isMobile) {
     return <>{children}</>
+  }
+
+  // Still checking viewport — show nothing to prevent flash
+  if (!checked) {
+    return (
+      <div
+        className="fixed inset-0 z-[9998]"
+        style={{ background: 'linear-gradient(180deg, #0B1220 0%, #0F172A 40%, #0891B2 100%)' }}
+      />
+    )
   }
 
   // Mobile: show splash, then children

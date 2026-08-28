@@ -1180,12 +1180,13 @@ export default function DashboardPage() {
  const [month2, setMonth2] = useState(() => {
  const d = new Date();
  return d.toISOString().slice(0, 7);
-});
- const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(
- new Set(["revenue","loads","km"])
-);
+}); const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(
+        new Set(["revenue","loads","km"])
+    );
+    const [showCumulative, setShowCumulative] = useState(false);
+    const [showDelta, setShowDelta] = useState(false);
 
- const toggleMetric = (metric: string) => {
+    const toggleMetric = (metric: string) => {
  setVisibleMetrics((prev) => {
  const newSet = new Set(prev);
  if (newSet.has(metric)) {
@@ -1217,6 +1218,7 @@ export default function DashboardPage() {
  const topClients = useQuery(api.dashboard.getCustomerAnalytics, { startDate, endDate, token, region});
  const revenueOverTime = useQuery(api.dashboard.getRevenueOverTime, { startDate, endDate, token, region});
  const monthComparison = useQuery(api.dashboard.getMonthToMonthComparison, { month1, month2, token, region});
+ const monthDaily = useQuery(api.dashboard.getMonthToMonthDailyComparison, { month1, month2, token, region});
 
  const loading = !summary || !topClients || !revenueOverTime;
  const maxRevDay = revenueOverTime ? Math.max(...revenueOverTime.map((d) => d.revenue), 1) : 1;
@@ -1524,7 +1526,154 @@ export default function DashboardPage() {
  </BarChart>
  </ResponsiveContainer>
  </div>
- </div>
+ </div> {/* Daily Flow Chart */}
+                {monthDaily && (
+                    <div className="glass-card rounded-xl p-2 sm:p-5 mt-2 sm:mt-6">
+                        <div className="flex items-center justify-between mb-1 sm:mb-4">
+                            <div>
+                                <h3 className={`text-sm font-semibold ${themeClasses.text.primary}`}>Daily Flow</h3>
+                                <p className={`text-xs ${themeClasses.text.tertiary} mt-1`}>{showCumulative ? "Cumulative revenue" : "Day-by-day comparison — Revenue"}{showDelta ? " + Delta %" : ""}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setShowDelta(!showDelta)}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                        showDelta
+                                            ? "bg-gradient-to-br from-[#f59e0b] to-[#d97706] text-white shadow-sm"
+                                            : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] border border-[var(--card-border)]"
+                                    }`}
+                                >
+                                    {showDelta ? "📉 Delta" : "% Δ"}
+                                </button>
+                                <button
+                                    onClick={() => setShowCumulative(!showCumulative)}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                        showCumulative
+                                            ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
+                                            : "text-[var(--nav-text-color)] hover:text-[var(--foreground)] border border-[var(--card-border)]"
+                                    }`}
+                                >
+                                    {showCumulative ? "📊 Daily" : "📈 Cumulative"}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex flex-wrap gap-3 sm:gap-6 mb-1 sm:mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor:"#06B6D4"}}></div>
+                                <span className={`text-xs sm:text-sm ${themeClasses.text.secondary}`}>{monthLabel(month1)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor:"#a855f7"}}></div>
+                                <span className={`text-xs sm:text-sm ${themeClasses.text.secondary}`}>{monthLabel(month2)}</span>
+                            </div>
+                            {showDelta && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-0.5 rounded" style={{ backgroundColor:"#f59e0b", borderTop:"2px dashed #f59e0b"}}></div>
+                                    <span className={`text-xs sm:text-sm ${themeClasses.text.secondary}`}>Δ % (M2 vs M1)</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="h-[180px] lg:h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%"> <LineChart
+                                data={(() => {
+                                    const raw1 = monthDaily.month1.days.map((d, i) => ({
+                                        day: d.day,
+                                        revenue1: d.revenue,
+                                        revenue2: monthDaily.month2.days[i]?.revenue ?? 0,
+                                        delta: monthDaily.month1.days[i] && monthDaily.month1.days[i].revenue !== 0
+                                            ? Math.round(((monthDaily.month2.days[i]?.revenue ?? 0) - monthDaily.month1.days[i].revenue) / monthDaily.month1.days[i].revenue * 100)
+                                            : null,
+                                    }));
+                                    if (!showCumulative) return raw1;
+                                    let cum1 = 0;
+                                    let cum2 = 0;
+                                    return raw1.map((d) => {
+                                        cum1 += d.revenue1;
+                                        cum2 += d.revenue2;
+                                        const delta = cum1 !== 0 ? Math.round((cum2 - cum1) / cum1 * 100) : null;
+                                        return { ...d, revenue1: cum1, revenue2: cum2, delta };
+                                    });
+                                })()}
+                                margin={{ top: 5, right: showDelta ? 45 : 10, left: -10, bottom: 5}}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDayMode ?"#e5e7eb" :"#374151"} />
+                                <XAxis
+                                    dataKey="day"
+                                    stroke={isDayMode ?"#6b7280" :"#9ca3af"}
+                                    tickFormatter={(d) => d.slice(8, 10)}
+                                    interval={Math.max(0, Math.floor(monthDaily.month1.days.length / 10))}
+                                    style={{ fontSize:"10px"}}
+                                />
+                                <YAxis
+                                    yAxisId="left"
+                                    stroke={isDayMode ?"#6b7280" :"#9ca3af"}
+                                    tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                                    style={{ fontSize:"10px"}}
+                                />
+                                {showDelta && (
+                                    <YAxis
+                                        yAxisId="right"
+                                        orientation="right"
+                                        stroke="#f59e0b"
+                                        tickFormatter={(v) => `${v}%`}
+                                        style={{ fontSize:"10px"}}
+                                        domain={["dataMin - 10", "dataMax + 10"]}
+                                    />
+                                )}
+                                <Tooltip
+                                    formatter={(val: any, name: any) => {
+                                        if (name === "delta") return [`${Number(val) >= 0 ? "+" : ""}${Number(val)}%`, "Δ M2 vs M1"];
+                                        return [fmt(Number(val)), name === "revenue1" ? monthLabel(month1) : monthLabel(month2)];
+                                    }}
+                                    labelFormatter={(label: any) => `Day ${String(label).slice(8, 10)}`}
+                                    contentStyle={{
+                                        backgroundColor: isDayMode ?"#ffffff" :"#1f2937",
+                                        border:`1px solid ${isDayMode ?"#e5e7eb" :"#4b5563"}`,
+                                        borderRadius:"8px",
+                                    }}
+                                    cursor={{ stroke:"#6b7280", strokeWidth:1, strokeDasharray:"4 4"}}
+                                /> <Line
+                                    yAxisId="left"
+                                    type="monotone"
+                                    dataKey="revenue1"
+                                    stroke="#06B6D4"
+                                    strokeWidth={2}
+                                    dot={false}
+                                    name={monthLabel(month1)}
+                                    isAnimationActive={false}
+                                />
+                                <Line
+                                    yAxisId="left"
+                                    type="monotone"
+                                    dataKey="revenue2"
+                                    stroke="#a855f7"
+                                    strokeWidth={2}
+                                    dot={false}
+                                    name={monthLabel(month2)}
+                                    isAnimationActive={false}
+                                />
+                                {showDelta && (
+                                    <Line
+                                        yAxisId="right"
+                                        type="monotone"
+                                        dataKey="delta"
+                                        stroke="#f59e0b"
+                                        strokeWidth={2}
+                                        strokeDasharray="6 3"
+                                        dot={false}
+                                        name="delta"
+                                        connectNulls
+                                        isAnimationActive={false}
+                                    />
+                                )}
+                            </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
  </>
 )}  </CollapsibleSection>
  </div>

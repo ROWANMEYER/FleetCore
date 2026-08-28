@@ -137,10 +137,14 @@ export default defineSchema({
     .index("by_assetType_assetUnit", ["assetType", "assetUnit"])
     .index("by_assetUnit", ["assetUnit"]),
   drivers: defineTable({
+    accessToken: v.optional(v.string()),
     createdAt: v.optional(v.float64()),
     driverId: v.optional(v.string()),
     driverName: v.optional(v.string()),
+    failedPinAttempts: v.optional(v.float64()),
+    fleetcorId: v.optional(v.string()),
     idNumber: v.optional(v.string()),
+    isTest: v.optional(v.boolean()),
     licenseExpiryDate: v.optional(v.string()),
     name: v.optional(v.string()),
     pdpExpiryDate: v.optional(v.string()),
@@ -148,6 +152,8 @@ export default defineSchema({
     photoStorageId: v.optional(v.string()),
     photoUrl: v.optional(v.string()),
     photoOriginalUrl: v.optional(v.string()),
+    pinHash: v.optional(v.string()),
+    pinSetAt: v.optional(v.float64()),
     status: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     subStatus: v.optional(v.string()),
@@ -376,6 +382,7 @@ export default defineSchema({
     currentKm: v.optional(v.float64()),
     currentTrailerId: v.optional(v.id("trailers")),
     fleetNumber: v.optional(v.string()),
+    isTest: v.optional(v.boolean()),
     lastRenewalDate: v.optional(v.string()),
     licenseExpiryDate: v.optional(v.string()),
     make: v.optional(v.string()),
@@ -388,6 +395,7 @@ export default defineSchema({
     status: v.optional(v.string()),
     subStatus: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
+    tankCapacityLiters: v.optional(v.float64()),
     truckFleetNo: v.optional(v.string()),
   })
     .index("by_currentTrailerId", ["currentTrailerId"])

@@ -700,3 +700,102 @@ export const getMonthToMonthComparison = query({
         };
     },
 });
+
+// ─── Month-to-Month Daily Breakdown ────────────────────────────────────────
+// Returns per-day revenue, routes, km, and loads for each month so the
+// dashboard can render a side-by-side daily "flow" chart.
+
+export const getMonthToMonthDailyComparison = query({
+    args: {
+        month1: v.string(), // "YYYY-MM"
+        month2: v.string(), // "YYYY-MM"
+        token: v.optional(v.union(v.string(), v.null())),
+        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    },
+    handler: async (ctx, args) => {
+        const region = await resolveEffectiveRegion(ctx, args.token, args.region);
+
+        const today = new Date();
+        const todayIso = today.toISOString().split("T")[0];
+        const todayMonth = todayIso.slice(0, 7);
+        const todayDay = parseInt(todayIso.slice(8, 10), 10);
+        const isCurrentMonth = args.month2 === todayMonth;
+
+        const getMonthRange = (monthStr: string) => {
+            const date = new Date(monthStr + "-01");
+            const year = date.getUTCFullYear();
+            const month = date.getUTCMonth();
+            const start = new Date(Date.UTC(year, month, 1)).toISOString().split("T")[0];
+            const end = new Date(Date.UTC(year, month + 1, 0)).toISOString().split("T")[0];
+            return { start, end };
+        };
+
+        const range1 = getMonthRange(args.month1);
+        const range2 = getMonthRange(args.month2);
+
+        // Clamp month1 to same day count as month2 when month2 is current month
+        let clampedRange1 = range1;
+        if (isCurrentMonth) {
+            const month1Date = new Date(args.month1 + "-01");
+            const y1 = month1Date.getUTCFullYear();
+            const m1 = month1Date.getUTCMonth();
+            clampedRange1 = {
+                start: range1.start,
+                end: new Date(Date.UTC(y1, m1, todayDay)).toISOString().split("T")[0],
+            };
+        }
+
+        const getDailyData = async (range: { start: string; end: string }) => {
+            const routes = await ctx.db
+                .query("dailyRoutes")
+                .withIndex("by_routeDate_truckFleetNoStr", (q) =>
+                    q.gte("routeDate", range.start).lte("routeDate", range.end)
+                )
+                .collect();
+
+            const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
+
+            // Bucket by day
+            const dayMap = new Map<string, { revenue: number; routes: number; km: number; loads: number }>();
+
+            for (const route of activeRoutes) {
+                const day = route.routeDate;
+                if (!dayMap.has(day)) {
+                    dayMap.set(day, { revenue: 0, routes: 0, km: 0, loads: 0 });
+                }
+                const entry = dayMap.get(day)!;
+                entry.revenue += route.rate || 0;
+                entry.routes += 1;
+                entry.km += (route as any).kilometers || 0;
+                entry.loads += route.loads?.length || 0;
+            }
+
+            // Convert to sorted array, filling in zero-days
+            const result: { day: string; revenue: number; routes: number; km: number; loads: number }[] = [];
+            const startD = new Date(range.start);
+            const endD = new Date(range.end);
+            for (let d = new Date(startD); d <= endD; d.setUTCDate(d.getUTCDate() + 1)) {
+                const dayStr = d.toISOString().split("T")[0];
+                const entry = dayMap.get(dayStr);
+                result.push({
+                    day: dayStr,
+                    revenue: entry?.revenue ?? 0,
+                    routes: entry?.routes ?? 0,
+                    km: entry?.km ?? 0,
+                    loads: entry?.loads ?? 0,
+                });
+            }
+            return result;
+        };
+
+        const [daily1, daily2] = await Promise.all([
+            getDailyData(clampedRange1),
+            getDailyData(range2),
+        ]);
+
+        return {
+            month1: { label: args.month1, days: daily1 },
+            month2: { label: args.month2, days: daily2 },
+        };
+    },
+});

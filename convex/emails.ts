@@ -1,6 +1,5 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { Resend } from "resend";
 import { api } from "./_generated/api";
 
 import { renderTransportReport } from "./templates/TransportReport";
@@ -23,6 +22,43 @@ const escapeHtml = (s: string) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+/**
+ * Send an email via the Resend REST API directly (no SDK dependency).
+ * The Resend Node SDK can hang in the Convex runtime, so we call the API
+ * with plain `fetch` instead.
+ */
+async function sendResendEmail(args: {
+  apiKey: string;
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+}): Promise<{ id?: string; error?: string }> {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: args.from,
+      to: args.to,
+      subject: args.subject,
+      html: args.html,
+    }),
+  });
+
+  const body = await res.json() as Record<string, unknown>;
+
+  if (!res.ok) {
+    const errMsg = (body as any).message || JSON.stringify(body);
+    console.error(`Resend API error (${res.status}):`, errMsg);
+    throw new Error(`Email delivery failed: ${errMsg}`);
+  }
+
+  return { id: body.id as string };
+}
 
 /** Shared recipient validation — resolves ids to verified emails. */
 async function resolveRecipientEmails(ctx: any, recipientIds: string[]): Promise<string[]> {
@@ -113,20 +149,13 @@ export const sendSummaryEmail = action({
       columnNotes: [],
     });
 
-    const resend = new Resend(apiKey);
-    const result = await resend.emails.send({
+    await sendResendEmail({
+      apiKey,
       from: SENDER,
       to: validEmails,
       subject: args.subject,
       html,
     });
-
-    if (result.error) {
-      console.error("Resend Error:", result.error);
-      // Surface Resend's real reason — it reaches the UI toast so the user
-      // doesn't need a console to understand what went wrong.
-      throw new Error(`Email delivery failed: ${result.error.message}`);
-    }
 
     return { success: true };
   },
@@ -150,73 +179,69 @@ export const sendLoadReportEmail = action({
     region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"), v.null())),
   },
   handler: async (ctx, args) => {
-    const apiKey = process.env.RESEND_API_KEY;
+    try {
+      const apiKey = process.env.RESEND_API_KEY;
 
-    if (!apiKey) {
-      throw new Error("Email configuration error: API key missing.");
-    }
-
-    // 1. Validate Recipients
-    const allRecipients = await ctx.runQuery(api.recipients.list);
-    const validEmails: string[] = [];
-
-    for (const id of args.recipientIds) {
-      const match = allRecipients.find((r: any) => r._id === id);
-      if (match && match.email) {
-        validEmails.push(match.email);
+      if (!apiKey) {
+        return { success: false, error: "Email configuration error: RESEND_API_KEY is not set on the Convex backend. Run 'npx convex env set RESEND_API_KEY=re_your_key' to fix this." };
       }
+
+      // 1. Validate Recipients
+      const allRecipients = await ctx.runQuery(api.recipients.list);
+      const validEmails: string[] = [];
+
+      for (const id of args.recipientIds) {
+        const match = allRecipients.find((r: any) => r._id === id);
+        if (match && match.email) {
+          validEmails.push(match.email);
+        }
+      }
+
+      if (validEmails.length === 0) {
+        return { success: false, error: "No valid recipients selected. Please select at least one recipient." };
+      }
+
+      // 2. Fetch Data (Backend-first filtering & calculation)
+      const data = await ctx.runQuery(api.dailyRoutes.getQuickSendReport, {
+        startDate: args.startDate,
+        endDate: args.endDate,
+        completedOnly: args.completedOnly,
+        token: args.token,
+        region: args.region ?? undefined,
+      });
+
+      if (data.loads.length === 0) {
+        // Backend safe return
+        console.log("No loads found, skipping email.");
+        return { success: false, error: "No loads found for this period." };
+      }
+
+      // Default columns if not provided
+      const defaultColumns = ["date", "truck", "trailer", "driver", "client", "from", "to", "rate"];
+      const activeColumns = args.activeColumns || defaultColumns;
+
+      // 3. Generate HTML (Shared Renderer)
+      const html = renderTransportReport({
+        data,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        activeColumns,
+        columnNotes: args.columnNotes || [],
+      });
+
+      // 4. Send Email (direct fetch — Resend SDK hangs in Convex runtime)
+      await sendResendEmail({
+        apiKey,
+        from: SENDER,
+        to: validEmails,
+        subject: args.subject,
+        html,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("sendLoadReportEmail error:", err);
+      return { success: false, error: err?.message || String(err) };
     }
-
-    if (validEmails.length === 0) {
-      throw new Error("No valid recipients selected. Please select at least one recipient.");
-    }
-
-    // 2. Fetch Data (Backend-first filtering & calculation)
-    const data = await ctx.runQuery(api.dailyRoutes.getQuickSendReport, {
-      startDate: args.startDate,
-      endDate: args.endDate,
-      completedOnly: args.completedOnly,
-      token: args.token,
-      region: args.region ?? undefined,
-    });
-
-    if (data.loads.length === 0) {
-      // Backend safe return
-      console.log("No loads found, skipping email.");
-      return { success: false, message: "No loads found for this period." };
-    }
-
-    // Default columns if not provided
-    const defaultColumns = ["date", "truck", "trailer", "driver", "client", "from", "to", "rate"];
-    const activeColumns = args.activeColumns || defaultColumns;
-
-    // 3. Generate HTML (Shared Renderer)
-    const html = renderTransportReport({
-      data,
-      startDate: args.startDate,
-      endDate: args.endDate,
-      activeColumns,
-      columnNotes: args.columnNotes || [],
-    });
-
-    // 4. Send Email
-    const resend = new Resend(apiKey);
-
-    // NOTE: Using Resend’s verified sender for development. 
-    // Replace with fleetcore.app once domain is verified.
-    const result = await resend.emails.send({
-      from: SENDER,
-      to: validEmails,
-      subject: args.subject,
-      html: html,
-    });
-
-    if (result.error) {
-      console.error("Resend Error:", result.error);
-      throw new Error(`Email delivery failed: ${result.error.message}`);
-    }
-
-    return { success: true };
   },
 });
-

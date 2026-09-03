@@ -102,8 +102,8 @@ const subjectRegion =
 
  // 4. Handlers
  const handleSendEmail = async (recipientIds: Id<"recipients">[], subject: string) => {
- try {
- await sendLoadReportEmail({ 
+    try {
+ const result = await sendLoadReportEmail({ 
  recipientIds, 
  startDate: queryStartDate, 
  endDate: queryEndDate, 
@@ -114,10 +114,16 @@ const subjectRegion =
  token,
  region
 });
+ // The action now returns structured results instead of throwing
+ if (result && !result.success && result.error) {
+   addToast(`Failed to send email: ${result.error}`, "error");
+   return;
+ }
  addToast("Email sent successfully!", "success");
 } catch (error) {
  console.error("Failed to send email:", error);
- addToast("Failed to send email. Please check the logs.", "error");
+ const detail = error instanceof Error ? error.message : String(error);
+ addToast(`Failed to send email: ${detail}`, "error");
 }
 };
 

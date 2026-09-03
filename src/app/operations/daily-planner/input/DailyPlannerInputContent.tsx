@@ -430,8 +430,10 @@ function DailyPlannerInputForm() {
   // "All Regions" leaves the field unselected so the form demands an
   // explicit pick (red alert under Region). Edit mode is skipped — the
   // existing route's own region is restored by the populate effect above.
+  // NOTE: restoredDraftRef is NOT checked here — the sidebar region is the
+  // source of truth and must always override a stale draft value.
   useEffect(() => {
-    if (routeId || restoredDraftRef.current) return;
+    if (routeId) return;
     setRegion(
       user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
     );

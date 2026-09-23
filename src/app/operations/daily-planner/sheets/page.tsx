@@ -1061,10 +1061,10 @@ const DEFAULT_TABLE_COLUMN_VISIBILITY: Record<ResizableTableColumnKey, boolean> 
 // Columns the sort logic in getFilteredAndSortedRoutes actually knows how to sort.
 const SORTABLE_COLUMNS = ["date", "truck", "trailer", "client", "driver", "from", "to", "amount", "status"];
 
-export default function DailyPlannerSheetsPage({ mode ="primary"}: { mode?:"primary" |"secondary"}) {
+export default function DailyPlannerSheetsPage() {
  return (
  <Suspense fallback={null}>
- <DailyPlannerSheetsContent mode={mode} />
+ <DailyPlannerSheetsContent />
  </Suspense>
 );
 }

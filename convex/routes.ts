@@ -82,7 +82,7 @@ export const listByDate = query({
             const trailerId = route.trailerFleetNoStr || "unknown";
 
             // Generate driver ID from name hash (deterministic)
-            const driverId = hashDriverName(route.driverName);
+            const driverId = hashDriverName(route.driverName ?? "");
 
             // Map status with default fallback
             const status = mapStatus((route as any).status);
@@ -103,7 +103,7 @@ export const listByDate = query({
 
                 driver: {
                     id: driverId,
-                    name: route.driverName,
+                    name: route.driverName ?? "",
                 },
 
                 fromLocations: route.fromLocations || [],

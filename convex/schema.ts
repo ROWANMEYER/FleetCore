@@ -75,7 +75,7 @@ export default defineSchema({
     client: v.string(),
     createdAt: v.float64(),
     deletedAt: v.optional(v.float64()),
-    driverName: v.string(),
+    driverName: v.optional(v.string()),
     fromLocation: v.optional(v.string()),
     fromLocations: v.optional(v.array(v.string())),
     isDeleted: v.optional(v.boolean()),
@@ -116,11 +116,13 @@ export default defineSchema({
     routeKilometers: v.optional(v.float64()),
     status: v.optional(v.string()),
     toLocations: v.array(v.string()),
-    trailerFleetNo: v.float64(),
+    trailerFleetNo: v.optional(v.float64()),
     trailerFleetNoStr: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     truckFleetNo: v.optional(v.float64()),
     truckFleetNoStr: v.optional(v.string()),
+    routeOrder: v.optional(v.float64()),
+    planningSource: v.optional(v.union(v.literal("board"))),
   })
     .index("by_routeDate", ["routeDate"])
     .index("by_routeDate_truckFleetNoStr", ["routeDate", "truckFleetNoStr"]),
@@ -197,6 +199,37 @@ export default defineSchema({
     selectedDate: v.string(),
     completed: v.optional(v.boolean()),
   }).index("by_selectedDate", ["selectedDate"]),
+  planningLoads: defineTable({
+    loadDate: v.string(),
+    region: v.union(
+      v.literal("garden_route"),
+      v.literal("eastern_cape")
+    ),
+    client: v.string(),
+    fromLocations: v.array(v.string()),
+    toLocations: v.array(v.string()),
+    quantity: v.optional(v.string()),
+    quantityType: v.optional(v.string()),
+    rate: v.optional(v.string()),
+    rateType: v.optional(v.string()),
+    kilometers: v.optional(v.float64()),
+    notes: v.optional(v.string()),
+    status: v.union(
+      v.literal("unallocated"),
+      v.literal("allocated"),
+      v.literal("cancelled")
+    ),
+    allocatedRouteId: v.optional(v.id("dailyRoutes")),
+    cancelledAt: v.optional(v.float64()),
+    cancelledBy: v.optional(v.string()),
+    createdAt: v.float64(),
+    createdBy: v.optional(v.string()),
+    batchKey: v.optional(v.string()),
+  })
+    .index("by_loadDate_region", ["loadDate", "region"])
+    .index("by_loadDate_region_status", ["loadDate", "region", "status"])
+    .index("by_batchKey", ["batchKey"])
+    .index("by_allocatedRouteId", ["allocatedRouteId"]),
   pdpApplicationLogs: defineTable({
     action: v.string(),
     applicationId: v.id("pdpApplications"),

@@ -78,57 +78,38 @@ The **current** truck-trailer combination is stored in `trucks.currentTrailerId`
 | `subcontractors` | Subcontractor master data |
 | `webPushSubscriptions` | PWA push subscriptions |
 | `dismissedBirthdayAlerts` | Per-user per-year birthday dismissals |
+| `customers` | Customer master data (name, normalizedName, isActive, accountNumber, etc.) |
+| `planningLoads` | Board unallocated/allocated planning loads (by_loadDate_region_status, by_batchKey, by_allocatedRouteId indexes) |
 
 ## Environment
 
-- Convex deployment: `dev:quixotic-gopher-969`
+- Convex deployment: `dev:quixotic-gopher-969` (project: quixotic-gopher-969, deployment: dev:precise-chickadee-602)
 - Env vars in `.env.local` (not committed): `NEXT_PUBLIC_CONVEX_URL`, `RESEND_API_KEY`
 - VAPID keys (`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`) set via `npx convex env set ...` for web push
 - React Compiler enabled (`babel-plugin-react-compiler`)
 
-## Theme Tokens — Quick Reference
+## Planner Board — Quick Reference
 
-All theme tokens are defined in `src/app/globals.css` and use CSS custom properties with Tailwind arbitrary value syntax. Dark mode is automatic via `.dark` class injected by `next-themes`. See `docs/THEME_TOKENS.md` for full documentation.
+### Parser (`src/lib/planner/parser.ts`)
+- `parseQuickCapture(text)` → `ParseResult` with date, loads, errors
+- Grammar: `CLIENT x FROM na TO`, `+` for multiple locations
+- Pure function, no React/Convex/browser dependencies
 
-### Core CSS Variables
+### Client Resolution
+- `resolveParsedClients(parsed, customers)` → `ClientResolution[]`
+- Matches against `customers.normalizedName` (case-insensitive)
+- Returns status: `matched` | `unknown` | `ambiguous` | `alias_missing`
 
-| Token | Usage | Example Tailwind Class |
-|---|---|---|
-| `--foreground` | Primary text | `text-[var(--foreground)]` |
-| `--nav-text-color` | Secondary text, labels, placeholders | `text-[var(--nav-text-color)]` |
-| `--card-bg` | Card/panel backgrounds | `bg-[var(--card-bg)]` |
-| `--card-border` | Borders, dividers, input borders | `border-[var(--card-border)]` |
+### Location Aliases (`src/lib/planner/aliases.ts`)
+- `resolveLocation(input)` → normalized name (alias lookup or title-case)
+- `resolveClientAlias(input)` → mapped customer name or undefined
 
-### Utility Classes
+### Board Page
+- Route: `/operations/daily-planner/board?date=YYYY-MM-DD`
+- Left panel: Quick Capture + Preview + Unallocated Loads
+- Right panel: Placeholder for Stage 4 (fleet allocation board)
+- Uses `createBulkPlanningLoads`, `getUnallocatedByDate`, `cancelPlanningLoad`
 
-| Class | Purpose |
-|---|---|
-| `.glass-card` | Standard glass panel (blur + border + shadow) |
-| `.glass-card-premium` | Premium glass panel (rounded + hover lift) |
-| `.glass-sidebar` | Sidebar-specific glass with sidebar vars |
-| `.nav-item-active` | Active nav pill (teal gradient + glow) |
-| `.settings-input` | Settings form input (glass + teal focus) |
-| `.skeleton-shimmer` | Loading skeleton shimmer animation |
-
-### Teal Accent Patterns
-
-```tsx
-// Primary buttons
-className="bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm"
-
-// Active toggle / tab
-className="bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
-
-// Focus rings
-focus:ring-[#06B6D4] focus:border-[#06B6D4]
-
-// Form inputs
-border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--foreground)]
-  focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30 focus:outline-none
-```
-
-### Migration Rules
-
-- **NEVER** use `text-gray-*`, `bg-white`, `border-gray-*` — replace with CSS vars above
-- **NEVER** use `dark:text-*`, `dark:bg-*` — CSS vars handle dark mode automatically
-- **Keep** semantic badges (`bg-green-100 text-green-800`, etc.) — they carry meaning
+### Test Results
+- Parser: 48 tests (date, parsing, aliases, client resolution)
+- Full suite: 173 tests across 10 files

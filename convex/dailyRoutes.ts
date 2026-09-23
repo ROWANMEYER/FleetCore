@@ -714,6 +714,89 @@ export const updateDailyRoute = mutation({
     // REMOVED: We now support explicit rateType "flat" or "per_unit"
     const normalizedLoads = args.loads;
 
+    // ── Board-managed loadId identity validation ─────────────────────────────
+    // planningLoad._id ↔ dailyRoute.loads[].loadId is a stable identity
+    // relationship. We never infer identity from array position, client name,
+    // locations, or any mutable field.
+    //
+    // Rule: if the existing route contains loads with loadId values (Board-managed
+    // or any planningLoad-linked loads), those loadIds must appear in the incoming
+    // update EXACTLY as they were — same set, no extras, no missing, no duplicates.
+    // If the caller needs to add/remove/move Board-managed loads, they must use
+    // the planning lifecycle mutations (allocateToExistingRoute, deallocateLoad,
+    // moveLoadBetweenRoutes).
+    //
+    // Legacy/manual loads without loadId are unaffected by this check.
+    const existingLoads: any[] = (existingRoute as any).loads || [];
+    const existingManagedIds = existingLoads
+      .filter((l: any) => l.loadId && l.loadId.trim().length > 0)
+      .map((l: any) => l.loadId as string);
+
+    if (existingManagedIds.length > 0) {
+      // Collect incoming managed loadIds
+      const incomingManagedIds: string[] = [];
+      const incomingManagedIdSet = new Set<string>();
+      const incomingManagedIdCounts = new Map<string, number>();
+
+      for (const load of normalizedLoads) {
+        const lid = (load as any).loadId;
+        if (lid && String(lid).trim().length > 0) {
+          const id = String(lid);
+          incomingManagedIds.push(id);
+          incomingManagedIdSet.add(id);
+          incomingManagedIdCounts.set(id, (incomingManagedIdCounts.get(id) || 0) + 1);
+        }
+      }
+
+      // 1. Every existing managed loadId must still be present
+      const existingSet = new Set(existingManagedIds);
+      for (const existingId of existingSet) {
+        if (!incomingManagedIdSet.has(existingId)) {
+          throw new Error(
+            `Board-managed load ${existingId} was removed from the route. ` +
+            `To remove Board-managed loads, use the planning lifecycle operations ` +
+            `(deallocateLoad) instead of editing the route directly.`
+          );
+        }
+      }
+
+      // 2. No managed loadId may appear more than once
+      for (const [id, count] of incomingManagedIdCounts) {
+        if (count > 1) {
+          throw new Error(
+            `Board-managed load ${id} appears ${count} times in the update. ` +
+            `Each load must have a unique identity.`
+          );
+        }
+      }
+
+      // 3. Incoming managed loadIds cannot belong to another route
+      // 4. Each incoming loadId must correspond to a valid planningLoad
+      //    allocated to THIS route
+      for (const incomingId of incomingManagedIds) {
+        const plDoc = await ctx.db.get(incomingId as any);
+        if (!plDoc) {
+          throw new Error(
+            `Load ${incomingId} does not correspond to a valid planning load. ` +
+            `Board-managed loadIds must reference existing planningLoads.`
+          );
+        }
+        if ((plDoc as any).status !== "allocated") {
+          throw new Error(
+            `Planning load ${incomingId} has status "${(plDoc as any).status}", expected "allocated". ` +
+            `Use the planning lifecycle operations to manage allocation.`
+          );
+        }
+        if ((plDoc as any).allocatedRouteId !== args.id) {
+          throw new Error(
+            `Planning load ${incomingId} is allocated to route ${(plDoc as any).allocatedRouteId}, ` +
+            `not this route. Board-managed loadIds cannot be moved between routes via updateDailyRoute. ` +
+            `Use moveLoadBetweenRoutes instead.`
+          );
+        }
+      }
+    }
+
     // Auto-complete Logic
     // If all loads are valid -> completed
     // If ANY load is invalid -> planned (reverts manual completion if data is bad)
@@ -797,6 +880,21 @@ export const deleteDailyRoute = mutation({
       throw new Error("Cannot delete a locked route.");
     }
 
+    // Reset any Board-managed planningLoads linked to this route via index
+    const routeId = String(args.id);
+    const linkedLoads = await ctx.db
+      .query("planningLoads")
+      .withIndex("by_allocatedRouteId", (q) => q.eq("allocatedRouteId", args.id))
+      .collect();
+    for (const pl of linkedLoads) {
+      if ((pl as any).allocatedRouteId === routeId && (pl as any).status === "allocated") {
+        await ctx.db.patch(pl._id, {
+          status: "unallocated",
+          allocatedRouteId: undefined,
+        });
+      }
+    }
+
     await ctx.db.delete(args.id);
   },
 });
@@ -805,14 +903,36 @@ export const deleteBulkDailyRoutes = mutation({
   args: { ids: v.array(v.id("dailyRoutes")), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
     const scope = await resolveUserScope(ctx, args.token);
+
+    // Validate all routes first (all-or-nothing for locked check)
+    for (const id of args.ids) {
+      const route = await ctx.db.get(id);
+      if (!route) continue;
+      if (scope?.role === "regional" && route.region !== scope.region) continue;
+      const status = (route as any).status;
+      if (status === "locked") {
+        throw new Error(`Cannot delete locked route ${id}. Operation aborted.`);
+      }
+    }
+
+    // All valid — delete and reset linked planningLoads (use index, not full table scan)
     for (const id of args.ids) {
       const route = await ctx.db.get(id);
       if (!route) continue;
       if (scope?.role === "regional" && route.region !== scope.region) continue;
 
-      const status = (route as any).status;
-      if (status === "locked") {
-        throw new Error(`Cannot delete locked route ${id}. Operation aborted.`);
+      // Reset linked planningLoads via index
+      const linkedLoads = await ctx.db
+        .query("planningLoads")
+        .withIndex("by_allocatedRouteId", (q) => q.eq("allocatedRouteId", id))
+        .collect();
+      for (const pl of linkedLoads) {
+        if ((pl as any).allocatedRouteId === String(id) && (pl as any).status === "allocated") {
+          await ctx.db.patch(pl._id, {
+            status: "unallocated",
+            allocatedRouteId: undefined,
+          });
+        }
       }
 
       await ctx.db.delete(id);
@@ -1212,5 +1332,85 @@ export const updateRouteRegion = mutation({
       args.routeId,
       args.region === null ? { region: undefined } : { region: args.region }
     );
+  },
+});
+
+/**
+ * Assignment patch helpers for updateRouteAssignment.
+ *
+ * Supports four independent operations:
+ *   SET DRIVER, CLEAR DRIVER, SET PLANNED TRAILER, CLEAR PLANNED TRAILER
+ *
+ * Clear-safe contract for each field:
+ *   undefined         → leave unchanged (omitted from patch)
+ *   null              → clear (patch sets field to undefined, which removes it)
+ *   string            → set (trimmed; whitespace/empty collapses to clear)
+ *
+ * Patching a field to `undefined` is the established Convex/project convention
+ * for removing an optional field (see pdp.ts, truckRenewals.ts). The database
+ * therefore never stores fake "unassigned" strings.
+ */
+export type AssignmentPatchInput = {
+  driverName?: string | null | undefined;
+  trailerFleetNoStr?: string | null | undefined;
+};
+
+export function normalizeAssignmentField(value: string | null | undefined): string | undefined {
+  if (value === null) return undefined;
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export function buildAssignmentPatch(
+  args: AssignmentPatchInput,
+): { driverName?: string | undefined; trailerFleetNoStr?: string | undefined } {
+  const patch: Record<string, string | undefined> = {};
+  if (args.driverName !== undefined) {
+    patch.driverName = normalizeAssignmentField(args.driverName);
+  }
+  if (args.trailerFleetNoStr !== undefined) {
+    patch.trailerFleetNoStr = normalizeAssignmentField(args.trailerFleetNoStr);
+  }
+  return patch;
+}
+
+/**
+ * Narrow mutation for updating driver and/or trailer assignment on a route.
+ *
+ * This is a targeted mutation — it only touches driverName and trailerFleetNoStr,
+ * preserving all other route fields exactly. It does NOT auto-sync with
+ * trucks.currentTrailerId (that is the physical trailer source of truth).
+ *
+ * Only planned routes are editable. Region is enforced via resolveUserScope.
+ * Board-managed and manual routes are both supported.
+ */
+export const updateRouteAssignment = mutation({
+  args: {
+    routeId: v.id("dailyRoutes"),
+    driverName: v.optional(v.union(v.string(), v.null())),
+    trailerFleetNoStr: v.optional(v.union(v.string(), v.null())),
+    token: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const route = await ctx.db.get(args.routeId);
+    if (!route) {
+      throw new Error("Route not found");
+    }
+
+    // Region enforcement — same pattern as markRouteCompleted, lockRoute, etc.
+    const scope = await resolveUserScope(ctx, args.token);
+    if (scope?.role === "regional" && route.region !== scope.region) {
+      throw new Error("Route not found");
+    }
+
+    // Only "planned" routes are editable — reject all other statuses
+    if ((route.status ?? "planned") !== "planned") {
+      throw new Error(
+        `Cannot edit assignment. Current status is '${route.status ?? "planned"}', expected 'planned'.`
+      );
+    }
+
+    await ctx.db.patch(args.routeId, buildAssignmentPatch(args));
   },
 });

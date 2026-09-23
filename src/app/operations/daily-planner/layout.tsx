@@ -3,10 +3,11 @@
 import { usePathname } from"next/navigation";
 import InputPage from"./input/page";
 import SheetsPage from"./sheets/page";
+import BoardPage from"./board/page";
 import { Suspense, useEffect, useState, useRef} from"react";
 import { tokens } from"@/src/lib/design-tokens";
 
-type ViewMode ="split" |"input" |"sheets";
+type ViewMode ="split" |"input" |"sheets" |"board";
 
 const ViewIcon = {
  split: (
@@ -25,6 +26,14 @@ const ViewIcon = {
  <rect x="1" y="2" width="14" height="3" rx="0.5" fill="currentColor" opacity="0.5"/>
  <rect x="1" y="7" width="14" height="3" rx="0.5" fill="currentColor" opacity="0.7"/>
  <rect x="1" y="12" width="14" height="2" rx="0.5" fill="currentColor" opacity="0.9"/>
+ </svg>
+),
+ board: (
+ <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+ <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" opacity="0.7"/>
+ <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity="0.5"/>
+ <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.5"/>
+ <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.9"/>
  </svg>
 ),
 };
@@ -103,7 +112,7 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  >
  <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${toggleActive}`}>
  {ViewIcon[viewMode]}
- <span className="capitalize">{viewMode ==="input" ?"New Route" : viewMode ==="split" ?"Split" :"Sheets"}</span>
+ <span className="capitalize">{viewMode ==="input" ?"New Route" : viewMode ==="split" ?"Split" : viewMode ==="board" ?"Board" :"Sheets"}</span>
  </span>
  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
  </button>
@@ -111,20 +120,20 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  <>
  <span className="text-xs mr-1 text-[var(--nav-text-color)]">View</span>
  <div className={`flex items-center rounded-lg p-0.5 gap-0.5 ${toggleBg}`}>
- {(["input","split","sheets"] as ViewMode[]).map((mode) => (
+ {(["input","split","sheets","board"] as ViewMode[]).map((mode) => (
  <button
  key={mode}
  onClick={() => {
  setViewMode(mode);
  if (mode !== "split") setInputCollapsed(false);
  }}
- title={mode ==="input" ?"New Route only" : mode ==="sheets" ?"Sheets only" :"Split view"}
+ title={mode ==="input" ?"New Route only" : mode ==="sheets" ?"Sheets only" : mode ==="board" ?"Board view" :"Split view"}
  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
  viewMode === mode ? toggleActive : toggleInactive
 }`}
  >
  {ViewIcon[mode]}
- <span className="capitalize">{mode ==="input" ?"New Route" : mode ==="split" ?"Split" :"Sheets"}</span>
+ <span className="capitalize">{mode ==="input" ?"New Route" : mode ==="split" ?"Split" : mode ==="board" ?"Board" :"Sheets"}</span>
  </button>
  ))}
  </div>
@@ -188,11 +197,20 @@ function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
  />
  )}
 
- {/* Right pane — Sheets */}
- {(viewMode ==="split" || viewMode ==="sheets") && (
+{/* Right pane — Sheets */}
+{(viewMode ==="split" || viewMode ==="sheets") && (
  <div className={`h-full overflow-hidden min-h-0 min-w-0 flex-1 ${viewMode ==="split" ?"border-l" :""} bg-[var(--card-bg)] border-[var(--card-border)] `}>
  <div className={`h-full overflow-hidden p-4 w-full border rounded-xl shadow-sm ${paneBg}`}>
  <SheetsPage />
+ </div>
+ </div>
+)}
+
+{/* Board view — full width */}
+{viewMode === "board" && (
+ <div className="h-full overflow-hidden min-h-0 min-w-0 flex-1 bg-[var(--card-bg)] border-[var(--card-border)]">
+ <div className={`h-full overflow-hidden p-4 w-full border rounded-xl shadow-sm ${paneBg}`}>
+ <BoardPage />
  </div>
  </div>
 )}

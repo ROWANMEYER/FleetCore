@@ -205,6 +205,26 @@ export default function Navigation() {
           })}
         </nav>
 
+        {/* ─── Lower brand area (truck artwork reserved — PLACEHOLDER) ─── */}
+        {!collapsed && (
+          <div className="px-3 py-2 shrink-0">
+            <div
+              title="Placeholder for the Anton Le Roux truck artwork — awaiting the official asset. Do not treat this as final branding."
+              className="rounded-xl border border-dashed border-[#06B6D4]/30 bg-[var(--card-bg)]/30 px-3 py-2.5 overflow-hidden"
+            >
+              <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-[#06B6D4]/50">
+                Anton Le Roux
+              </p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--foreground)] mt-0.5 leading-tight">
+                PLACEHOLDER
+              </p>
+              <p className="text-[10px] font-semibold text-[var(--nav-text-color)] mt-0.5 leading-tight">
+                PEOPLE · FREIGHT · SOLUTIONS · ALWAYS FURTHER
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ─── User block ──────────────────────────────────── */}
         {user && (
           <div className="border-t border-[var(--sidebar-border)] px-3 py-3 shrink-0">

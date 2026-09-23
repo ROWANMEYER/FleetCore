@@ -40,6 +40,7 @@ import type * as myDay from "../myDay.js";
 import type * as notifications from "../notifications.js";
 import type * as pdp from "../pdp.js";
 import type * as pdpReport from "../pdpReport.js";
+import type * as planningLoads from "../planningLoads.js";
 import type * as recipients from "../recipients.js";
 import type * as resetFlags from "../resetFlags.js";
 import type * as routes from "../routes.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   pdp: typeof pdp;
   pdpReport: typeof pdpReport;
+  planningLoads: typeof planningLoads;
   recipients: typeof recipients;
   resetFlags: typeof resetFlags;
   routes: typeof routes;

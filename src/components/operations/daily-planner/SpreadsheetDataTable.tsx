@@ -1177,7 +1177,7 @@ export default function SpreadsheetDataTable({
                       </button>
                       <button
                         onClick={() => deleteLayout(p.name)}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-[var(--nav-text-color)] hover:text-red-600 transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--danger-surface)] text-[var(--nav-text-color)] hover:text-[var(--danger-text)] transition-all"
                         title={`Delete layout: ${p.name}`}
                       >
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

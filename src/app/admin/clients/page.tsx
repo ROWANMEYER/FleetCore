@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { type Doc } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
+import { usePersistentDraft } from "@/src/hooks/usePersistentDraft";
 import { useKpiFilter, type KpiFilter } from "@/src/lib/useKpiFilter";
 import { filterClients } from "@/src/lib/clients/searchClients";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
@@ -19,8 +20,8 @@ function StatusPill({ isActive }: { isActive: boolean }) {
     <span
       className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
       style={{
-        backgroundColor: isActive ? "var(--color-accent-emerald)" : "var(--card-border)",
-        color: "#fff",
+        backgroundColor: isActive ? "var(--color-accent-emerald)" : "var(--table-row-header)",
+        color: isActive ? "#fff" : "var(--text-secondary)",
       }}
     >
       {isActive ? "ACTIVE" : "INACTIVE"}
@@ -30,7 +31,7 @@ function StatusPill({ isActive }: { isActive: boolean }) {
 
 function Dash({ value }: { value?: string }) {
   if (value && value.trim().length > 0) return <span>{value}</span>;
-  return <span className="text-[var(--card-border)]">—</span>;
+  return <span className="text-[var(--text-muted)]">—</span>;
 }
 
 export default function AdminClientsPage() {
@@ -40,9 +41,30 @@ export default function AdminClientsPage() {
   const customers = useQuery(api.customers.list, {});
   const deactivateCustomer = useMutation(api.customers.deactivateCustomer);
 
-  const [search, setSearch] = useState("");
+  const {
+    value: listState,
+    setValue: setListState,
+  } = usePersistentDraft<{ search: string; page: number }>({
+    workflow: "admin:clients:list",
+    defaultValue: { search: "", page: 1 },
+    userId: me?._id ?? null,
+    validate: (value) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+      const source = value as { search?: unknown; page?: unknown };
+      return {
+        search: typeof source.search === "string" ? source.search : "",
+        page:
+          typeof source.page === "number" && Number.isFinite(source.page) && source.page >= 1
+            ? Math.trunc(source.page)
+            : 1,
+      };
+    },
+  });
+  const search = listState.search;
+  const setSearch = (next: string) => setListState((previous) => ({ ...previous, search: next }));
+  const page = listState.page;
+  const setPage = (next: number) => setListState((previous) => ({ ...previous, page: next }));
   const [kpiFilter, setKpiFilter] = useKpiFilter();
-  const [page, setPage] = useState(1);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Doc<"customers"> | null>(null);
@@ -74,8 +96,8 @@ export default function AdminClientsPage() {
   );
 
   useEffect(() => {
-    setPage(1);
-  }, [search, kpiFilter]);
+    setListState((previous) => (previous.page === 1 ? previous : { ...previous, page: 1 }));
+  }, [search, kpiFilter, setListState]);
 
   if (!me || me.role !== "admin") {
     return (

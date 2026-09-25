@@ -175,10 +175,10 @@ export default function ImportPage() {
  {status && (
  <div className={`p-4 rounded-lg text-sm ${
  status.type ==="success"
- ?"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
- : status.type ==="error"
- ?"bg-red-500/10 text-red-600 dark:text-red-400"
- :"bg-blue-500/10 text-blue-600 dark:text-blue-400"
+  ?"bg-[var(--success-surface)] text-[var(--success-text)] border border-[var(--success-border)]"
+  : status.type ==="error"
+  ?"bg-[var(--danger-surface)] text-[var(--danger-text)] border border-[var(--danger-border)]"
+  :"bg-[var(--info-surface)] text-[var(--info-text)] border border-[var(--info-border)]"
 }`}>
  {status.message}
  </div>

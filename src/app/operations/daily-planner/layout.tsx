@@ -5,6 +5,8 @@ import InputPage from"./input/page";
 import SheetsPage from"./sheets/page";
 import BoardPage from"./board/page";
 import { Suspense, useEffect, useState, useRef} from"react";
+import { useAuth } from "@/src/components/auth/AuthProvider";
+import { usePersistentDraft } from "@/src/hooks/usePersistentDraft";
 import { tokens } from"@/src/lib/design-tokens";
 
 type ViewMode ="split" |"input" |"sheets" |"board";
@@ -39,9 +41,18 @@ const ViewIcon = {
 };
 
 function DailyPlannerLayoutInner({ children}: { children: React.ReactNode}) {
- const pathname = usePathname();
- const [viewMode, setViewMode] = useState<ViewMode>("sheets"); // sheets is the default view
- const [viewBarCollapsed, setViewBarCollapsed] = useState(false);
+  const pathname = usePathname();
+  const { user } = useAuth();
+  const { value: viewMode, setValue: setViewMode } = usePersistentDraft<ViewMode>({
+    workflow: "daily-planner:view-mode",
+    defaultValue: "sheets",
+    userId: user?._id ?? null,
+    validate: (value) =>
+      value === "split" || value === "input" || value === "sheets" || value === "board"
+        ? value
+        : null,
+  });
+  const [viewBarCollapsed, setViewBarCollapsed] = useState(false);
  const [inputCollapsed, setInputCollapsed] = useState(false); // split view: hide the New Route pane into a drawer
  const [leftWidth, setLeftWidth] = useState(65);
  const isDraggingRef = useRef(false);

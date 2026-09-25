@@ -14,10 +14,10 @@ export default function WarningIcon({ type = "warning", tooltip, className = "" 
             <span className="text-lg leading-none select-none filter saturate-150">{iconChar}</span>
             {/* Tooltip */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-                <div className="bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                <div className="bg-[var(--tooltip-bg)] text-[var(--tooltip-text)] text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
                     {tooltip}
                     {/* Arrow */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--tooltip-bg)]"></div>
                 </div>
             </div>
         </div>

@@ -170,7 +170,7 @@ export function PushNotificationSettings() {
         <span
           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
             subscribed
-              ? "bg-green-50 text-green-700 border-green-300"
+              ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
               : "bg-[var(--card-bg)] text-[var(--nav-text-color)] border-[var(--card-border)]"
           }`}
         >
@@ -214,7 +214,7 @@ export function PushNotificationSettings() {
       </div>
 
       {!configured && (
-        <p className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded-md px-3 py-2">
+        <p className="text-xs text-[var(--warning-text)] border border-[var(--warning-border)] bg-[var(--warning-surface)] rounded-md px-3 py-2">
           VAPID public key is not set (NEXT_PUBLIC_VAPID_PUBLIC_KEY) - subscribing will fail until
           the admin adds it to the environment.
         </p>

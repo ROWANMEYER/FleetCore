@@ -1,14 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
+import { usePersistentDraft } from "@/src/hooks/usePersistentDraft";
+import { resolveDraftRegion } from "@/src/lib/drafts/draftKey";
+import {
+  BOARD_FILTERS_WORKFLOW,
+  DEFAULT_BOARD_FILTERS,
+  sanitizeBoardFilters,
+} from "@/src/lib/drafts/boardFilters";
 import { buildBoardTrucks } from "@/src/lib/planner/boardHelpers";
 import {
   computeBoardKpis,
   filterBoardTrucks,
-  type BoardStatusFilter,
 } from "@/src/lib/planner/boardStats";
 import type { RouteInsert } from "@/src/lib/planner/dndPlanning";
 import BoardKpiStrip from "./BoardKpiStrip";
@@ -34,10 +40,20 @@ export default function FleetAllocationBoard({
   routeInsert,
   routeReorderPendingTruck,
 }: FleetAllocationBoardProps) {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const region = useRegionArg();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<BoardStatusFilter>("all");
+  const {
+    value: filters,
+    setValue: setFilters,
+  } = usePersistentDraft({
+    workflow: BOARD_FILTERS_WORKFLOW,
+    defaultValue: DEFAULT_BOARD_FILTERS,
+    userId: user?._id ?? null,
+    region: resolveDraftRegion(user, region),
+    validate: sanitizeBoardFilters,
+  });
+  const search = filters.search;
+  const status = filters.status;
 
   const trucks = useQuery(api.fleet.getTrucks, { includeInactive: false });
   const routes = useQuery(api.dailyRoutes.getRoutesByDate, {
@@ -86,9 +102,9 @@ export default function FleetAllocationBoard({
 
       <BoardToolbar
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(value) => setFilters((previous) => ({ ...previous, search: value }))}
         status={status}
-        onStatusChange={setStatus}
+        onStatusChange={(value) => setFilters((previous) => ({ ...previous, status: value }))}
         visibleTruckCount={filteredTrucks.length}
         totalTruckCount={boardTrucks.length}
         region={region}

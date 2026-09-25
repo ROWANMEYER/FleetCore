@@ -49,7 +49,7 @@ const icons: Record<string, ReactNode> = {
 export function EmptyState({ icon = "empty", title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div className="text-[var(--card-border)] mb-4">
+      <div className="text-[var(--text-muted)] mb-4">
         {icons[icon]}
       </div>
       <h3 className="text-sm font-semibold text-[var(--foreground)] mb-1">{title}</h3>

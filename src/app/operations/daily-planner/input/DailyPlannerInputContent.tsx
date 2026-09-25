@@ -1,12 +1,25 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { calculateLoadAmount } from "@/convex/utils";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
+import { getBrowserStorage } from "@/src/hooks/usePersistentDraft";
+import { buildDraftKey, resolveDraftRegion } from "@/src/lib/drafts/draftKey";
+import { clearDraft, readDraft, writeDraft } from "@/src/lib/drafts/draftStore";
+import {
+  INPUT_DRAFT_VERSION,
+  INPUT_DRAFT_WORKFLOW,
+  describeStaleReferences,
+  pruneStaleInputDraft,
+  sanitizeInputDraft,
+  type InputDraft,
+  type InputDraftData,
+  type StaleReference,
+} from "@/src/lib/drafts/inputDraft";
 import { useOnlineStatus, isOfflineError } from "@/src/lib/offline/useOnline";
 import { useCachedValue } from "@/src/lib/offline/useCachedValue";
 import {
@@ -73,6 +86,10 @@ const rateTypeOptions = [
   { value: "per_unit", label: "Per Unit" },
   { value: "flat", label: "Flat Rate" },
 ];
+
+// A restored draft is offered for a week; beyond that it is evicted so a
+// long-abandoned form can never silently reappear.
+const INPUT_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function DailyPlannerInputForm() {
   const router = useRouter();
@@ -145,72 +162,23 @@ function DailyPlannerInputForm() {
   });
 
   // ---------------------------------------------------------------------------
-  // SESSION RECOVERY (STAGE 5)
+  // PERSISTENT SCREEN DRAFT
   // ---------------------------------------------------------------------------
-  const DRAFT_KEY = "fleetcor_daily_planner_draft";
-  const DRAFT_TTL = 10 * 60 * 1000; // 10 minutes
+  const inputDraftKey = buildDraftKey({
+    workflow: INPUT_DRAFT_WORKFLOW,
+    userId: user?._id ?? null,
+    region: resolveDraftRegion(user, regionArg),
+  });
 
   // Controlled step state for Wizard
   const [wizardStep, setWizardStep] = useState(isEditMode ? 6 : 0);
 
-  // 1. RECOVERY (Mount only)
-  useEffect(() => {
-    // Only recover for NEW routes (Create Mode)
-    if (isEditMode) return;
+  const [staleDraftRefs, setStaleDraftRefs] = useState<StaleReference[]>([]);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftRestoreSettled, setDraftRestoreSettled] = useState(false);
 
-    try {
-      const stored = sessionStorage.getItem(DRAFT_KEY);
-      if (!stored) return;
-
-      const draft = JSON.parse(stored);
-      const age = Date.now() - draft.timestamp;
-
-      if (age > DRAFT_TTL) {
-        sessionStorage.removeItem(DRAFT_KEY);
-        return;
-      }
-
-      restoredDraftRef.current = true;
-
-      // Restore State (Silent)
-      if (draft.data) {
-        if (draft.data.date) setDate(draft.data.date);
-        if (draft.data.truckFleetNo) setTruckFleetNo(draft.data.truckFleetNo);
-        if (draft.data.trailerFleetNo) setTrailerFleetNo(draft.data.trailerFleetNo);
-        if (draft.data.driverName) setDriverName(draft.data.driverName);
-        if (draft.data.routeKilometers) setRouteKilometers(draft.data.routeKilometers);
-        if (draft.data.notes) setNotes(draft.data.notes);
-        if (typeof draft.data.region === "string" && draft.data.region) setRegion(draft.data.region);
-        if (typeof draft.data.isFleetMode === "boolean") setIsFleetMode(draft.data.isFleetMode);
-        if (typeof draft.data.selectedSubId === "string") setSelectedSubId(draft.data.selectedSubId);
-        if (typeof draft.data.detailsCollapsed === "boolean") setDetailsCollapsed(draft.data.detailsCollapsed);
-        if (Array.isArray(draft.data.loads)) setLoads(draft.data.loads);
-        if (draft.data.draftLoad && typeof draft.data.draftLoad === "object") {
-          setDraftLoad((prev) => ({ ...prev, ...draft.data.draftLoad }));
-        }
-      }
-
-      // Restore Step
-      if (typeof draft.step === "number") {
-        setWizardStep(draft.step);
-        // If restored to summary (step 6), mark header complete
-        if (draft.step > 5) {
-          setHeaderComplete(true);
-        }
-      }
-    } catch {
-      // Silent failure - clear corrupt data
-      sessionStorage.removeItem(DRAFT_KEY);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
-
-  // 2. PERSISTENCE (On Change)
-  useEffect(() => {
-    if (isEditMode) return;
-
-    const draft = {
-      timestamp: Date.now(),
+  const buildDraftSnapshot = useCallback(
+    (): InputDraft => ({
       step: wizardStep,
       data: {
         date,
@@ -226,25 +194,90 @@ function DailyPlannerInputForm() {
         loads,
         draftLoad,
       },
-    };
+    }),
+    [
+      wizardStep,
+      date,
+      truckFleetNo,
+      trailerFleetNo,
+      driverName,
+      routeKilometers,
+      notes,
+      region,
+      isFleetMode,
+      selectedSubId,
+      detailsCollapsed,
+      loads,
+      draftLoad,
+    ]
+  );
 
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [
-    isEditMode,
-    wizardStep,
-    date,
-    truckFleetNo,
-    trailerFleetNo,
-    driverName,
-    routeKilometers,
-    notes,
-    region,
-    isFleetMode,
-    selectedSubId,
-    detailsCollapsed,
-    loads,
-    draftLoad,
-  ]);
+  // 1. RECOVERY — re-runs whenever the scoped key changes so a draft is never
+  //    lost because the session identity resolved after mount. The state
+  //    updates are deferred to a microtask so the restore never cascades a
+  //    synchronous render on mount.
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!inputDraftKey) return;
+
+    const draft = readDraft<InputDraft>(getBrowserStorage(), inputDraftKey, {
+      version: INPUT_DRAFT_VERSION,
+      maxAgeMs: INPUT_DRAFT_MAX_AGE_MS,
+      validate: sanitizeInputDraft,
+    });
+    if (!draft) {
+      let cancelledEmpty = false;
+      Promise.resolve().then(() => {
+        if (!cancelledEmpty) setDraftRestoreSettled(true);
+      });
+      return () => {
+        cancelledEmpty = true;
+      };
+    }
+
+    restoredDraftRef.current = true;
+
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+
+      const data: InputDraftData = draft.data;
+      if (data.date) setDate(data.date);
+      if (data.truckFleetNo) setTruckFleetNo(data.truckFleetNo);
+      if (data.trailerFleetNo) setTrailerFleetNo(data.trailerFleetNo);
+      if (data.driverName) setDriverName(data.driverName);
+      if (data.routeKilometers) setRouteKilometers(data.routeKilometers);
+      if (data.notes) setNotes(data.notes);
+      if (typeof data.region === "string" && data.region) setRegion(data.region);
+      if (typeof data.isFleetMode === "boolean") setIsFleetMode(data.isFleetMode);
+      if (typeof data.selectedSubId === "string") setSelectedSubId(data.selectedSubId);
+      if (typeof data.detailsCollapsed === "boolean") setDetailsCollapsed(data.detailsCollapsed);
+      if (Array.isArray(data.loads)) setLoads(data.loads);
+      setDraftLoad((previous) => ({ ...previous, ...data.draftLoad }));
+
+      setWizardStep(draft.step);
+      if (draft.step > 5) {
+        setHeaderComplete(true);
+      }
+      setDraftRestored(true);
+      setDraftRestoreSettled(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inputDraftKey, isEditMode]);
+
+  // 2. PERSISTENCE (On Change). Held back until the restore attempt has settled
+  //    so the initial empty form can never overwrite a stored draft.
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!inputDraftKey) return;
+    if (!draftRestoreSettled) return;
+    writeDraft(getBrowserStorage(), inputDraftKey, buildDraftSnapshot(), {
+      version: INPUT_DRAFT_VERSION,
+    });
+  }, [isEditMode, inputDraftKey, draftRestoreSettled, buildDraftSnapshot]);
 
   // 1) Loads list container (scroll target for newly added cards)
   const loadsListRef = useRef<HTMLDivElement>(null);
@@ -265,16 +298,33 @@ function DailyPlannerInputForm() {
   const appSettings = useQuery(api.settings.getAppSettings);
   const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
   const trucksLive = useQuery(api.fleet.getTrucks, { subcontractorId: subcontractorIdFilter });
-  const trucks =
-    useCachedValue(`fleet.trucks:${subcontractorIdFilter ?? "all"}`, trucksLive, !isOnline) ?? [];
+  const trucksCached = useCachedValue(
+    `fleet.trucks:${subcontractorIdFilter ?? "all"}`,
+    trucksLive,
+    !isOnline
+  );
+  const trucks = useMemo(() => trucksCached ?? [], [trucksCached]);
   const trailersLive = useQuery(api.fleet.getTrailers, { subcontractorId: subcontractorIdFilter });
-  const trailers =
-    useCachedValue(`fleet.trailers:${subcontractorIdFilter ?? "all"}`, trailersLive, !isOnline) ?? [];
+  const trailersCached = useCachedValue(
+    `fleet.trailers:${subcontractorIdFilter ?? "all"}`,
+    trailersLive,
+    !isOnline
+  );
+  const trailers = useMemo(() => trailersCached ?? [], [trailersCached]);
   const driversLive = useQuery(api.fleet.getDrivers, { subcontractorId: subcontractorIdFilter });
-  const drivers =
-    useCachedValue(`fleet.drivers:${subcontractorIdFilter ?? "all"}`, driversLive, !isOnline) ?? [];
+  const driversCached = useCachedValue(
+    `fleet.drivers:${subcontractorIdFilter ?? "all"}`,
+    driversLive,
+    !isOnline
+  );
+  const drivers = useMemo(() => driversCached ?? [], [driversCached]);
   const subcontractorsLive = useQuery(api.subcontractors.getAll, {});
-  const subcontractors = useCachedValue("subcontractors.all", subcontractorsLive, !isOnline) ?? [];
+  const subcontractorsCached = useCachedValue(
+    "subcontractors.all",
+    subcontractorsLive,
+    !isOnline
+  );
+  const subcontractors = useMemo(() => subcontractorsCached ?? [], [subcontractorsCached]);
 
   // Track if initial defaults have been applied (for new routes only)
   const [defaultsApplied, setDefaultsApplied] = useState(false);
@@ -283,6 +333,10 @@ function DailyPlannerInputForm() {
   // choices (region, quantity/rate types) must not be overridden by the
   // sidebar-region or defaults logic that only applies to brand-new forms.
   const restoredDraftRef = useRef(false);
+  // A restored draft can name a truck, trailer, driver or subcontractor that
+  // was deleted while the draft sat in storage. Those references are cleared
+  // and reported once, as soon as the authoritative lists have resolved.
+  const staleDraftPrunedRef = useRef(false);
 
   // Apply fleet & subcontractor defaults from settings to new routes
   useEffect(() => {
@@ -306,6 +360,78 @@ function DailyPlannerInputForm() {
       setDefaultsApplied(true);
     }
   }, [appSettings, isEditMode, defaultsApplied]);
+
+  // Stale-reference pruning for a restored draft. It re-reads the stored draft
+  // rather than the current render state, so it validates the values the user
+  // actually had before this commit restored them.
+  useEffect(() => {
+    if (isEditMode) return;
+    if (!draftRestored) return;
+    if (staleDraftPrunedRef.current) return;
+    if (!inputDraftKey) return;
+    if (subcontractorsLive === undefined) return;
+    if (
+      isFleetMode &&
+      (trucksLive === undefined || trailersLive === undefined || driversLive === undefined)
+    ) {
+      return;
+    }
+
+    staleDraftPrunedRef.current = true;
+
+    const stored = readDraft<InputDraft>(getBrowserStorage(), inputDraftKey, {
+      version: INPUT_DRAFT_VERSION,
+      maxAgeMs: INPUT_DRAFT_MAX_AGE_MS,
+      validate: sanitizeInputDraft,
+    });
+    if (!stored) return;
+
+    const { draft, staleRefs } = pruneStaleInputDraft(stored, {
+      truckFleetNos: isFleetMode
+        ? trucks
+            .map((entry) => entry.truckFleetNo)
+            .filter((entry): entry is string => typeof entry === "string")
+        : undefined,
+      trailerFleetNos: isFleetMode
+        ? trailers.map(
+            (entry) => entry.trailerFleetNoStr ?? entry.trailerFleetNo?.toString() ?? ""
+          )
+        : undefined,
+      driverNames: isFleetMode
+        ? drivers
+            .map((entry) => entry.driverName)
+            .filter((entry): entry is string => typeof entry === "string")
+        : undefined,
+      subcontractorIds: subcontractors
+        .filter((entry) => entry.status !== "inactive")
+        .map((entry) => entry._id),
+    });
+
+    if (staleRefs.length === 0) return;
+
+    writeDraft(getBrowserStorage(), inputDraftKey, draft, {
+      version: INPUT_DRAFT_VERSION,
+    });
+    setStaleDraftRefs(staleRefs);
+    setTruckFleetNo(draft.data.truckFleetNo);
+    setTrailerFleetNo(draft.data.trailerFleetNo);
+    setDriverName(draft.data.driverName);
+    setSelectedSubId(draft.data.selectedSubId);
+    setIsFleetMode(draft.data.isFleetMode);
+  }, [
+    isEditMode,
+    inputDraftKey,
+    draftRestored,
+    isFleetMode,
+    subcontractorsLive,
+    trucksLive,
+    trailersLive,
+    driversLive,
+    subcontractors,
+    trucks,
+    trailers,
+    drivers,
+  ]);
 
   // Mutations
   const createRoute = useMutation(api.dailyRoutes.createDailyRoute);
@@ -699,8 +825,8 @@ function DailyPlannerInputForm() {
 
         const queueOfflineSave = () => {
           enqueueRoute(payload);
-          // Clear session draft (STAGE 5) — the route is "saved" (queued).
-          sessionStorage.removeItem(DRAFT_KEY);
+          // Clear the screen draft — the route is "saved" (queued).
+          clearDraft(getBrowserStorage(), inputDraftKey);
           setWizardStep(0);
           // Reset the form so the next route can be entered.
           setTruckFleetNo("");
@@ -730,8 +856,8 @@ function DailyPlannerInputForm() {
           throw error;
         }
 
-        // Clear session draft (STAGE 5)
-        sessionStorage.removeItem(DRAFT_KEY);
+        // Clear the screen draft
+        clearDraft(getBrowserStorage(), inputDraftKey);
         setWizardStep(0);
 
         // Reset form only on create
@@ -752,6 +878,24 @@ function DailyPlannerInputForm() {
 
   return (
     <div className="h-full min-h-0 flex flex-col relative overflow-x-clip">
+      {staleDraftRefs.length > 0 && (
+        <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-0">
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] px-3 py-2 text-xs text-[var(--warning-text)]">
+            <span>
+              Restored draft: {describeStaleReferences(staleDraftRefs)} no longer exist and
+              were cleared. Select replacements before saving this route.
+            </span>
+            <button
+              type="button"
+              onClick={() => setStaleDraftRefs([])}
+              className="shrink-0 font-semibold underline underline-offset-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Offline queue banner — shows queued saves and syncs them on reconnect */}
       <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-2">
         <PendingSyncBanner
@@ -1023,7 +1167,7 @@ function DailyPlannerInputForm() {
                         </button>
                         <button
                           onClick={() => handleRemoveLoad(load.id)}
-                          className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-500/10 transition-colors"
+                          className="flex items-center justify-center w-11 h-11 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--danger-text)] hover:bg-[var(--danger-surface)] transition-colors"
                           title="Remove Load"
                           aria-label={`Remove load ${load.sequence}`}
                         >
@@ -1075,7 +1219,7 @@ function DailyPlannerInputForm() {
               <div className="mb-4">
                 <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
                   <span className="inline-flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="w-4 h-4 text-[var(--info-text)]" viewBox="0 0 20 20" fill="currentColor">
                       <path d="M10 10a3 3 0 100-6 3 3 0 000 6z" />
                       <path fillRule="evenodd" d="M2 16a6 6 0 1112 0H2z" clipRule="evenodd" />
                     </svg>
@@ -1097,7 +1241,7 @@ function DailyPlannerInputForm() {
                 <div className="space-y-2">
                   <label className="block text-base font-semibold text-[var(--foreground)]">
                     <span className="inline-flex items-center gap-2">
-                      <svg className="w-4 h-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                      <svg className="w-4 h-4 text-[var(--info-text)]" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 2a6 6 0 00-6 6c0 4.418 6 10 6 10s6-5.582 6-10a6 6 0 00-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z" clipRule="evenodd" />
                       </svg>
                       <span>From</span>
@@ -1115,7 +1259,7 @@ function DailyPlannerInputForm() {
                       {draftLoad.fromLocations.length > 1 && (
                         <button
                           onClick={() => removeLocationField("from", i)}
-                          className="flex items-center justify-center w-12 shrink-0 text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="flex items-center justify-center w-12 shrink-0 text-[var(--nav-text-color)] hover:text-[var(--danger-text)] hover:bg-[var(--danger-surface)] rounded-lg transition-colors"
                           aria-label="Remove pickup location"
                         >
                           <X size={18} />
@@ -1135,7 +1279,7 @@ function DailyPlannerInputForm() {
                 <div className="space-y-2">
                   <label className="block text-base font-semibold text-[var(--foreground)]">
                     <span className="inline-flex items-center gap-2">
-                      <svg className="w-4 h-4 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                      <svg className="w-4 h-4 text-purple-500 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 2a6 6 0 00-6 6c0 4.418 6 10 6 10s6-5.582 6-10a6 6 0 00-6-6zm0 8a2 2 0 110-4 2 2 0 010 4z" clipRule="evenodd" />
                       </svg>
                       <span>To</span>
@@ -1153,7 +1297,7 @@ function DailyPlannerInputForm() {
                       {draftLoad.toLocations.length > 1 && (
                         <button
                           onClick={() => removeLocationField("to", i)}
-                          className="flex items-center justify-center w-12 shrink-0 text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-50/80 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="flex items-center justify-center w-12 shrink-0 text-[var(--nav-text-color)] hover:text-[var(--danger-text)] hover:bg-[var(--danger-surface)] rounded-lg transition-colors"
                           aria-label="Remove drop location"
                         >
                           <X size={18} />
@@ -1176,7 +1320,7 @@ function DailyPlannerInputForm() {
                 <div>
                   <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
                     <span className="inline-flex items-center gap-2">
-                      <svg className="w-4 h-4 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                      <svg className="w-4 h-4 text-[var(--success-text)]" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M4 3a2 2 0 00-2 2v2a2 2 0 002 2h3V5a2 2 0 00-2-2H4z" />
                         <path d="M11 3a2 2 0 00-2 2v9a2 2 0 002 2h3a2 2 0 002-2V5a2 2 0 00-2-2h-3z" />
                       </svg>
@@ -1209,7 +1353,7 @@ function DailyPlannerInputForm() {
                 <div>
                   <label className="block text-base font-semibold text-[var(--foreground)] mb-2">
                     <span className="inline-flex items-center gap-2">
-                      <svg className="w-4 h-4 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                      <svg className="w-4 h-4 text-[var(--warning-text)]" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10 2a6 6 0 00-6 6h2a4 4 0 118 0h2a6 6 0 00-6-6z" />
                         <path d="M4 11a6 6 0 0012 0h-2a4 4 0 11-8 0H4z" />
                       </svg>
@@ -1303,20 +1447,20 @@ function DailyPlannerInputForm() {
         {isEditable && (
           <div className="-mx-4 sm:-mx-8 px-4 sm:px-8 py-4 sm:py-5 flex flex-col gap-4 border-t border-[var(--card-border)] bg-[var(--card-bg)]/95 backdrop-blur-xl">
           {saveStatus === "error" && (
-            <div className="bg-red-50 dark:bg-red-500/20 text-red-900 dark:text-red-200 p-4 rounded-lg text-sm border border-red-200 dark:border-red-500/40 flex items-center gap-3 shadow-sm">
+            <div className="bg-[var(--danger-surface)] text-[var(--danger-text)] p-4 rounded-lg text-sm border border-[var(--danger-border)] flex items-center gap-3 shadow-sm">
               <span className="font-semibold">Error:</span>
               <span>{saveError}</span>
             </div>
           )}
           {saveStatus === "success" && (
-            <div className="bg-green-50 dark:bg-green-500/20 text-green-900 dark:text-green-200 p-4 rounded-lg text-sm border border-green-200 dark:border-green-500/40 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
-              <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+            <div className="bg-[var(--success-surface)] text-[var(--success-text)] p-4 rounded-lg text-sm border border-[var(--success-border)] flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <CheckCircle className="w-5 h-5 text-[var(--success-text)] shrink-0" />
               <span>Route saved successfully!</span>
             </div>
           )}
           {saveStatus === "queued" && (
-            <div className="bg-amber-50 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 p-4 rounded-lg text-sm border border-amber-200 dark:border-amber-500/40 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
-              <CloudOff className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="bg-[var(--warning-surface)] text-[var(--warning-text)] p-4 rounded-lg text-sm border border-[var(--warning-border)] flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <CloudOff className="w-5 h-5 text-[var(--warning-text)] shrink-0" />
               <span>Route saved offline — it will sync automatically when you&apos;re back online.</span>
             </div>
           )}

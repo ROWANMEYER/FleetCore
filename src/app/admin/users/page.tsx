@@ -266,7 +266,7 @@ export default function AdminUsersPage() {
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                               u.role === "admin"
                                 ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white"
-                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                : "bg-[var(--info-surface)] text-[var(--info-text)] border border-[var(--info-border)]"
                             }`}
                           >
                             {u.role === "admin" ? "Admin" : "Regional"}
@@ -346,7 +346,7 @@ export default function AdminUsersPage() {
                               : "Delete user"
                           }
                           aria-label={`Delete ${u.email}`}
-                          className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-2 rounded-lg text-[var(--nav-text-color)] hover:bg-[var(--danger-surface)] hover:text-[var(--danger-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

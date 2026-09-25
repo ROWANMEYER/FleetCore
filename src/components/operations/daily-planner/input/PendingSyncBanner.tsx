@@ -98,7 +98,7 @@ export default function PendingSyncBanner({ items, syncing, online, onRetry, onD
               <button
                 onClick={() => onDiscard(item.id)}
                 aria-label={`Discard queued route ${itemLabel(item)}`}
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-red-600 hover:bg-red-100/50 dark:hover:bg-red-500/10 transition-colors"
+                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-[var(--nav-text-color)] hover:text-[var(--danger-text)] hover:bg-[var(--danger-surface)] transition-colors"
               >
                 <Trash2 size={14} />
               </button>

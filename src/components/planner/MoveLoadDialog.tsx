@@ -229,7 +229,7 @@ export default function MoveLoadDialog({
           )}
 
           {error && (
-            <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+            <div className="text-xs text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-3 py-2 rounded-lg">
               {error}
             </div>
           )}

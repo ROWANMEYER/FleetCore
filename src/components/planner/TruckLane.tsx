@@ -36,10 +36,10 @@ type TruckLaneProps = {
 };
 
 const statusStyles = {
-  available: "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/15 dark:text-green-400 dark:border-green-500/20",
-  planned: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/20",
-  completed: "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-500/15 dark:text-slate-400 dark:border-slate-500/20",
-  unavailable: "bg-red-50 text-red-600 border-red-200 dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/20",
+  available: "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]",
+  planned: "bg-[var(--info-surface)] text-[var(--info-text)] border-[var(--info-border)]",
+  completed: "bg-[var(--surface-sunken)] text-[var(--text-muted)] border-[var(--card-border)]",
+  unavailable: "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]",
 } as const;
 
 const statusLabels = {
@@ -186,8 +186,8 @@ export default function TruckLane({
             <span
               className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
                 fullyReady
-                  ? "bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-400"
-                  : "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border border-[var(--success-border)]"
+                  : "bg-[var(--warning-surface)] text-[var(--warning-text)] border border-[var(--warning-border)]"
               }`}
             >
               {readiness.readyRoutes}/{readiness.totalRoutes}
@@ -205,7 +205,7 @@ export default function TruckLane({
 
       {/* Reorder error */}
       {reorderError && (
-        <div className="px-3 py-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/20">
+        <div className="px-3 py-1.5 text-[10px] text-[var(--danger-text)] bg-[var(--danger-surface)] border-b border-[var(--danger-border)]">
           {reorderError}
         </div>
       )}

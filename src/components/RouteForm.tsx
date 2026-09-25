@@ -221,7 +221,7 @@ export default function RouteForm({ initialValues, onSubmit, onDelete, buttonLab
             <button
               type="button"
               onClick={() => removeLoad(index)}
-              className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+              className="absolute top-2 right-2 text-[var(--danger-text)] hover:opacity-80"
             >
               ×
             </button>

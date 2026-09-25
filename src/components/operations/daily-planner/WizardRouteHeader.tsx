@@ -140,7 +140,7 @@ export function WizardRouteHeader({
                 toggle control on the right (no wrap, no overlap). */}
             <span className="truncate min-w-0">Route details</span>
             {collapsed && headerMissing && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-600 shrink-0">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--warning-text)] shrink-0">
                 ● fields missing
               </span>
             )}
@@ -190,7 +190,7 @@ export function WizardRouteHeader({
           Subcontractor
         </button>
         {isDuplicate && (
-          <div className="text-amber-600 flex-shrink-0 ml-auto">
+          <div className="text-[var(--warning-text)] flex-shrink-0 ml-auto">
             <WarningIcon type="warning" tooltip="Duplicate Route" />
           </div>
         )}
@@ -230,7 +230,7 @@ export function WizardRouteHeader({
               className="w-full h-12 px-4 text-base settings-input rounded-md"
             />
             {isWeekend && (
-              <div className="text-blue-600 flex-shrink-0">
+              <div className="text-[var(--info-text)] flex-shrink-0">
                 <WarningIcon type="info" tooltip="Weekend Operation" />
               </div>
             )}
@@ -273,7 +273,7 @@ export function WizardRouteHeader({
               ))}
             </select>
             {missingFields.includes("Trailer") && (
-              <div className="text-blue-600 flex-shrink-0">
+              <div className="text-[var(--info-text)] flex-shrink-0">
                 <WarningIcon type="info" tooltip="Missing Trailer" />
               </div>
             )}
@@ -297,7 +297,7 @@ export function WizardRouteHeader({
               ))}
             </select>
             {missingFields.includes("Driver") && (
-              <div className="text-blue-600 flex-shrink-0">
+              <div className="text-[var(--info-text)] flex-shrink-0">
                 <WarningIcon type="info" tooltip="Missing Driver" />
               </div>
             )}
@@ -316,7 +316,7 @@ export function WizardRouteHeader({
               className="w-full h-12 px-4 text-base settings-input rounded-md"
             />
             {missingFields.includes("KM") && (
-               <div className="text-blue-600 flex-shrink-0">
+               <div className="text-[var(--info-text)] flex-shrink-0">
                  <WarningIcon type="info" tooltip="Zero Distance" />
                </div>
             )}
@@ -355,7 +355,7 @@ export function WizardRouteHeader({
             <option value="eastern_cape">Eastern Cape</option>
           </select>
           {region === "" && !isRegional && (
-            <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
+            <p className="text-xs font-semibold text-[var(--danger-text)] flex items-center gap-1">
               <span aria-hidden>⚠</span>
               Select a region — your sidebar is set to All Regions.
             </p>

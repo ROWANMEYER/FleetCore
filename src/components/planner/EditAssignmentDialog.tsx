@@ -95,7 +95,7 @@ export default function EditAssignmentDialog({
         <div className="px-4 py-3 space-y-3">
           {/* Error */}
           {error && (
-            <div className="text-[11px] text-red-600 bg-red-50 px-3 py-2 rounded">
+            <div className="text-[11px] text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-3 py-2 rounded">
               {error}
             </div>
           )}

@@ -47,6 +47,34 @@ export const palette = {
   },
 } as const;
 
+// ─── Status Tokens ─────────────────────────────────────────────────
+// Semantic, theme-aware. Use these instead of Tailwind's
+// bg-emerald-50 / dark:bg-emerald-500/15 pairs — the custom property
+// resolves per active theme, so one class works in both modes.
+export const status = {
+  success: "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]",
+  warning: "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]",
+  danger: "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]",
+  info: "bg-[var(--info-surface)] text-[var(--info-text)] border-[var(--info-border)]",
+  neutral: "bg-[var(--surface-sunken)] text-[var(--text-muted)] border-[var(--card-border)]",
+} as const;
+
+// ─── Surface Tokens ────────────────────────────────────────────────
+export const surfaces = {
+  /** Elevated panel above the page (Quick Capture, hero cards) */
+  panel: "bg-[var(--panel-bg)] border-[var(--panel-border)] shadow-[var(--panel-glow)]",
+  /** Recessed input / textarea well */
+  input: "bg-input border-input-border shadow-input",
+  /** Standard card — already theme-aware via --card-bg */
+  card: "bg-[var(--card-bg)] border-[var(--card-border)]",
+  /** Quiet inset area — empty states, secondary panes */
+  sunken: "bg-[var(--surface-sunken)]",
+  /** Cyan-tinted chip / active filter */
+  accentSoft: "bg-[var(--accent-soft-bg)] text-[var(--accent-soft-text)] border-[var(--muted-border)]",
+  /** Disabled control */
+  disabled: "bg-[var(--disabled-bg)] text-[var(--disabled-text)]",
+} as const;
+
 // ─── Table Row Tokens ──────────────────────────────────────────────
 export const tableRow = {
   /** Even row background (zebra stripe) */
@@ -174,7 +202,7 @@ export const tokens = {
     primary: `${gradients.primary} ${shadows.primary} ${radii.lg} text-white ${typography.button} px-3 py-2 ${focusRing}`,
     secondary: `${radii.lg} border border-[var(--card-border)] bg-[var(--card-bg)]/60 ${typography.button} text-[var(--foreground)] hover:bg-[var(--card-bg)] ${focusRing}`,
     ghost: `${radii.lg} ${typography.button} text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)]`,
-    danger: `${radii.lg} border border-red-200 text-red-600 ${typography.button} hover:bg-red-50`,
+    danger: `${radii.lg} border border-[var(--danger-border)] text-[var(--danger-text)] ${typography.button} hover:bg-[var(--danger-surface)]`,
   },
 
   /** Input fields */
@@ -188,6 +216,15 @@ export const tokens = {
 
   /** Inactive toggle tab */
   toggleInactive: `text-[var(--nav-text-color)] hover:text-[var(--nav-text-active-color)]`,
+
+  /** Elevated panel above the page (Quick Capture, hero cards) */
+  panel: surfaces.panel,
+
+  /** Recessed input / textarea well */
+  inputWell: surfaces.input,
+
+  /** Status chips and callouts — theme-aware, one class for both modes */
+  status,
 } as const;
 
 export default tokens;

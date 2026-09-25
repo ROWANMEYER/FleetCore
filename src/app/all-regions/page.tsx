@@ -332,7 +332,7 @@ export default function AllRegionsPage() {
               </div>
 
               {rangeReversed && (
-                <p className="text-xs font-medium text-red-600">
+                <p className="text-xs font-medium text-[var(--danger-text)]">
                   End date cannot be before the start date.
                 </p>
               )}

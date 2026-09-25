@@ -33,6 +33,46 @@
   --color-glass-light: rgba(255, 255, 255, 0.6);
   --color-glass-light-hover: rgba(255, 255, 255, 0.8);
 
+  /* ─── Semantic theme utilities ────────────────────────────────
+     Mapped from the :root / .dark custom properties below, so each
+     utility follows the active theme automatically:
+       bg-panel  text-secondary  border-muted-border
+       bg-input  text-muted      bg-danger-surface
+     Prefer these over hardcoded light/dark values in new markup. */
+  --color-panel: var(--panel-bg);
+  --color-panel-border: var(--panel-border);
+  --background-image-input: var(--input-bg);
+  --color-input-border: var(--input-border);
+  --color-input-border-focus: var(--input-border-focus);
+  --color-muted-border: var(--muted-border);
+  --color-accent-soft: var(--accent-soft-bg);
+  --color-accent-soft-border: var(--accent-soft-border);
+  --color-accent-soft-text: var(--accent-soft-text);
+  --color-sunken: var(--surface-sunken);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-disabled: var(--disabled-bg);
+  --color-disabled-text: var(--disabled-text);
+  --color-overlay: var(--overlay-backdrop);
+  --color-tooltip: var(--tooltip-bg);
+  --color-tooltip-text: var(--tooltip-text);
+  --color-success-surface: var(--success-surface);
+  --color-success-text: var(--success-text);
+  --color-success-border: var(--success-border);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-text: var(--warning-text);
+  --color-warning-border: var(--warning-border);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-text: var(--danger-text);
+  --color-danger-border: var(--danger-border);
+  --color-info-surface: var(--info-surface);
+  --color-info-text: var(--info-text);
+  --color-info-border: var(--info-border);
+
+  /* Shadows that follow the theme */
+  --shadow-panel: var(--panel-glow);
+  --shadow-input: var(--input-shadow);
+
   /* Sidebar dimensions — collapsed rail fits the enlarged nav icons */
   --spacing-sidebar-w: 256px;
   --spacing-sidebar-w-collapsed: 72px;
@@ -52,6 +92,9 @@
 
 /* ─── Core body variables ────────────────────────────────────────── */
 :root {
+  /* Tells the browser to render native form controls (select popups,
+     date pickers, default scrollbars) with light chrome. */
+  color-scheme: light;
   --background: #F0F4F8;
   --foreground: #0F172A;
   --card-bg: rgba(255, 255, 255, 0.75);
@@ -80,9 +123,52 @@
   /* ─── Chart tokens ──────────────────────────────────────── */
   --chart-grid: #E2E8F0;
   --chart-axis: #64748B;
+  /* ─── Semantic surface tokens (light) ────────────────────── */
+  /* Elevated panel above the page — e.g. Quick Capture */
+  --panel-bg: rgba(255, 255, 255, 0.88);
+  --panel-gradient: radial-gradient(130% 130% at 18% 0%, rgba(6, 182, 212, 0.10), rgba(255, 255, 255, 0.97) 55%, rgba(248, 250, 252, 0.97) 100%);
+  --panel-border: rgba(6, 182, 212, 0.28);
+  --panel-glow: 0 0 0 1px rgba(6, 182, 212, 0.10), 0 0 16px rgba(6, 182, 212, 0.07), 0 0 32px rgba(6, 182, 212, 0.03), inset 0 0 14px rgba(6, 182, 212, 0.04);
+  /* Recessed input wells — textareas, inputs, code fields */
+  --input-bg: linear-gradient(180deg, rgba(6, 182, 212, 0.05), rgba(255, 255, 255, 0.96) 60%);
+  --input-border: rgba(6, 182, 212, 0.20);
+  --input-border-focus: rgba(6, 182, 212, 0.50);
+  --input-shadow: 0 0 0 1px rgba(15, 23, 42, 0.05), inset 0 1px 2px rgba(15, 23, 42, 0.06), inset 0 0 14px rgba(6, 182, 212, 0.04);
+  /* Muted cyan-tinted separators and quiet outlines */
+  --muted-border: rgba(6, 182, 212, 0.12);
+  --accent-soft-bg: rgba(6, 182, 212, 0.10);
+  --accent-soft-border: rgba(6, 182, 212, 0.20);
+  --accent-soft-text: #0e7490;
+  --surface-sunken: rgba(15, 23, 42, 0.03);
+  /* Text roles */
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  /* Disabled */
+  --disabled-bg: rgba(15, 23, 42, 0.05);
+  --disabled-text: #94A3B8;
+  /* Overlays stay dark in both themes — they dim photographic/media content */
+  --overlay-backdrop: rgba(15, 23, 42, 0.45);
+  /* Tooltips keep a dark surface in both themes for contrast */
+  --tooltip-bg: #1E293B;
+  --tooltip-text: #F8FAFC;
+  /* Status surfaces */
+  --success-surface: rgba(16, 185, 129, 0.10);
+  --success-text: #047857;
+  --success-border: rgba(16, 185, 129, 0.30);
+  --warning-surface: rgba(245, 158, 11, 0.10);
+  --warning-text: #B45309;
+  --warning-border: rgba(245, 158, 11, 0.30);
+  --danger-surface: rgba(239, 68, 68, 0.08);
+  --danger-text: #DC2626;
+  --danger-border: rgba(239, 68, 68, 0.30);
+  --info-surface: rgba(59, 130, 246, 0.10);
+  --info-text: #1D4ED8;
+  --info-border: rgba(59, 130, 246, 0.30);
 }
 
 .dark {
+  /* Native form controls and scrollbars follow the app theme. */
+  color-scheme: dark;
   --background: #0B1220;
   --foreground: #E2E8F0;
   --card-bg: rgba(15, 23, 42, 0.65);
@@ -110,6 +196,47 @@
   /* ─── Chart tokens ──────────────────────────────────────── */
   --chart-grid: #334155;
   --chart-axis: #94A3B8;
+  /* ─── Semantic surface tokens (dark) ─────────────────────── */
+  /* Elevated panel above the page — e.g. Quick Capture */
+  --panel-bg: rgba(11, 18, 32, 0.96);
+  --panel-gradient: radial-gradient(130% 130% at 18% 0%, rgba(6, 182, 212, 0.10), rgba(11, 18, 32, 0.96) 55%, rgba(8, 12, 22, 0.96) 100%);
+  --panel-border: rgba(6, 182, 212, 0.30);
+  --panel-glow: 0 0 0 1px rgba(6, 182, 212, 0.12), 0 0 22px rgba(6, 182, 212, 0.12), 0 0 44px rgba(6, 182, 212, 0.05), inset 0 0 18px rgba(6, 182, 212, 0.05);
+  /* Recessed input wells — textareas, inputs, code fields */
+  --input-bg: linear-gradient(180deg, rgba(6, 182, 212, 0.06), rgba(9, 16, 28, 0.92) 60%);
+  --input-border: rgba(6, 182, 212, 0.20);
+  --input-border-focus: rgba(6, 182, 212, 0.50);
+  --input-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), inset 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 0 16px rgba(6, 182, 212, 0.05);
+  /* Muted cyan-tinted separators and quiet outlines */
+  --muted-border: rgba(6, 182, 212, 0.10);
+  --accent-soft-bg: rgba(6, 182, 212, 0.10);
+  --accent-soft-border: rgba(6, 182, 212, 0.10);
+  --accent-soft-text: #67e8f9;
+  --surface-sunken: rgba(0, 0, 0, 0.22);
+  /* Text roles */
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  /* Disabled */
+  --disabled-bg: rgba(255, 255, 255, 0.05);
+  --disabled-text: #475569;
+  /* Overlays stay dark in both themes — they dim photographic/media content */
+  --overlay-backdrop: rgba(0, 0, 0, 0.60);
+  /* Tooltips keep a dark surface in both themes for contrast */
+  --tooltip-bg: #0F172A;
+  --tooltip-text: #E2E8F0;
+  /* Status surfaces */
+  --success-surface: rgba(16, 185, 129, 0.12);
+  --success-text: #34D399;
+  --success-border: rgba(16, 185, 129, 0.30);
+  --warning-surface: rgba(245, 158, 11, 0.12);
+  --warning-text: #FBBF24;
+  --warning-border: rgba(245, 158, 11, 0.30);
+  --danger-surface: rgba(239, 68, 68, 0.12);
+  --danger-text: #F87171;
+  --danger-border: rgba(239, 68, 68, 0.30);
+  --info-surface: rgba(59, 130, 246, 0.12);
+  --info-text: #60A5FA;
+  --info-border: rgba(59, 130, 246, 0.30);
 }
 
 /* ─── Base styles ────────────────────────────────────────────────── */

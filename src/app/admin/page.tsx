@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Truck, Users, Loader, Building2, Upload, UserCog } from "lucide-react";
+import { Truck, Users, Loader, Building2, Upload, UserCog, Handshake } from "lucide-react";
 
 export default function AdminPage() {
   const cards = [
@@ -38,6 +38,12 @@ export default function AdminPage() {
       title: "Users",
       description: "Manage who can sign in and which region they see",
       icon: UserCog,
+    },
+    {
+      href: "/admin/clients",
+      title: "Clients",
+      description: "Manage transport customers used across FleetCore",
+      icon: Handshake,
     },
   ];
 

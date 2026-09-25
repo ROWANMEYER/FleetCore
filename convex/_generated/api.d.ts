@@ -17,6 +17,7 @@ import type * as birthdays from "../birthdays.js";
 import type * as cleanupTrailerSwaps from "../cleanupTrailerSwaps.js";
 import type * as cleanup_trucks from "../cleanup_trucks.js";
 import type * as crons from "../crons.js";
+import type * as customerValidation from "../customerValidation.js";
 import type * as customers from "../customers.js";
 import type * as dailyAvailability from "../dailyAvailability.js";
 import type * as dailyOps from "../dailyOps.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   cleanupTrailerSwaps: typeof cleanupTrailerSwaps;
   cleanup_trucks: typeof cleanup_trucks;
   crons: typeof crons;
+  customerValidation: typeof customerValidation;
   customers: typeof customers;
   dailyAvailability: typeof dailyAvailability;
   dailyOps: typeof dailyOps;

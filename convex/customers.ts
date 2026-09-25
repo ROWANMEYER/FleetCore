@@ -1,5 +1,40 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveUserScope } from "./userSessions";
+import {
+  accountNumberConflictMessage,
+  updateAccountNumberConflictMessage,
+  normalizeCustomerName,
+  checkNameAvailability,
+  describeNameUnavailable,
+  findRenameCollision,
+  renameCollisionError,
+  toggleCustomerStatus,
+} from "./customerValidation";
+
+/* ── Authorization (mirrors the existing resolveUserScope + role pattern) ──
+   - customer CREATE needs a live session of either role (admin Clients page
+     AND the 6.4A Quick Capture quick-add both create customers)
+   - customer UPDATE / ACTIVATE / DEACTIVATE / DELETE are admin-only */
+async function requireCustomerSession(
+  ctx: MutationCtx,
+  token?: string | null
+): Promise<void> {
+  const scope = await resolveUserScope(ctx, token);
+  if (!scope) {
+    throw new Error("Not authorized");
+  }
+}
+
+async function requireCustomerAdmin(
+  ctx: MutationCtx,
+  token?: string | null
+): Promise<void> {
+  const scope = await resolveUserScope(ctx, token);
+  if (scope?.role !== "admin") {
+    throw new Error("Admin access required");
+  }
+}
 
 export const search = query({
   args: { searchTerm: v.string() },
@@ -47,39 +82,39 @@ export const createCustomer = mutation({
     contactPerson: v.optional(v.string()),
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const normalizedName = args.name.toLowerCase().trim();
-    
-    // 1. Check duplicate Account Number
+    await requireCustomerSession(ctx, args.token);
+    const normalizedName = normalizeCustomerName(args.name);
+
+    if (!normalizedName) {
+      throw new Error("Client name must contain non-whitespace text");
+    }
+
+    // 1. Check duplicate Account Number (unchanged rule + message)
     if (args.accountNumber) {
       const existing = await ctx.db
         .query("customers")
         .withIndex("by_accountNumber", (q) => q.eq("accountNumber", args.accountNumber))
         .first();
-      
+
       if (existing) {
-        throw new Error(`Customer with account number ${args.accountNumber} already exists (${existing.name}).`);
+        throw new Error(accountNumberConflictMessage(args.accountNumber, existing.name));
       }
     }
 
-    // 2. Warn on similar name (handled by UI via check, but we could return warning if mutation return type supports it. 
-    // Since this is a simple mutation, we proceed with creation. The UI can check for duplicates before calling this if needed,
-    // or we assume "Warn" was a pre-submission step.)
-    // However, we should at least check for EXACT normalized name match to avoid simple duplicates if no account number.
-    const existingName = await ctx.db
+    // 2. Deterministic name uniqueness — enforces duplicate normalizedName
+    //    (active AND inactive) on the backend. Never reactivates silently.
+    const existingByName = await ctx.db
       .query("customers")
       .withIndex("by_normalizedName", (q) => q.eq("normalizedName", normalizedName))
       .first();
 
-    if (existingName) {
-        // If account numbers differ (and are both present), we might allow same name? 
-        // But usually same name is confusing.
-        // Let's allow it ONLY if the existing one has a different account number.
-        // If existing one has NO account number, it's definitely a duplicate candidate.
-        // For now, let's throw if exact name match exists, unless the user overrides (not implemented).
-        // Actually, prompt says "Warn on similar... do not auto-block". So we should NOT throw on name match.
-        // We just insert.
+    const availability = checkNameAvailability(existingByName);
+    const unavailableMessage = describeNameUnavailable(availability);
+    if (unavailableMessage) {
+      throw new Error(unavailableMessage);
     }
 
     const customerId = await ctx.db.insert("customers", {
@@ -111,34 +146,52 @@ export const updateCustomer = mutation({
     contactPerson: v.optional(v.string()),
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
+    token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    await requireCustomerAdmin(ctx, args.token);
     const customer = await ctx.db.get(args.id);
     if (!customer) {
       throw new Error("Document not found");
     }
 
-    const normalizedName = args.name.toLowerCase().trim();
+    const normalizedName = normalizeCustomerName(args.name);
+    if (!normalizedName) {
+      throw new Error("Client name must contain non-whitespace text");
+    }
     const newAccountNumber = args.accountNumber?.trim();
 
-    // 1. Check duplicate Account Number (if changed)
+    // 1. Rename collision — reject renaming onto ANY other existing client's
+    //    normalized name (active or inactive). _id / createdAt never change.
+    if (normalizedName !== customer.normalizedName) {
+      const sameName = await ctx.db
+        .query("customers")
+        .withIndex("by_normalizedName", (q) => q.eq("normalizedName", normalizedName))
+        .collect();
+      const collision = findRenameCollision(sameName, args.id);
+      if (collision) {
+        throw new Error(renameCollisionError(collision.name));
+      }
+    }
+
+    // 2. Check duplicate Account Number (if changed) — unchanged rule + message
     if (newAccountNumber && newAccountNumber !== customer.accountNumber) {
       const existing = await ctx.db
         .query("customers")
         .withIndex("by_accountNumber", (q) => q.eq("accountNumber", newAccountNumber))
         .first();
-      
+
       if (existing && existing._id !== args.id) {
-        throw new Error(`Account number ${newAccountNumber} is already taken by ${existing.name}.`);
+        throw new Error(updateAccountNumberConflictMessage(newAccountNumber, existing.name));
       }
     }
 
-    // 2. Check for Locked Finance History (if name changed)
+    // 3. Check for Locked Finance History (if name changed) — unchanged rule
     if (normalizedName !== customer.normalizedName) {
       // Check for locked routes with the OLD name
       const lockedRoutes = await ctx.db
         .query("dailyRoutes")
-        .filter((q) => 
+        .filter((q) =>
           q.and(
             q.eq(q.field("client"), customer.name),
             q.eq(q.field("status"), "locked")
@@ -166,19 +219,21 @@ export const updateCustomer = mutation({
 });
 
 export const deactivateCustomer = mutation({
-  args: { id: v.id("customers"), isActive: v.boolean() },
+  args: {
+    id: v.id("customers"),
+    isActive: v.boolean(),
+    token: v.optional(v.union(v.string(), v.null())),
+  },
   handler: async (ctx, args) => {
-    const doc = await ctx.db.get(args.id);
-    if (!doc) {
-      throw new Error("Document not found");
-    }
-    await ctx.db.patch(args.id, { isActive: args.isActive });
+    await requireCustomerAdmin(ctx, args.token);
+    await toggleCustomerStatus(ctx.db as unknown as Parameters<typeof toggleCustomerStatus>[0], args.id, args.isActive);
   },
 });
 
 export const deleteCustomer = mutation({
-  args: { id: v.id("customers") },
+  args: { id: v.id("customers"), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
+    await requireCustomerAdmin(ctx, args.token);
     const customer = await ctx.db.get(args.id);
     if (!customer) throw new Error("Customer not found");
 
@@ -199,8 +254,9 @@ export const deleteCustomer = mutation({
 });
 
 export const deleteBulkCustomers = mutation({
-  args: { ids: v.array(v.id("customers")) },
+  args: { ids: v.array(v.id("customers")), token: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, args) => {
+    await requireCustomerAdmin(ctx, args.token);
     const blocked: string[] = [];
 
     for (const id of args.ids) {

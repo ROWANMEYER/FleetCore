@@ -10,6 +10,7 @@ import {
   filterBoardTrucks,
   type BoardStatusFilter,
 } from "@/src/lib/planner/boardStats";
+import type { RouteInsert } from "@/src/lib/planner/dndPlanning";
 import BoardKpiStrip from "./BoardKpiStrip";
 import BoardToolbar from "./BoardToolbar";
 import TruckLane from "./TruckLane";
@@ -17,11 +18,21 @@ import TruckLane from "./TruckLane";
 type FleetAllocationBoardProps = {
   boardDate: string;
   unallocatedCount?: number;
+  pendingLoadId?: string;
+  activeSourceRouteId?: string;
+  activeRouteId?: string;
+  routeInsert?: RouteInsert | null;
+  routeReorderPendingTruck?: string;
 };
 
 export default function FleetAllocationBoard({
   boardDate,
   unallocatedCount = 0,
+  pendingLoadId,
+  activeSourceRouteId,
+  activeRouteId,
+  routeInsert,
+  routeReorderPendingTruck,
 }: FleetAllocationBoardProps) {
   const { token } = useAuth();
   const region = useRegionArg();
@@ -97,6 +108,11 @@ export default function FleetAllocationBoard({
                 key={bt.truck._id}
                 boardTruck={bt}
                 boardDate={boardDate}
+                pendingLoadId={pendingLoadId}
+                activeSourceRouteId={activeSourceRouteId}
+                activeRouteId={activeRouteId}
+                routeInsert={routeInsert}
+                routeReorderPendingTruck={routeReorderPendingTruck}
               />
             ))}
           </div>

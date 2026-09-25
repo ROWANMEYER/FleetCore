@@ -10,7 +10,9 @@ import {
   useSensors,
   defaultKeyboardCoordinateGetter,
   pointerWithin,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
@@ -26,6 +28,11 @@ import {
   type CustomerRecord,
 } from "@/src/lib/planner/parser";
 import {
+  presentClientName,
+  shouldOfferAddClient,
+} from "@/src/lib/planner/clientAdd";
+import { buildAddLoadsPayload } from "@/src/lib/planner/addLoadsPayload";
+import {
   accentColorFor,
   filterUnallocatedLoads,
   formatQuantity,
@@ -34,15 +41,31 @@ import {
 } from "@/src/lib/planner/planningRail";
 import {
   type UnallocatedLoadDragData,
+  type AllocatedLoadDragData,
+  type RouteDragData,
+  type PlanningDragData,
   type TruckDropTargetData,
+  type RouteDropTargetData,
+  type RouteInsert,
   type DestinationChoice,
+  isAllocatedDrag,
+  isRouteDrag,
+  isRouteDragId,
+  isRouteDropId,
+  isTruckTargetId,
   resolveDropFromOver,
+  resolveAllocatedDropDecision,
+  resolveRouteInsertDrop,
+  resolveRouteDropPosition,
   toAllocationAction,
+  toMoveAction,
 } from "@/src/lib/planner/dndPlanning";
 import { type Id, type Doc } from "@/convex/_generated/dataModel";
 import FleetAllocationBoard from "@/src/components/planner/FleetAllocationBoard";
 import AllocateLoadDialog from "@/src/components/planner/AllocateLoadDialog";
+import AddClientDialog from "@/src/components/planner/AddClientDialog";
 import AllocationDestinationDialog from "@/src/components/planner/AllocationDestinationDialog";
+import MoveDestinationDialog from "@/src/components/planner/MoveDestinationDialog";
 import { Zap, MoreVertical, Search, CheckCircle2, AlertTriangle, Boxes } from "lucide-react";
 
 const inputClass =
@@ -50,6 +73,30 @@ const inputClass =
 
 const sectionTitle =
   "text-[11px] font-bold uppercase tracking-wider text-[var(--foreground)]";
+
+/* Drag-type-aware collision strategy (6.3C).
+   RouteCard wrappers are now route drop targets nested inside truck drop
+   targets. Pointing at a card must resolve to the CORRECT family:
+   - a ROUTE drag (active id "route-drag:*") resolves route-drop:* targets only;
+   - any LOAD drag (unallocated / allocated) resolves TRUCK targets only.
+   Route drag sources and targets are separate namespaces, so the active id
+   classifies the drag without inspecting its data. Filter the container
+   registry by namespace, then delegate to pointerWithin, so load drops can
+   never be captured by route targets and route drops can never be captured
+   by truck targets. Classification stays deterministic. */
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const activeId = String(args.active.id);
+  if (isRouteDragId(activeId)) {
+    const routeTargets = args.droppableContainers.filter((c) =>
+      isRouteDropId(String(c.id))
+    );
+    return pointerWithin({ ...args, droppableContainers: routeTargets });
+  }
+  const truckTargets = args.droppableContainers.filter((c) =>
+    isTruckTargetId(String(c.id))
+  );
+  return pointerWithin({ ...args, droppableContainers: truckTargets });
+};
 
 function getToday(): string {
   const d = new Date();
@@ -71,6 +118,13 @@ function BoardContent() {
   const [captureText, setCaptureText] = useState("");
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  /* 6.4A — visible Add Loads feedback. Errors keep the dialog-less form
+     intact for retry; an info note surfaces the idempotent "already added"
+     case instead of silently doing nothing. */
+  const [addLoadsMessage, setAddLoadsMessage] = useState<{
+    kind: "error" | "info";
+    text: string;
+  } | null>(null);
   const [batchKey] = useState(() => `board-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const batchKeyRef = useRef(batchKey);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,16 +134,26 @@ function BoardContent() {
 
   const [allocatingLoad, setAllocatingLoad] = useState<{ id: string; client: string } | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  /* 6.4A — the raw client token an "Add Client" action was clicked for; when
+     set, AddClientDialog is open. Closing clears it; resolutions recompute
+     reactively once the newly created customer lands in the customers query. */
+  const [addClientToken, setAddClientToken] = useState<string | null>(null);
 
   /* DnD — temporary UI state only. Convex queries remain authoritative. */
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [activeDrag, setActiveDrag] = useState<PlanningDragData | null>(null);
   const [pendingDropLoadId, setPendingDropLoadId] = useState<string | null>(null);
   const [dndError, setDndError] = useState<string | null>(null);
-  const [dropDest, setDropDest] = useState<{
-    planningLoadId: Id<"planningLoads">;
-    client: string;
-    truckFleetNoStr: string;
-  } | null>(null);
+  const [routeInsert, setRouteInsert] = useState<RouteInsert | null>(null);
+  const [routeReorderPendingTruck, setRouteReorderPendingTruck] = useState<string | null>(null);
+  /* Cursor Y at drag activation (activatorEvent.clientY). The drop/line geometry
+     is derived from the ACTUAL cursor (grab point + cumulative delta), never from
+     the dragged card's rect midpoint — the midpoint disagrees with the pointer
+     by the grab offset, which made the visible insertion line unreliable. */
+  const pointerGrabYRef = useRef<number | null>(null);
+  type DropDestination =
+    | { mode: "allocate"; planningLoadId: Id<"planningLoads">; client: string; truckFleetNoStr: string }
+    | { mode: "move"; planningLoadId: Id<"planningLoads">; client: string; truckFleetNoStr: string; sourceRouteId: string };
+  const [dropDest, setDropDest] = useState<DropDestination | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -103,10 +167,22 @@ function BoardContent() {
 
   const customers = useQuery(api.customers.list, {});
 
+  /* Current authoritative route docs for the board date — the drag-end drop
+     validates a stored RouteInsert against THIS data (target still exists,
+     still eligible, still in the same truck) before dispatching reorderRoutes. */
+  const routes = useQuery(api.dailyRoutes.getRoutesByDate, {
+    routeDate: boardDate,
+    token,
+    region,
+  });
+
   const createBulk = useMutation(api.planningLoads.createBulkPlanningLoads);
   const cancelLoad = useMutation(api.planningLoads.cancelPlanningLoad);
   const allocateNewRoute = useMutation(api.planningLoads.allocateToNewRoute);
   const allocateExistingRoute = useMutation(api.planningLoads.allocateToExistingRoute);
+  const moveBetweenRoutes = useMutation(api.planningLoads.moveLoadBetweenRoutes);
+  const moveToNewRoute = useMutation(api.planningLoads.moveLoadToNewRoute);
+  const reorderRoutes = useMutation(api.planningLoads.reorderRoutes);
 
   const syncDateToUrl = useCallback(
     (newDate: string) => {
@@ -171,16 +247,14 @@ function BoardContent() {
   }, []);
 
   const handleAddLoads = useCallback(async () => {
-    if (!parsed || !allValid) return;
+    if (!parsed || !allValid) {
+      return;
+    }
 
+    setAddLoadsMessage(null);
     setIsCreating(true);
     try {
-      const loads = parsed.loads.map((load) => ({
-        loadDate: parsed.date || boardDate,
-        client: load.client || load.clientInput,
-        fromLocations: load.fromLocations,
-        toLocations: load.toLocations,
-      }));
+      const loads = buildAddLoadsPayload(parsed, clientResolutions, boardDate);
 
       const result = await createBulk({
         region: (region || "garden_route") as "garden_route" | "eastern_cape",
@@ -191,13 +265,21 @@ function BoardContent() {
 
       if (result.created) {
         handleClear();
+      } else {
+        setAddLoadsMessage({
+          kind: "info",
+          text: "These loads were already added in a previous attempt — no duplicates were created.",
+        });
       }
     } catch (err: unknown) {
-      console.error("Failed to create loads:", err);
+      const msg = err instanceof Error ? err.message : "Failed to create loads";
+      /* Preserve textarea + parsed results; surface the failure so the
+         dispatcher is never left with a button that silently does nothing. */
+      setAddLoadsMessage({ kind: "error", text: msg });
     } finally {
       setIsCreating(false);
     }
-  }, [parsed, allValid, boardDate, region, token, createBulk, handleClear]);
+  }, [parsed, allValid, boardDate, region, token, createBulk, handleClear, clientResolutions]);
 
   const handleCancel = useCallback(
     async (id: Id<"planningLoads">) => {
@@ -220,43 +302,133 @@ function BoardContent() {
   }, [unallocated, unallocatedSearch]);
 
   /* ── DnD handlers — a drag is only another frontend interaction for the
-         existing allocation lifecycle. Backend mutations stay authoritative. */
+         existing planning lifecycle. Backend mutations stay authoritative. */
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activator = event.activatorEvent;
+    pointerGrabYRef.current =
+      activator && "clientY" in activator
+        ? (activator as { clientY: number }).clientY
+        : null;
     setDndError(null);
     setOpenMenuId(null);
-    setActiveDragId(String(event.active.id));
+    setRouteInsert(null);
+    setActiveDrag((event.active.data.current as PlanningDragData | undefined) ?? null);
   }, []);
 
   const handleDragCancel = useCallback(() => {
-    setActiveDragId(null);
+    setActiveDrag(null);
+    setRouteInsert(null);
+    pointerGrabYRef.current = null;
   }, []);
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const activeData = event.active.data.current as
-        | UnallocatedLoadDragData
-        | undefined;
-      setActiveDragId(null);
+  /* 6.3C — live insertion-line feedback while a ROUTE is dragged. Only route
+     payloads produce routeInsert; nothing is committed here (Convex stays
+     authoritative). Cross-truck / ineligible / self targets clear the line.
+     The line position is the ACTUAL cursor (grab Y + drag delta), so what the
+     dispatcher sees is exactly what gets submitted at drag-end. */
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const data = event.active.data.current as PlanningDragData | undefined;
+    const over = event.over;
+    if (!data || data.sourceType !== "route" || !over) {
+      setRouteInsert(null);
+      return;
+    }
+    const overId = String(over.id);
+    const overData = (over.data.current ?? null) as RouteDropTargetData | null;
+    if (
+      !isRouteDropId(overId) ||
+      !overData ||
+      overData.targetType !== "route" ||
+      !overData.reorderEligible
+    ) {
+      setRouteInsert(null);
+      return;
+    }
+    if (
+      overData.truckFleetNoStr !== data.sourceTruckFleetNoStr ||
+      overData.routeId === data.routeId
+    ) {
+      setRouteInsert(null);
+      return;
+    }
+    /* Cursor-accurate geometry (KEYBOARD-ACTIVATED drags have no pointer, so
+       they fall back to the dragged card's rect midpoint). This is the value
+       the drop consumes — drag-end NEVER re-derives its own position. */
+    const grabY = pointerGrabYRef.current;
+    const activeRect = event.active.rect.current.translated;
+    const pointerY =
+      grabY !== null
+        ? grabY + event.delta.y
+        : activeRect
+          ? activeRect.top + activeRect.height / 2
+          : over.rect.top + over.rect.height / 2;
+    const position = resolveRouteDropPosition(pointerY, over.rect.top, over.rect.height);
+    setRouteInsert({
+      sourceRouteId: data.routeId,
+      targetRouteId: overData.routeId,
+      position,
+      truckFleetNoStr: data.sourceTruckFleetNoStr,
+    });
+  }, []);
 
-      if (!activeData || activeData.sourceType !== "unallocated-load") return;
-      const dragId = activeData.planningLoadId;
+  /* 6.3C — the drop consumes the LAST VALIDATED insertion decision captured
+     during drag-over (the same value that drew the visible cyan line). It is
+     re-validated against CURRENT authoritative route data before dispatch:
+     target must still exist in the same truck and still be reorder-eligible;
+     orderedRouteIds is recomputed fresh, never trusted from the drag. The
+     drop decision then maps to the existing reorderRoutes mutation (complete
+     eligible set). Everything else is a no-op: no insert, stale source,
+     cross-truck, vanished/ineligible target, same-position reorder. */
+  const handleRouteDrop = useCallback(
+    (drag: RouteDragData) => {
+      if (!routeInsert) return;
+      const truckRoutes =
+        (routes ?? []).filter(
+          (r) => (r.truckFleetNoStr ?? "") === drag.sourceTruckFleetNoStr
+        ) ?? [];
+      const decision = resolveRouteInsertDrop(routeInsert, drag, truckRoutes);
+      if (decision.kind === "no_action") return;
 
+      // Prevent re-entrancy for the same truck while a reorder is in flight.
+      if (routeReorderPendingTruck === drag.sourceTruckFleetNoStr) return;
+
+      setDndError(null);
+      setRouteReorderPendingTruck(drag.sourceTruckFleetNoStr);
+      reorderRoutes({
+        routeDate: boardDate,
+        truckFleetNoStr: drag.sourceTruckFleetNoStr,
+        orderedRouteIds: decision.orderedRouteIds as Id<"dailyRoutes">[],
+        token,
+      })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : "Reorder failed";
+          setDndError(msg);
+        })
+        .finally(() => setRouteReorderPendingTruck(null));
+    },
+    [routeInsert, routes, boardDate, token, reorderRoutes, routeReorderPendingTruck]
+  );
+
+  /* 6.3A — unallocated planning load dropped on a truck lane. */
+  const handleUnallocatedDrop = useCallback(
+    (drag: UnallocatedLoadDragData, event: DragEndEvent) => {
       const overId = event.over ? String(event.over.id) : null;
       const overData = (event.over?.data.current ?? null) as TruckDropTargetData | null;
-      const decision = resolveDropFromOver(overId, overData, dragId);
+      const decision = resolveDropFromOver(overId, overData, drag.planningLoadId);
 
       // Invalid target / dropped outside any target → card returns. No mutation.
       if (decision.kind === "no_action") return;
 
       // Duplicate-drop protection — a load already being allocated is never re-dragged.
-      if (pendingDropLoadId === dragId) return;
+      if (pendingDropLoadId === drag.planningLoadId) return;
 
-      const load = unallocated?.find((l) => String(l._id) === dragId);
+      const load = unallocated?.find((l) => String(l._id) === drag.planningLoadId);
       if (!load || !overData) return;
 
       if (decision.kind === "choose_destination") {
         setDropDest({
-          planningLoadId: dragId as Id<"planningLoads">,
+          mode: "allocate",
+          planningLoadId: drag.planningLoadId as Id<"planningLoads">,
           client: load.client,
           truckFleetNoStr: overData.truckFleetNoStr,
         });
@@ -265,9 +437,9 @@ function BoardContent() {
 
       // Empty eligible truck → directly allocateToNewRoute (Route 1).
       setDndError(null);
-      setPendingDropLoadId(dragId);
+      setPendingDropLoadId(drag.planningLoadId);
       allocateNewRoute({
-        planningLoadId: dragId as Id<"planningLoads">,
+        planningLoadId: drag.planningLoadId as Id<"planningLoads">,
         truckFleetNoStr: overData.truckFleetNoStr,
         token,
       })
@@ -280,8 +452,78 @@ function BoardContent() {
     [unallocated, token, allocateNewRoute, pendingDropLoadId]
   );
 
+  /* 6.3B — ALREADY-ALLOCATED Board load dragged onto another truck/route.
+     Uses the existing atomic lifecycle: moveLoadToNewRoute (no routes / new
+     route) or moveLoadBetweenRoutes via the destination chooser. The source
+     route is never a destination. Frontend simply reacts to query updates —
+     it never deallocates-then-reallocates. */
+  const handleAllocatedDrop = useCallback(
+    (drag: AllocatedLoadDragData, event: DragEndEvent) => {
+      const overId = event.over ? String(event.over.id) : null;
+      const overData = (event.over?.data.current ?? null) as TruckDropTargetData | null;
+      if (!overId || !isTruckTargetId(overId) || !overData) return;
+
+      const decision = resolveAllocatedDropDecision(overData, drag.sourceRouteId);
+      if (decision.kind === "no_action") return;
+
+      // Duplicate-drop protection — a load already being moved is never re-dragged.
+      if (pendingDropLoadId === drag.planningLoadId) return;
+
+      const planningLoadId = drag.planningLoadId as Id<"planningLoads">;
+
+      if (decision.kind === "choose_destination") {
+        setDropDest({
+          mode: "move",
+          planningLoadId,
+          client: drag.client,
+          truckFleetNoStr: overData.truckFleetNoStr,
+          sourceRouteId: drag.sourceRouteId,
+        });
+        return;
+      }
+
+      // Empty eligible truck (or only its own source route) → moveLoadToNewRoute.
+      setDndError(null);
+      setPendingDropLoadId(drag.planningLoadId);
+      moveToNewRoute({
+        planningLoadId,
+        truckFleetNoStr: overData.truckFleetNoStr,
+        token,
+      })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : "Move failed";
+          setDndError(msg);
+        })
+        .finally(() => setPendingDropLoadId(null));
+    },
+    [token, moveToNewRoute, pendingDropLoadId]
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const activeData = event.active.data.current as PlanningDragData | undefined;
+      setActiveDrag(null);
+      pointerGrabYRef.current = null;
+
+      if (!activeData) return;
+      if (isRouteDrag(activeData)) {
+        handleRouteDrop(activeData);
+        setRouteInsert(null);
+        return;
+      }
+      setRouteInsert(null);
+      if (isAllocatedDrag(activeData)) {
+        handleAllocatedDrop(activeData, event);
+        return;
+      }
+      handleUnallocatedDrop(activeData, event);
+    },
+    [handleRouteDrop, handleAllocatedDrop, handleUnallocatedDrop]
+  );
+
   /* Destination chooser confirm — executes the exact qualification-mapped
-     mutation for a chosen existing route or a new route. */
+     mutation for a chosen existing route or a new route. Allocated loads go
+     through the atomic move lifecycle; unallocated loads keep 6.3A. */
   const handleDestinationSubmit = useCallback(
     async (choice: DestinationChoice): Promise<void> => {
       if (!dropDest) return;
@@ -289,50 +531,77 @@ function BoardContent() {
       setDndError(null);
       setPendingDropLoadId(String(dropDest.planningLoadId));
       try {
-        const action = toAllocationAction(
-          {
-            sourceType: "unallocated-load",
-            planningLoadId: String(dropDest.planningLoadId),
-          },
-          dropDest.truckFleetNoStr,
-          choice
-        );
-        if (!action) throw new Error("Invalid drag data");
-        if (action.kind === "allocate_to_existing_route") {
-          await allocateExistingRoute({
-            planningLoadId: dropDest.planningLoadId,
-            routeId: action.routeId as Id<"dailyRoutes">,
-            token,
-          });
+        if (dropDest.mode === "move") {
+          const action = toMoveAction(
+            {
+              sourceType: "allocated-load",
+              planningLoadId: String(dropDest.planningLoadId),
+              sourceRouteId: dropDest.sourceRouteId,
+            },
+            dropDest.truckFleetNoStr,
+            choice
+          );
+          if (!action) throw new Error("Invalid drag data");
+          if (action.kind === "move_between_routes") {
+            await moveBetweenRoutes({
+              planningLoadId: dropDest.planningLoadId,
+              destinationRouteId: action.destinationRouteId as Id<"dailyRoutes">,
+              token,
+            });
+          } else {
+            await moveToNewRoute({
+              planningLoadId: dropDest.planningLoadId,
+              truckFleetNoStr: action.truckFleetNoStr,
+              token,
+            });
+          }
         } else {
-          await allocateNewRoute({
-            planningLoadId: dropDest.planningLoadId,
-            truckFleetNoStr: action.truckFleetNoStr,
-            token,
-          });
+          const action = toAllocationAction(
+            {
+              sourceType: "unallocated-load",
+              planningLoadId: String(dropDest.planningLoadId),
+            },
+            dropDest.truckFleetNoStr,
+            choice
+          );
+          if (!action) throw new Error("Invalid drag data");
+          if (action.kind === "allocate_to_existing_route") {
+            await allocateExistingRoute({
+              planningLoadId: dropDest.planningLoadId,
+              routeId: action.routeId as Id<"dailyRoutes">,
+              token,
+            });
+          } else {
+            await allocateNewRoute({
+              planningLoadId: dropDest.planningLoadId,
+              truckFleetNoStr: action.truckFleetNoStr,
+              token,
+            });
+          }
         }
         setDropDest(null);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Allocation failed";
+        const msg = err instanceof Error ? err.message : "Move failed";
         setDndError(msg);
         throw err;
       } finally {
         setPendingDropLoadId(null);
       }
     },
-    [dropDest, token, allocateExistingRoute, allocateNewRoute]
+    [dropDest, token, moveBetweenRoutes, moveToNewRoute, allocateExistingRoute, allocateNewRoute]
   );
 
   const activeLoad = useMemo(() => {
-    if (!activeDragId || !unallocated) return null;
-    return unallocated.find((l) => String(l._id) === activeDragId) ?? null;
-  }, [activeDragId, unallocated]);
+    if (!activeDrag || activeDrag.sourceType !== "unallocated-load" || !unallocated) return null;
+    return unallocated.find((l) => String(l._id) === activeDrag.planningLoadId) ?? null;
+  }, [activeDrag, unallocated]);
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={boardCollisionDetection}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
@@ -481,7 +750,13 @@ function BoardContent() {
                 ) : (
                   <div className="divide-y divide-[var(--card-border)]/60 rounded-lg overflow-hidden mb-3">
                     {parsed.loads.map((load, i) => (
-                      <LoadPreview key={i} index={i} load={load} resolutions={clientResolutions} />
+                      <LoadPreview
+                        key={i}
+                        index={i}
+                        load={load}
+                        resolutions={clientResolutions}
+                        onAddClient={setAddClientToken}
+                      />
                     ))}
                   </div>
                 )}
@@ -503,6 +778,18 @@ function BoardContent() {
                     {isCreating ? "Adding..." : addLoadsButtonLabel(validLoadCount)}
                   </button>
                 </div>
+
+                {addLoadsMessage && (
+                  <p
+                    className={`mt-2 text-[10px] px-2 py-1.5 rounded-md border ${
+                      addLoadsMessage.kind === "error"
+                        ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-red-300/40 dark:border-red-500/20"
+                        : "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-300/40 dark:border-amber-500/20"
+                    }`}
+                  >
+                    {addLoadsMessage.text}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -599,6 +886,17 @@ function BoardContent() {
           <FleetAllocationBoard
             boardDate={boardDate}
             unallocatedCount={unallocated?.length ?? 0}
+            pendingLoadId={pendingDropLoadId ?? undefined}
+            activeSourceRouteId={
+              activeDrag?.sourceType === "allocated-load"
+                ? activeDrag.sourceRouteId
+                : undefined
+            }
+            activeRouteId={
+              activeDrag?.sourceType === "route" ? activeDrag.routeId : undefined
+            }
+            routeInsert={routeInsert}
+            routeReorderPendingTruck={routeReorderPendingTruck ?? undefined}
           />
         </div>
       </div>
@@ -627,9 +925,21 @@ function BoardContent() {
         />
       )}
 
+      {/* 6.4A — Add Client dialog: opened only from an unknown-client Quick
+          Capture line; closes on success and resolutions recompute reactively
+          once the new customer lands in the customers query. */}
+      {addClientToken && (
+        <AddClientDialog
+          proposedName={presentClientName(addClientToken)}
+          rawToken={addClientToken}
+          customers={customers}
+          onClose={() => setAddClientToken(null)}
+        />
+      )}
+
       {/* Destination chooser — opened only when a truck already has eligible
           planned routes; the dispatcher explicitly picks the destination. */}
-      {dropDest && (
+      {dropDest?.mode === "allocate" && (
         <AllocationDestinationDialog
           planningLoadId={dropDest.planningLoadId}
           client={dropDest.client}
@@ -639,20 +949,61 @@ function BoardContent() {
           onClose={() => setDropDest(null)}
         />
       )}
+      {dropDest?.mode === "move" && (
+        <MoveDestinationDialog
+          planningLoadId={dropDest.planningLoadId}
+          client={dropDest.client}
+          truckFleetNoStr={dropDest.truckFleetNoStr}
+          boardDate={boardDate}
+          sourceRouteId={dropDest.sourceRouteId}
+          onSubmit={handleDestinationSubmit}
+          onClose={() => setDropDest(null)}
+        />
+      )}
 
-      {/* Floating drag preview — follows the pointer, cyan accent, translucent */}
+      {/* Floating drag preview — follows the pointer. Route reorder previews are
+          visually distinct from load previews (compact ROUTE cap, no client). */}
       <DragOverlay>
-        {activeLoad ? (
-          <div className="w-56 rounded-md border border-[#06B6D4]/70 bg-[var(--background)]/95 shadow-xl shadow-[rgba(6,182,212,0.25)] opacity-95 px-2.5 py-1.5 pointer-events-none">
-            <div className="text-xs font-bold text-[var(--foreground)] truncate">
-              {activeLoad.client}
+        {activeDrag ? (
+          activeDrag.sourceType === "route" ? (
+            <div className="w-52 rounded-md border border-[#06B6D4]/50 bg-[var(--background)]/85 shadow-xl shadow-[rgba(6,182,212,0.18)] opacity-90 px-2.5 py-2 pointer-events-none">
+              <div className="text-xs font-bold text-[var(--foreground)]">
+                Route {activeDrag.routeNumber}
+              </div>
+              <div className="mt-0.5 text-[10px] text-[var(--nav-text-color)]">
+                {activeDrag.loadCount} {activeDrag.loadCount === 1 ? "load" : "loads"}
+              </div>
+              <div className="mt-0.5 text-[10px] text-[var(--nav-text-color)]/90 truncate">
+                Driver: {activeDrag.driverName || "\u2014"}
+              </div>
             </div>
-            <div className="text-[10px] text-[var(--nav-text-color)] truncate">
-              {activeLoad.fromLocations?.join(" + ") || "\u2014"}
-              <span className="mx-1">&#8594;</span>
-              {activeLoad.toLocations?.join(" + ") || "\u2014"}
+          ) : activeDrag.sourceType === "allocated-load" ? (
+            <div className="w-56 rounded-md border border-[#06B6D4]/70 bg-[var(--background)]/95 shadow-xl shadow-[rgba(6,182,212,0.25)] opacity-90 px-2.5 py-1.5 pointer-events-none">
+              <div className="text-xs font-bold text-[var(--foreground)] truncate">
+                {activeDrag.client}
+              </div>
+              <div className="text-[10px] text-[var(--nav-text-color)] truncate">
+                {activeDrag.fromLocations.join(" + ") || "\u2014"}
+                <span className="mx-1">&#8594;</span>
+                {activeDrag.toLocations.join(" + ") || "\u2014"}
+              </div>
+              <div className="mt-0.5 text-[9px] text-[var(--nav-text-color)]/90 truncate">
+                From Truck {activeDrag.sourceTruckFleetNoStr} · Route{" "}
+                {activeDrag.sourceRouteNumber}
+              </div>
             </div>
-          </div>
+          ) : activeLoad ? (
+            <div className="w-56 rounded-md border border-[#06B6D4]/70 bg-[var(--background)]/95 shadow-xl shadow-[rgba(6,182,212,0.25)] opacity-95 px-2.5 py-1.5 pointer-events-none">
+              <div className="text-xs font-bold text-[var(--foreground)] truncate">
+                {activeLoad.client}
+              </div>
+              <div className="text-[10px] text-[var(--nav-text-color)] truncate">
+                {activeLoad.fromLocations?.join(" + ") || "\u2014"}
+                <span className="mx-1">&#8594;</span>
+                {activeLoad.toLocations?.join(" + ") || "\u2014"}
+              </div>
+            </div>
+          ) : null
         ) : null}
       </DragOverlay>
     </div>
@@ -664,13 +1015,18 @@ function LoadPreview({
   index,
   load,
   resolutions,
+  onAddClient,
 }: {
   index: number;
   load: ParsedLoad;
   resolutions: { clientInput: string; resolved?: string; status: string }[];
+  onAddClient: (rawToken: string) => void;
 }) {
   const resolution = resolutions.find((r) => r.clientInput.toLowerCase() === load.clientInput.toLowerCase());
   const ok = load.valid && resolution?.status === "matched";
+  /* 6.4A — the Add Client action appears ONLY for a syntactically valid line
+     whose client resolution is "unknown". Malformed syntax never offers it. */
+  const addable = shouldOfferAddClient(load.valid, resolution?.status);
 
   return (
     <div
@@ -704,6 +1060,20 @@ function LoadPreview({
         {!load.valid && (
           <div className="text-red-600 dark:text-red-400 mt-0.5">
             {load.errors.join("; ")}
+          </div>
+        )}
+        {addable && (
+          <div className="mt-1">
+            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              Unknown client
+            </span>
+            <button
+              type="button"
+              onClick={() => onAddClient(load.clientInput)}
+              className="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold text-[#06B6D4] bg-[#06B6D4]/10 hover:bg-[#06B6D4]/15 border border-[#06B6D4]/25 rounded-md px-2 py-1 transition-colors"
+            >
+              + Add {presentClientName(load.clientInput)} as Client
+            </button>
           </div>
         )}
       </div>

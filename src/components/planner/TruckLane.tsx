@@ -7,12 +7,18 @@ import { useMutation } from "convex/react";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import {
   type BoardTruck,
+  type TruckRoute,
   isBoardManaged,
   getCompleteRouteIds,
 } from "@/src/lib/planner/boardHelpers";
 import {
   type TruckDropTargetData,
-  resolveUnallocatedDropDecision,
+  type RouteDropTargetData,
+  type RouteInsert,
+  buildTruckDropTargetData,
+  isRouteReorderDraggable,
+  resolveAllocatedDropDecision,
+  toRouteDropId,
   toTruckTargetId,
 } from "@/src/lib/planner/dndPlanning";
 import { type Id } from "@/convex/_generated/dataModel";
@@ -22,6 +28,11 @@ import TruckAvatar from "./TruckAvatar";
 type TruckLaneProps = {
   boardTruck: BoardTruck;
   boardDate: string;
+  pendingLoadId?: string;
+  activeSourceRouteId?: string;
+  activeRouteId?: string;
+  routeInsert?: RouteInsert | null;
+  routeReorderPendingTruck?: string;
 };
 
 const statusStyles = {
@@ -45,7 +56,15 @@ const statusLabels = {
  * physical trailer (trucks.currentTrailerId), truck planning status and
  * readiness. Route-level driver / planned trailer live on RouteCard, never here.
  */
-export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
+export default function TruckLane({
+  boardTruck,
+  boardDate,
+  pendingLoadId,
+  activeSourceRouteId,
+  activeRouteId,
+  routeInsert,
+  routeReorderPendingTruck,
+}: TruckLaneProps) {
   const { token } = useAuth();
   const { truck, routes, physicalTrailerFleetNo, readiness, status } = boardTruck;
   const [isReordering, setIsReordering] = useState(false);
@@ -59,10 +78,18 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
     (r) => (r.status ?? "planned") === "planned"
   );
 
+  /* Complete eligible Board route set for this truck — same set the backend
+     reorderRoutes full-set validation expects and the 6.3C droppables carry. */
+  const orderedRouteIds = getCompleteRouteIds(routes);
+  const truckFleetNoStr = truck.truckFleetNo || "";
+  const routeReorderPaused = routeReorderPendingTruck === truckFleetNoStr;
+
+  /* Up/Down button reorder — shares the same authoritative complete set and
+     the same backend reorderRoutes lifecycle as 6.3C drag reordering. */
   const handleReorder = useCallback(
     async (routeId: string, direction: "up" | "down") => {
       setReorderError(null);
-      const orderedIds = getCompleteRouteIds(boardRoutes);
+      const orderedIds = [...orderedRouteIds];
       const idx = orderedIds.indexOf(routeId);
       if (idx === -1) return;
 
@@ -76,7 +103,7 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
       try {
         await reorderRoutes({
           routeDate: boardDate,
-          truckFleetNoStr: truck.truckFleetNo || "",
+          truckFleetNoStr,
           orderedRouteIds: orderedIds as Id<"dailyRoutes">[],
           token,
         });
@@ -87,31 +114,31 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
         setIsReorderSubmitting(false);
       }
     },
-    [boardRoutes, boardDate, truck.truckFleetNo, token, reorderRoutes]
+    [orderedRouteIds, boardDate, truckFleetNoStr, token, reorderRoutes]
   );
 
   const fullyReady =
     readiness.totalRoutes > 0 && readiness.readyRoutes === readiness.totalRoutes;
 
   /* DnD drop target — every rendered truck is droppable; validity is
-     classified by the shared decision helper and surfaced visually.
-     The backend remains the final authority on any drop. */
-  const fleetNo = truck.truckFleetNo || "";
-  const dropDecision = resolveUnallocatedDropDecision(boardTruck);
+     classified by the shared decision helpers and surfaced visually.
+     The backend remains the final authority on any drop. During an
+     allocated-load drag the source route is excluded (and a source-only
+     truck is a no-op), matching the page's drop logic exactly. */
+  const dropTargetData = buildTruckDropTargetData(boardTruck);
+  const dropDecision = activeSourceRouteId
+    ? resolveAllocatedDropDecision(dropTargetData, activeSourceRouteId)
+    : dropTargetData.decision;
   const acceptsDrop = dropDecision.kind !== "no_action";
   const { isOver, setNodeRef: setDroppableRef } = useDroppable({
-    id: toTruckTargetId(fleetNo),
-    data: {
-      targetType: "truck",
-      truckFleetNoStr: fleetNo,
-      decision: dropDecision,
-    } satisfies TruckDropTargetData,
+    id: toTruckTargetId(dropTargetData.truckFleetNoStr),
+    data: dropTargetData satisfies TruckDropTargetData,
   });
 
   return (
     <div
       ref={setDroppableRef}
-      className={`rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/40 overflow-hidden transition-all ${
+      className={`relative rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]/40 overflow-hidden transition-all ${
         isOver && acceptsDrop
           ? "border-[#06B6D4]/70 ring-1 ring-[#06B6D4]/30 shadow-[0_0_16px_rgba(6,182,212,0.22)]"
           : isOver
@@ -119,9 +146,13 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
             : ""
       }`}
     >
+      {/* Drop feedback — ABSOLUTE overlay so the card's height and grid
+          layout never shift while dragging (6.3B requirement). */}
       {isOver && acceptsDrop && (
-        <div className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r from-[#06B6D4] to-[#0891B2]">
-          Drop to add this load
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[#06B6D4]/10">
+          <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-white bg-gradient-to-r from-[#06B6D4] to-[#0891B2] rounded shadow-md shadow-[rgba(6,182,212,0.35)]">
+            Drop load here
+          </span>
         </div>
       )}
       {/* Card header — truck-level only */}
@@ -165,6 +196,13 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
         </div>
       </div>
 
+      {/* Reorder pending feedback — per-truck, never blocks other trucks */}
+      {routeReorderPaused && (
+        <div className="px-3 py-1.5 text-[10px] font-medium text-[#06B6D4] bg-[#06B6D4]/10 border-b border-[#06B6D4]/20">
+          Reordering routes&hellip;
+        </div>
+      )}
+
       {/* Reorder error */}
       {reorderError && (
         <div className="px-3 py-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/20">
@@ -176,21 +214,22 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
       {routes.length > 0 ? (
         <div className="p-1.5 space-y-1.5">
           {routes.map((route, idx) => (
-            <div
+            <RouteSlot
               key={route._id}
-              className="rounded-md border border-[var(--card-border)]/70 bg-[var(--card-bg)]/20"
-            >
-              <RouteCard
-                route={route}
-                boardDate={boardDate}
-                routeNumber={idx + 1}
-                isReordering={isReordering}
-                onReorder={handleReorder}
-                isReorderSubmitting={isReorderSubmitting}
-                isLast={idx === routes.length - 1}
-                physicalTrailerFleetNo={physicalTrailerFleetNo}
-              />
-            </div>
+              route={route}
+              boardDate={boardDate}
+              routeNumber={idx + 1}
+              isLast={idx === routes.length - 1}
+              routeReorderPaused={routeReorderPaused}
+              physicalTrailerFleetNo={physicalTrailerFleetNo}
+              pendingLoadId={pendingLoadId}
+              isReordering={isReordering}
+              onReorder={handleReorder}
+              isReorderSubmitting={isReorderSubmitting}
+              orderedRouteIds={orderedRouteIds}
+              activeRouteId={activeRouteId}
+              routeInsert={routeInsert}
+            />
           ))}
         </div>
       ) : (
@@ -207,7 +246,7 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
               setIsReordering(!isReordering);
               setReorderError(null);
             }}
-            disabled={isReorderSubmitting}
+            disabled={isReorderSubmitting || routeReorderPaused}
             className={`text-[10px] font-semibold px-2 py-1 rounded transition-colors ${
               isReordering
                 ? "bg-[#06B6D4] text-white"
@@ -216,6 +255,92 @@ export default function TruckLane({ boardTruck, boardDate }: TruckLaneProps) {
           >
             {isReordering ? "Done" : "Reorder Routes"}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* One route drop slot per RouteCard: the 6.3C droppable TARGET live on the
+   route's wrapper (NOT the truck card) so route drags get positional
+   feedback. Manual, completed and locked routes are disabled targets; the
+   drag's own source route is disabled as a target during its drag. The
+   DISMISS insertion line is absolutely positioned so the card list height
+   never shifts. */
+type RouteSlotProps = {
+  route: TruckRoute;
+  boardDate: string;
+  routeNumber: number;
+  isLast: boolean;
+  routeReorderPaused: boolean;
+  physicalTrailerFleetNo?: string;
+  pendingLoadId?: string;
+  isReordering: boolean;
+  onReorder: (routeId: string, direction: "up" | "down") => void;
+  isReorderSubmitting: boolean;
+  orderedRouteIds: string[];
+  activeRouteId?: string;
+  routeInsert?: RouteInsert | null;
+};
+
+function RouteSlot({
+  route,
+  boardDate,
+  routeNumber,
+  isLast,
+  routeReorderPaused,
+  physicalTrailerFleetNo,
+  pendingLoadId,
+  isReordering,
+  onReorder,
+  isReorderSubmitting,
+  orderedRouteIds,
+  activeRouteId,
+  routeInsert,
+}: RouteSlotProps) {
+  const reorderEligible = isRouteReorderDraggable(route);
+  const isSelfTarget = activeRouteId === route._id;
+  const { isOver, setNodeRef } = useDroppable({
+    id: toRouteDropId(route._id),
+    disabled: !reorderEligible || isSelfTarget,
+    data: {
+      targetType: "route",
+      routeId: route._id,
+      truckFleetNoStr: route.truckFleetNoStr || "",
+      reorderEligible,
+      orderedRouteIds,
+    } satisfies RouteDropTargetData,
+  });
+  const line =
+    routeInsert && routeInsert.targetRouteId === route._id ? routeInsert.position : null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative rounded-md border border-[var(--card-border)]/70 bg-[var(--card-bg)]/20 ${
+        isOver && reorderEligible && !isSelfTarget ? "ring-1 ring-[#06B6D4]/40" : ""
+      }`}
+    >
+      <RouteCard
+        route={route}
+        boardDate={boardDate}
+        routeNumber={routeNumber}
+        isReordering={isReordering}
+        onReorder={onReorder}
+        isReorderSubmitting={isReorderSubmitting}
+        routeReorderPaused={routeReorderPaused}
+        isLast={isLast}
+        physicalTrailerFleetNo={physicalTrailerFleetNo}
+        pendingLoadId={pendingLoadId}
+      />
+      {line === "before" && (
+        <div className="pointer-events-none absolute inset-x-1 -top-[3px] z-10">
+          <div className="h-[3px] rounded-full bg-[#06B6D4] shadow-[0_0_8px_rgba(6,182,212,0.9)]" />
+        </div>
+      )}
+      {line === "after" && (
+        <div className="pointer-events-none absolute inset-x-1 -bottom-[3px] z-10">
+          <div className="h-[3px] rounded-full bg-[#06B6D4] shadow-[0_0_8px_rgba(6,182,212,0.9)]" />
         </div>
       )}
     </div>

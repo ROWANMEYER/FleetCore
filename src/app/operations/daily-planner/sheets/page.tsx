@@ -8,6 +8,7 @@ import { api} from"@/convex/_generated/api";
 import { Id} from"@/convex/_generated/dataModel";
 import { useAuth, useRegionArg} from"@/src/components/auth/AuthProvider";
 import { calculateLoadAmount, parseNumberSafe, routeRevenue} from"@/convex/utils";
+import { countSheetLoads } from"@/src/lib/sheets/sheetRows";
 import { SkeletonLine, SkeletonKpiGrid} from"@/src/components/common/Skeleton";
 import { EmptyState} from"@/src/components/common/EmptyState";
 import { useToast } from"@/src/components/common/Toast";
@@ -2519,7 +2520,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 
  const dashboardData = useMemo(() => {
  const totalRoutes = filteredRoutes.length;
- const totalLoads = filteredRoutes.reduce((sum, route: any) => sum + (route.loads?.length || 0), 0);
+ const totalLoads = countSheetLoads(filteredRoutes);
  const cleanRoutes = filteredRoutes.filter((route: any) => getRouteRiskStatus(route).level ==="green").length;
  const riskRoutes = filteredRoutes.filter((route: any) => {
  const level = getRouteRiskStatus(route).level;

@@ -1,14 +1,20 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { calculateLoadAmount } from "@/convex/utils";
 import { DriverThumb } from "@/src/components/admin/DriverAvatar";
+import { buildSheetRows } from "@/src/lib/sheets/sheetRows";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface SpreadsheetRow {
   routeId: string;
   loadIndex: number;
+  /** Route identity label (e.g. "R1"); identical for every load row of a route. */
+  routeLabel: string;
+  /** Authoritative Board route order when present (legacy routes omit it). */
+  routeOrder?: number;
+  /** Internal Convex load ID — carried for consumers, never rendered. */
+  loadId?: string;
   truckNo: string;
   trailerNo: string;
   loadNo: string;
@@ -86,15 +92,6 @@ function formatZAR(value: number): string {
   return `R ${integerPart},${parts[1]}`;
 }
 
-function formatDate(isoDate: string): string {
-  if (!isoDate) return "";
-  const d = new Date(isoDate);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = String(d.getFullYear()).padStart(4, "0");
-  return `${day} ${month} ${year}`;
-}
-
 function isShipmentRef(notes: string): boolean {
   if (!notes) return false;
   return /SHIP(?:MENT)?\s*SH?\d+/i.test(notes) || /SHIP(?:MENT)?\s*\w+/i.test(notes) || /SH\d{5,}/i.test(notes);
@@ -124,6 +121,7 @@ interface SortRule {
 const COLUMNS: ColumnDef[] = [
   { key: "truckNo", label: "Truck", defaultWidth: 92, minWidth: 72, sortable: true, align: "left" },
   { key: "trailerNo", label: "Trailer", defaultWidth: 92, minWidth: 72, sortable: true, align: "left" },
+  { key: "routeLabel", label: "Route", defaultWidth: 80, minWidth: 64, sortable: true, align: "left" },
   { key: "loadNo", label: "Load No", defaultWidth: 100, minWidth: 72, sortable: true, align: "left" },
   { key: "date", label: "Date", defaultWidth: 120, minWidth: 82, sortable: true, align: "left" },
   { key: "driverName", label: "Driver", defaultWidth: 160, minWidth: 100, sortable: true, align: "left" },
@@ -641,78 +639,11 @@ export default function SpreadsheetDataTable({
     }
   }, [editingCell]);
 
-  // Flatten routes into per-load rows
+  // Flatten routes into per-load rows (pure transform in
+  // src/lib/sheets/sheetRows.ts — route identity + load numbers, testable,
+  // shared by every consumer of this table).
   const rows: SpreadsheetRow[] = useMemo(() => {
-    if (!routes || routes.length === 0) return [];
-
-    const result: SpreadsheetRow[] = [];
-
-    for (const route of routes) {
-      const loads = route.loads || [];
-      // Route-level metrics shared by every load row: revenue = sum of load
-      // amounts (or the route rate when there are no loads), and R / KM =
-      // revenue ÷ kilometres (0 when KM or revenue is missing).
-      const routeKm = Number(route.kilometers) || 0;
-      const routeRevenue =
-        loads.length === 0
-          ? Number(route.rate) || 0
-          : loads.reduce(
-              (sum: number, l: any) =>
-                sum + calculateLoadAmount(parseNumberSafe(l.quantity), parseNumberSafe(l.rate), l.rateType || "per_unit"),
-              0
-            );
-      const routeRkm = routeKm > 0 && routeRevenue > 0 ? Number((routeRevenue / routeKm).toFixed(2)) : 0;
-      if (loads.length === 0) {
-        // Route with no loads — show as one row
-        result.push({
-          routeId: route._id,
-          loadIndex: -1,
-          truckNo: route.truckFleetNoStr || String(route.truckFleetNo || ""),
-          trailerNo: route.trailerFleetNoStr || String(route.trailerFleetNo || ""),
-          loadNo: "",
-          date: formatDate(route.routeDate),
-          dateIso: route.routeDate || "",
-          driverName: (route.driverName || "").toUpperCase(),
-          driverPhotoUrl: route.driverPhotoUrl || "",
-          origin: (route.fromLocations ?? []).join(", ").toUpperCase(),
-          destination: (route.toLocations ?? []).join(", ").toUpperCase(),
-          customer: route.client || "",
-          amount: Number(route.rate) || 0,
-          rkm: routeRkm,
-          notes: route.notes || "",
-          region: route.region || "",
-        });
-      } else {
-        loads.forEach((load: any, index: number) => {
-          const qty = parseNumberSafe(load.quantity);
-          const rate = parseNumberSafe(load.rate);
-          const amount = calculateLoadAmount(qty, rate, load.rateType || "per_unit");
-
-          result.push({
-            routeId: route._id,
-            loadIndex: index,
-            truckNo: route.truckFleetNoStr || String(route.truckFleetNo || ""),
-            trailerNo: route.trailerFleetNoStr || String(route.trailerFleetNo || ""),
-            loadNo: load.loadId || String(index + 1),
-            date: formatDate(route.routeDate),
-            dateIso: route.routeDate || "",
-            driverName: (route.driverName || "").toUpperCase(),
-            driverPhotoUrl: route.driverPhotoUrl || "",
-            origin: (load.fromLocations ?? []).join(", ").toUpperCase(),
-            destination: (load.toLocations ?? []).join(", ").toUpperCase(),
-            customer: (load.client || "").toUpperCase(),
-            amount,
-            rkm: routeRkm,
-            // Notes are per-load; fall back to the route-wide note so
-            // existing routes keep showing their notes on every row.
-            notes: (load.notes ?? route.notes) || "",
-            region: route.region || "",
-          });
-        });
-      }
-    }
-
-    return result;
+    return buildSheetRows(routes);
   }, [routes]);
 
   // Extract a comparable value for a given sort key (numbers sort numerically,
@@ -732,6 +663,10 @@ export default function SpreadsheetDataTable({
         return row.rkm;
       case "date":
         return row.dateIso || row.date;
+      case "routeLabel":
+        // Numeric route order so R2 sorts after R1; legacy routes (no order)
+        // sort last instead of lexically next to a single-digit route.
+        return row.routeOrder ?? Number.MAX_SAFE_INTEGER;
       default: {
         const v = (row as unknown as Record<string, unknown>)[key];
         return v == null ? "" : String(v).toUpperCase();
@@ -903,6 +838,12 @@ export default function SpreadsheetDataTable({
         return (
           <div className={`px-2 ${rowPad} truncate flex items-center w-full h-full text-[var(--foreground)]`}>
             <span className="truncate" title={row.trailerNo || "—"}>{row.trailerNo || "—"}</span>
+          </div>
+        );
+      case "routeLabel":
+        return (
+          <div className={`px-2 ${rowPad} truncate flex items-center w-full h-full text-[var(--foreground)]`}>
+            <span className="truncate font-medium" title={row.routeLabel || "—"}>{row.routeLabel || "—"}</span>
           </div>
         );
       case "loadNo":

@@ -504,7 +504,10 @@ export const getForSheets = query({
     // Filter out deleted routes + region scope
     const activeRoutes = routes.filter((r) => !(r as any).isDeleted && (!region || r.region === region));
 
-    // Sort by Date -> Truck -> CreatedAt
+    // Sort by Date -> Truck -> RouteOrder (Board-created routes; legacy routes
+    // without routeOrder fall back to CreatedAt) -> CreatedAt. routeOrder is
+    // authoritative for Board routes, so the Sheets view matches the Board even
+    // after a route reorder (reorderRoutes patches routeOrder, not CreatedAt).
     activeRoutes.sort((a, b) => {
       const dateCompare = a.routeDate.localeCompare(b.routeDate);
       if (dateCompare !== 0) return dateCompare;
@@ -515,6 +518,11 @@ export const getForSheets = query({
       if (truckCompare !== 0) {
         return truckCompare;
       }
+
+      const aOrder = a.routeOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.routeOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
       return a.createdAt - b.createdAt;
     });
 

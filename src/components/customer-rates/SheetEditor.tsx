@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { pricingUnits } from "@/convex/rateSheetFields";
 import { formatCurrency } from "@/src/pdf/formatters";
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 
 /**
  * One customer, one table, one Save. Lanes have no separate row and rates are never a draft, so every row here is the live rate.
@@ -36,9 +37,10 @@ function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string
 }
 export { formKey };
 
-export function SheetEditor({ token, sheet }: { token: string; sheet: Sheet }) {
+export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: string; sheet: Sheet; customerName: string; onDeleted: () => void }) {
   const save = useMutation(api.rateSheets.saveLanes);
   const setDefaultUnit = useMutation(api.rateSheets.setDefaultUnit);
+  const deleteSheet = useMutation(api.rateSheets.deleteSheet);
   const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })));
   const [effectiveDate, setEffectiveDate] = useState(sheet.effectiveDate);
   const [notes, setNotes] = useState(sheet.notes);
@@ -49,6 +51,10 @@ export function SheetEditor({ token, sheet }: { token: string; sheet: Sheet }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteWord, setDeleteWord] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const deleteReady = deleteWord.trim() === customerName.trim();
   // The last state the server accepted, so a save with no real edit is recognised here and never sent.
   const [savedKey, setSavedKey] = useState(() => formKey({ effectiveDate: sheet.effectiveDate, notes: sheet.notes, oldDiesel: String(sheet.oldDieselPrice), newDiesel: String(sheet.newDieselPrice),
     lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })) }));
@@ -118,5 +124,37 @@ export function SheetEditor({ token, sheet }: { token: string; sheet: Sheet }) {
       <textarea className={`${input} w-full h-24`} value={notes} onChange={e => { setNotice(""); setNotes(e.target.value); }} placeholder="Anything the customer should read on the PDF." />
       <p className="text-xs text-[var(--nav-text-color)]">Notes save with the rates. Edit a rate and press Save rates to publish both.</p>
     </section>
+    <section className="glass-card rounded-xl p-5 space-y-3 border border-red-500/30">
+      <h2 className="font-semibold text-red-500">Remove these rates</h2>
+      <p className="text-sm text-[var(--nav-text-color)]">Deletes the whole rate sheet for {customerName}: every lane, rate, note and the diesel figures. The customer itself is not touched and a new sheet can be started afterwards. This cannot be undone.</p>
+      <button className="rounded-lg px-4 py-2 text-sm border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-40" onClick={() => { setDeleteWord(""); setError(""); setConfirmDelete(true); }}>Delete rate sheet…</button>
+    </section>
+    <ConfirmDialog
+      open={confirmDelete}
+      title={`Delete the rate sheet for ${customerName}?`}
+      message={`Every lane and rate goes with it, and this cannot be undone.\n\nType "${customerName}" to confirm.`}
+      confirmLabel="Delete rate sheet"
+      variant="danger"
+      loading={deleting}
+      onConfirm={async () => {
+        // The confirm button can briefly render enabled while state settles; the typed name is the real gate, here and on the server.
+        if (!deleteReady) { setError(`Type "${customerName}" exactly to delete this rate sheet.`); return; }
+        setDeleting(true); setError("");
+        try {
+          await deleteSheet({ token, customerId: sheet.customerId, confirmName: deleteWord });
+          setConfirmDelete(false);
+          onDeleted();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not delete the rate sheet.");
+          setConfirmDelete(false);
+        } finally { setDeleting(false); }
+      }}
+      onCancel={() => { if (!deleting) setConfirmDelete(false); }}
+    />
+    {confirmDelete && <div className="max-w-md mx-auto mt-2">
+      <input aria-label="Type the customer name to confirm" className={`${input} w-full`} placeholder={customerName} value={deleteWord} onChange={e => setDeleteWord(e.target.value)} disabled={deleting} />
+      {!deleteReady && <p className="text-xs text-[var(--nav-text-color)] mt-1">Type the customer&apos;s name exactly to enable the delete button.</p>}
+      {error && <p role="alert" className="text-red-500 text-sm mt-1">{error}</p>}
+    </div>}
   </div>;
 }

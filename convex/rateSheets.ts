@@ -130,3 +130,17 @@ export const setDefaultUnit = mutation({
     await ctx.db.patch(sheet._id, { defaultPricingUnit: args.defaultPricingUnit, updatedAt: Date.now(), updatedBy: user._id, updatedByEmail: user.email });
   },
 });
+/**
+ * Permanently removes the customer's rate sheet; the customer record itself is untouched and a new sheet can be started at any time. The confirm word (the customer's exact name) is checked server-side so a deleted customer is a deliberate act, never a slip of a single click.
+ */
+export const deleteSheet = mutation({
+  args: { token: v.string(), customerId: v.id("customers"), confirmName: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.token);
+    const sheet = await requireSheet(ctx, args.customerId);
+    const customer = await ctx.db.get(args.customerId);
+    if (!customer) throw new Error("Customer not found.");
+    if (args.confirmName.trim() !== customer.name.trim()) throw new Error(`Type "${customer.name}" exactly to delete this rate sheet.`);
+    await ctx.db.delete(sheet._id);
+  },
+});

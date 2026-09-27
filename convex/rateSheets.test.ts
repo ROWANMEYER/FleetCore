@@ -20,7 +20,13 @@ function memoryDb() {
       if (!row) throw new Error(`Not found: ${key}`);
       rows.set(key, { ...row, ...value });
     },
-    delete: async (key: string) => { rows.delete(key); },
+    delete: async (key: string) => {
+      rows.delete(key);
+      for (const [table, keys] of tables) {
+        const i = keys.indexOf(key);
+        if (i >= 0) { keys.splice(i, 1); tables.set(table, keys); }
+      }
+    },
     query: (table: string) => {
       const all = () => (tables.get(table) ?? []).map(k => rows.get(k)!);
       const match = (rowsIn: Row[], predicate: (row: Row) => boolean) => ({
@@ -187,5 +193,38 @@ describe("setDefaultUnit", () => {
     expect(h.db.all("rateSheets")[0].defaultPricingUnit).toBe("ton");
     await h.call(sheets.setDefaultUnit, { ...h.args, defaultPricingUnit: "ton" });
     expect(h.db.all("rateSheets")[0].defaultPricingUnit).toBe("ton");
+  });
+});
+
+describe("deleteSheet", () => {
+  it("refuses a non-admin", async () => {
+    const h = await fixture();
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "full" });
+    await expect(h.call(sheets.deleteSheet, { token: "regional", customerId: h.customerId, confirmName: "George Agri" })).rejects.toThrow("Admin access");
+  });
+  it("refuses when the customer has no sheet to delete", async () => {
+    const h = await fixture();
+    await expect(h.call(sheets.deleteSheet, { token: "valid", customerId: h.inactiveId, confirmName: "Dormant Ltd" })).rejects.toThrow("no rate sheet");
+  });
+  it("refuses a wrong, misspelled or differently-cased confirm word", async () => {
+    const h = await fixture();
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "full" });
+    // Surrounding whitespace is trimmed by the server, but case and wording must match exactly.
+    for (const wrong of ["george agri", "George Agri Ltd", "George  Agri", ""])
+      await expect(h.call(sheets.deleteSheet, { token: "valid", customerId: h.customerId, confirmName: wrong })).rejects.toThrow("Type \"George Agri\" exactly");
+    expect(h.db.all("rateSheets")).toHaveLength(1);
+  });
+  it("deletes the sheet, keeps the customer, and the customer can start a fresh sheet", async () => {
+    const h = await fixture();
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "full" });
+    await h.save([h.lane("a", 1500)]);
+    await h.call(sheets.deleteSheet, { token: "valid", customerId: h.customerId, confirmName: "  George Agri  " });
+    expect(h.db.all("rateSheets")).toHaveLength(0);
+    // The customer is untouched and still active.
+    expect(await h.db.get(h.customerId)).toMatchObject({ name: "George Agri", isActive: true });
+    // And a brand new sheet can be started for the same customer.
+    const again = await h.call(sheets.create, { ...h.args, defaultPricingUnit: "ton" });
+    expect(again).toBeTruthy();
+    expect(h.db.all("rateSheets")).toHaveLength(1);
   });
 });

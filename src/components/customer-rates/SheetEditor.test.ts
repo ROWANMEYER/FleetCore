@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sameState } from "@/convex/rateSheets";
-import { formKey, laneProblem, type DraftLane } from "./SheetEditor";
+import { sameState, validDate } from "@/convex/rateSheets";
+import { addedDateProblem, formKey, formatAddedDate, laneProblem, type DraftLane } from "./SheetEditor";
 
 const lane = (patch: Partial<DraftLane> = {}): DraftLane => ({ key: "row-1", id: "", loadingPoint: "George", destination: "Cape Town", pricingUnit: "", rate: "1500", ...patch });
 
@@ -27,6 +27,47 @@ describe("laneProblem", () => {
   it("rejects a rate that is not a number", () => {
     expect(laneProblem(lane({ rate: "abc" }))).toBe("needs a rate of zero or more");
     expect(laneProblem(lane({ rate: "" }))).toBe("needs a rate of zero or more");
+  });
+});
+
+describe("addedDateProblem", () => {
+  it("accepts a real day", () => {
+    expect(addedDateProblem("2026-01-15")).toBeNull();
+  });
+  it("insists on a date, because a sheet with no date cannot say what it is", () => {
+    expect(addedDateProblem("")).toBe("Set the date these rates were added.");
+    expect(addedDateProblem("   ")).toBe("Set the date these rates were added.");
+  });
+  it("rejects a day that does not exist rather than rolling it over", () => {
+    // Date.parse alone accepts this and hands back the 3rd of March.
+    expect(addedDateProblem("2026-02-31")).toBe("Enter a valid date.");
+    expect(addedDateProblem("2026-13-01")).toBe("Enter a valid date.");
+  });
+  it("rejects anything that is not written as a plain day", () => {
+    expect(addedDateProblem("15/01/2026")).toBe("Enter a valid date.");
+    expect(addedDateProblem("2026-1-5")).toBe("Enter a valid date.");
+    expect(addedDateProblem("next tuesday")).toBe("Enter a valid date.");
+  });
+  it("agrees with the server, or a save would be offered here and refused there", () => {
+    const serverAccepts = (value: string) => { try { validDate(value); return true; } catch { return false; } };
+    for (const value of ["", "  ", "2026-01-15", "2026-02-31", "2026-13-01", "nope", "2026-1-5", "15/01/2026"]) {
+      const trimmed = value.trim();
+      expect(addedDateProblem(value) === null).toBe(trimmed !== "" && serverAccepts(trimmed));
+    }
+  });
+});
+
+describe("formatAddedDate", () => {
+  it("reads as a person would write it", () => {
+    expect(formatAddedDate("2026-01-15")).toBe("15 January 2026");
+  });
+  it("does not shift the day, which is what treating the date as UTC would do", () => {
+    // The 1st must not come back as the last day of the month before.
+    expect(formatAddedDate("2026-03-01")).toBe("1 March 2026");
+    expect(formatAddedDate("2026-01-01")).toBe("1 January 2026");
+  });
+  it("falls back to what is stored if it cannot be read", () => {
+    expect(formatAddedDate("not-a-date")).toBe("not-a-date");
   });
 });
 

@@ -158,15 +158,84 @@ describe("saveLanes", () => {
   it("refuses an unknown pricing unit", async () => {
     await expect(h.save([{ ...h.lane("a", 1), pricingUnit: "crate" }])).rejects.toThrow("valid pricing unit");
   });
-  it("refuses a diesel price of zero rather than storing a baseline nothing can divide by", async () => {
-    await expect(h.save([h.lane("a", 1000)], { oldDieselPrice: 0 })).rejects.toThrow("Zero means the price is unknown");
-    await expect(h.save([h.lane("a", 1000)], { newDieselPrice: 0 })).rejects.toThrow("Zero means the price is unknown");
+  it("accepts a diesel price of zero, which is how a sheet that was never given one saves", async () => {
+    await h.save([h.lane("a", 1000)], { oldDieselPrice: 0, newDieselPrice: 0 });
+    expect(h.db.all("rateSheets")[0]).toMatchObject({ oldDieselPrice: 0, newDieselPrice: 0 });
+  });
+  it("still refuses a negative diesel price", async () => {
+    await expect(h.save([h.lane("a", 1000)], { oldDieselPrice: -1 })).rejects.toThrow("valid non-negative amount");
   });
   it("refuses a date that is not a real calendar date", async () => {
-    await expect(h.save([h.lane("a", 1000)], { effectiveDate: "2026-02-31" })).rejects.toThrow("valid effective date");
+    await expect(h.save([h.lane("a", 1000)], { effectiveDate: "2026-02-31" })).rejects.toThrow("valid date");
   });
   it("refuses a sheet that does not exist yet", async () => {
     await expect(h.call(sheets.saveLanes, { token: "valid", customerId: h.inactiveId, effectiveDate: "2026-09-02", notes: "", oldDieselPrice: 20, newDieselPrice: 23, lanes: [h.lane("a", 1)] })).rejects.toThrow("no rate sheet");
+  });
+});
+
+describe("the date the rates were added", () => {
+  let h: Awaited<ReturnType<typeof fixture>>;
+  beforeEach(async () => {
+    h = await fixture();
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "full" });
+  });
+  it("starts out with no date, so the day the sheet was opened is not the day the rates count from", async () => {
+    expect(h.db.all("rateSheets")[0].effectiveDate).toBeUndefined();
+  });
+  it("refuses a first save that does not say what date the rates were added", async () => {
+    await expect(h.save([h.lane("a", 1000)], { effectiveDate: undefined })).rejects.toThrow("Set the date these rates were added");
+    await expect(h.save([h.lane("a", 1000)], { effectiveDate: "   " })).rejects.toThrow("Set the date these rates were added");
+  });
+  it("locks the typed date on the first save", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    expect(h.db.all("rateSheets")[0].effectiveDate).toBe("2026-01-15");
+  });
+  it("dates a lane added later by the sheet, not by the day it was typed in", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    // A month later the editor is read only, so it sends the locked date back with the new lane.
+    const later = new Date();
+    const laterMonth = later.toISOString().slice(0, 5);
+    expect(laterMonth).not.toBe("2026-01");
+    await h.save([h.lane("a", 1200), h.lane("b", 1400)], { effectiveDate: "2026-01-15" });
+    const sheet = h.db.all("rateSheets")[0];
+    expect(sheet.effectiveDate).toBe("2026-01-15");
+    // One date governs the whole sheet, and the later lane is covered by it: no lane carries a date of its own.
+    expect((sheet.lanes as Row[])).toHaveLength(2);
+    expect((sheet.lanes as Row[]).every(l => !("effectiveDate" in l))).toBe(true);
+  });
+  it("moves the stored date when a later save sends a different one, re-dating every lane at once", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    await h.save([h.lane("a", 1200), h.lane("b", 1400)], { effectiveDate: "2026-06-01" });
+    const sheet = h.db.all("rateSheets")[0];
+    expect(sheet.effectiveDate).toBe("2026-06-01");
+    // The save that moved the date still applied its lane changes; one write carries both.
+    expect((sheet.lanes as { rate: number }[]).map(l => l.rate)).toEqual([1200, 1400]);
+  });
+  it("refuses to move the date to a day that does not exist", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    await expect(h.save([h.lane("a", 1200)], { effectiveDate: "2026-02-31" })).rejects.toThrow("valid date");
+    // The refused save must not have half-applied its rate change either.
+    expect(h.db.all("rateSheets")[0].effectiveDate).toBe("2026-01-15");
+    expect((h.db.all("rateSheets")[0].lanes as { rate: number }[])[0].rate).toBe(1000);
+  });
+  it("keeps the stored date when a later save arrives without one, so omission cannot wipe it", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    await h.save([h.lane("a", 1500)], { effectiveDate: undefined });
+    expect(h.db.all("rateSheets")[0].effectiveDate).toBe("2026-01-15");
+    expect((h.db.all("rateSheets")[0].lanes as { rate: number }[])[0].rate).toBe(1500);
+  });
+  it("trims the typed date, so a stray space does not become part of it", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "  2026-01-15  " });
+    expect(h.db.all("rateSheets")[0].effectiveDate).toBe("2026-01-15");
+  });
+  it("accepts a later save that sends the stored date back unchanged", async () => {
+    await h.save([h.lane("a", 1000)], { effectiveDate: "2026-01-15" });
+    await h.save([h.lane("a", 1500)], { effectiveDate: "2026-01-15" });
+    expect((h.db.all("rateSheets")[0].lanes as { rate: number }[])[0].rate).toBe(1500);
+  });
+  it("hands the settled date back so the editor can show exactly what is stored", async () => {
+    const result = await h.call(sheets.saveLanes, { ...h.args, effectiveDate: "  2026-01-15 ", notes: "", oldDieselPrice: 20, newDieselPrice: 23, lanes: [h.lane("a", 1000)] }) as { effectiveDate: string };
+    expect(result.effectiveDate).toBe("2026-01-15");
   });
 });
 

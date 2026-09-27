@@ -10,11 +10,22 @@ interface ModalShellProps {
   className?: string;
   style?: CSSProperties;
   portal?: boolean;
+  /**
+   * Focus the first focusable control instead of the dialog container when opening.
+   * Off by default so existing dialogs keep their current behaviour; a dialog whose
+   * whole point is typing something (a confirmation word) turns it on.
+   */
+  autoFocus?: boolean;
 }
 
-export function ModalShell({ open, onClose, children, className = "", style, portal = false }: ModalShellProps) {
+/** Shared by the focus trap and the autoFocus handover, so both agree on what "focusable" means. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export function ModalShell({ open, onClose, children, className = "", style, portal = false, autoFocus = false }: ModalShellProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const autoFocusRef = useRef(autoFocus);
   // Keep the latest onClose in a ref so the effect below only depends on
   // `open`. Parent components often pass a fresh closure on every render
   // (e.g. () => setX(null) inline) — if that identity were a dependency, the
@@ -27,6 +38,7 @@ export function ModalShell({ open, onClose, children, className = "", style, por
   // react-hooks/refs rule forbids writing refs during render).
   useEffect(() => {
     onCloseRef.current = onClose;
+    autoFocusRef.current = autoFocus;
   });
 
   useEffect(() => {
@@ -41,9 +53,7 @@ export function ModalShell({ open, onClose, children, className = "", style, por
       }
 
       if (e.key === "Tab" && modalRef.current) {
-        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
         if (focusable.length === 0) return;
 
         const first = focusable[0];
@@ -65,7 +75,11 @@ export function ModalShell({ open, onClose, children, className = "", style, por
 
     document.addEventListener("keydown", handleKeyDown);
 
-    setTimeout(() => modalRef.current?.focus(), 0);
+    setTimeout(() => {
+      if (!modalRef.current) return;
+      if (!autoFocusRef.current) { modalRef.current.focus(); return; }
+      (modalRef.current.querySelector<HTMLElement>(FOCUSABLE) ?? modalRef.current).focus();
+    }, 0);
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);

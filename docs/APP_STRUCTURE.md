@@ -164,7 +164,7 @@ fleetcor/
 | `/operations/daily-planner/sheets` | Sheets view (collapsed summary + expansion; loads imported via `ImportLoadsModal` — not a route) |
 | `/operations/daily-planner/edit/[routeId]` | Edit route |
 | `/operations/combinations` | Truck-trailer combo management |
-| `/operations/fuel` | Fuel tracking |
+| `/operations/fuel` | Fuel composition — the diesel price history, one row per effective date, with the change and percentage derived from the previous price and an optional manually entered composition percentage |
 | `/operations/quicksend` | QuickSend report |
 | `/operations/swaps/history` | Trailer swap history |
 | `/operations/swaps/trailers` | Current trailer assignments |

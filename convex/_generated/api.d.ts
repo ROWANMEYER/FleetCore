@@ -35,6 +35,8 @@ import type * as fleet from "../fleet.js";
 import type * as fleetImport from "../fleetImport.js";
 import type * as fleetSetup from "../fleetSetup.js";
 import type * as fleetStatus from "../fleetStatus.js";
+import type * as fuelPriceFields from "../fuelPriceFields.js";
+import type * as fuelPrices from "../fuelPrices.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as invoices from "../invoices.js";
@@ -100,6 +102,8 @@ declare const fullApi: ApiFromModules<{
   fleetImport: typeof fleetImport;
   fleetSetup: typeof fleetSetup;
   fleetStatus: typeof fleetStatus;
+  fuelPriceFields: typeof fuelPriceFields;
+  fuelPrices: typeof fuelPrices;
   health: typeof health;
   http: typeof http;
   invoices: typeof invoices;

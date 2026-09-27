@@ -3,8 +3,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
-import { pricingUnits } from "@/convex/rateSheetFields";
-import { formatCurrency } from "@/src/pdf/formatters";
+import { pricingUnits, validDay } from "@/convex/rateSheetFields";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 
 /**
@@ -28,6 +27,22 @@ export function laneProblem(lane: DraftLane): string | null {
 }
 /** Rounds the way the server does, so "1500.00" and 1500 are the same value to both sides. */
 const round2 = (raw: string) => { const n = Number(raw.trim()); return Number.isFinite(n) ? Math.round(n * 100) / 100 : raw.trim(); };
+
+/**
+ * Why the added date is not usable yet, or null when it is. Only a sheet that has never been saved cares: once a date is locked the field is read only, so there is nothing left to check.
+ */
+export function addedDateProblem(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return "Set the date these rates were added.";
+  return validDay(value) ? null : "Enter a valid date.";
+}
+/** The stored date as a person would read it, falling back to what is actually stored if it is somehow unreadable. */
+export function formatAddedDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    : iso;
+}
 /**
  * Everything the server compares when deciding whether a save changed anything, and nothing else. Lane ids are deliberately excluded: the server mints them itself, so including them would make a freshly saved sheet look edited.
  */
@@ -39,14 +54,9 @@ export { formKey };
 
 export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: string; sheet: Sheet; customerName: string; onDeleted: () => void }) {
   const save = useMutation(api.rateSheets.saveLanes);
-  const setDefaultUnit = useMutation(api.rateSheets.setDefaultUnit);
   const deleteSheet = useMutation(api.rateSheets.deleteSheet);
   const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })));
-  const [effectiveDate, setEffectiveDate] = useState(sheet.effectiveDate);
   const [notes, setNotes] = useState(sheet.notes);
-  const [oldDiesel, setOldDiesel] = useState(String(sheet.oldDieselPrice));
-  const [newDiesel, setNewDiesel] = useState(String(sheet.newDieselPrice));
-  const [defaultUnit, setDefaultUnitValue] = useState(sheet.defaultPricingUnit);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState("");
@@ -54,28 +64,47 @@ export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteWord, setDeleteWord] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const deleteReady = deleteWord.trim() === customerName.trim();
+  // The name is the key: an empty customerName must not be satisfied by an empty field, or the gate would be open before the user typed anything.
+  const deleteReady = customerName.trim().length > 0 && deleteWord.trim() === customerName.trim();
+  /**
+   * The date the rates count from. It is set by hand and every save re-sends it, so changing it and saving moves the whole sheet — there is no separate lock step.
+   */
+  const [addedDate, setAddedDate] = useState(sheet.effectiveDate ?? "");
+  const dateProblem = addedDateProblem(addedDate);
+  // A saved date is shown big and only opened for editing on demand; a sheet with no date yet goes straight to the field.
+  const [adjustingDate, setAdjustingDate] = useState(false);
+  const dateSaved = sheet.effectiveDate && !adjustingDate;
+  const openDateEditor = () => { setNotice(""); setError(""); setAddedDate(sheet.effectiveDate ?? ""); setAdjustingDate(true); };
+  const closeDateEditor = () => { setNotice(""); setError(""); setAddedDate(sheet.effectiveDate ?? ""); setAdjustingDate(false); };
+  /**
+   * The diesel prices are not editable here yet, so they are read straight off the sheet and sent back untouched rather than being held in state that could drift from the server's copy.
+   */
+  const carried = { effectiveDate: addedDate, oldDiesel: String(sheet.oldDieselPrice), newDiesel: String(sheet.newDieselPrice) };
   // The last state the server accepted, so a save with no real edit is recognised here and never sent.
-  const [savedKey, setSavedKey] = useState(() => formKey({ effectiveDate: sheet.effectiveDate, notes: sheet.notes, oldDiesel: String(sheet.oldDieselPrice), newDiesel: String(sheet.newDieselPrice),
+  const [savedKey, setSavedKey] = useState(() => formKey({ ...carried, notes: sheet.notes,
     lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })) }));
   const unitOptions = pricingUnits;
   const edit = (key: string, patch: Partial<DraftLane>) => { setNotice(""); setLanes(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r)); };
-  const movement = (Number(newDiesel) || 0) - (Number(oldDiesel) || 0);
   const problems = lanes.map((lane, index) => ({ index, problem: laneProblem(lane) })).filter(p => p.problem);
-  const clean = formKey({ effectiveDate, notes, oldDiesel, newDiesel, lanes }) === savedKey;
+  const clean = formKey({ ...carried, notes, lanes }) === savedKey;
 
   async function saveSheet() {
     // Checked here so one unfinished row cannot take the rest of the table down with it.
     if (problems.length) { setSaved(""); setNotice(""); setError(`${problems.length} lane${problems.length === 1 ? "" : "s"} still to finish: ${problems.map(p => `row ${p.index + 1} ${p.problem}`).join("; ")}. Finish or remove ${problems.length === 1 ? "it" : "them"}, then save.`); return; }
+    if (dateProblem) { setSaved(""); setNotice(""); setError(dateProblem); return; }
     if (clean) { setError(""); setSaved(""); setNotice("No changes to save."); return; }
     setBusy(true); setError(""); setSaved(""); setNotice("");
     try {
-      const request = { token, customerId: sheet.customerId, effectiveDate, notes, oldDieselPrice: Number(oldDiesel), newDieselPrice: Number(newDiesel),
+      const request = { token, customerId: sheet.customerId, effectiveDate: addedDate, notes, oldDieselPrice: sheet.oldDieselPrice, newDieselPrice: sheet.newDieselPrice,
         lanes: lanes.map((l, index) => ({ id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, ...(l.pricingUnit ? { pricingUnit: l.pricingUnit } : {}), rate: Number(l.rate), sortOrder: index })) };
       const saved = await save(request);
       // The server mints the ids for newly added lanes and returns them in the order saved, so each row picks up its real id and later saves keep it.
       setLanes(rows => rows.map((row, index) => saved.lanes[index] ? { ...row, id: saved.lanes[index].id } : row));
-      setSavedKey(formKey({ effectiveDate, notes, oldDiesel, newDiesel, lanes }));
+      // The date the server settled on, which trims and validates what was typed. Taking it rather than assuming keeps the field honest about what is stored.
+      if (saved.effectiveDate) setAddedDate(saved.effectiveDate);
+      // Back to the big display: the date is settled until the reader asks to move it again.
+      setAdjustingDate(false);
+      setSavedKey(formKey({ ...carried, notes, lanes }));
       setSaved("Saved. These rates are live.");
     } catch (e) {
       // The server is the authority on "nothing changed". If it says so, that is not a failure worth shouting about.
@@ -84,15 +113,33 @@ export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: 
     } finally { setBusy(false); }
   }
   return <div className="space-y-6">
+    <section className="glass-card rounded-xl p-5 space-y-2">
+      <h2 className="font-semibold">Date added</h2>
+      {dateSaved
+        ? <>
+          <p className="text-2xl sm:text-3xl font-black tabular-nums leading-none">{formatAddedDate(sheet.effectiveDate!)}</p>
+          <p className="text-xs text-[var(--nav-text-color)]">Every lane on this sheet is dated to this day.</p>
+          <div><button className={button} onClick={openDateEditor}>Adjust date</button></div>
+        </>
+        : <label className="block text-sm">
+          <span className="font-medium">Date these rates were added</span>
+          <input
+            type="date"
+            className={`${input} w-full mt-1`}
+            value={addedDate}
+            onChange={e => { setNotice(""); setAddedDate(e.target.value); }}
+            aria-invalid={!!dateProblem}
+            aria-describedby={dateProblem ? "added-date-error" : "added-date-hint"}
+          />
+          {dateProblem
+            ? <span id="added-date-error" className="mt-1 block text-xs text-red-500">{dateProblem}</span>
+            : <span id="added-date-hint" className="mt-1 block text-xs text-[var(--nav-text-color)]">Changing this and saving re-dates every lane on the sheet.</span>}
+          {sheet.effectiveDate
+            ? <div className="mt-2"><button className={button} onClick={closeDateEditor} disabled={busy}>Cancel</button></div>
+            : null}
+        </label>}
+    </section>
     <section className="glass-card rounded-xl p-5 space-y-4">
-      <div className="flex flex-wrap items-end gap-4">
-        <label>Default unit<select className={`${input} block w-32`} value={defaultUnit} onChange={async e => { const next = e.target.value as typeof defaultUnit; setDefaultUnitValue(next); setError(""); try { await setDefaultUnit({ token, customerId: sheet.customerId, defaultPricingUnit: next }); } catch (err) { setError(err instanceof Error ? err.message : "Could not change the default unit."); } }}>{unitOptions.map(u => <option key={u} value={u}>{u}</option>)}</select></label>
-        <label>Effective date<input type="date" className={`${input} block`} value={effectiveDate} onChange={e => { setNotice(""); setEffectiveDate(e.target.value); }} /></label>
-        <label>Rates based on diesel, old<input type="number" min="0.01" step="0.01" className={`${input} block w-36`} value={oldDiesel} onChange={e => { setNotice(""); setOldDiesel(e.target.value); }} /></label>
-        <label>New<input type="number" min="0.01" step="0.01" className={`${input} block w-36`} value={newDiesel} onChange={e => { setNotice(""); setNewDiesel(e.target.value); }} /></label>
-        {movement !== 0 && <p className={`text-sm ${movement > 0 ? "text-red-500" : "text-emerald-400"}`}>Diesel {movement > 0 ? "up" : "down"} {formatCurrency(Math.abs(movement))}</p>}
-        {(Number(oldDiesel) === 0 || Number(newDiesel) === 0) && <p role="alert" className="text-red-500 text-sm">Enter the diesel prices these rates are based on. Zero means the price is unknown, and no fuel adjustment can be calculated from it.</p>}
-      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead><tr><th className="p-2">Loading point</th><th className="p-2">Destination</th><th className="p-2">Unit</th><th className="p-2">Rate</th><th /></tr></thead>
@@ -126,7 +173,7 @@ export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: 
     </section>
     <section className="glass-card rounded-xl p-5 space-y-3 border border-red-500/30">
       <h2 className="font-semibold text-red-500">Remove these rates</h2>
-      <p className="text-sm text-[var(--nav-text-color)]">Deletes the whole rate sheet for {customerName}: every lane, rate, note and the diesel figures. The customer itself is not touched and a new sheet can be started afterwards. This cannot be undone.</p>
+      <p className="text-sm text-[var(--nav-text-color)]">Deletes the whole rate sheet for {customerName}: every lane, rate and the notes. The customer itself is not touched and a new sheet can be started afterwards. This cannot be undone.</p>
       <button className="rounded-lg px-4 py-2 text-sm border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-40" onClick={() => { setDeleteWord(""); setError(""); setConfirmDelete(true); }}>Delete rate sheet…</button>
     </section>
     <ConfirmDialog
@@ -136,8 +183,10 @@ export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: 
       confirmLabel="Delete rate sheet"
       variant="danger"
       loading={deleting}
+      confirmDisabled={!deleteReady}
+      autoFocus
       onConfirm={async () => {
-        // The confirm button can briefly render enabled while state settles; the typed name is the real gate, here and on the server.
+        // The typed name is the real gate, here and on the server; the disabled button is only the visible half of it.
         if (!deleteReady) { setError(`Type "${customerName}" exactly to delete this rate sheet.`); return; }
         setDeleting(true); setError("");
         try {
@@ -145,16 +194,16 @@ export function SheetEditor({ token, sheet, customerName, onDeleted }: { token: 
           setConfirmDelete(false);
           onDeleted();
         } catch (err) {
+          // The dialog stays open so the reason sits next to the field the user still has to fix.
           setError(err instanceof Error ? err.message : "Could not delete the rate sheet.");
-          setConfirmDelete(false);
         } finally { setDeleting(false); }
       }}
-      onCancel={() => { if (!deleting) setConfirmDelete(false); }}
-    />
-    {confirmDelete && <div className="max-w-md mx-auto mt-2">
-      <input aria-label="Type the customer name to confirm" className={`${input} w-full`} placeholder={customerName} value={deleteWord} onChange={e => setDeleteWord(e.target.value)} disabled={deleting} />
-      {!deleteReady && <p className="text-xs text-[var(--nav-text-color)] mt-1">Type the customer&apos;s name exactly to enable the delete button.</p>}
+      onCancel={() => { if (!deleting) { setConfirmDelete(false); setError(""); } }}
+    >
+      {/* Inside the dialog, not after it: the backdrop is fixed over the page, so a field rendered outside is invisible and unreachable. */}
+      <input aria-label={`Type ${customerName} to confirm`} className={`${input} w-full`} placeholder={customerName} value={deleteWord} onChange={e => setDeleteWord(e.target.value)} disabled={deleting} />
+      <p className="text-xs text-[var(--nav-text-color)] mt-1">{deleteReady ? "This matches the customer's name. The delete button is now live." : "Type the customer's name exactly to enable the delete button."}</p>
       {error && <p role="alert" className="text-red-500 text-sm mt-1">{error}</p>}
-    </div>}
+    </ConfirmDialog>
   </div>;
 }

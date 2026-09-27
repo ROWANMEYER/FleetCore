@@ -7,7 +7,8 @@ export default defineSchema({
   rateSheets: defineTable({
     customerId: v.id("customers"),
     defaultPricingUnit: pricingUnit,
-    effectiveDate: v.string(),
+    /** The day these rates were added, set by hand and adjustable on any save. Absent means it has not been set yet. */
+    effectiveDate: v.optional(v.string()),
     notes: v.string(),
     oldDieselPrice: v.number(),
     newDieselPrice: v.number(),
@@ -19,6 +20,20 @@ export default defineSchema({
     updatedBy: v.id("users"),
     updatedByEmail: v.string(),
   }).index("by_customer", ["customerId"]),
+  /**
+   * The diesel price history: what a litre cost on each date it changed, and the composition recorded against it. The movement in rand and the percentage are derived from the price before it on read, so neither is stored and neither can contradict the prices.
+   */
+  fuelPrices: defineTable({
+    effectiveDate: v.string(),
+    pricePerLitre: v.number(),
+    /** Optional because a price can be recorded without one. Absent means not recorded, which is not the same as zero. */
+    compositionPercent: v.optional(v.number()),
+    notes: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+    updatedByEmail: v.string(),
+  }).index("by_effectiveDate", ["effectiveDate"]),
   adminSettings: defineTable({
     mode: v.string(),
     passwordHash: v.string(),

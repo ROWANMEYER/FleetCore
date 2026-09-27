@@ -1,5 +1,32 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-09-27 — The date a rate sheet was added can be corrected
+
+The "Date added" on a rate sheet was claimed on the first save and then locked:
+`lockAddedDate` refused any later change outright and the editor swapped the
+field for read-only text. That protected the date from accidents, but it also
+meant a typo on day one — or a customer whose rates were actually agreed a week
+earlier — was permanent. The only way out was deleting the whole sheet and
+typing every lane again.
+
+The date is now adjustable: the field stays editable for the life of the sheet,
+and changing it and saving re-dates every lane on the sheet in the same single
+write that saves the rates. `lockAddedDate` is replaced by `settleAddedDate`,
+which validates the incoming date like a first claim every time and keeps the
+stored one when a save arrives without a date, so omission can never wipe the
+field. The one-date-per-sheet design is unchanged — no lane carries a date of
+its own, and moving the date moves them all at once.
+
+In the editor the saved date fills the card: it prints large in the same style
+as the fuel page's stat cards, with an **Adjust date** button that opens the
+field for editing (and a Cancel that puts it back untouched). A sheet with no
+date yet goes straight to the field.
+
+The guard-rail that remains is the same one the fuel page uses: a date must be
+a real calendar day, and the editor tracks the stored value so changing nothing
+is still not a save. Backend date tests rewritten for the new rule; 784 tests
+pass; TypeScript and targeted lint pass.
+
 ## 2026-09-27 — The rate system is one table and one screen
 
 The rate master had grown to nine tables, a draft, a review screen, an approval
@@ -311,7 +338,7 @@ fleetcor/
 | `/operations/daily-planner/sheets` | Sheets view (collapsed summary rows + chevron expansion; loads imported via an `ImportLoadsModal` — not a separate route) |
 | `/operations/daily-planner/edit/[routeId]` | Route edit page |
 | `/operations/combinations` | Truck–trailer combination management |
-| `/operations/fuel` | Fuel tracking |
+| `/operations/fuel` | Fuel composition — the diesel price history, one row per effective date, with the change and percentage derived from the previous price and an optional manually entered composition percentage |
 | `/operations/quicksend` | QuickSend email report |
 | `/operations/swaps/history` | Trailer swap history |
 | `/operations/swaps/trailers` | Current trailer assignments |

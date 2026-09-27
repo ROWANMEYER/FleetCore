@@ -15,7 +15,8 @@ export interface FilterableCustomer {
 export interface SheetSummary {
   customerId: Id<"customers">;
   laneCount: number;
-  effectiveDate: string;
+  /** Absent until the first save claims it, which is why the list can show a sheet with no date yet. */
+  effectiveDate?: string;
   updatedAt: number;
 }
 

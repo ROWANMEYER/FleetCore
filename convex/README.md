@@ -40,6 +40,7 @@ mutations, actions, internal functions) with the database schema in
 | Fleet master data | `fleet.ts`, `trucks.ts`, `trailers.ts`, `drivers.ts` |
 | Subcontractors | `subcontractors.ts` |
 | Customers | `customers.ts` |
+| Fuel | `fuelPrices.ts` — the diesel price history, one row per effective date; the change in rand and the percentage are derived from the previous price (`fuelPriceFields.ts` = derivation + validation) |
 | Dashboard analytics | `dashboard.ts` |
 | Birthdays | `birthdays.ts` (pure helpers unit-tested) |
 | Invoices (storage) | `invoices.ts` — numbering + record storage; PDF rendered client-side in `src/pdf/` |

@@ -1,7 +1,7 @@
 import { v, type Infer } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { laneField, pricingUnit, pricingUnits, type PricingUnit } from "./rateSheetFields";
+import { laneField, pricingUnit, pricingUnits, validDay, type PricingUnit } from "./rateSheetFields";
 
 /**
  * A rate sheet is the customer's whole live rate card in one document: the lanes, their rates, the notes and the diesel the rates are priced against. One row, one write, no separate version to fall out of sync with.
@@ -9,7 +9,7 @@ import { laneField, pricingUnit, pricingUnits, type PricingUnit } from "./rateSh
  * There is no history and no approval. Saving replaces what is live.
  */
 export type SheetLane = Infer<typeof laneField>;
-export type SheetState = { effectiveDate: string; notes: string; oldDieselPrice: number; newDieselPrice: number; lanes: SheetLane[] };
+export type SheetState = { effectiveDate?: string; notes: string; oldDieselPrice: number; newDieselPrice: number; lanes: SheetLane[] };
 export type Sheet = Doc<"rateSheets">;
 
 const MAX_LANES = 200, MAX_LANE_TEXT = 160;
@@ -19,13 +19,38 @@ export function money(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 export function validDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) throw new Error("Enter a valid effective date.");
+  if (!validDay(value)) throw new Error("Enter a valid date.");
 }
 /** Two lanes are the same lane when they say the same thing, whatever the spacing or capitalisation. */
 export function laneKey(from: string, to: string) {
   return [from, to].map(s => s.trim().replace(/\s+/g, " ").toLowerCase()).join("\u0000");
 }
-const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * The day the rates were added: claimed on the first save, and movable after that.
+ *
+ * A sheet starts without one on purpose. It used to be stamped with whatever day
+ * somebody pressed "Add rates", which is often not the day the rates are meant
+ * to be counted from. The reader types the date they want, and the first save
+ * stores it.
+ *
+ * One date governs the whole sheet: every lane lives in this one document and
+ * reads this one field, so there is nothing to keep in step — moving the date
+ * re-dates every lane at once, in the same single write that saves the rates.
+ * Later lanes are dated by the sheet rather than by the day they happened to be
+ * typed in.
+ *
+ * A save that arrives without a date keeps the stored one rather than wiping it,
+ * so omission can never clear the field; only an explicit new date moves it, and
+ * it is validated like a first claim every time.
+ */
+export function settleAddedDate(stored: string | undefined, incoming: string | undefined): string {
+  const claimed = (incoming ?? "").trim();
+  if (stored !== undefined && !claimed) return stored;
+  if (!claimed) throw new Error("Set the date these rates were added before saving.");
+  validDate(claimed);
+  return claimed;
+}
 
 /** The signed-in admin, from the session token. Rates are managed by one role only. */
 async function requireAdmin(ctx: QueryCtx, token: string) {
@@ -64,10 +89,12 @@ export function normalizeLanes(input: SheetLane[], previous: SheetLane[]): Sheet
     return { id: lane.id && previous.some(p => p.id === lane.id) ? lane.id : crypto.randomUUID().slice(0, 8), loadingPoint, destination, ...(lane.pricingUnit ? { pricingUnit: lane.pricingUnit } : {}), rate: money(lane.rate), sortOrder: index };
   });
 }
+/**
+ * Zero is allowed: it means no diesel price was ever recorded, not that fuel was free. The editor does not expose these fields yet, so a sheet created today has never had a diesel price and must still be savable.
+ * `money()` still guards the number itself, so a negative price or a runaway one is refused.
+ */
 function validateDiesel(oldDieselPrice: number, newDieselPrice: number) {
   money(oldDieselPrice); money(newDieselPrice);
-  // Zero means the price was never recorded, not that fuel was free.
-  if (oldDieselPrice <= 0 || newDieselPrice <= 0) throw new Error("Enter the diesel prices these rates are based on. Zero means the price is unknown.");
 }
 /** Everything the sheet holds apart from its lanes, compared so a save with no real edit is refused. */
 export function sameState(a: SheetState, b: SheetState) {
@@ -105,20 +132,23 @@ export const create = mutation({
     const existing = await getSheet(ctx, args.customerId);
     if (existing) return existing._id;
     const now = Date.now();
-    return ctx.db.insert("rateSheets", { customerId: args.customerId, defaultPricingUnit: args.defaultPricingUnit, effectiveDate: today(), notes: "", oldDieselPrice: 0, newDieselPrice: 0, lanes: [], contacts: [], revision: 0, createdAt: now, updatedAt: now, updatedBy: user._id, updatedByEmail: user.email });
+    // No date yet on purpose: it is claimed by hand on the first save, not stamped from the day this sheet was opened.
+    return ctx.db.insert("rateSheets", { customerId: args.customerId, defaultPricingUnit: args.defaultPricingUnit, notes: "", oldDieselPrice: 0, newDieselPrice: 0, lanes: [], contacts: [], revision: 0, createdAt: now, updatedAt: now, updatedBy: user._id, updatedByEmail: user.email });
   },
 });
 export const saveLanes = mutation({
-  args: { token: v.string(), customerId: v.id("customers"), effectiveDate: v.string(), notes: v.string(), oldDieselPrice: v.number(), newDieselPrice: v.number(), lanes: v.array(laneField) },
+  args: { token: v.string(), customerId: v.id("customers"), effectiveDate: v.optional(v.string()), notes: v.string(), oldDieselPrice: v.number(), newDieselPrice: v.number(), lanes: v.array(laneField) },
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx, args.token);
     const sheet = await requireSheet(ctx, args.customerId);
-    validDate(args.effectiveDate); validateDiesel(args.oldDieselPrice, args.newDieselPrice);
-    const after: SheetState = { effectiveDate: args.effectiveDate, notes: args.notes, oldDieselPrice: money(args.oldDieselPrice), newDieselPrice: money(args.newDieselPrice), lanes: normalizeLanes(args.lanes, sheet.lanes) };
+    // Claimed on the very first save, and a later save can move it, so a lane added months later still lands on the sheet's date.
+    const effectiveDate = settleAddedDate(sheet.effectiveDate, args.effectiveDate);
+    validateDiesel(args.oldDieselPrice, args.newDieselPrice);
+    const after: SheetState = { effectiveDate, notes: args.notes, oldDieselPrice: money(args.oldDieselPrice), newDieselPrice: money(args.newDieselPrice), lanes: normalizeLanes(args.lanes, sheet.lanes) };
     if (sameState(stateOf(sheet), after)) throw new Error("Nothing changed. Edit a rate, lane or date first.");
     await ctx.db.patch(sheet._id, { ...after, updatedAt: Date.now(), updatedBy: user._id, updatedByEmail: user.email });
     // Lane ids for newly added rows are minted here, so the saved order is handed back and the browser can adopt them. Without this every later save would mint a fresh id for the same lane.
-    return { lanes: after.lanes };
+    return { lanes: after.lanes, effectiveDate };
   },
 });
 export const setDefaultUnit = mutation({

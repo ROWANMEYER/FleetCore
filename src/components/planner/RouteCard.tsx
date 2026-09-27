@@ -241,7 +241,7 @@ export default function RouteCard({
 
       {/* Deallocate error */}
       {deallocError && (
-        <div className="mt-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded">
+        <div className="mt-1.5 text-[10px] text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-2 py-1 rounded">
           {deallocError}
         </div>
       )}
@@ -384,7 +384,7 @@ function RouteLoadRow({
           <button
             onClick={onReturn}
             disabled={deallocating}
-            className="text-[10px] font-semibold text-red-500 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+            className="text-[10px] font-semibold text-[var(--danger-text)] hover:opacity-80 px-1.5 py-0.5 rounded hover:bg-[var(--danger-surface)] transition-colors disabled:opacity-50"
           >
             Return
           </button>

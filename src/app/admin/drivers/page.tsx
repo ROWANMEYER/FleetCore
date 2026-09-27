@@ -27,8 +27,8 @@ function OwnerBadge({ sub, subStatus }: { sub?: { _id: string; companyName: stri
         </span>
         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold`}
           style={{
-            backgroundColor: subStatus === "inactive" ? "var(--card-border)" : "var(--color-primary)",
-            color: "#fff",
+            backgroundColor: subStatus === "inactive" ? "var(--table-row-header)" : "var(--color-primary)",
+            color: subStatus === "inactive" ? "var(--text-secondary)" : "#fff",
           }}>
           {subStatus === "inactive" ? "Sub Inactive" : "Sub Active"}
         </span>
@@ -96,8 +96,8 @@ function StatusBadge({ status }: { status?: string }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold`}
       style={{
-        backgroundColor: status === "inactive" ? "var(--card-border)" : "var(--color-accent-emerald)",
-        color: "#fff",
+        backgroundColor: status === "inactive" ? "var(--table-row-header)" : "var(--color-accent-emerald)",
+        color: status === "inactive" ? "var(--text-secondary)" : "#fff",
       }}>
       {status === "inactive" ? "Inactive" : "Active"}
     </span>

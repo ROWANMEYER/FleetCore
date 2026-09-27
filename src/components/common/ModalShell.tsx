@@ -76,12 +76,12 @@ export function ModalShell({ open, onClose, children, className = "", style, por
   if (!open) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-backdrop)] backdrop-blur-sm">
       <div
         ref={modalRef}
         tabIndex={-1}
         style={style}
-        className={`bg-[var(--background)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none ${className}`}
+        className={`bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none ${className}`}
       >
         {children}
       </div>
@@ -125,10 +125,10 @@ export function SlideInPanel({ open, onClose, children, className = "" }: ModalS
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="min-w-[20%] flex-1 bg-black/60 cursor-pointer" onClick={onClose} />
+      <div className="min-w-[20%] flex-1 bg-[var(--overlay-backdrop)] cursor-pointer" onClick={onClose} />
       <div
         ref={panelRef}
-        className={`w-full max-w-[600px] sm:w-[600px] bg-[var(--background)] shadow-2xl border-l border-[var(--card-border)] h-full overflow-y-auto ${className}`}
+        className={`w-full max-w-[600px] sm:w-[600px] bg-[var(--card-bg)] shadow-2xl border-l border-[var(--card-border)] h-full overflow-y-auto ${className}`}
       >
         {children}
       </div>

@@ -147,24 +147,24 @@ function ExportDropdown({
  onClick={() => { onExport('excel'); setIsOpen(false);}}
  className="w-full text-left px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--card-bg)]/80 flex items-center gap-2"
  >
- <span className="text-green-600 font-bold">xlsx</span> Excel
+ <span className="text-[var(--success-text)] font-bold">xlsx</span> Excel
  </button>
  <button
  onClick={() => { onExport('csv'); setIsOpen(false);}}
  className="w-full text-left px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--card-bg)]/80 flex items-center gap-2"
- >  <span className="text-blue-600 font-bold">csv</span> CSV
+ >  <span className="text-[var(--info-text)] font-bold">csv</span> CSV
  </button>
  <button
  onClick={() => { onExport('json'); setIsOpen(false);}}
  className="w-full text-left px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--card-bg)]/80 flex items-center gap-2"
  >
- <span className="text-yellow-600 font-bold">json</span> JSON
+ <span className="text-[var(--warning-text)] font-bold">json</span> JSON
  </button>
  <button
  onClick={() => { onExport('pdf'); setIsOpen(false);}}
  className="w-full text-left px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-[var(--card-bg)]/80 flex items-center gap-2"
  >
- <span className="text-red-600 font-bold">pdf</span> PDF (with KPIs & Charts)
+ <span className="text-[var(--danger-text)] font-bold">pdf</span> PDF (with KPIs & Charts)
  </button>
  </div>
  </>
@@ -778,7 +778,7 @@ function RouteDetailsCard({
  EDIT
  </button>
  <button onClick={() => onDelete(route._id)} disabled={actionLoading === route._id}
- className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40">
+  className="w-full sm:w-auto px-4 py-2.5 text-sm font-bold border border-[var(--danger-border)] text-[var(--danger-text)] rounded-lg hover:bg-[var(--danger-surface)] disabled:opacity-40">
  DELETE
  </button>
  </div>
@@ -964,7 +964,7 @@ function RouteDetailsCard({
  </div>
 
  {route.notes && (
- <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+  <div className="bg-[var(--warning-surface)] border border-[var(--warning-border)] rounded-xl px-4 py-3 text-xs text-[var(--warning-text)]">
  <span className="font-bold">Notes: </span>{route.notes}
  </div>
 )}
@@ -2286,7 +2286,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  case"completed":
  return (
  <div className="flex flex-col items-end gap-1">
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--success-surface)] text-[var(--success-text)]">
  Completed
  </span>
  {routeId && (
@@ -2321,7 +2321,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  default:
  return (
  <div className="flex flex-col items-end gap-1">
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--info-surface)] text-[var(--info-text)]">
  Planned
  </span>
  {routeId && (
@@ -2513,7 +2513,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
 )}
 
  {isRangeInvalid && (
- <span className="text-[11px] font-medium text-red-600">Invalid range</span>
+ <span className="text-[11px] font-medium text-[var(--danger-text)]">Invalid range</span>
 )}
  </div>
 );
@@ -3185,14 +3185,14 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
              <button
                onClick={confirmDialog.onConfirm}
                disabled={confirmDialog.isLoading}
-               className={`px-4 py-2 text-sm font-medium text-white rounded-md shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 ${
-                 confirmDialog.confirmStyle === "danger" ? "bg-red-600 hover:bg-red-700 focus:ring-red-500" :
-                 confirmDialog.confirmStyle === "neutral" ? "bg-[var(--card-bg)] hover:bg-black focus:ring-gray-500" :
-                 "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm hover:opacity-90 focus:ring-[#06B6D4]"
-               }`}
-             >
-               {confirmDialog.isLoading && (
-                 <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                className={`px-4 py-2 text-sm font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 ${
+                  confirmDialog.confirmStyle === "danger" ? "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" :
+                  confirmDialog.confirmStyle === "neutral" ? "bg-[var(--card-bg)] text-[var(--foreground)] border border-[var(--card-border)] hover:bg-[var(--surface-sunken)] focus:ring-[#06B6D4]" :
+                  "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm hover:opacity-90 focus:ring-[#06B6D4]"
+                }`}
+              >
+                {confirmDialog.isLoading && (
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                  </svg>
@@ -3340,7 +3340,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  return (
  <div className="h-full min-h-0 flex flex-col relative overflow-x-clip">
  {isOffline && (
- <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 shadow-sm">
+  <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-[var(--warning-border)] bg-[var(--warning-surface)] px-3 py-2 text-xs font-medium text-[var(--warning-text)] shadow-sm">
  <span aria-hidden>📴</span>
  <span>
  Offline — {cachedRoutes ? `showing cached routes${offlineCachedRange ? ` for ${offlineCachedRange}` : ""}${offlineCachedAt ? ` (synced ${new Date(offlineCachedAt).toLocaleTimeString()})` : ""}` : "no cached data available"}
@@ -3423,7 +3423,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  name="sheet-date-mode"
  checked={dateMode ==="single"}
  onChange={() => setDateMode("single")}
- className="h-3 w-3 text-black focus:ring-[#06B6D4]"
+ className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Date</span>
  </label>
@@ -3433,7 +3433,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  name="sheet-date-mode"
  checked={dateMode ==="range"}
  onChange={() => setDateMode("range")}
- className="h-3 w-3 text-black focus:ring-[#06B6D4]"
+ className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Range</span>
  </label>
@@ -3443,7 +3443,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  name="sheet-date-mode"
  checked={dateMode ==="month"}
  onChange={() => setDateMode("month")}
- className="h-3 w-3 text-black focus:ring-[#06B6D4]"
+ className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Month</span>
  </label>
@@ -3482,7 +3482,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
  </div>
  {isRangeInvalid && (
- <p className="text-xs text-red-600 font-medium animate-pulse">
+ <p className="text-xs text-[var(--danger-text)] font-medium animate-pulse">
  ⚠ From date cannot be after To date
  </p>
  )}
@@ -3534,7 +3534,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  title={item.title ==="Best Day" ?"Focus this day" :"Click to focus, click again to clear"}
  className={`flex min-w-0 flex-col justify-center rounded-md border px-3 py-2.5 text-left transition ${
  isActive
- ?"border-blue-300 bg-blue-50/70 ring-1 ring-blue-300"
+    ?"border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] ring-1 ring-[var(--accent-soft-border)]"
  :"border-[var(--card-border)] bg-[var(--card-bg)] hover:bg-[var(--card-bg)] /40 "
 }`}
  >
@@ -3756,7 +3756,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
   {/* ── Bulk Action Bar ── */}
   {selectedRouteIds.size > 0 && (
   <div className="mb-4 animate-in fade-in slide-in-from-top-2">
-  <div className="bg-gradient-to-r from-[#0B1220] to-[#1A2332] backdrop-blur-sm text-white px-5 py-3 rounded-xl flex items-center justify-between shadow-lg border border-white/10">
+  <div className="bg-gradient-to-r from-[#06B6D4] to-[#0891B2] backdrop-blur-sm text-white px-5 py-3 rounded-xl flex items-center justify-between shadow-lg shadow-[rgba(6,182,212,0.3)] border border-white/20">
   <div className="flex items-center gap-4">
   <span className="text-sm font-semibold">{selectedRouteIds.size} route{selectedRouteIds.size === 1 ? '' : 's'} selected</span>
   <div className="h-5 w-px bg-white/20" />
@@ -3804,7 +3804,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {dashboardData.kpiTiles.map((card) => {
  const isPositive = card.delta >= 0;
  const deltaGood = card.deltaGoodWhenPositive ? isPositive : !isPositive;
- const deltaClass = deltaGood ?"text-emerald-700 bg-emerald-50 border border-emerald-200/80" :"text-rose-700 bg-rose-50 border border-rose-200/80";
+  const deltaClass = deltaGood ?"text-[var(--success-text)] bg-[var(--success-surface)] border border-[var(--success-border)]" :"text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)]";
  const isInteractive = ["Revenue","Coverage","Risk Ratio"].includes(card.label);
  const isActive =
  (card.label ==="Revenue" && isDashboardFocusActive("Dashboard: Top revenue routes")) ||
@@ -3859,7 +3859,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <button
  type="button"
  onClick={() => handleInsightClick("Best Day")}
- className="text-xs font-bold text-emerald-700 hover:underline"
+ className="text-xs font-bold text-[var(--success-text)] hover:underline"
  >
  {dashboardData.insights[0]?.value ??"No data"}
  </button>
@@ -3892,11 +3892,11 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
  <div className="rounded border border-[var(--card-border)] bg-[var(--card-bg)]/40 px-2 py-1">
  <div className="text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">Avg</div>
- <div className="text-[10px] font-semibold text-blue-700">{formatCompactCurrency(dashboardData.avgRevenuePerRoute)}</div>
+ <div className="text-[10px] font-semibold text-[var(--info-text)]">{formatCompactCurrency(dashboardData.avgRevenuePerRoute)}</div>
  </div>
  <div className="rounded border border-[var(--card-border)] bg-[var(--card-bg)]/40 px-2 py-1">
  <div className="text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">R/KM</div>
- <div className="text-[10px] font-semibold text-emerald-700">{kpiStats.avgRPerKm > 0 ?`R ${kpiStats.avgRPerKm.toFixed(2)}` :"--"}</div>
+ <div className="text-[10px] font-semibold text-[var(--success-text)]">{kpiStats.avgRPerKm > 0 ?`R ${kpiStats.avgRPerKm.toFixed(2)}` :"--"}</div>
  </div>
  </div>
  <div className="mt-1 text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">Click chart points to focus that day</div>
@@ -3922,7 +3922,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  </div>
  <div className="mt-1 rounded border border-[var(--card-border)] bg-[var(--card-bg)]/40 px-2 py-1">
  <div className="text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">Distance Delta</div>
- <div className={`text-[10px] font-semibold ${dashboardData.kpiTiles[2].delta >= 0 ?"text-emerald-700" :"text-rose-700"}`}>
+ <div className={`text-[10px] font-semibold ${dashboardData.kpiTiles[2].delta >= 0 ?"text-[var(--success-text)]" :"text-[var(--danger-text)]"}`}>
  {dashboardData.kpiTiles[2].delta >= 0 ?"+" :""}{dashboardData.kpiTiles[2].delta.toFixed(0)}%
  </div>
  </div>
@@ -3949,12 +3949,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  title="Click to focus, click again to clear"
  className={`w-full rounded-md border px-2 py-1 text-left transition ${
  dashboardData.topTrucks[0] && isDashboardFocusActive(`Dashboard: Truck ${dashboardData.topTrucks[0].name}`)
- ?"border-blue-300 bg-blue-50/70 ring-1 ring-blue-300"
+    ?"border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] ring-1 ring-[var(--accent-soft-border)]"
  :"border-[var(--card-border)] bg-[var(--card-bg)]/40 hover:bg-[var(--card-bg)]"
 }`}
  >
  <div className="text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">Truck</div>
- <div className="truncate text-xs font-semibold text-blue-700">
+ <div className="truncate text-xs font-semibold text-[var(--info-text)]">
  {dashboardData.topTrucks[0] ?`${dashboardData.topTrucks[0].name} · ${formatCompactCurrency(dashboardData.topTrucks[0].value)}` :"No data"}
  </div>
  </button>
@@ -3969,12 +3969,12 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  title="Click to focus, click again to clear"
  className={`w-full rounded-md border px-2 py-1 text-left transition ${
  dashboardData.topClients[0] && isDashboardFocusActive(`Dashboard: Client ${dashboardData.topClients[0].name}`)
- ?"border-blue-300 bg-blue-50/70 ring-1 ring-blue-300"
+    ?"border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] ring-1 ring-[var(--accent-soft-border)]"
  :"border-[var(--card-border)] bg-[var(--card-bg)]/40 hover:bg-[var(--card-bg)]"
 }`}
  >
  <div className="text-[9px] uppercase tracking-wider text-[var(--nav-text-color)]">Client</div>
- <div className="truncate text-xs font-semibold text-violet-700">
+ <div className="truncate text-xs font-semibold text-purple-600 dark:text-purple-400">
  {dashboardData.topClients[0] ?`${dashboardData.topClients[0].name} · ${formatCompactCurrency(dashboardData.topClients[0].value)}` :"No data"}
  </div>
  </button>
@@ -3987,7 +3987,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)]">Health Mix</h3>
  <p className="text-[10px] text-[var(--nav-text-color)]">Status balance</p>
  </div>
- <div className="text-xs font-bold text-amber-700">{dashboardData.riskRoutes}</div>
+ <div className="text-xs font-bold text-[var(--warning-text)]">{dashboardData.riskRoutes}</div>
  </div>
  <div className="mt-2 flex items-center gap-3">
  <div className="h-[66px] w-[66px] shrink-0">
@@ -4189,7 +4189,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  {dashboardDrilldownChips.length > 0 && (
  <button
  onClick={clearDashboardLayer}
- className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
+ className="text-xs font-medium text-[var(--info-text)] hover:underline"
  >
  Clear Dashboard
  </button>
@@ -4197,7 +4197,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  
  <button
  onClick={clearFilters}
- className="text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+ className="text-xs font-medium text-[var(--danger-text)] hover:underline"
  >
  Clear All
  </button>

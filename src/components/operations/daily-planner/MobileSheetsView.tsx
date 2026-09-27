@@ -148,10 +148,10 @@ const STATUS_OPTIONS = [
 ];
 
 const LEVEL_PILL: Record<string, string> = {
-  red: "bg-red-50 text-red-700 border-red-200",
-  yellow: "bg-amber-50 text-amber-700 border-amber-200",
-  green: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  blue: "bg-blue-50 text-blue-700 border-blue-200",
+  red: "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]",
+  yellow: "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]",
+  green: "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]",
+  blue: "bg-[var(--info-surface)] text-[var(--info-text)] border-[var(--info-border)]",
 };
 
 const LEVEL_DOT: Record<string, string> = {
@@ -601,7 +601,7 @@ export default function MobileSheetsView({
                   setSortConfig({ column: null, direction: "asc" });
                   setSortOpen(false);
                 }}
-                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full text-left px-3 py-2.5 text-sm text-[var(--danger-text)] hover:bg-[var(--danger-surface)] transition-colors"
               >
                 Clear sort
               </button>
@@ -644,7 +644,7 @@ export default function MobileSheetsView({
           )}
           <button
             onClick={clearFilters}
-            className="text-xs font-medium text-red-600 hover:text-red-800 underline ml-0.5"
+            className="text-xs font-medium text-[var(--danger-text)] hover:underline ml-0.5"
           >
             Clear all
           </button>

@@ -5,6 +5,15 @@ import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { type Doc } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
+import { usePersistentDraft } from "@/src/hooks/usePersistentDraft";
+import {
+  CLIENT_ADD_DRAFT_WORKFLOW,
+  EMPTY_CLIENT_FORM,
+  clientFormFromCustomer,
+  isClientFormEmpty,
+  sanitizeClientForm,
+  type ClientForm,
+} from "@/src/lib/drafts/clientFormDraft";
 import { ModalShell } from "@/src/components/common/ModalShell";
 import { useToast } from "@/src/components/common/Toast";
 import { X } from "lucide-react";
@@ -15,51 +24,48 @@ type ClientFormDialogProps = {
   onClose: () => void;
 };
 
-const EMPTY_FORM = {
-  name: "",
-  accountNumber: "",
-  vatNumber: "",
-  contactPerson: "",
-  phone: "",
-  email: "",
-  address: "",
-  note: "",
-};
-
 export default function ClientFormDialog({
   open,
   editing,
   onClose,
 }: ClientFormDialogProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { addToast } = useToast();
   const createCustomer = useMutation(api.customers.createCustomer);
   const updateCustomer = useMutation(api.customers.updateCustomer);
 
-  const [form, setForm] = useState(EMPTY_FORM);
+  const isAddMode = !editing;
+  const addDraft = usePersistentDraft<ClientForm>({
+    workflow: CLIENT_ADD_DRAFT_WORKFLOW,
+    defaultValue: EMPTY_CLIENT_FORM,
+    userId: user?._id ?? null,
+    enabled: isAddMode,
+    validate: sanitizeClientForm,
+  });
+  const [editForm, setEditForm] = useState<ClientForm>(EMPTY_CLIENT_FORM);
+  const form = isAddMode ? addDraft.value : editForm;
+  const setForm = isAddMode ? addDraft.setValue : setEditForm;
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setForm(
-        editing
-          ? {
-              name: editing.name,
-              accountNumber: editing.accountNumber ?? "",
-              vatNumber: editing.vatNumber ?? "",
-              contactPerson: editing.contactPerson ?? "",
-              phone: editing.phone ?? "",
-              email: editing.email ?? "",
-              address: editing.address ?? "",
-              note: editing.note ?? "",
-            }
-          : EMPTY_FORM
-      );
+    if (open && editing) {
+      setEditForm(clientFormFromCustomer(editing));
     }
   }, [open, editing]);
 
-  const setField = (field: keyof typeof EMPTY_FORM) => (value: string) =>
+  const setField = (field: keyof ClientForm) => (value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleCancel = () => {
+    if (isAddMode && !isClientFormEmpty(form)) {
+      const discard = window.confirm(
+        "Discard this client draft? The typed details will not be kept."
+      );
+      if (!discard) return;
+      addDraft.clear();
+    }
+    onClose();
+  };
 
   const handleSave = async () => {
     if (!token || saving) return;
@@ -87,6 +93,7 @@ export default function ClientFormDialog({
       } else {
         await createCustomer(args);
         addToast("Client added", "success");
+        addDraft.clear();
       }
       onClose();
     } catch (e) {
@@ -97,14 +104,14 @@ export default function ClientFormDialog({
   };
 
   return (
-    <ModalShell open={open} onClose={() => !saving && onClose()}>
+    <ModalShell open={open} onClose={() => !saving && handleCancel()}>
       <div className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-bold text-[var(--foreground)]">
             {editing ? "Edit Client" : "Add Client"}
           </h3>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             disabled={saving}
             className="p-1 rounded hover:bg-[var(--card-bg)] text-[var(--nav-text-color)] disabled:opacity-50"
             aria-label="Close"
@@ -229,7 +236,7 @@ export default function ClientFormDialog({
 
         <div className="flex justify-end gap-3 mt-6">
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             disabled={saving}
             className="px-4 py-2 text-sm font-medium text-[var(--foreground)] bg-[var(--card-bg)] border border-[var(--card-border)] hover:opacity-80 rounded-md transition-colors disabled:opacity-50"
           >

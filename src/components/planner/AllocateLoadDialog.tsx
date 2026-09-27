@@ -155,7 +155,7 @@ export default function AllocateLoadDialog({
                         </span>
                       )}
                       {truck.status && truck.status !== "active" && (
-                        <span className="text-[9px] text-amber-600 bg-amber-50 px-1 rounded">
+                        <span className="text-[9px] text-[var(--warning-text)] bg-[var(--warning-surface)] border border-[var(--warning-border)] px-1 rounded">
                           {truck.status}
                         </span>
                       )}
@@ -239,7 +239,7 @@ export default function AllocateLoadDialog({
           )}
 
           {error && (
-            <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+            <div className="text-xs text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-3 py-2 rounded-lg">
               {error}
             </div>
           )}

@@ -231,15 +231,15 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <span className="text-xl font-black" style={{color:"var(--foreground)"}}>{fmtNum(finSummaryQuery.summary.totalLoads)}</span>
  </div>
  <div className="px-5 py-4 flex flex-col gap-1" style={{backgroundColor:"var(--card-bg)"}}>
- <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600/80">Customer Revenue</span>
+ <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--success-text)]/80">Customer Revenue</span>
  <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{fmtCurrency(finSummaryQuery.summary.totalCustomerRevenue)}</span>
  </div>
  <div className="px-5 py-4 flex flex-col gap-1" style={{backgroundColor:"var(--card-bg)"}}>
- <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-600/80">Paid to Subs</span>
+ <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--warning-text)]/80">Paid to Subs</span>
  <span className="text-xl font-black text-orange-600 dark:text-orange-400">{fmtCurrency(finSummaryQuery.summary.totalSubCost)}</span>
  </div>
  <div className="px-5 py-4 flex flex-col gap-1" style={{backgroundColor:"var(--card-bg)"}}>
- <span className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 text-blue-600/80">
+ <span className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 text-[var(--info-text)]/80">
  <TrendingUp className="w-3 h-3" /> Gross Margin
  </span>
  <div className="flex items-baseline gap-2">
@@ -419,8 +419,8 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3" style={{borderTop:"1px solid var(--card-border)"}}>
  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
  s.status === "inactive"
- ? "bg-[var(--card-bg)] text-gray-500 dark:text-slate-400"
- : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+  ? "bg-[var(--card-bg)] text-[var(--text-muted)]"
+  : "bg-[var(--success-surface)] text-[var(--success-text)] border border-[var(--success-border)]"
  }`}>
  {s.status === "inactive" ? "Inactive" : "Active"}
  </span>
@@ -447,7 +447,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  {s.truckFleetNos && s.truckFleetNos.length > 0 ? (
  <div className="flex flex-wrap gap-1">
  {s.truckFleetNos.map((fn: string, i: number) => (
- <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{fn}</span>
+ <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--info-surface)] text-[var(--info-text)] border border-[var(--info-border)]">{fn}</span>
  ))}
  </div>
  ) : (
@@ -464,7 +464,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  {s.trailerFleetNos && s.trailerFleetNos.length > 0 ? (
  <div className="flex flex-wrap gap-1">
  {s.trailerFleetNos.map((fn: string, i: number) => (
- <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">{fn}</span>
+ <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/25">{fn}</span>
  ))}
  </div>
  ) : (
@@ -515,15 +515,15 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <span className="font-semibold" style={{color:"var(--foreground)"}}>{finData.routeCount}</span>
  </div>
  <div className="flex items-center justify-between">
- <span className="text-emerald-600/80 font-medium">Customer Revenue</span>
+ <span className="text-[var(--success-text)]/80 font-medium">Customer Revenue</span>
  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtCurrency(finData.totalCustomerRevenue)}</span>
  </div>
  <div className="flex items-center justify-between">
- <span className="text-orange-600/80 font-medium">Sub Cost</span>
+ <span className="text-[var(--warning-text)]/80 font-medium">Sub Cost</span>
  <span className="font-semibold text-orange-600 dark:text-orange-400">{fmtCurrency(finData.totalSubCost)}</span>
  </div>
  <div className="flex items-center justify-between pt-1" style={{borderTop:"1px dashed var(--card-border)"}}>
- <span className="text-blue-600/80 font-medium">Margin</span>
+ <span className="text-[var(--info-text)]/80 font-medium">Margin</span>
  <span className={`font-bold ${margin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
  {fmtCurrency(margin)} ({marginPct >= 0 ? '+' : ''}{marginPct.toFixed(1)}%)
  </span>

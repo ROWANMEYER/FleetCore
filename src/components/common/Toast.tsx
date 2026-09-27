@@ -55,9 +55,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastItem({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
   const colors: Record<ToastType, string> = {
-    success: "bg-emerald-600 border-emerald-700",
-    error: "bg-red-600 border-red-700",
-    info: "bg-[var(--foreground)] border-[var(--card-border)]",
+    success: "bg-emerald-600 border-emerald-700 text-white",
+    error: "bg-red-600 border-red-700 text-white",
+    info: "bg-[var(--card-bg)] border-[var(--card-border)] text-[var(--foreground)]",
   };
 
   const icons: Record<ToastType, ReactNode> = {
@@ -84,7 +84,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
 
   return (
     <div
-      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border text-white text-sm font-medium animate-in slide-in-from-right fade-in duration-200 ${colors[toast.type]}`}
+      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border text-sm font-medium animate-in slide-in-from-right fade-in duration-200 ${colors[toast.type]}`}
     >
       {icons[toast.type]}
       <span className="flex-1">{toast.message}</span>
@@ -94,12 +94,12 @@ function ToastItem({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
             toast.action?.onClick();
             onDismiss();
           }}
-          className="px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-white text-xs font-bold uppercase tracking-wide transition-colors"
+          className="px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-xs font-bold uppercase tracking-wide transition-colors"
         >
           {toast.action.label}
         </button>
       )}
-      <button onClick={onDismiss} className="text-white/70 hover:text-white">
+      <button onClick={onDismiss} className="text-current opacity-70 hover:opacity-100">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
           <line x1="6" y1="6" x2="18" y2="18" />
           <line x1="6" y1="18" x2="18" y2="6" />

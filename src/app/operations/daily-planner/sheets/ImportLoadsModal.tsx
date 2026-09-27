@@ -472,7 +472,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  </div>
  <div className="flex items-center gap-3 shrink-0">
  {regionLabel && !importBlocked && (
- <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700">
+  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success-surface)] border border-[var(--success-border)] px-3 py-1 text-xs font-semibold text-[var(--success-text)]">
  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
  Importing to: {regionLabel}
  </span>
@@ -486,17 +486,17 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  {/* Content */}
  <div className="flex-1 overflow-auto p-6">
  {importBlocked ? (
- <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-amber-800">
- <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
- <div>
- <p className="font-semibold">Import disabled — &ldquo;All Regions&rdquo; is selected.</p>
- <p className="mt-0.5 text-amber-700">
+  <div className="mb-4 flex items-start gap-3 bg-[var(--warning-surface)] border border-[var(--warning-border)] p-4 rounded-md text-sm text-[var(--warning-text)]">
+  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+  <div>
+  <p className="font-semibold">Import disabled — &ldquo;All Regions&rdquo; is selected.</p>
+  <p className="mt-0.5 opacity-90">
  Choose <span className="font-medium">Garden Route</span> or <span className="font-medium">Eastern Cape</span> in the region switcher (top right of the screen), then reopen this import. This stops loads from being saved to the wrong region.
  </p>
  </div>
  </div>
  ) : regionLabel ? (
- <div className="mb-4 flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-md text-sm text-emerald-800">
+  <div className="mb-4 flex items-center gap-2 bg-[var(--success-surface)] border border-[var(--success-border)] px-4 py-2.5 rounded-md text-sm text-[var(--success-text)]">
  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
  Loads will be imported to <span className="font-semibold">{regionLabel}</span>.
  </div>
@@ -518,7 +518,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  {step ==="map" && (
  <div>
  {restoredMessage && (
- <div className="mb-4 bg-violet-50 border border-violet-200 p-4 rounded-md text-sm text-violet-800 flex items-center justify-between">
+  <div className="mb-4 bg-purple-500/10 border border-purple-500/25 p-4 rounded-md text-sm text-purple-600 dark:text-purple-400 flex items-center justify-between">
  <span>
  <Lightbulb className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
  <span className="font-semibold">Restored:</span> {restoredMessage}
@@ -536,12 +536,12 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  </div>
  )}
  {detectionMessage && (
- <div className="mb-4 bg-emerald-50 border border-emerald-200 p-4 rounded-md text-sm text-emerald-800">
+  <div className="mb-4 bg-[var(--success-surface)] border border-[var(--success-border)] p-4 rounded-md text-sm text-[var(--success-text)]">
  <Lightbulb className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
  <span className="font-semibold">Auto-detected:</span> {detectionMessage}
  </div>
  )}
- <div className="mb-4 bg-blue-50 p-4 rounded-md text-sm text-blue-800">
+  <div className="mb-4 bg-[var(--info-surface)] border border-[var(--info-border)] p-4 rounded-md text-sm text-[var(--info-text)]">
  Map your columns below. First 5 rows shown for preview.
  </div>
  
@@ -587,30 +587,30 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  {step ==="confirm" && (
  <div className="space-y-6">
  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
- <div className="bg-green-50 p-4 rounded-lg border border-green-100">
- <div className="text-sm text-green-600 font-medium">Valid Records</div>
- <div className="text-2xl font-bold text-green-700">{validCount}</div>
- </div>
- <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
- <div className="text-sm text-amber-700 font-medium flex items-center gap-1">
- <CopyX className="w-4 h-4" /> Duplicates
- </div>
- <div className="text-2xl font-bold text-amber-700">{duplicateCount}</div>
- </div>
- <div className="bg-red-50 p-4 rounded-lg border border-red-100">
- <div className="text-sm text-red-600 font-medium">Invalid Records</div>
- <div className="text-2xl font-bold text-red-700">{invalidCount}</div>
- </div>
- <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
- <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
- <div className="text-2xl font-bold text-blue-700">
- {new Intl.NumberFormat("en-ZA", { style:"currency", currency:"ZAR"}).format(totalRevenue)}
- </div>
- </div>
- </div>
+  <div className="bg-[var(--success-surface)] p-4 rounded-lg border border-[var(--success-border)]">
+  <div className="text-sm text-[var(--success-text)] font-medium">Valid Records</div>
+  <div className="text-2xl font-bold text-[var(--success-text)]">{validCount}</div>
+  </div>
+  <div className="bg-[var(--warning-surface)] p-4 rounded-lg border border-[var(--warning-border)]">
+  <div className="text-sm text-[var(--warning-text)] font-medium flex items-center gap-1">
+  <CopyX className="w-4 h-4" /> Duplicates
+  </div>
+  <div className="text-2xl font-bold text-[var(--warning-text)]">{duplicateCount}</div>
+  </div>
+  <div className="bg-[var(--danger-surface)] p-4 rounded-lg border border-[var(--danger-border)]">
+  <div className="text-sm text-[var(--danger-text)] font-medium">Invalid Records</div>
+  <div className="text-2xl font-bold text-[var(--danger-text)]">{invalidCount}</div>
+  </div>
+  <div className="bg-[var(--info-surface)] p-4 rounded-lg border border-[var(--info-border)]">
+  <div className="text-sm text-[var(--info-text)] font-medium">Total Revenue</div>
+  <div className="text-2xl font-bold text-[var(--info-text)]">
+  {new Intl.NumberFormat("en-ZA", { style:"currency", currency:"ZAR"}).format(totalRevenue)}
+  </div>
+  </div>
+  </div>
 
- {duplicateCount > 0 && (
- <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 p-3 rounded-md text-sm text-amber-800">
+  {duplicateCount > 0 && (
+  <div className="flex items-start gap-2 bg-[var(--warning-surface)] border border-[var(--warning-border)] p-3 rounded-md text-sm text-[var(--warning-text)]">
  <CopyX className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
  <p>
  <span className="font-semibold">{duplicateCount} duplicate{duplicateCount === 1 ? "" : "s"} detected.</span>{" "}
@@ -637,42 +637,42 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  {parsedRows.slice(0, 50).map((row) => {
    const isDuplicate = row.isValid && duplicateRowIds.has(row.id);
    return (
- <tr key={row.id} className={!row.isValid ?"bg-red-50" : isDuplicate ?"bg-amber-50" :""}>
- <td className="px-4 py-2 whitespace-nowrap">
- {isDuplicate ? (
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Already exists for this date, truck, trailer, client and amount — not imported">
- Duplicate
- </span>
+  <tr key={row.id} className={!row.isValid ?"bg-[var(--danger-surface)]" : isDuplicate ?"bg-[var(--warning-surface)]" :""}>
+  <td className="px-4 py-2 whitespace-nowrap">
+  {isDuplicate ? (
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--warning-surface)] text-[var(--warning-text)]" title="Already exists for this date, truck, trailer, client and amount — not imported">
+  Duplicate
+  </span>
 ) : row.isValid ? (
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Valid</span>
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--success-surface)] text-[var(--success-text)]">Valid</span>
 ) : (
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800" title={row.errors.join(",")}>
- Invalid
- </span>
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--danger-surface)] text-[var(--danger-text)]" title={row.errors.join(",")}>
+  Invalid
+  </span>
 )}
- </td>
- <td className="px-4 py-2 whitespace-nowrap">
- {regionLabel ? (
- <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
+  </td>
+  <td className="px-4 py-2 whitespace-nowrap">
+  {regionLabel ? (
+  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
    regionLabel === "Garden Route"
-     ? "bg-cyan-50 text-cyan-700 border-cyan-200"
-     : "bg-purple-50 text-purple-700 border-purple-200"
- }`}>
- <span className={`w-1.5 h-1.5 rounded-full ${regionLabel === "Garden Route" ? "bg-[#06B6D4]" : "bg-purple-500"}`} />
- {regionLabel}
- </span>
- ) : (
- <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
- Select region
- </span>
- )}
- </td>
+     ? "bg-[var(--accent-soft-bg)] text-[var(--accent-soft-text)] border-[var(--muted-border)]"
+     : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25"
+  }`}>
+  <span className={`w-1.5 h-1.5 rounded-full ${regionLabel === "Garden Route" ? "bg-[#06B6D4]" : "bg-purple-500"}`} />
+  {regionLabel}
+  </span>
+  ) : (
+  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[var(--warning-surface)] text-[var(--warning-text)] border border-[var(--warning-border)]">
+  Select region
+  </span>
+  )}
+  </td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">{row.mappedValues.routeDate}</td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">{row.mappedValues.truckFleetNoStr}</td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">{row.mappedValues.client}</td>
  <td className="px-4 py-2 whitespace-nowrap text-xs text-[var(--foreground)]">
  {row.isSplit ? (
- <span className="text-purple-600 font-medium" title={(row.mappedValues.toLocations as string[]).join(",")}>
+ <span className="text-purple-600 dark:text-purple-400 font-medium" title={(row.mappedValues.toLocations as string[]).join(",")}>
  {(row.mappedValues.toLocations as string[]).length} Drops (Split)
  </span>
 ) : (
@@ -723,7 +723,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  }}
  className={`px-3 py-2 rounded-md text-xs font-medium border transition-colors ${
    savedMappingExists
-     ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+      ? "border-[var(--success-border)] text-[var(--success-text)] bg-[var(--success-surface)]"
      : "border-[var(--card-border)] text-[var(--nav-text-color)] hover:bg-[var(--card-bg)]"
  }`}
  >

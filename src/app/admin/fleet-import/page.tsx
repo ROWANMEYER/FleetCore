@@ -576,8 +576,8 @@ export default function FleetImportPage() {
  <div className="px-4 py-3 border-b border-[var(--card-border)] flex items-center justify-between">
  <h3 className="text-sm font-semibold text-[var(--foreground)]">{title}</h3>
  <div className="flex gap-2 text-xs">
- <span className="text-green-600 font-medium">{truckNew + trailerNew + driverNew > 0 ?`+${entity ==="trucks" ? truckNew : entity ==="trailers" ? trailerNew : driverNew} new` :""}</span>
- <span className="text-yellow-600 font-medium">{truckUpd + trailerUpd + driverUpd > 0 ?`${entity ==="trucks" ? truckUpd : entity ==="trailers" ? trailerUpd : driverUpd} update` :""}</span>
+ <span className="text-[var(--success-text)] font-medium">{truckNew + trailerNew + driverNew > 0 ?`+${entity ==="trucks" ? truckNew : entity ==="trailers" ? trailerNew : driverNew} new` :""}</span>
+ <span className="text-[var(--warning-text)] font-medium">{truckUpd + trailerUpd + driverUpd > 0 ?`${entity ==="trucks" ? truckUpd : entity ==="trailers" ? trailerUpd : driverUpd} update` :""}</span>
  <span className="text-[var(--nav-text-color)]">{truckUnch + trailerUnch + driverUnch > 0 ?`${entity ==="trucks" ? truckUnch : entity ==="trailers" ? trailerUnch : driverUnch} unchanged` :""}</span>
  </div>
  </div>

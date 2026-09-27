@@ -112,20 +112,20 @@ export default function AddClientDialog({
             </div>
 
             {existingActive && (
-              <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 rounded-lg">
+              <div className="text-xs text-[var(--warning-text)] bg-[var(--warning-surface)] border border-[var(--warning-border)] px-3 py-2 rounded-lg">
                 “{existing.name}” already exists and is active — no duplicate
                 will be created.
               </div>
             )}
             {existingInactive && (
-              <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">
+              <div className="text-xs text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-3 py-2 rounded-lg">
                 “{existing.name}” already exists but is inactive. Reactivation is
                 not part of this stage — no duplicate will be created.
               </div>
             )}
 
             {error && (
-              <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-lg">
+              <div className="text-xs text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-3 py-2 rounded-lg">
                 {error}
               </div>
             )}

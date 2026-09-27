@@ -20,6 +20,19 @@ import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState, useRef, useEffect } from "react";
+import { usePersistentDraft, getBrowserStorage } from "@/src/hooks/usePersistentDraft";
+import { buildDraftKey, resolveDraftRegion } from "@/src/lib/drafts/draftKey";
+import { writeDraft } from "@/src/lib/drafts/draftStore";
+import {
+  EMPTY_QUICK_CAPTURE,
+  QUICK_CAPTURE_DRAFT_WORKFLOW,
+  applyTextChange,
+  createBatchKey,
+  markSubmitAttempt,
+  resolveSubmitOutcome,
+  sanitizeQuickCaptureDraft,
+  type QuickCaptureDraft,
+} from "@/src/lib/drafts/quickCaptureDraft";
 import {
   parseQuickCapture,
   resolveParsedClients,
@@ -32,6 +45,11 @@ import {
   shouldOfferAddClient,
 } from "@/src/lib/planner/clientAdd";
 import { buildAddLoadsPayload } from "@/src/lib/planner/addLoadsPayload";
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
+import {
+  describeCancelTarget,
+  selectCancellableUnallocatedIds,
+} from "@/src/lib/planner/planningLoadCancellation";
 import {
   accentColorFor,
   filterUnallocatedLoads,
@@ -107,15 +125,51 @@ function getToday(): string {
 }
 
 function BoardContent() {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const region = useRegionArg();
+
+  /* Quick Capture draft. It carries the batch idempotency key alongside the
+     raw text so an ambiguous submit (committed on the server, response lost)
+     can be retried after a refresh with the SAME key — the backend's only
+     duplicate guard is (batchKey, region). See quickCaptureDraft.ts. */
+  const quickCaptureKey = useMemo(
+    () =>
+      buildDraftKey({
+        workflow: QUICK_CAPTURE_DRAFT_WORKFLOW,
+        userId: user?._id ?? null,
+        region: resolveDraftRegion(user, region),
+      }),
+    [user, region]
+  );
+  const {
+    value: quickCapture,
+    setValue: setQuickCapture,
+    clear: clearQuickCaptureDraft,
+    restoredValue: restoredQuickCapture,
+  } = usePersistentDraft<QuickCaptureDraft>({
+    workflow: QUICK_CAPTURE_DRAFT_WORKFLOW,
+    defaultValue: EMPTY_QUICK_CAPTURE,
+    userId: user?._id ?? null,
+    region: resolveDraftRegion(user, region),
+    validate: sanitizeQuickCaptureDraft,
+  });
+  const captureText = quickCapture.text;
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const urlDate = searchParams.get("date");
   const [boardDate, setBoardDate] = useState(urlDate || getToday());
 
-  const [captureText, setCaptureText] = useState("");
+  /* The logical payload is the capture's own date line, falling back to the
+     board date, so the fallback has to be threaded through every identity
+     decision. */
+  const setCaptureText = useCallback(
+    (next: string) =>
+      setQuickCapture((previous) => applyTextChange(previous, next, boardDate, createBatchKey)),
+    [setQuickCapture, boardDate]
+  );
+
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   /* 6.4A — visible Add Loads feedback. Errors keep the dialog-less form
@@ -125,15 +179,35 @@ function BoardContent() {
     kind: "error" | "info";
     text: string;
   } | null>(null);
-  const [batchKey] = useState(() => `board-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const batchKeyRef = useRef(batchKey);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [unallocatedSearch, setUnallocatedSearch] = useState("");
+  const {
+    value: unallocatedSearch,
+    setValue: setUnallocatedSearch,
+  } = usePersistentDraft<string>({
+    workflow: "daily-planner:board-unallocated-search",
+    defaultValue: "",
+    userId: user?._id ?? null,
+    region: resolveDraftRegion(user, region),
+  });
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const [allocatingLoad, setAllocatingLoad] = useState<{ id: string; client: string } | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  /* Cancellation is confirmed in a real dialog, never a native confirm(), and
+     never silently. Holds exactly what is about to be cancelled so the dialog
+     can name the client, the route and the date. */
+  const [cancelTarget, setCancelTarget] = useState<{
+    id: Id<"planningLoads">;
+    client: string;
+    route: string;
+    date: string;
+  } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelAllTarget, setCancelAllTarget] = useState<{ count: number; date: string } | null>(
+    null
+  );
+  const [isCancellingAll, setIsCancellingAll] = useState(false);
   /* 6.4A — the raw client token an "Add Client" action was clicked for; when
      set, AddClientDialog is open. Closing clears it; resolutions recompute
      reactively once the newly created customer lands in the customers query. */
@@ -178,6 +252,7 @@ function BoardContent() {
 
   const createBulk = useMutation(api.planningLoads.createBulkPlanningLoads);
   const cancelLoad = useMutation(api.planningLoads.cancelPlanningLoad);
+  const cancelBulk = useMutation(api.planningLoads.cancelBulkPlanningLoads);
   const allocateNewRoute = useMutation(api.planningLoads.allocateToNewRoute);
   const allocateExistingRoute = useMutation(api.planningLoads.allocateToExistingRoute);
   const moveBetweenRoutes = useMutation(api.planningLoads.moveLoadBetweenRoutes);
@@ -235,16 +310,26 @@ function BoardContent() {
     return parsed.date;
   }, [parsed, boardDate]);
 
+  /* A restored Quick Capture draft re-runs the parser on the raw text so the
+     Parsed Loads preview and the client resolution are rebuilt from live data
+     instead of a stale serialised preview. */
+  useEffect(() => {
+    if (restoredQuickCapture === null) return;
+    if (restoredQuickCapture.text.trim() === "") return;
+    setParsed(parseQuickCapture(restoredQuickCapture.text));
+  }, [restoredQuickCapture]);
+
   const handleParse = useCallback(() => {
     const result = parseQuickCapture(captureText);
     setParsed(result);
   }, [captureText]);
 
   const handleClear = useCallback(() => {
-    setCaptureText("");
+    /* Drops the text AND the batch key, so the next capture is a new batch. */
+    clearQuickCaptureDraft();
     setParsed(null);
     textareaRef.current?.focus();
-  }, []);
+  }, [clearQuickCaptureDraft]);
 
   const handleAddLoads = useCallback(async () => {
     if (!parsed || !allValid) {
@@ -253,19 +338,30 @@ function BoardContent() {
 
     setAddLoadsMessage(null);
     setIsCreating(true);
+
+    /* Freeze the batch identity BEFORE the request leaves the browser. The
+       backend's only duplicate guard is (batchKey, region), so if the response
+       is lost or the tab closes mid-flight, the retry has to reuse this key. */
+    const submitted = markSubmitAttempt(quickCapture, boardDate, createBatchKey);
+    setQuickCapture(submitted);
+    if (quickCaptureKey) {
+      writeDraft(getBrowserStorage(), quickCaptureKey, submitted);
+    }
+
     try {
       const loads = buildAddLoadsPayload(parsed, clientResolutions, boardDate);
 
       const result = await createBulk({
         region: (region || "garden_route") as "garden_route" | "eastern_cape",
         token,
-        batchKey: batchKeyRef.current,
+        batchKey: submitted.batchKey,
         loads,
       });
 
       if (result.created) {
         handleClear();
       } else {
+        setQuickCapture((current) => resolveSubmitOutcome(current, submitted, createBatchKey));
         setAddLoadsMessage({
           kind: "info",
           text: "These loads were already added in a previous attempt — no duplicates were created.",
@@ -273,33 +369,91 @@ function BoardContent() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to create loads";
-      /* Preserve textarea + parsed results; surface the failure so the
-         dispatcher is never left with a button that silently does nothing. */
+      /* Leave the draft in its unconfirmed state so the text and the batch key
+         both survive; the dispatcher can press Add again safely. */
       setAddLoadsMessage({ kind: "error", text: msg });
     } finally {
       setIsCreating(false);
     }
-  }, [parsed, allValid, boardDate, region, token, createBulk, handleClear, clientResolutions]);
+  }, [
+    parsed,
+    allValid,
+    quickCapture,
+    quickCaptureKey,
+    boardDate,
+    region,
+    token,
+    createBulk,
+    handleClear,
+    clientResolutions,
+    setQuickCapture,
+  ]);
 
-  const handleCancel = useCallback(
-    async (id: Id<"planningLoads">) => {
-      setOpenMenuId(null);
-      if (!confirm("Cancel this load?")) return;
-      setCancelError(null);
-      try {
-        await cancelLoad({ id, token });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Cancel failed";
-        setCancelError(msg);
-      }
-    },
-    [cancelLoad, token]
-  );
+  /* Opening the dialog is a separate step from executing it, so a load is
+     never cancelled silently. */
+  const handleCancel = useCallback((id: Id<"planningLoads">) => {
+    setOpenMenuId(null);
+    setCancelError(null);
+    const load = unallocated?.find((l) => l._id === id);
+    if (!load) return;
+    const target = describeCancelTarget(load);
+    setCancelTarget({ id, ...target });
+  }, [unallocated]);
+
+  const confirmCancel = useCallback(async () => {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    try {
+      await cancelLoad({ id: cancelTarget.id, token });
+      setCancelTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Cancel failed";
+      setCancelError(msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [cancelTarget, cancelLoad, token]);
 
   const visibleUnallocated = useMemo(() => {
     if (!unallocated) return [];
     return filterUnallocatedLoads(unallocated, unallocatedSearch);
   }, [unallocated, unallocatedSearch]);
+
+  /* The bulk action is derived from the same query the list renders, so it can
+     only ever reach loads that are on screen as Unallocated for this exact
+     board date and effective region. Cancellation is by id, so an equivalent
+     load on another date is a different document and is never included. */
+  const cancellableAllIds = useMemo(() => {
+    if (!unallocated) return [];
+    return selectCancellableUnallocatedIds(
+      unallocated.map((l) => ({
+        _id: l._id as string,
+        loadDate: l.loadDate,
+        region: l.region,
+        status: l.status,
+        client: l.client,
+        fromLocations: l.fromLocations,
+        toLocations: l.toLocations,
+      })),
+      boardDate,
+      region || null
+    );
+  }, [unallocated, boardDate, region]);
+
+  const confirmCancelAll = useCallback(async () => {
+    if (!cancelAllTarget) return;
+    setIsCancellingAll(true);
+    setCancelError(null);
+    try {
+      await cancelBulk({ ids: cancellableAllIds as Id<"planningLoads">[], token });
+      setCancelAllTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Cancel all failed";
+      setCancelError(msg);
+    } finally {
+      setIsCancellingAll(false);
+    }
+  }, [cancelAllTarget, cancelBulk, cancellableAllIds, token]);
 
   /* ── DnD handlers — a drag is only another frontend interaction for the
          existing planning lifecycle. Backend mutations stay authoritative. */
@@ -634,7 +788,7 @@ function BoardContent() {
         {/* Left planning workspace — primary width for the daily plan */}
         <div className="flex flex-col gap-4 w-full lg:w-[500px] lg:shrink-0 min-h-0 overflow-y-auto scrollbar-fleet">
           {/* ─── Quick Capture card (includes Parsed Loads section) ─── */}
-          <div className="relative flex-shrink-0 rounded-xl border border-[#06B6D4]/30 bg-[radial-gradient(130%_130%_at_18%_0%,rgba(6,182,212,0.10),rgba(11,18,32,0.96)_55%,rgba(8,12,22,0.96)_100%)] p-4 shadow-[0_0_0_1px_rgba(6,182,212,0.12),0_0_22px_rgba(6,182,212,0.12),0_0_44px_rgba(6,182,212,0.05),inset_0_0_18px_rgba(6,182,212,0.05)]">
+          <div className="relative flex-shrink-0 rounded-xl border border-panel-border bg-panel [background-image:var(--panel-gradient)] p-4 shadow-panel">
             {/* Quick Capture header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2.5">
@@ -661,7 +815,7 @@ function BoardContent() {
               }}
               placeholder={"09/09/26\nshaveco x george na kaap\nmto x george na bredasdorp"}
               rows={7}
-              className="w-full px-3.5 py-3 rounded-lg border border-[#06B6D4]/20 bg-[linear-gradient(180deg,rgba(6,182,212,0.06),rgba(9,16,28,0.92)_60%)] shadow-[0_0_0_1px_rgba(0,0,0,0.2),inset_0_2px_6px_rgba(0,0,0,0.35),inset_0_0_16px_rgba(6,182,212,0.05)] focus:border-[#06B6D4]/50 focus:ring-2 focus:ring-[#06B6D4]/20 focus:outline-none resize-y font-mono text-xs leading-relaxed text-[var(--foreground)] placeholder:text-[var(--nav-text-color)]/70 transition-colors"
+              className="w-full px-3.5 py-3 rounded-lg border border-input-border bg-input shadow-input focus:border-input-border-focus focus:ring-2 focus:ring-[#06B6D4]/20 focus:outline-none resize-y font-mono text-xs leading-relaxed text-[var(--foreground)] placeholder:text-[var(--text-muted)] transition-colors"
             />
 
             {/* Controls — Parse Loads dominant */}
@@ -731,7 +885,7 @@ function BoardContent() {
                 {parsed.errors.length > 0 && (
                   <div className="mb-2 space-y-1">
                     {parsed.errors.map((err, i) => (
-                      <div key={i} className="text-[10px] text-red-600 bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded-md">
+                      <div key={i} className="text-[10px] text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-2 py-1 rounded-md">
                         {err}
                       </div>
                     ))}
@@ -810,9 +964,25 @@ function BoardContent() {
                   </span>
                 )}
               </h3>
-              <span className="text-[10px] font-semibold text-[var(--nav-text-color)]">
-                {formatBoardDateLabel(boardDate)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-[var(--nav-text-color)]">
+                  {formatBoardDateLabel(boardDate)}
+                </span>
+                {/* Correction affordance for a capture made against the wrong
+                    date. Scoped to this board date, this effective region and
+                    status = unallocated, and it always confirms with a count. */}
+                {cancellableAllIds.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setCancelError(null);
+                      setCancelAllTarget({ count: cancellableAllIds.length, date: boardDate });
+                    }}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-[var(--danger-text)] bg-[var(--danger-surface)] hover:opacity-80 border border-[var(--danger-border)] transition-colors"
+                  >
+                    Cancel all ({cancellableAllIds.length})
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="relative mb-2 shrink-0">
@@ -827,7 +997,7 @@ function BoardContent() {
             </div>
 
             {cancelError && (
-              <div className="mb-2 text-[10px] text-red-600 bg-red-50 dark:bg-red-500/10 px-2 py-1 rounded-md shrink-0">
+              <div className="mb-2 text-[10px] text-[var(--danger-text)] bg-[var(--danger-surface)] border border-[var(--danger-border)] px-2 py-1 rounded-md shrink-0">
                 {cancelError}
               </div>
             )}
@@ -908,7 +1078,7 @@ function BoardContent() {
           <span className="min-w-0 flex-1 truncate">{dndError}</span>
           <button
             onClick={() => setDndError(null)}
-            className="shrink-0 text-red-500 hover:text-red-700 font-bold px-1"
+            className="shrink-0 text-[var(--danger-text)] hover:opacity-80 font-bold px-1"
           >
             &times;
           </button>
@@ -936,6 +1106,53 @@ function BoardContent() {
           onClose={() => setAddClientToken(null)}
         />
       )}
+
+      {/* Accidental-capture correction. Both dialogs name exactly what will be
+          cancelled and never act without an explicit confirm. */}
+      <ConfirmDialog
+        open={cancelTarget !== null}
+        title="Cancel this planning load?"
+        message={
+          cancelTarget
+            ? `${cancelTarget.client}\n${cancelTarget.route}\n${formatBoardDateLabel(
+                cancelTarget.date
+              )}\n\nIt will be removed from the active planning board.`
+            : ""
+        }
+        confirmLabel="Cancel Load"
+        cancelLabel="Keep Load"
+        variant="danger"
+        loading={isCancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => {
+          if (!isCancelling) setCancelTarget(null);
+        }}
+      />
+      <ConfirmDialog
+        open={cancelAllTarget !== null}
+        title={
+          cancelAllTarget
+            ? `Cancel all ${cancelAllTarget.count} unallocated ${
+                cancelAllTarget.count === 1 ? "load" : "loads"
+              }?`
+            : ""
+        }
+        message={
+          cancelAllTarget
+            ? `${cancelAllTarget.count} unallocated ${
+                cancelAllTarget.count === 1 ? "load" : "loads"
+              } on ${formatBoardDateLabel(cancelAllTarget.date)} will be removed from the active planning board.\n\nOnly Unallocated loads for this date are affected. Allocated loads must be deallocated first.`
+            : ""
+        }
+        confirmLabel={`Cancel ${cancelAllTarget?.count ?? 0}`}
+        cancelLabel="Keep Loads"
+        variant="danger"
+        loading={isCancellingAll}
+        onConfirm={confirmCancelAll}
+        onCancel={() => {
+          if (!isCancellingAll) setCancelAllTarget(null);
+        }}
+      />
 
       {/* Destination chooser — opened only when a truck already has eligible
           planned routes; the dispatcher explicitly picks the destination. */}
@@ -1058,7 +1275,7 @@ function LoadPreview({
           {load.toLocations.join(" + ")}
         </div>
         {!load.valid && (
-          <div className="text-red-600 dark:text-red-400 mt-0.5">
+          <div className="text-[var(--danger-text)] mt-0.5">
             {load.errors.join("; ")}
           </div>
         )}
@@ -1185,8 +1402,11 @@ function UnallocatedRow({
         </button>
         <button
           onClick={onToggleMenu}
+          aria-label={`Actions for ${load.client}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           className="px-1.5 py-1 text-[var(--nav-text-color)] hover:text-[var(--foreground)] hover:bg-[var(--card-bg)] rounded-md transition-colors"
-          title="More actions"
+          title="Actions — allocate or cancel this load"
         >
           <MoreVertical size={13} />
         </button>
@@ -1195,12 +1415,17 @@ function UnallocatedRow({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-20" onClick={onToggleMenu} />
-          <div className="absolute right-1 top-full z-30 mt-1 min-w-[120px] rounded-lg border border-[var(--card-border)] bg-[var(--background)] shadow-xl p-1">
+          <div
+            role="menu"
+            aria-label={`Actions for ${load.client}`}
+            className="absolute right-1 top-full z-30 mt-1 min-w-[148px] rounded-lg border border-[var(--card-border)] bg-[var(--background)] shadow-xl p-1"
+          >
             <button
+              role="menuitem"
               onClick={() => onCancel(load._id)}
               className="w-full text-left px-2.5 py-1.5 text-[10px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors"
             >
-              Cancel
+              Cancel Load
             </button>
           </div>
         </>

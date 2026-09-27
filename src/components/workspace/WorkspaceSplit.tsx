@@ -78,7 +78,7 @@ export default function WorkspaceSplit({
 
             {/* Divider */}
             <div
-                className="w-1 bg-gray-200 hover:bg-gray-400 cursor-col-resize flex-shrink-0 transition-colors"
+                className="w-1 bg-[var(--card-border)] hover:bg-[#06B6D4] cursor-col-resize flex-shrink-0 transition-colors"
                 onMouseDown={handleMouseDown}
                 role="separator"
                 aria-orientation="vertical"
@@ -86,7 +86,7 @@ export default function WorkspaceSplit({
 
             {/* Secondary Panel */}
             <div
-                className="overflow-auto bg-gray-50"
+                className="overflow-auto bg-[var(--surface-sunken)]"
                 style={{ width: `${100 - primaryWidth}%` }}
             >
                 {secondary}

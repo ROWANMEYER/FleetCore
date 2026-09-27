@@ -29,7 +29,9 @@ export function ConfirmDialog({
     <ModalShell open={open} onClose={onCancel}>
       <div className="p-6">
         <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">{title}</h3>
-        <p className="text-sm text-[var(--nav-text-color)] mb-6">{message}</p>
+        <p className="text-sm text-[var(--nav-text-color)] mb-6 whitespace-pre-line">
+          {message}
+        </p>
         <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}

@@ -26,3 +26,10 @@ export const clampText = (text: string | undefined): string => {
   return (text ?? "").slice(0, MAX_LINE_CHARS);
 };
 
+
+/** Calendar month labels shared by the editor and its PDF. */
+export function formatRateMonth(monthKey: string): string {
+  const [year, month] = monthKey.split("-");
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return year && names[Number(month) - 1] ? `${names[Number(month) - 1]} ${year}` : "";
+}

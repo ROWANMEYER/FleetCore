@@ -1,5 +1,78 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-09-27 — Automatic monthly customer rates
+
+Customer rates retain their stored starting rates and sheet date. The editor and
+PDF subscribe to fuel history and apply each later composition effect in date
+order, rounding each step to cents. Saving or correcting a fuel price therefore
+updates all customer calculations without a per-customer adjustment or repeatedly
+mutating the baseline. The manual diesel-ratio adjustment button is removed.
+
+The PDF always shows three calendar months ending at the latest recorded fuel
+month; cells before the starting month remain blank. All earlier applicable
+changes still compound even when they are outside that display window. Missing
+composition or preceding prices block export rather than inventing a rate.
+Long sheets continue on another page instead of silently omitting lanes. The
+fuel movement caption now comes from fuel history and correctly labels decreases.
+
+## 2026-09-27 — Development startup uses Webpack
+
+`npm run dev` now runs `next dev --webpack`. Turbopack repeatedly stopped at
+`Compiling / ...`; the Webpack development server successfully served `/`.
+This is a development workaround; the production build command is unchanged.
+On Windows, start from the actual directory casing (`C:\dev\Fleetcore`) to
+avoid duplicate-module warnings caused by mixing `Fleetcore` and `fleetcore`.
+
+## 2026-09-27 — Customer rate sheets print as a PDF
+
+The rate sheet editor could show rates on screen only. The rate system's
+original scope note said sending a sheet to a customer was "one page of work
+once it is actually needed" — it was needed.
+
+A **View PDF** button on the editor opens the printable sheet in a modal:
+A4 portrait, one page, bilingual in the same Afrikaans/English convention as
+the tax invoice. Fixed zones per the PDF module rules: title and company
+header, the customer with their account number, the diesel line the rates are
+priced against (dashes for prices never recorded, because R 0,00 claims free
+fuel), the lane table with loading point → destination, unit and rate in strict
+ZAR format, up to 25 rows with an overflow note, up to three lines of notes,
+and the banking footer. The VAT-exclusive convention is printed on the sheet.
+
+The PDF prints **what is on screen**, not what is stored: the reader can lay
+out a change — adjust lanes to the newest diesel price, move the date — then
+look at the printable sheet before committing anything with Save rates. The
+button is disabled while any lane is unfinished or the date is missing.
+
+Split per the module's three layers: `rateSheetBuilder.ts` (data, raw numbers
+only, tested), `rateSheetTemplate.ts` (view, absolute positioning, fixed
+Y-zones), and the shared `formatters.ts` for every formatted figure. 6 new
+builder tests; 811 pass; TypeScript and targeted lint pass.
+
+## 2026-09-27 — Customer rates read the diesel price from the fuel history
+
+The rate sheet's diesel baseline (old → new price per litre) was a dead pair
+of columns: saved with the sheet, printed on nothing, maintained by nobody.
+The fuel composition page meanwhile records what a litre actually cost on each
+effective date. Nothing joined them, so re-pricing a customer after a fuel
+move meant dividing every lane rate by hand in a calculator.
+
+They are connected now. The rate sheet editor reads the fuel history and
+anchors the baseline to the price in effect on the sheet's lane date (the
+newest price dated on or before it), shows the newest recorded price next to
+it with the movement since (percent and rand), and offers one button —
+**Adjust lanes to R x,xx** — that re-prices every lane by the ratio of the two
+prices. The baseline figures save with the rates in the same single write, so
+the sheet, its lanes and the diesel they are priced against can never drift
+apart. Nothing is written until **Save rates** is pressed; the adjust button
+is a preview.
+
+The arithmetic lives in `src/lib/fuel/adjust.ts` as pure functions shared with
+`convex/fuelPriceFields`'s `percentChange`, so both pages derive a movement
+the same way. A baseline of zero (a sheet never given a price) refuses to
+adjust rather than dividing by zero, a rate that is not a readable number is
+left untouched for the lane checks to flag, and a zero rate stays zero. 21 new
+unit tests; 805 pass; TypeScript and targeted lint pass.
+
 ## 2026-09-27 — The date a rate sheet was added can be corrected
 
 The "Date added" on a rate sheet was claimed on the first save and then locked:

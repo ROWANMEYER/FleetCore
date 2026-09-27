@@ -84,9 +84,10 @@ export function normalizeLanes(input: SheetLane[], previous: SheetLane[]): Sheet
     if (seen.has(key)) throw new Error(`${loadingPoint} to ${destination} is listed twice.`);
     seen.add(key);
     if (lane.pricingUnit && !pricingUnits.includes(lane.pricingUnit as PricingUnit)) throw new Error("Choose a valid pricing unit.");
+    if (lane.date && !validDay(lane.date)) throw new Error(`${loadingPoint} to ${destination} needs a valid date in YYYY-MM-DD format.`);
     // Zero is a real rate, a negative one is a typo, and an empty field arrives here as zero because the browser cannot send a blank number.
     if (!Number.isFinite(lane.rate) || lane.rate < 0) throw new Error(`${loadingPoint} to ${destination} needs a rate of zero or more.`);
-    return { id: lane.id && previous.some(p => p.id === lane.id) ? lane.id : crypto.randomUUID().slice(0, 8), loadingPoint, destination, ...(lane.pricingUnit ? { pricingUnit: lane.pricingUnit } : {}), rate: money(lane.rate), sortOrder: index };
+    return { id: lane.id && previous.some(p => p.id === lane.id) ? lane.id : crypto.randomUUID().slice(0, 8), loadingPoint, destination, ...(lane.pricingUnit ? { pricingUnit: lane.pricingUnit } : {}), ...(lane.date ? { date: lane.date } : {}), rate: money(lane.rate), sortOrder: index };
   });
 }
 /**
@@ -99,7 +100,7 @@ function validateDiesel(oldDieselPrice: number, newDieselPrice: number) {
 /** Everything the sheet holds apart from its lanes, compared so a save with no real edit is refused. */
 export function sameState(a: SheetState, b: SheetState) {
   return a.effectiveDate === b.effectiveDate && a.notes === b.notes && a.oldDieselPrice === b.oldDieselPrice && a.newDieselPrice === b.newDieselPrice
-    && a.lanes.length === b.lanes.length && a.lanes.every((l, i) => l.loadingPoint === b.lanes[i].loadingPoint && l.destination === b.lanes[i].destination && l.rate === b.lanes[i].rate && l.pricingUnit === b.lanes[i].pricingUnit);
+    && a.lanes.length === b.lanes.length && a.lanes.every((l, i) => l.loadingPoint === b.lanes[i].loadingPoint && l.destination === b.lanes[i].destination && l.rate === b.lanes[i].rate && l.pricingUnit === b.lanes[i].pricingUnit && l.date === b.lanes[i].date);
 }
 const stateOf = (sheet: Sheet): SheetState => ({ effectiveDate: sheet.effectiveDate, notes: sheet.notes, oldDieselPrice: sheet.oldDieselPrice, newDieselPrice: sheet.newDieselPrice, lanes: sheet.lanes });
 

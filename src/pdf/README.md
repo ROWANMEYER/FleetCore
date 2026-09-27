@@ -35,9 +35,15 @@ The module is split into three distinct layers:
     *   **Constraint**: All currency/date formatting must happen here.
     *   **Critical Rule**: Currency must be ZAR format (`R 1 234,56`) - Space for thousands, comma for decimals.
 
-3.  **`invoiceTemplate.ts` (View Layer)**
-    *   **Responsibility**: Draws the PDF using `jspdf`.
-    *   **Constraint**: Purely presentational. No business logic or data transformation. Uses constants for all layout coordinates.
+3. **`invoiceTemplate.ts` (View Layer)**
+   * **Responsibility**: Draws the PDF using `jspdf`.
+   * **Constraint**: Purely presentational. No business logic or data transformation. Uses constants for all layout coordinates.
+
+The customer rate sheet follows the same split with `rateSheetBuilder.ts` →
+`RateSheetData` (in `types.ts`) → `rateSheetTemplate.ts`. Its zones are fixed
+in mm on A4 portrait: customer block Y=55, diesel line Y=87, lane table
+Y=104–250 (21 rows per page, additional lanes continue on a new page), notes above the footer, company
+footer at the bottom margin.
 
 ## 📝 How to Modify
 

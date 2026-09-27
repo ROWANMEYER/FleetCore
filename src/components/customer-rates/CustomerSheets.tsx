@@ -1,4 +1,5 @@
 "use client";
+import { fuelSnapshotFor } from "@/src/lib/fuel/adjust";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -17,6 +18,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
   const { token, user } = useAuth();
   const customers = useQuery(api.customers.list, user?.role === "admin" ? {} : "skip");
   const sheets = useQuery(api.rateSheets.list, token ? { token } : "skip");
+  const fuel = useQuery(api.fuelPrices.list, token ? { token } : "skip");
   const create = useMutation(api.rateSheets.create);
   const [search, setSearch] = useState("");
   const [sheetFilter, setSheetFilter] = useState<SheetFilter>("all");
@@ -40,7 +42,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
   return <div className="space-y-6">
     {editing && <button className={button} onClick={() => { onOpen(null); setError(""); }}>&larr; All customers</button>}
     {open && current === undefined && <p>Loading rates…</p>}
-    {open && current && <SheetEditor key={current._id} token={token!} sheet={current} customerName={editing?.name ?? ""} onDeleted={() => { onOpen(null); }} />}
+    {open && current && <SheetEditor key={current._id} token={token!} sheet={current} customer={editing ?? undefined} customerName={editing?.name ?? ""} onDeleted={() => { onOpen(null); }} />}
     {open && current === null && <section className="glass-card rounded-xl p-5 space-y-3">
       <h2 className="font-semibold">{editing?.name ?? "This customer"}</h2>
       <p>No rate sheet yet. Starting one lets you add lanes and rates straight away.</p>
@@ -67,12 +69,13 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
           <thead><tr><th className="p-2">Customer</th><th className="p-2">Account</th><th className="p-2">Lanes</th><th className="p-2">Effective</th><th className="p-2">Diesel</th><th className="p-2">Updated</th><th /></tr></thead>
           <tbody>{rows.map(c => {
             const sheet = sheetByCustomer.get(c._id);
+            const diesel = fuelSnapshotFor(fuel ?? [], sheet?.effectiveDate);
             return <tr key={c._id} className="border-b border-[var(--card-border)]">
               <td className="p-2">{c.name}</td>
               <td className="p-2 text-[var(--nav-text-color)]">{c.accountNumber ?? "-"}</td>
               <td className="p-2">{sheet ? sheet.laneCount : "-"}</td>
               <td className="p-2">{sheet?.effectiveDate ?? "-"}</td>
-              <td className="p-2">{sheet ? `${sheet.oldDieselPrice.toFixed(2)} → ${sheet.newDieselPrice.toFixed(2)}` : "-"}</td>
+              <td className="p-2">{sheet ? `${diesel.priceOnDate?.pricePerLitre.toFixed(2) ?? "-"} → ${diesel.latest?.pricePerLitre.toFixed(2) ?? "-"}` : "-"}</td>
               <td className="p-2 text-[var(--nav-text-color)]">{sheet ? new Date(sheet.updatedAt).toISOString().slice(0, 10) : "-"}</td>
               <td className="p-2">{sheet ? <button className={button} onClick={() => onOpen(c._id)}>Open</button> : <button className={button} disabled={!!busy} onClick={() => start(c._id)}>{busy === c._id ? "Starting…" : "Add rates"}</button>}</td>
             </tr>;

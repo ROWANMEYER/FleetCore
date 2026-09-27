@@ -6,7 +6,7 @@ import { v } from "convex/values";
 export const pricingUnits = ["full", "ton", "pallet", "bag", "bale"] as const;
 export type PricingUnit = (typeof pricingUnits)[number];
 export const pricingUnit = v.union(v.literal("full"), v.literal("ton"), v.literal("pallet"), v.literal("bag"), v.literal("bale"));
-export const laneField = v.object({ id: v.string(), loadingPoint: v.string(), destination: v.string(), pricingUnit: v.optional(v.string()), rate: v.number(), sortOrder: v.number() });
+export const laneField = v.object({ id: v.string(), loadingPoint: v.string(), destination: v.string(), pricingUnit: v.optional(v.string()), rate: v.number(), date: v.optional(v.string()), sortOrder: v.number() });
 
 /**
  * A real calendar day written as YYYY-MM-DD.

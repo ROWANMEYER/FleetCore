@@ -12,7 +12,8 @@ import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
 import ClientFormDialog from "@/src/components/admin/ClientFormDialog";
-import { Handshake, Plus, Pencil, Power, Search, Shield } from "lucide-react";
+import { CustomerCsvImport } from "@/src/components/admin/CustomerCsvImport";
+import { Handshake, Plus, Pencil, Power, Search, Shield, Trash2 } from "lucide-react";
 
 function StatusPill({ isActive }: { isActive: boolean }) {
   return (
@@ -38,6 +39,8 @@ export default function AdminClientsPage() {
   const { addToast } = useToast();
 
   const customers = useQuery(api.customers.list, {});
+  const deleteCustomer = useMutation(api.customers.deleteCustomer);
+  const [deleting, setDeleting] = useState<Doc<"customers"> | null>(null);
   const deactivateCustomer = useMutation(api.customers.deactivateCustomer);
 
   const [search, setSearch] = useState("");
@@ -45,6 +48,7 @@ export default function AdminClientsPage() {
   const [page, setPage] = useState(1);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Doc<"customers"> | null>(null);
   const [deactivating, setDeactivating] = useState<Doc<"customers"> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,9 +72,10 @@ export default function AdminClientsPage() {
   }, [rows, search, kpiFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
   const paged = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage, pageSize]
   );
 
   useEffect(() => {
@@ -126,6 +131,25 @@ export default function AdminClientsPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!token || !deleting || busy) return;
+    setBusy(true);
+    try {
+      const result = await deleteCustomer({ id: deleting._id, token });
+      if (!result.deleted) {
+        addToast(result.reason, "error");
+        setDeleting(null);
+        return;
+      }
+      addToast(`Client ${deleting.name} deleted.`, "success");
+      setDeleting(null);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDeactivate = async () => {
     if (!token || !deactivating) return;
     setBusy(true);
@@ -163,12 +187,12 @@ export default function AdminClientsPage() {
               </p>
             </div>
           </div>
-          <button
+          <div className="flex items-center gap-2"><button onClick={() => setImportOpen(true)} className="px-4 py-2 rounded-lg text-sm border border-[var(--card-border)] hover:bg-[var(--card-bg)]">Import Age Analysis CSV</button><button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" /> Add Client
-          </button>
+          </button></div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 max-w-sm">
@@ -315,6 +339,11 @@ export default function AdminClientsPage() {
                               >
                                 <Power className="w-4 h-4" />
                               </button>
+                              <button onClick={() => setDeleting(c)} disabled={busy}
+                                title="Delete client" aria-label={`Delete ${c.name}`}
+                                className="p-2 rounded-lg text-red-500 hover:bg-[var(--card-bg)] disabled:opacity-40 flex items-center gap-1">
+                                <Trash2 className="w-4 h-4" /> Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -327,7 +356,7 @@ export default function AdminClientsPage() {
 
             {filtered.length > pageSize && (
               <Pagination
-                currentPage={page}
+                currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setPage}
               />
@@ -340,7 +369,18 @@ export default function AdminClientsPage() {
           editing={editing}
           onClose={() => setDialogOpen(false)}
         />
+        {importOpen && token && <CustomerCsvImport token={token} customers={customers} onClose={() => setImportOpen(false)} />}
 
+        <ConfirmDialog
+          open={deleting !== null}
+          title="Delete Client"
+          message={`Permanently delete ${deleting?.name}${deleting?.accountNumber ? ` (account ${deleting.accountNumber})` : ""}? This cannot be undone. Customers with routes, planning loads or a rate sheet cannot be deleted; deactivate them instead.`}
+          confirmLabel="Delete client"
+          variant="danger"
+          loading={busy}
+          onConfirm={handleDelete}
+          onCancel={() => { if (!busy) setDeleting(null); }}
+        />
         <ConfirmDialog
           open={deactivating !== null}
           title="Deactivate Client"

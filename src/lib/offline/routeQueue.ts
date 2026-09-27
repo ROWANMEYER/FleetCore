@@ -17,6 +17,7 @@ export interface QueueStorage {
 }
 
 import type { Id } from "@/convex/_generated/dataModel";
+import { newRequestKey } from "@/src/lib/requestKey";
 
 /** The createDailyRoute args for one queued route (offlineKey included). */
 export interface QueuedRoutePayload {
@@ -173,12 +174,5 @@ export function clearQueue(): void {
  * timestamp fallback so every environment produces a unique key.
  */
 export function newClientId(): string {
-  try {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-  } catch {
-    /* fall through */
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return newRequestKey();
 }

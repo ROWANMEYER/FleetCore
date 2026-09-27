@@ -7,6 +7,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { calculateLoadAmount } from "../../../../convex/utils";
 import { useToast } from "../../../components/common/Toast";
 import { useAuth, useRegionArg } from "../../../components/auth/AuthProvider";
+import { newClientId } from "../../../lib/offline/routeQueue";
 
 // --- Types ---
 interface EditRouteFormProps {
@@ -29,6 +30,8 @@ type Load = {
   kilometers?: number;
   subcontractorRate?: string;
   subcontractorRateType?: "per_unit" | "flat";
+  /** Set by the planner board. Must be carried back untouched: the server treats a missing one as the load being removed. */
+  loadId?: string;
 };
 
 // --- Helpers ---
@@ -207,7 +210,7 @@ function EditRouteFormInner({
   }, []);
 
   const initialLoads: Load[] = (route.loads ?? []).map((l: any, index: number) => ({
-    id: crypto.randomUUID(),
+    id: newClientId(),
     clientName: l.client ?? "",
     fromLocations: l.fromLocations ?? [],
     toLocations: l.toLocations ?? [],
@@ -219,6 +222,7 @@ function EditRouteFormInner({
     kilometers: l.kilometers || 0,
     subcontractorRate: l.subcontractorRate,
     subcontractorRateType: l.subcontractorRateType as "per_unit" | "flat" | undefined,
+    loadId: l.loadId,
   }));
 
   const [loads, setLoads] = useState<Load[]>(initialLoads);
@@ -278,7 +282,7 @@ function EditRouteFormInner({
     if (cleanTo.length === 0) return addToast("At least one Drop location is required", "error");
 
     const newLoad: Load = {
-      id: crypto.randomUUID(),
+      id: newClientId(),
       clientName: draftLoad.clientName,
       fromLocations: cleanFrom,
       toLocations: cleanTo,
@@ -421,6 +425,7 @@ function EditRouteFormInner({
         kilometers: l.kilometers,
         subcontractorRate: l.subcontractorRate,
         subcontractorRateType: l.subcontractorRateType,
+        ...(l.loadId ? { loadId: l.loadId } : {}),
       }));
 
       await updateRoute({

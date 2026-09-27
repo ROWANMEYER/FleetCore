@@ -1,15 +1,18 @@
 "use client";
 
-import { ReactNode, useEffect, useRef } from "react";
+import { CSSProperties, ReactNode, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalShellProps {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
+  portal?: boolean;
 }
 
-export function ModalShell({ open, onClose, children, className = "" }: ModalShellProps) {
+export function ModalShell({ open, onClose, children, className = "", style, portal = false }: ModalShellProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   // Keep the latest onClose in a ref so the effect below only depends on
@@ -72,17 +75,19 @@ export function ModalShell({ open, onClose, children, className = "" }: ModalShe
 
   if (!open) return null;
 
-  return (
+  const modal = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div
         ref={modalRef}
         tabIndex={-1}
+        style={style}
         className={`bg-[var(--background)] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none ${className}`}
       >
         {children}
       </div>
     </div>
   );
+  return portal && typeof document !== "undefined" ? createPortal(modal, document.body) : modal;
 }
 
 export function SlideInPanel({ open, onClose, children, className = "" }: ModalShellProps) {

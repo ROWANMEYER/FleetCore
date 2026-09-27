@@ -36,6 +36,8 @@ type Load = {
   kilometers?: number;
   subcontractorRate?: string;
   subcontractorRateType?: "per_unit" | "flat";
+  /** Set by the planner board. Must be carried back untouched: the server treats a missing one as the load being removed. */
+  loadId?: string;
 };
 
 // Shared form control styling — big touch targets, readable text
@@ -407,7 +409,7 @@ function DailyPlannerInputForm() {
       // Map existing loads to UI format
       if (existingRoute.loads) {
         const mappedLoads: Load[] = existingRoute.loads.map((l: any, index: number) => ({
-          id: crypto.randomUUID(),
+          id: newClientId(),
           clientName: l.client ?? "",
           fromLocations: l.fromLocations ?? [],
           toLocations: l.toLocations ?? [],
@@ -419,6 +421,7 @@ function DailyPlannerInputForm() {
           kilometers: l.kilometers || 0,
           subcontractorRate: l.subcontractorRate,
           subcontractorRateType: l.subcontractorRateType as "per_unit" | "flat" | undefined,
+          loadId: l.loadId,
         }));
         setLoads(mappedLoads);
       }
@@ -640,6 +643,7 @@ function DailyPlannerInputForm() {
       kilometers: l.kilometers,
       subcontractorRate: l.subcontractorRate,
       subcontractorRateType: l.subcontractorRateType,
+      ...(l.loadId ? { loadId: l.loadId } : {}),
     }));
 
     try {

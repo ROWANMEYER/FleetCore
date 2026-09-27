@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { newRequestKey } from "@/src/lib/requestKey";
 
 const TOKEN_KEY = "fleetcore-session-token";
 // Last-known session user, cached so the app can render (and queue offline
@@ -73,14 +74,7 @@ function readToken(): string | null {
 }
 
 function generateToken(): string {
-  try {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-  } catch {
-    /* fall through */
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return newRequestKey();
 }
 
 /** Short device label stored on the session so admins can see where sessions are. */

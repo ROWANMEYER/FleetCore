@@ -237,6 +237,9 @@ export const deleteCustomer = mutation({
     const customer = await ctx.db.get(args.id);
     if (!customer) throw new Error("Customer not found");
 
+    const sheet = await ctx.db.query("rateSheets").withIndex("by_customer", q => q.eq("customerId", args.id)).first();
+    if (sheet) return { deleted: false, reason: "This customer has a rate sheet. Deactivate instead to keep those rates." };
+
     // Block delete if customer has any routes
     const linkedRoute = await ctx.db
       .query("dailyRoutes")
@@ -244,12 +247,15 @@ export const deleteCustomer = mutation({
       .first();
 
     if (linkedRoute) {
-      throw new Error(
-        `Cannot delete "${customer.name}" — they have existing routes. Deactivate instead.`
-      );
+      return { deleted: false, reason: `Cannot delete "${customer.name}" — they have existing routes. Deactivate instead.` };
     }
 
+    const linkedLoad = await ctx.db.query("planningLoads")
+      .filter(q => q.eq(q.field("client"), customer.name)).first();
+    if (linkedLoad) return { deleted: false, reason: "This customer has planning loads. Deactivate instead." };
+
     await ctx.db.delete(args.id);
+    return { deleted: true, reason: "" };
   },
 });
 
@@ -262,6 +268,9 @@ export const deleteBulkCustomers = mutation({
     for (const id of args.ids) {
       const customer = await ctx.db.get(id);
       if (!customer) continue;
+
+      const sheet = await ctx.db.query("rateSheets").withIndex("by_customer", q => q.eq("customerId", id)).first();
+      if (sheet) { blocked.push(customer.name); continue; }
 
       const linkedRoute = await ctx.db
         .query("dailyRoutes")

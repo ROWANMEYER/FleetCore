@@ -32,6 +32,7 @@ export default function OperationsLayout({ children}: { children: React.ReactNod
  >
  QuickSend
  </Link>
+ <Link href="/operations/customer-rates" className={`px-3 py-1.5 rounded-md text-sm font-medium ${isActive("/operations/customer-rates") ? "nav-item-active" : "text-[var(--nav-text-color)]"}`}>Customer Rates</Link>
  </div>
 
  <div className="flex-1 overflow-hidden min-h-0">

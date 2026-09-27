@@ -1,7 +1,24 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { laneField, pricingUnit } from "./rateSheetFields";
 
 export default defineSchema({
+  /** A customer's live rate card: lanes with their rates, notes, and the diesel the rates are priced against. */
+  rateSheets: defineTable({
+    customerId: v.id("customers"),
+    defaultPricingUnit: pricingUnit,
+    effectiveDate: v.string(),
+    notes: v.string(),
+    oldDieselPrice: v.number(),
+    newDieselPrice: v.number(),
+    lanes: v.array(laneField),
+    contacts: v.array(v.object({ name: v.string(), email: v.string(), isPrimary: v.boolean(), isActive: v.boolean() })),
+    revision: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+    updatedByEmail: v.string(),
+  }).index("by_customer", ["customerId"]),
   adminSettings: defineTable({
     mode: v.string(),
     passwordHash: v.string(),

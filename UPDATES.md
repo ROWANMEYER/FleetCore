@@ -1,5 +1,217 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-09-27 — The rate system is one table and one screen
+
+The rate master had grown to nine tables, a draft, a review screen, an approval
+click, a change log, a revert and a PDF delivery flow before anyone could edit a
+rate. Only one person does this work and there is no second pair of eyes to sign
+anything off, so all of it was ceremony. It is gone.
+
+A **rate sheet** (`rateSheets`) is one document per customer: its lanes with their
+rates, notes, effective date and the diesel the rates are priced against. There is
+no lane row, no version, no working copy and no change log. Adding a lane,
+renaming one, removing one, changing the unit, moving the diesel figure and
+editing the notes are all one write, so there is nothing that can drift out of
+sync with a snapshot, and the rates are live the moment they are saved.
+
+The page is now one screen: the customer list, and the lane editor it opens.
+The Adjust fuel bulk screen, the Send sheets PDF flow, the migrate screen, the
+history and revert controls are all removed, along with `rateChanges` and the
+nine legacy tables. The nine tables are gone, not left as a fallback - and that
+turned out to be safe, because the migration had already run: the 22 and 13
+lanes for the two live customers were copied into `rateSheets` before they were
+dropped. No rate was retyped or lost.
+
+Three decisions worth keeping:
+
+- **Lane ids are generated on the server, not in the browser.** They used to be
+  minted with `crypto.randomUUID()` on page load, which throws in an insecure
+  context, so an ordinary `http://` visit lost its whole lane list on every
+  refresh. The editor now reads the real ids from the sheet.
+- **`contacts` and `revision` stay on the table, unused for now.** Both existing
+  sheets already carry them, and Convex rejects a schema change that would drop a
+  field from existing documents. They are the landing spots for the PDF and email
+  when that is rebuilt, so keeping them costs nothing and avoids rewriting
+  documents that hold live rates.
+- **A save that changes nothing does not write.** The editor tracks what it
+  loaded and keeps Save disabled until something actually differs, so a stray
+  click cannot touch `updatedAt` and a PDF generated seconds earlier.
+
+`convex/rateSheets.ts` is the whole feature: get, list, create, save lanes, set
+default unit. 23 backend tests plus the editor's validation tests; 511 pass;
+TypeScript, targeted lint and production build pass. Sending a rate sheet to a
+customer is deliberately **not** built yet - it is one page of work once it is
+actually needed, and it will key off the same lane ids.
+
+## 2026-09-26 — A rate version can no longer contradict its own fuel change
+
+Reported fault: a rate version was created with the correct new diesel price,
+but printing the PDF showed every rate unchanged from the previous version while
+the diesel movement was right. Two causes, both now closed.
+
+The first-time rate editor pre-fills **Old diesel price** from the version being
+copied. For a customer whose rates were first set up without a diesel figure
+that pre-fill is `R 0.00`, and the *Apply diesel adjustment to all lanes* button
+divides by the old price, so it threw and the rates were never recalculated. The
+second cause is the one that mattered: nothing anywhere checked that the saved
+rates agreed with the recorded diesel movement, so the version saved cleanly,
+approved cleanly, and the PDF faithfully printed a version claiming a fuel
+change it did not contain. A customer would have received it.
+
+`saveDraft` now refuses a zero diesel price — zero means unknown, and every
+calculation in the system treats it as unusable — and refuses a save where the
+diesel price moved but *every* active lane rate is identical to the current
+approved snapshot. Per-lane overrides are still allowed, and a version that
+re-states the same diesel price with unchanged rates is still allowed, because
+correcting a baseline is a legitimate reason to save. In the editor, a zero
+baseline is now called out on screen instead of failing cryptically, changing a
+diesel price after applying warns that the rates are stale, and saving over
+stale rates asks for confirmation. 3 new handler tests; all 546 tests pass;
+TypeScript, lint and production build pass.
+
+## 2026-09-26 — Fuel adjustment is now one step
+
+Applying a diesel change to every customer was a four-step flow with a hidden
+prerequisite, and it blocked the most common real case: a customer whose rates
+were first set up without a diesel figure recorded diesel at R 0.00, so the batch
+refused to touch them with *"Current rates use diesel at R 0.00"*, and the fix
+required hand-editing that customer's rate version first. That was a
+prerequisite leaking out of the arithmetic — `adjustedRate` only uses the ratio
+between the old and new diesel price, so the stored per-customer baseline is
+never needed to compute anything.
+
+Two changes. The baseline is now a **flag, not a block**: a customer whose last
+approved version recorded a different diesel price is still adjusted, with a
+note in the preview saying what it was recorded at. And `applyAdjustment` creates
+*and* approves each customer's new version in one mutation, so the whole
+adjustment is a single confirmed step — no draft to review, no second approval
+click. The confirmation now states the resulting percentage, the customer count,
+the lane count and the total extra per load, because that confirmation is the
+approval gate for permanently locked rates. The two-step `createDrafts` and
+`approveDrafts` mutations remain as the review-first API path but are no longer
+exposed in the UI. 7 new handler tests including the R 0.00 case; all 543 tests
+pass; TypeScript, lint and production build pass.
+
+## 2026-09-26 — Rate card delivery across all customers
+
+The last manual loop is gone: a fuel increase no longer need 40 separate
+open-customer-generate-open-tick-send cycles. A new **Rate card delivery** table
+on the customer rates page shows every customer that has a rate master, with its
+delivery state, current effective date, PDF link, last send outcome and saved
+recipients, and offers per-row or batch **Generate**, **Reviewed** and **Send**.
+`customerRateDocuments.delivery` is a single admin query for that state, and it
+derives "ready to send" from exactly the condition `prepareSend` enforces — not
+outdated, and master revision, rate version and notes version all matching — so
+the screen can never offer a send the server will reject. The batch runner
+reuses the existing hardened `generatePdf` and `sendEmail` actions through a
+three-wide pool, so a failure on one customer neither stops the rest nor rolls
+back the ones the provider already accepted, and every outcome is reported by
+name. Three limits are deliberate: batch generate and batch send each require an
+explicit confirmation that names the customers and addresses, a PDF must be
+ticked as reviewed before it can be sent, and the tick is keyed to the document
+id so regenerating a PDF silently clears an earlier review. Rows with no saved
+recipient are excluded and named in the dialog rather than guessed at, and
+nothing is generated or sent in the background. 7 new handler tests; all 536
+tests pass; TypeScript, lint and production build pass.
+
+## 2026-09-26 — Bulk approval of rate drafts
+
+A fuel adjustment no longer stops at "created N drafts". The batch results screen
+can now approve the drafts it just created, one customer or the whole selection,
+so a 40-customer increase is one confirmation instead of 40 open-review-approve
+cycles. `customerRateBulk.approveDrafts` shares one set of approval rules with the
+single-customer path through the new `approvalBlock` and `approveVersionHandler` in
+`customerRates.ts`, so bulk approval cannot drift from what the customer screen
+allows. A draft that is not ready is reported and skipped instead of failing the
+batch, with the reason shown per customer: deleted, already approved, master
+changed since the draft was saved, lanes changed, or an email in flight. Every
+draft is validated before any approval is written, so a blocked customer cannot
+leave a half-applied batch, and retrying is safe because already-approved drafts
+return as skipped. Cross-customer version IDs, duplicates within a batch, empty
+selections and batches over 100 are rejected. Approving still sends nothing and
+still marks earlier PDFs outdated. 7 new handler tests; all 529 tests pass;
+TypeScript and lint pass.
+
+## 2026-09-26 — Customer rate card layout
+
+Rebuilt the Customer Rates PDF as a quotation-style rate card. The table now
+measures each row from the text it holds, so a long destination grows its row and
+the rows below shift down instead of overprinting it: zebra banding, rules, unit
+and every rate stay inside their own row. Loading point, destination, unit and up
+to three rate versions sit in fixed columns; rate columns are spread evenly and
+hug the right margin, dates run left to right oldest to newest, and the current
+version is bold with a `CURRENT` tag. Rows are one line each unless the name
+genuinely needs more, a lane name that cannot fit three lines is refused with a
+clear message instead of being cut off, and more rate versions than the page can
+hold side by side is refused rather than drawn on top of each other. The header
+auto-fits the customer name across up to three lines, notes get their own pages
+under a `NOTES AND SPECIAL CHARGES` heading, and the header band, footer and
+page numbers repeat on every page. Notes and lane names are measured at the size
+they are drawn, not at whatever font was last set. New `rateColumnEdges()` export
+documents the column geometry. All 522 tests pass (14 new layout tests that
+assert the drawn PDF geometry); feature lint and TypeScript pass.
+
+## 2026-09-26 — Delete a rate version
+
+Added **Delete** to Customer Rates → Version history, so test versions can be
+cleared. Deletion is a soft delete: the version and its lines, generated PDFs and
+sent emails are retained, and the version leaves the working list, stops counting
+as a draft and is excluded from future PDF comparison columns. Deleting the
+current version clears the current pointer, so the customer shows no approved
+rates until another version is approved. A deleted version can be brought back
+from **Deleted versions**, but is never silently re-approved or re-pointed.
+Approved snapshots require typing the version number to confirm; drafts use the
+standard confirmation. Deletion is rejected for another customer's version, an
+already deleted version, and while an email is in flight. New `deletedAt`,
+`deletedBy` and `deletedByEmail` fields on `customerRateVersions` are already
+deployed. All 510 tests pass; feature lint and TypeScript pass.
+
+## 2026-09-26 — Idempotency keys on insecure origins
+
+Fixed `crypto.randomUUID is not a function` when the app is opened over plain
+HTTP on a LAN address (for example a phone testing the PWA), which is not a
+secure context. Bulk diesel adjustment, rate-PDF email sends, session tokens and
+planner load ids now use one shared `newRequestKey()` helper that falls back to
+32 hex characters from `crypto.getRandomValues`, and always satisfies the server
+`requestKey` contract. All 502 tests pass; feature lint and TypeScript pass.
+
+## 2026-09-26 — Customer contact validation
+
+Fixed failed `saveContacts` calls in Customer Rates. Contact emails are now
+validated per row before the mutation runs, so the Contacts form cannot submit
+a blank, malformed, comma-separated or duplicated address, and reports the exact
+row ("Contact 2: …") instead of a generic server error. Selecting, deactivating
+or removing a contact always leaves exactly one active primary. New shared rules
+in `customerRateRules` back both the form and the mutation. All 498 tests pass;
+feature lint and TypeScript pass.
+
+## 2026-09-26 — Age Analysis customer CSV import
+
+Added **Import Age Analysis CSV** to Admin → Clients. Previews existing-field
+mapping, active/inactive status and row-level skip reasons; imports new customers
+in batches of 100 with progress and retry-safe account/name checks. Existing
+customers are never overwritten or reactivated. Blocked export accounts become
+inactive. Duplicate names/accounts and missing-description rows are skipped for
+manual resolution. No schema or dependency changes. Tested against the supplied
+2,337-row export; all 490 tests, feature lint and TypeScript pass.
+
+## 2026-09-26 — Bulk customer diesel adjustment
+
+Added a single diesel-change preview across active customers, with selectable
+customer drafts and per-lane before/after amounts. Uses approved starting rates,
+flags missing or mismatched diesel baselines, retains manual approval/email, and
+creates full snapshots atomically with revision checks and retry deduplication.
+New `customerRateBatches` table, `customerRateBulk` API and bulk UI. All 479 tests
+pass; feature lint and TypeScript pass. See the Customer Rate Master guide.
+
+## 2026-09-26 — Customer Rate Master Phase 1
+
+Added the admin Customer Rates screen, full immutable rate snapshots, pointer restore,
+lane/unit management, notes/contact history, stored rate PDFs and Resend send history.
+Reuses existing customers, sessions, Convex storage and QuickSend transport. No load
+matching integration. See `docs/CUSTOMER_RATE_MASTER.md` for schema/API inventory,
+validation, defaults requiring confirmation and rollout notes.
+
 > **For AI agents.** This file is the single entry point for understanding the
 > complete scope of the FleetCore project and what has changed recently.
 > Read it before making any change, then consult the deeper docs it links to.

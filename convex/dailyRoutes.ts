@@ -1106,8 +1106,12 @@ export const getQuickSendReport = query({
       const status = (route as any).status || "planned";
 
       // Filter based on completedOnly toggle
-      // Default to TRUE (strict mode) if not specified, to preserve legacy behavior
-      const completedOnly = args.completedOnly ?? true;
+      // Defaults to FALSE, so an omitted flag means "no filter" rather than
+      // silently dropping every load that has not been completed yet. Loads
+      // planned on the board carry a "planned" status, so a TRUE default here
+      // halved the row count on a range printout with nothing on the sheet to
+      // explain it. Both callers pass the flag explicitly; this is the floor.
+      const completedOnly = args.completedOnly ?? false;
       
       if (completedOnly && status !== "completed" && status !== "locked") {
         continue;

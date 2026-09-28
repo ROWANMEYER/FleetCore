@@ -38,8 +38,13 @@ export default function QuickSendPage() {
  ?"Please select a date to load the report."
  :"";
 
- // 2. Data Fetching
- const [completedOnly, setCompletedOnly] = useState(true);
+  // 2. Data Fetching
+  // Off by default. Loads planned on the board are stored with a "planned"
+  // status, so defaulting this on silently dropped every unstarted load from
+  // the range — a printout of 16 loads came out as 8, with nothing on the sheet
+  // to say why. The checkbox is now the opt-in filter, for when you do want only
+  // settled loads.
+  const [completedOnly, setCompletedOnly] = useState(false);
 
 const { token, user, regionFilter } = useAuth();
 const region = useRegionArg();

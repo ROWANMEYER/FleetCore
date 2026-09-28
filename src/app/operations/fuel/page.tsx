@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Trash2, X, ArrowRightLeft, Maximize2, Minimize2 } from "lucide-react";
+import { Plus, Printer, Trash2, X, ArrowRightLeft, ChevronDown, Maximize2, Minimize2 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { MAX_PRICE, priceProblem } from "@/convex/fuelPriceFields";
@@ -34,6 +34,8 @@ import {
   estimatedRateImpact,
   monthLabel,
 } from "@/src/lib/fuel/compare";
+import { fuelHistoryPrintHtml } from "@/src/lib/fuel/print";
+import { useCollapsedCards } from "@/src/lib/fuel/collapsedCards";
 
 /**
  * The diesel price history and what it does to a rate.
@@ -93,6 +95,41 @@ function Delta({ value, render }: { value: number | null; render: (value: number
 }
 
 /**
+ * The small chevron that folds a card down to its headline.
+ *
+ * Present rather than hidden: a card that folds but gives no sign that it can
+ * would be a trap for anyone who did not already know. It sits in the card's
+ * own corner so it never shifts the figure it belongs to, and it is a real
+ * button with aria-expanded, so a screen reader is told the state rather than
+ * having to infer it from a rotated triangle.
+ */
+function FoldToggle({
+  label,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      aria-label={`${collapsed ? "Show" : "Hide"} ${label} detail`}
+      title={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
+      className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] p-1.5 text-[var(--nav-text-color)] transition-colors hover:bg-[var(--card-bg)] hover:text-[var(--foreground)] active:bg-[var(--card-bg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+    >
+      <ChevronDown
+        className={`h-4 w-4 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+/**
  * One of the three figures at the top of the page.
  *
  * Deliberately carries no progress bar: a diesel price, a percentage change and
@@ -106,11 +143,13 @@ function SummaryCard({
   value,
   valueClass = "text-[var(--foreground)]",
   detail,
+  fold,
 }: {
   label: string;
   value: React.ReactNode;
   valueClass?: string;
   detail: React.ReactNode;
+  fold?: { collapsed: boolean; onToggle: () => void };
 }) {
   const tilt = useTilt();
   return (
@@ -121,9 +160,12 @@ function SummaryCard({
       style={tilt.style}
       className="glass-card rounded-xl p-4 sm:p-5 transition-transform duration-200 ease-out"
     >
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">{label}</h2>
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">{label}</h2>
+        {fold && <FoldToggle label={label} collapsed={fold.collapsed} onToggle={fold.onToggle} />}
+      </div>
       <p className={`mt-2 text-2xl sm:text-3xl font-black tabular-nums leading-none ${valueClass}`}>{value}</p>
-      <p className="mt-2 text-xs text-[var(--nav-text-color)]">{detail}</p>
+      {(!fold || !fold.collapsed) && <p className="mt-2 text-xs text-[var(--nav-text-color)]">{detail}</p>}
     </div>
   );
 }
@@ -154,6 +196,10 @@ export default function FuelCompositionPage() {
   // The history table gets the whole screen when the reader wants to work
   // through the rows without the rest of the page in the way.
   const [historyFullScreen, setHistoryFullScreen] = useState(false);
+  // Which cards are folded away, remembered per browser. Folding only ever
+  // shortens a card: every figure stays worked out by the same functions and the
+  // detail is one click away, so nothing on this screen can hide a number.
+  const { isCollapsed, toggle } = useCollapsedCards("overview");
 
   const dateRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
@@ -207,6 +253,11 @@ export default function FuelCompositionPage() {
   // Both bars are drawn against the larger of the two, so their lengths can be
   // compared by eye rather than each filling its own box.
   const barScale = Math.max(comparison?.baseline?.price ?? 0, comparison?.comparison?.price ?? 0, 0.01);
+  // The history table's own fold, kept apart from the others because full screen
+  // overrides it and the two are otherwise easy to tangle up.
+  const historyFolded = isCollapsed("history");
+  // Compare months folds as one piece: the heading stays, everything under it goes.
+  const compareFolded = isCollapsed("compare");
 
   function swapMonths() {
     setChosenFrom(toKey);
@@ -255,6 +306,34 @@ export default function FuelCompositionPage() {
     setNotes("");
     setError("");
     setSaved("");
+  }
+
+  /**
+   * Puts the history on paper.
+   *
+   * A document of its own rather than a print stylesheet over the page: the
+   * screen carries a delete button on every row, an SVG chart and a panel of
+   * selects, and none of those belong on a printout. The rows go out in the order
+   * the reader has the table in, so the sheet reads the way the table did, and
+   * the month comparison is only included when they have one open.
+   *
+   * A blocked popup is a real possibility here, so it is reported rather than
+   * left as a button that silently does nothing. The window is left open on
+   * purpose: "Save as PDF" is a destination in the print dialog, and closing the
+   * document first would take that choice away.
+   */
+  function printHistory() {
+    setSaved("");
+    setError("");
+    const sheet = window.open("", "_blank");
+    if (!sheet) {
+      setError("Allow popups for this site, then print the history again.");
+      return;
+    }
+    sheet.document.write(fuelHistoryPrintHtml({ rows: records, newestFirst, comparison, printedAt: new Date() }));
+    sheet.document.close();
+    sheet.focus();
+    sheet.print();
   }
 
   async function record(event: React.FormEvent) {
@@ -330,6 +409,7 @@ export default function FuelCompositionPage() {
           value={latest ? formatRand(latest.pricePerLitre) : DASH}
           valueClass={latest ? "text-[var(--foreground)]" : "text-[var(--nav-text-color)]"}
           detail={latest ? <>per litre · effective {formatLongDay(latest.effectiveDate)}</> : "Nothing recorded yet"}
+          fold={{ collapsed: isCollapsed("summary:price"), onToggle: () => toggle("summary:price") }}
         />
         <SummaryCard
           label="Change from previous"
@@ -348,6 +428,7 @@ export default function FuelCompositionPage() {
                 ? "No earlier price to compare against"
                 : "Nothing recorded yet"
           }
+          fold={{ collapsed: isCollapsed("summary:change"), onToggle: () => toggle("summary:change") }}
         />
         <SummaryCard
           label="Carried rate impact"
@@ -366,6 +447,7 @@ export default function FuelCompositionPage() {
                 ? "No composition recorded"
                 : "Nothing recorded yet"
           }
+          fold={{ collapsed: isCollapsed("summary:impact"), onToggle: () => toggle("summary:impact") }}
         />
       </section>
 
@@ -458,32 +540,60 @@ export default function FuelCompositionPage() {
       )}
 
       {saved && !open && <p role="status" className="text-sm text-teal-600 dark:text-teal-300">{saved}</p>}
+      {/* The form carries its own messages, so these only speak when it is closed.
+          Printing and removing both report from here, and neither opens it. */}
+      {error && !open && <p role="alert" className="text-sm text-red-500">{error}</p>}
 
       {records.length > 0 ? (
         <>
           <section aria-label="Diesel price trend" className="glass-card rounded-xl p-4 sm:p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
               <h2 className="font-semibold">Diesel price trend</h2>
-              <p className="text-xs text-[var(--nav-text-color)]">{records.length} {records.length === 1 ? "price" : "prices"} recorded</p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-[var(--nav-text-color)]">{records.length} {records.length === 1 ? "price" : "prices"} recorded</p>
+                <FoldToggle
+                  label="Diesel price trend"
+                  collapsed={isCollapsed("trend")}
+                  onToggle={() => toggle("trend")}
+                />
+              </div>
             </div>
-            <DieselTrendChart
-              points={chronological.map(row => ({
-                effectiveDate: row.effectiveDate,
-                pricePerLitre: row.pricePerLitre,
-                percentChange: row.percentChange,
-              }))}
-            />
+            {!isCollapsed("trend") && (
+              <DieselTrendChart
+                points={chronological.map(row => ({
+                  effectiveDate: row.effectiveDate,
+                  pricePerLitre: row.pricePerLitre,
+                  percentChange: row.percentChange,
+                }))}
+              />
+            )}
           </section>
 
           {comparison && (
           <section aria-label="Compare months" className="glass-card rounded-xl p-4 sm:p-5 space-y-5">
+            {/* One fold for the whole section, on the same pattern as the trend
+                chart and the history table above and below it. The cards inside
+                are figures, not panels: each holds a number and the line that
+                explains it, and a reader folding the section wants the lot out of
+                the way, not one box at a time. */}
             <div className="space-y-1">
-              <h2 className="font-semibold">Compare months</h2>
-              <p className="text-sm text-[var(--nav-text-color)]">
-                The last price recorded in each month, set side by side. Either month can be the baseline.
-              </p>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-semibold">Compare months</h2>
+                <FoldToggle
+                  label="Compare months"
+                  collapsed={compareFolded}
+                  onToggle={() => toggle("compare")}
+                />
+              </div>
+              {!compareFolded && (
+                <p className="text-sm text-[var(--nav-text-color)]">
+                  The last price recorded in each month, set side by side. Either month can be the baseline.
+                </p>
+              )}
             </div>
 
+            {!compareFolded && (
+            <>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
               <div>
                 <label htmlFor="compare-from" className="block text-sm font-medium">From · baseline</label>
@@ -544,19 +654,20 @@ export default function FuelCompositionPage() {
               ))}
             </div>
 
+            {/* These two carry a figure and nothing else, so they get no fold
+                control: a chevron that changed nothing would read as broken. */}
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-[var(--card-border)] p-3 sm:p-4 space-y-1">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">Rand difference</h3>
-                <p className="text-xl font-black tabular-nums leading-none">
-                  <Delta value={comparison.randDifference} render={formatSignedRand} />
-                </p>
-              </div>
-              <div className="rounded-lg border border-[var(--card-border)] p-3 sm:p-4 space-y-1">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">Diesel change</h3>
-                <p className="text-xl font-black tabular-nums leading-none">
-                  <Delta value={comparison.dieselPercentChange} render={formatSignedPercent} />
-                </p>
-              </div>
+              {([
+                { heading: "Rand difference", value: comparison.randDifference, render: formatSignedRand },
+                { heading: "Diesel change", value: comparison.dieselPercentChange, render: formatSignedPercent },
+              ] as const).map(({ heading, value, render }) => (
+                <div key={heading} className="rounded-lg border border-[var(--card-border)] p-3 sm:p-4 space-y-1">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">{heading}</h3>
+                  <p className="text-xl font-black tabular-nums leading-none">
+                    <Delta value={value} render={render} />
+                  </p>
+                </div>
+              ))}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-start">
@@ -609,6 +720,8 @@ export default function FuelCompositionPage() {
               This compares the two chosen months end to end using the composition above. It is not the
               cumulative total of the carried adjustments recorded in between, and it does not change any saved price.
             </p>
+            </>
+            )}
           </section>
           )}
 
@@ -648,6 +761,14 @@ export default function FuelCompositionPage() {
                 </div>
                 <button
                   type="button"
+                  onClick={printHistory}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--nav-text-color)] transition-colors hover:bg-[var(--card-bg)] hover:text-[var(--foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                >
+                  <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                  Print
+                </button>
+                <button
+                  type="button"
                   onClick={() => setHistoryFullScreen(value => !value)}
                   aria-pressed={historyFullScreen}
                   className="inline-flex items-center gap-2 rounded-lg border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--nav-text-color)] transition-colors hover:bg-[var(--card-bg)] hover:text-[var(--foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
@@ -657,8 +778,17 @@ export default function FuelCompositionPage() {
                     : <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />}
                   {historyFullScreen ? "Exit full screen" : "Full screen"}
                 </button>
+                <FoldToggle
+                  label="Price history table"
+                  collapsed={historyFolded}
+                  onToggle={() => toggle("history")}
+                />
               </div>
             </div>
+            {/* Full screen exists to give the table the whole display, so it
+                ignores the fold rather than showing an empty page the reader
+                asked to expand. */}
+            {(!historyFolded || historyFullScreen) && (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[46rem] text-sm">
                 <caption className="sr-only">
@@ -734,6 +864,7 @@ export default function FuelCompositionPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </section>
         </>
       ) : (

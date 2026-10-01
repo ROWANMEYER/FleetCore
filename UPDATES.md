@@ -1,5 +1,46 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-10-01 — Sidebar rework and Excel-style sheet entry
+
+The desktop sidebar now carries the truck artwork as a real background layer
+(`public/images/branding/alr-truck-sidebar.png`) fading in behind the nav, with
+the words *People / Freight / Solutions / Always Further* rendered as markup
+anchored to the sidebar floor instead of baked into the photograph, so the
+branding holds its position at any viewport height and the truck can be framed
+for the truck. Account, region, theme and logout collapse into one icon-only
+control cluster with hover tooltips; the account email/role and the region
+`<select>` move into popovers portalled to `<body>` (the rail's
+`backdrop-filter` makes it a containing block for `position: fixed`).
+
+Sheets gains a manual entry row pinned under the data, aligned to the table's
+own columns: type a truck, client, from, to and amount and press Enter to create
+a real daily route, with the row re-armed for the next one. Load fields with no
+column of their own (qty, unit, rate type, km) sit in a **+ Details** strip, and
+the Amount cell back-solves the rate from the quantity. A trailing gutter adds a
+per-row delete. Entering Month mode now snaps the displayed month to the selected
+single date, so a route added under a specific date is always visible.
+
+## 2026-10-01 — Clients CSV export
+
+Admin → Clients now has an **Export CSV** button next to the importer. It writes
+the clients currently shown by the search box and status filter to
+`fleetcore-clients_<date>.csv` in the same Age Analysis column layout the importer
+reads, so an exported file can be selected again in **Import Age Analysis CSV**
+without editing it first.
+
+The export writes `Rekno`, `Name`, `Blocked`, `Contact`, `Email`, `Telephone`,
+`Delivery Address 1`, `Tax Reference` and `Note`. Inactive clients export as
+`Blocked = Yes`; a full multi-line address goes into a single quoted
+`Delivery Address 1` cell; and the customer's own note text is written verbatim to
+`Note`. The importer now prefers a non-empty `Note` column over folding the Age
+Analysis label columns (Aliases, COD, Mobile, Fax, postal address), which makes
+export → import lossless for notes. Existing Age Analysis files are unaffected.
+
+Customers without an account number export with a blank `Rekno` and are reported
+in a toast, because the importer skips rows without one. Export changes no data;
+importing the file again into the same Fleetcore account skips every existing
+customer, as the importer is add-only.
+
 ## 2026-09-27 — Automatic monthly customer rates
 
 Customer rates retain their stored starting rates and sheet date. The editor and

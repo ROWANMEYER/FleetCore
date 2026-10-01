@@ -24,7 +24,8 @@ import { InvoiceData} from"@/src/pdf/types"; import InvoiceDeliveryPanel from"@/
 import { registerCaptureEscape} from"@/src/components/operations/invoice/invoiceEscape";
  import ImportLoadsModal from"./ImportLoadsModal";
  import EditRouteForm from"@/src/components/operations/daily-planner/EditRouteForm";
-import SpreadsheetDataTable, { type SpreadsheetExtraColumn } from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
+ import SpreadsheetDataTable, { type SpreadsheetExtraColumn } from"@/src/components/operations/daily-planner/SpreadsheetDataTable";
+ import SheetAddRow from"@/src/components/operations/daily-planner/SheetAddRow";
 import CommitDateInput from"@/src/components/common/CommitDateInput";
 import { RegionCell, REGION_META } from"@/src/components/operations/daily-planner/RegionCell";
 import MobileSheetsView from"@/src/components/operations/daily-planner/MobileSheetsView";
@@ -2041,9 +2042,22 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  setSingleDate(today);
 }
 
- if (!fromDate) setFromDate(today);
- if (!toDate) setToDate(today);
- if (!selectedMonth) setSelectedMonth(currentMonth);
+if (!fromDate) setFromDate(today);
+  if (!toDate) setToDate(today);
+  if (!selectedMonth) setSelectedMonth(currentMonth);
+
+  // If a persisted session loaded in Month mode, keep the month in sync with
+  // the selected single date (stale localStorage can otherwise show a month
+  // that has no relation to the date the user last viewed).
+  if (
+    dateMode === "month" &&
+    selectedMonth &&
+    singleDate &&
+    /^\d{4}-\d{2}$/.test(singleDate.slice(0, 7)) &&
+    selectedMonth !== singleDate.slice(0, 7)
+  ) {
+    setSelectedMonth(singleDate.slice(0, 7));
+  }
 }, [urlDate]); // Run on mount and URL change
 
  // Persist the date selector state (mode + selected dates) so it survives
@@ -2062,9 +2076,23 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  } catch { /* ignore */ }
  }, [dateMode, singleDate, fromDate, toDate, selectedMonth]);
 
- const handleSingleDateChange = (newDate: string) => {
- setSingleDate(newDate);
- syncDateToUrl(newDate);
+const handleSingleDateChange = (newDate: string) => {
+  setSingleDate(newDate);
+  syncDateToUrl(newDate);
+};
+
+  // Switch date modes. Entering Month mode snaps the displayed month to the
+  // currently selected single date so a route added under "Date 28/09" is
+  // always visible when the user flips to "Month" (selectedMonth is persisted
+  // in localStorage and can otherwise silently point at a stale month).
+  const changeDateMode = (mode: "single" | "range" | "month") => {
+  setDateMode(mode);
+  if (mode === "month") {
+  const monthFromSelection = (singleDate || "").slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(monthFromSelection)) {
+  setSelectedMonth(monthFromSelection);
+  }
+  }
 };
 
 
@@ -2453,7 +2481,7 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <button
  key={option.id}
  type="button"
- onClick={() => setDateMode(option.id as"single" |"range" |"month")}
+ onClick={() => changeDateMode(option.id as"single" |"range" |"month")}
  className={`rounded-lg px-3.5 py-2 text-xs font-medium transition-all ${
  dateMode === option.id
  ?`${gradients.primary} text-white shadow-sm shadow-[rgba(6,182,212,0.3)]`
@@ -3421,8 +3449,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <input
  type="radio"
  name="sheet-date-mode"
- checked={dateMode ==="single"}
- onChange={() => setDateMode("single")}
+checked={dateMode ==="single"}
+  onChange={() => changeDateMode("single")}
  className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Date</span>
@@ -3431,8 +3459,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <input
  type="radio"
  name="sheet-date-mode"
- checked={dateMode ==="range"}
- onChange={() => setDateMode("range")}
+checked={dateMode ==="range"}
+  onChange={() => changeDateMode("range")}
  className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Range</span>
@@ -3441,8 +3469,8 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
  <input
  type="radio"
  name="sheet-date-mode"
- checked={dateMode ==="month"}
- onChange={() => setDateMode("month")}
+checked={dateMode ==="month"}
+  onChange={() => changeDateMode("month")}
  className="h-3 w-3 accent-[#06B6D4] focus:ring-[#06B6D4]"
  />
  <span className="text-xs font-medium text-[var(--foreground)]">Month</span>
@@ -4213,7 +4241,29 @@ function DailyPlannerSheetsContent({ mode ="primary"}: { mode?:"primary" |"secon
     routes={filteredRoutes || []} 
     density={tableDensity}
     extraColumn={sheetsRegionColumn}
+    // Excel-style manual entry: one blank row pinned under the data, so a date
+    // with no routes can be typed out without leaving the sheet.
+    footerRow={isMobile ? undefined : (slot) => (
+      <SheetAddRow
+        columns={slot.columns}
+        gridTemplateColumns={slot.gridTemplateColumns}
+        density={slot.density}
+        defaultDate={
+          dateMode === "single"
+            ? singleDate
+            : singleDate && singleDate >= startDate && singleDate <= endDate
+              ? singleDate
+              : startDate
+        }
+        rangeStart={startDate}
+        rangeEnd={endDate}
+        trucks={trucks}
+        trailers={trailers}
+        drivers={drivers}
+      />
+    )}
    updateLoadFields={({ routeId, loadIndex, patch }: any) => updateLoadFields({ routeId, loadIndex, patch, token })}
+   onDeleteRoute={(routeId) => handleDelete(routeId as Id<"dailyRoutes">)}
    onTruckClick={(truckNo) => {
     setFilters(prev => ({ ...prev, truck: truckNo }));
     const p = new URLSearchParams(searchParams.toString());

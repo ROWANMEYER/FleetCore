@@ -22,6 +22,7 @@ export function parseCsvRecords(input: string): string[][] {
   if (field || row.length || closedQuote) pushRow();
   return rows;
 }
+/** Maps an Age Analysis customer CSV to import rows. A `Note` column (written by the Fleetcore export) wins over the folded Age Analysis label columns. */
 export function parseAgeAnalysisCustomers(input: string): CustomerImportRow[] {
   if (input.length > 10_000_000) throw new Error("Choose a CSV smaller than 10 MB.");
   const records = parseCsvRecords(input);
@@ -40,6 +41,6 @@ export function parseAgeAnalysisCustomers(input: string): CustomerImportRow[] {
     const delivery = [value("Delivery Address 1"), value("Delivery Address 2"), value("Delivery Address 3")].filter(Boolean).join("\n");
     const postal = [value("Postal Address 1"), value("Postal Address 2"), value("Postal Code")].filter(Boolean).join("\n");
     const notes = [["Age Analysis aliases", value("Aliases")], ["COD", value("COD")], ["Mobile", value("Mobile")], ["Fax", value("Fax")], ["Postal address", delivery ? postal : ""]].filter(([, content]) => !!content).map(([label, content]) => `${label}: ${content}`).join("\n");
-    return { sourceRow, accountNumber: value("Rekno"), name: value("Name"), isActive: !["yes", "true", "1"].includes(blocked), contactPerson: optional("Contact"), email: optional("Email"), phone: optional("Telephone") ?? optional("Mobile"), address: delivery || postal || undefined, vatNumber: optional("Tax Reference"), note: notes || undefined };
+    return { sourceRow, accountNumber: value("Rekno"), name: value("Name"), isActive: !["yes", "true", "1"].includes(blocked), contactPerson: optional("Contact"), email: optional("Email"), phone: optional("Telephone") ?? optional("Mobile"), address: delivery || postal || undefined, vatNumber: optional("Tax Reference"), note: value("Note") || notes || undefined };
   });
 }

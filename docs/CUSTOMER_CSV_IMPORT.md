@@ -17,11 +17,22 @@ does not write anything until that button is pressed. Filter the preview to
 | Delivery Address 1–3 | Address; falls back to postal lines and postal code |
 | Tax Reference | VAT number |
 | Blocked | Yes → inactive, No → active |
+| Note | Customer notes; wins over the label columns below when present |
 | Aliases, COD, Mobile, Fax, additional postal details | Customer notes |
 
 Other accounting-specific fields, including credit limits, price lists, tax
 settings, currency and terms, are not imported. No balances or rate-master
 records are created.
+
+## Export
+
+**Admin → Clients → Export CSV** writes the clients matching the current search
+and status filter to `fleetcore-clients_<date>.csv`. The file uses the mapping
+above, so it can be selected in the importer again without editing it. Addresses
+are written as a single quoted multi-line `Delivery Address 1` cell and note text
+is written verbatim to `Note`. A UTF-8 BOM is included so Excel preserves
+leading zeroes in `Rekno`. Clients without an account number export with a blank
+`Rekno` and are skipped if the file is imported, so a toast reports them.
 
 ## Existing customers and duplicate rows
 

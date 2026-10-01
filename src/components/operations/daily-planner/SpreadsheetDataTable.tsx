@@ -56,6 +56,24 @@ interface EditingCell {
   field: keyof Pick<SpreadsheetRow, "customer" | "origin" | "destination" | "amount" | "notes">;
 }
 
+/** One column of the table, as handed to a `footerRow` renderer. */
+export interface SpreadsheetFooterColumn {
+  key: string;
+  label: string;
+  align: "left" | "right";
+}
+
+/**
+ * Rendered as a row under the data rows, using the table's own visible columns,
+ * widths and order so its cells line up exactly with the grid above. Used by the
+ * sheets page for Excel-style manual entry.
+ */
+export type SpreadsheetFooterRow = (slot: {
+  columns: SpreadsheetFooterColumn[];
+  gridTemplateColumns: string;
+  density: "comfortable" | "compact";
+}) => React.ReactNode;
+
 interface Props {
   routes: any[];
   updateLoadFields: (args: {
@@ -72,6 +90,13 @@ interface Props {
   storageNamespace?: string;
   /** Extra classes applied to the root table container (e.g. h-full). */
   className?: string;
+  /** Optional row rendered under the data (manual entry). */
+  footerRow?: SpreadsheetFooterRow;
+  /**
+   * When set, a trailing gutter column with a per-row delete button is appended
+   * to every data row. Deleting from any load row removes the whole route.
+   */
+  onDeleteRoute?: (routeId: string) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -160,6 +185,8 @@ export default function SpreadsheetDataTable({
   extraColumn,
   storageNamespace,
   className,
+  footerRow,
+  onDeleteRoute,
 }: Props) {
   // Base column set + optional caller-supplied extra column, inserted after
   // Date so it is prominent in cross-region views. Stable per extraColumn.
@@ -1028,11 +1055,19 @@ export default function SpreadsheetDataTable({
     }
   }, [editValue, editingCell, savingCell, inputRef, onTruckClick, onLoadClick, isEditing, isSaving, startEditing, saveEdit, handleKeyDown, extraColumn]);
 
-  const gridTemplateColumns = visibleOrderedColumns.map((c) => `${columnWidths[c.key] || c.defaultWidth}px`).join(" ");
+  // Deleting from the gutter only shows when a caller wires onDeleteRoute; the
+  // extra 48px track then applies to header, data rows, AND the footer entry
+  // row (which simply leaves it blank), so column alignment never shifts.
+  const hasRowActions = !!onDeleteRoute;
+
+  const baseColumnsTemplate = visibleOrderedColumns.map((c) => `${columnWidths[c.key] || c.defaultWidth}px`).join(" ");
+  const gridTemplateColumns = hasRowActions ? `${baseColumnsTemplate} 48px` : baseColumnsTemplate;
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  if (rows.length === 0) {
+  // A footer row (manual entry) still needs the full grid — headers and the
+  // entry cells line up by column — so only bail out early without one.
+  if (rows.length === 0 && !footerRow) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-[var(--nav-text-color)]">
         No data to display
@@ -1070,7 +1105,11 @@ export default function SpreadsheetDataTable({
 
       {/* ── Toolbar: resize hint + Columns toggle + Layout profiles ── */}
       <div className="flex items-center justify-between px-4 py-2 text-xs text-[var(--nav-text-color)]">
-        <span>Click headers to sort (adds a sort key) · drag edges to resize · drag headers to reorder</span>
+        <span>
+          Click headers to sort (adds a sort key) · drag edges to resize · drag headers to reorder
+          {footerRow ? " · type in the bottom row to add a route · Enter saves" : ""}
+          {hasRowActions ? " · hover a row to delete" : ""}
+        </span>
         <div className="flex items-center gap-1">
           {/* Columns toggle */}
           <div className="relative" ref={columnMenuRef}>
@@ -1260,10 +1299,27 @@ export default function SpreadsheetDataTable({
             {renderResizeHandle(col.key)}
           </div>
         ))}
+        {hasRowActions && (
+          <div
+            className="relative flex items-center justify-center border-l border-[var(--card-border)] text-[var(--nav-text-color)]/50"
+            title="Hover a row to delete"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* ── Data Rows ── */}
       <div className="divide-y divide-[var(--card-border)]">
+        {sortedRows.length === 0 && (
+          <div className="px-4 py-6 text-center text-xs text-[var(--nav-text-color)]">
+            No rows for this date yet — type in the row below to add the first one.
+          </div>
+        )}
         {sortedRows.map((row, idx) => {
           const rowBg = idx % 2 === 0
             ? "bg-[var(--table-row-even)]"
@@ -1284,10 +1340,41 @@ export default function SpreadsheetDataTable({
                   {renderCell(col, row, rowPad)}
                 </div>
               ))}
+              {hasRowActions && (
+                <div className="relative flex items-center justify-center border-l border-[var(--card-border)]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteRoute?.(row.routeId);
+                    }}
+                    title={`Delete route ${row.routeLabel} and all its loads`}
+                    aria-label={`Delete route ${row.routeLabel}`}
+                    className="flex h-6 w-6 items-center justify-center rounded border border-transparent text-[var(--nav-text-color)] hover:border-[var(--danger-text)]/40 hover:bg-[var(--danger-surface)] hover:text-[var(--danger-text)] transition-colors"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+
+      {/* ── Footer row (Excel-style manual entry) ── */}
+      {footerRow?.({
+        columns: visibleOrderedColumns.map((c) => ({
+          key: c.key,
+          label: c.label,
+          align: c.align,
+        })),
+        gridTemplateColumns,
+        density,
+      })}
     </div>
   );
 }

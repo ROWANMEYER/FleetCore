@@ -8,13 +8,14 @@ import { useAuth } from "@/src/components/auth/AuthProvider";
 import { usePersistentDraft } from "@/src/hooks/usePersistentDraft";
 import { useKpiFilter, type KpiFilter } from "@/src/lib/useKpiFilter";
 import { filterClients } from "@/src/lib/clients/searchClients";
+import { customersCsvFilename, exportCustomersCsv } from "@/src/lib/clients/exportCustomersCsv";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
 import ClientFormDialog from "@/src/components/admin/ClientFormDialog";
 import { CustomerCsvImport } from "@/src/components/admin/CustomerCsvImport";
-import { Handshake, Plus, Pencil, Power, Search, Shield, Trash2 } from "lucide-react";
+import { Download, Handshake, Plus, Pencil, Power, Search, Shield, Trash2 } from "lucide-react";
 
 function StatusPill({ isActive }: { isActive: boolean }) {
   return (
@@ -186,6 +187,24 @@ export default function AdminClientsPage() {
     }
   };
 
+  const handleExport = () => {
+    if (!filtered.length) {
+      addToast("No clients match the current search and status filter.", "error");
+      return;
+    }
+    const result = exportCustomersCsv(filtered);
+    addToast(
+      `Exported ${result.exported} ${result.exported === 1 ? "client" : "clients"} to ${customersCsvFilename()}. Import it again to restore these clients.`,
+      "success"
+    );
+    if (result.missingAccountNumber > 0) {
+      addToast(
+        `${result.missingAccountNumber} exported ${result.missingAccountNumber === 1 ? "client has" : "clients have"} no account number and will be skipped when this file is imported again.`,
+        "info"
+      );
+    }
+  };
+
   const kpiButtons: { key: KpiFilter; label: string; count: number }[] = [
     { key: "total", label: "Total", count: counts.total },
     { key: "active", label: "Active", count: counts.active },
@@ -209,7 +228,7 @@ export default function AdminClientsPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2"><button onClick={() => setImportOpen(true)} className="px-4 py-2 rounded-lg text-sm border border-[var(--card-border)] hover:bg-[var(--card-bg)]">Import Age Analysis CSV</button><button
+          <div className="flex items-center gap-2"><button onClick={handleExport} disabled={filtered.length === 0} title="Export the clients matching the search and status filter as a CSV that can be imported again" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-[var(--card-border)] hover:bg-[var(--card-bg)] disabled:opacity-40"><Download className="w-4 h-4" /> Export CSV</button><button onClick={() => setImportOpen(true)} className="px-4 py-2 rounded-lg text-sm border border-[var(--card-border)] hover:bg-[var(--card-bg)]">Import Age Analysis CSV</button><button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white hover:opacity-90 shadow-sm transition-all"
           >

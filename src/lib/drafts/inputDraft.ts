@@ -184,18 +184,15 @@ export function pruneStaleInputDraft(
   const data: InputDraftData = { ...draft.data };
 
   const checks: Array<[StaleReference["field"], string, string[] | undefined]> = [
-    ["truckFleetNo", data.truckFleetNo, availability.truckFleetNos],
-    ["trailerFleetNo", data.trailerFleetNo, availability.trailerFleetNos],
-    ["driverName", data.driverName, availability.driverNames],
+    ["truckFleetNo", data.truckFleetNo, data.isFleetMode ? availability.truckFleetNos : undefined],
+    ["trailerFleetNo", data.trailerFleetNo, data.isFleetMode ? availability.trailerFleetNos : undefined],
+    ["driverName", data.driverName, data.isFleetMode ? availability.driverNames : undefined],
     ["selectedSubId", data.selectedSubId, availability.subcontractorIds],
   ];
 
   for (const [field, value, available] of checks) {
     if (!findMissing(value, available)) continue;
     staleRefs.push({ field, label: FIELD_LABELS[field], value });
-    if (field === "selectedSubId") {
-      data.isFleetMode = true;
-    }
     data[field] = "";
   }
 

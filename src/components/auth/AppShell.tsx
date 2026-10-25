@@ -7,11 +7,7 @@ import { AmbientBackground } from "@/src/components/AmbientBackground";
 import { useAuth } from "./AuthProvider";
 import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileChromeContext";
 
-/* ─── Android app: four-screen mode ────────────────────────────────
-   On phones (<768px, same breakpoint the app uses for "mobile") the
-   app is limited to Dashboard, Input, Admin, Sheets and Calendar (the
-   edit route is covered by Input, the swaps screens stay reachable by
-   URL but have no tab). Every other route redirects to the Dashboard.
+/* Phones keep the existing operational screens, Fuel Composition and Birthdays.
    Desktop keeps the full sidebar and all screens. */
 const MOBILE_ALLOWED_PATHS = [
   "/dashboard",
@@ -22,6 +18,8 @@ const MOBILE_ALLOWED_PATHS = [
   "/operations/daily-planner/sheets",
   "/admin",
   "/calendar",
+  "/operations/fuel",
+  "/operations/quick-message",
 ];
 
 function isMobileAllowed(path: string) {
@@ -51,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (user && isLogin) router.replace("/dashboard");
   }, [loading, user, isLogin, router]);
 
-  // Mobile guard: only the four mobile screens are reachable on phones
+  // Mobile guard: only the supported phone sections are reachable.
   useEffect(() => {
     if (loading || !user || !isMobile || isLogin) return;
     if (!isMobileAllowed(pathname)) router.replace("/dashboard");

@@ -111,6 +111,17 @@ describe("sanitizeInputDraft", () => {
 });
 
 describe("pruneStaleInputDraft", () => {
+  it("preserves a subcontractor registration and driver outside the owned fleet", () => {
+    const draft = makeDraft({
+      isFleetMode: false, selectedSubId: "sub123",
+      truckFleetNo: "CA 123-456", trailerFleetNo: "", driverName: "External Driver",
+    });
+    const result = pruneStaleInputDraft(draft, AVAILABLE);
+    expect(result.staleRefs).toEqual([]);
+    expect(result.draft).toEqual(draft);
+    expect(sanitizeInputDraft(result.draft)).toEqual(draft);
+  });
+
   it("keeps a fully valid draft untouched", () => {
     const draft = makeDraft();
     const result = pruneStaleInputDraft(draft, AVAILABLE);
@@ -129,7 +140,7 @@ describe("pruneStaleInputDraft", () => {
     ]);
   });
 
-  it("clears a deleted trailer, driver and subcontractor together", () => {
+  it("requires reselecting a deleted subcontractor without changing to owned fleet", () => {
     const result = pruneStaleInputDraft(
       makeDraft({
         trailerFleetNo: "TRL-77",
@@ -139,13 +150,11 @@ describe("pruneStaleInputDraft", () => {
       }),
       AVAILABLE
     );
-    expect(result.draft.data.trailerFleetNo).toBe("");
-    expect(result.draft.data.driverName).toBe("");
+    expect(result.draft.data.trailerFleetNo).toBe("TRL-77");
+    expect(result.draft.data.driverName).toBe("Removed Driver");
     expect(result.draft.data.selectedSubId).toBe("");
-    expect(result.draft.data.isFleetMode).toBe(true);
+    expect(result.draft.data.isFleetMode).toBe(false);
     expect(result.staleRefs.map((ref) => ref.field)).toEqual([
-      "trailerFleetNo",
-      "driverName",
       "selectedSubId",
     ]);
   });

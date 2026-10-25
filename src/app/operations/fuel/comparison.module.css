@@ -1,0 +1,60 @@
+.screen { height: 100%; min-height: 0; min-width: 0; overflow: hidden; container-type: size; color: var(--foreground); background: radial-gradient(ellipse at top right,rgba(6,182,212,.10),transparent 65%); }
+.content { height: 100%; max-width: 650px; margin: auto; padding: 14px; display: grid; grid-template-rows: auto minmax(175px,2.2fr) minmax(65px,.8fr) auto minmax(90px,1.2fr) auto; gap: 11px; box-sizing: border-box; }
+.header { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.icon { color: #0891b2; flex-shrink: 0; }
+.header h1 { font-size: 23px; font-weight: 800; letter-spacing: -.7px; line-height: 1.2; }
+.header p { color: var(--nav-text-color); font-size: 12px; margin-top: 4px; }
+.manage { display: none; margin-left: auto; font-size: 12px; color: #0891b2; }
+.dateCard { display: flex; flex-direction: column; min-height: 0; border: 1px solid #06b6d466; border-radius: 18px; padding: 13px; background: var(--card-bg); box-shadow: 0 3px 10px #0891b208; }
+.dateCard h2 { font-size: 10px; letter-spacing: .65px; font-weight: 750; color: #078eab; text-transform: uppercase; padding-bottom: 9px; }
+.dateGroup { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.dateGroup + .dateGroup { margin-top: 12px; }
+.dateOption { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--card-border); border-radius: 13px; flex: 1; min-height: 0; }
+.dateOption[data-comparison="true"] { background: rgba(6,182,212,.08); border-color: #06b6d44d; }
+.calendarIcon { color: var(--nav-text-color); flex-shrink: 0; }
+.dateOption[data-comparison="true"] .calendarIcon { color: #06b6d4; }
+.dateText { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.dateText > span { text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: .6px; color: var(--nav-text-color); }
+.dateText select { display: block; width: 100%; min-width: 0; min-height: 32px; border: 0; background: transparent; font-size: clamp(15px,4.5vw,21px); font-weight: 750; letter-spacing: -.4px; color: var(--foreground); cursor: pointer; padding: 0 2px 0 0; }
+.dateText option { background: var(--background); color: var(--foreground); font-size: 16px; }
+.dateText small { color: var(--nav-text-color); font-size: 11px; }
+.swap { position: absolute; top: -27px; right: 14px; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--card-border); color: #0891b2; background: var(--card-bg); box-shadow: 0 3px 9px #0b122010; cursor: pointer; }
+.metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; min-height: 0; }
+.metrics > div { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 10px 13px; border: 1px solid var(--card-border); border-radius: 15px; background: var(--card-bg); min-width: 0; }
+.metrics h2 { text-transform: uppercase; letter-spacing: .4px; font-size: 9px; color: var(--nav-text-color); font-weight: 650; }
+.metrics strong { font-size: clamp(18px,5vw,26px); line-height: 1.2; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metrics [data-direction="up"] { color: #b9600b; }
+.metrics [data-direction="down"] { color: #087f82; }
+:global(.dark) .metrics [data-direction="up"] { color: #ffb765; }
+:global(.dark) .metrics [data-direction="down"] { color: #40d9cb; }
+.composition { display: grid; grid-template-columns: minmax(0,1fr) 96px; align-items: center; gap: 8px; padding: 11px 13px; border: 1px solid var(--card-border); border-radius: 15px; background: var(--card-bg); }
+.composition label { font-size: 13px; font-weight: 700; }
+.composition p { font-size: 10px; color: var(--nav-text-color); line-height: 1.5; margin-top: 3px; }
+.percent { display: flex; align-items: center; border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; min-height: 44px; }
+.percent input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: var(--foreground); padding: 9px 6px; text-align: center; font-size: 19px; font-weight: 700; }
+.percent > span { color: var(--nav-text-color); padding: 10px 7px; border-left: 1px solid var(--card-border); background: rgba(6,182,212,.05); font-size: 14px; }
+.composition .error { grid-column: 1/-1; margin: 0; font-size: 10px; color: var(--danger-text,#be123c); }
+.impact { min-height: 0; border: 1px solid #06b6d44d; border-radius: 17px; background: linear-gradient(115deg,#0a2939,#06435a); color: #f0faff; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 13px 18px; }
+.impact h2 { text-transform: uppercase; color: #91deee; letter-spacing: .8px; font-size: 10px; font-weight: 700; }
+.impact strong { color: #22d3ee; font-size: clamp(29px,9vw,48px); font-weight: 850; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -1.5px; }
+.impact p { color: #ccdfeb; font-size: 11px; }
+.caption { text-align: center; color: var(--nav-text-color); font-size: 10px; line-height: 1.4; }
+.status { padding: 24px; display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; font-size: 14px; }
+.status h1 { font-weight: 700; }
+.status a { color: #0891b2; text-decoration: underline; min-height: 44px; }
+.content :is(select,button,a,input):focus-visible { outline: 2px solid #06b6d4; outline-offset: 3px; }
+.percent:focus-within { outline: 2px solid #06b6d4; outline-offset: 2px; }
+:global(.dark) .dateCard h2, :global(.dark) .swap, :global(.dark) .manage { color: #67e8f9; }
+@container (max-height:560px) {
+ .content { padding: 9px 12px; gap: 7px; grid-template-rows: auto minmax(142px,2fr) minmax(48px,.7fr) auto minmax(66px,1fr) auto; }
+ .header h1 { font-size: 19px; } .header p { font-size: 10px; margin-top: 2px; }
+ .dateCard { padding: 9px; border-radius: 14px; } .dateCard h2 { font-size: 9px; padding-bottom: 5px; }
+ .dateOption { padding: 6px 9px; gap: 8px; } .dateText { gap: 1px; } .dateText select { font-size: 16px; min-height: 29px; } .dateText small { font-size: 10px; }
+ .dateGroup + .dateGroup { margin-top: 8px; } .calendarIcon { width: 20px; } .swap { width: 40px; height: 40px; top: -24px; }
+ .metrics > div { padding: 6px 10px; gap: 3px; } .metrics strong { font-size: 20px; }
+ .composition { padding: 7px 10px; } .composition label { font-size: 12px; } .composition p { font-size: 9px; }
+ .impact { padding: 9px 14px; gap: 3px; } .impact strong { font-size: 31px; } .impact p { font-size: 10px; }
+ .caption { font-size: 9px; }
+}
+@container (max-height:420px) { .header p, .composition > div > p, .dateCard h2 { display: none; } .content { gap: 5px; padding: 7px 10px; grid-template-rows: auto minmax(125px,2fr) minmax(43px,.6fr) auto minmax(55px,.8fr) auto; } .dateText small { font-size: 9px; } .dateOption { padding: 4px 8px; } .impact strong { font-size: 27px; } }
+@media(min-width:768px) { .manage { display: block; } .content { padding: 22px; gap: 14px; } .header h1 { font-size: 27px; } .dateText select { font-size: 23px; } }

@@ -26,25 +26,7 @@ export const getAll = query({
       rows = rows.filter((s) => s.companyName.toLowerCase().includes(q));
     }
 
-    // Enrich with linked truck/trailer counts
-    const allTrucks = await ctx.db.query("trucks").collect();
-    const allTrailers = await ctx.db.query("trailers").collect();
-
-    return rows.map((sub) => {
-      const linkedTrucks = allTrucks.filter(
-        (t) => (t as { subcontractorId?: string }).subcontractorId === sub._id
-      );
-      const linkedTrailers = allTrailers.filter(
-        (t) => (t as { subcontractorId?: string }).subcontractorId === sub._id
-      );
-      return {
-        ...sub,
-        truckCount: linkedTrucks.length,
-        truckFleetNos: linkedTrucks.map((t) => t.truckFleetNo).filter(Boolean),
-        trailerCount: linkedTrailers.length,
-        trailerFleetNos: linkedTrailers.map((t) => t.trailerFleetNoStr).filter(Boolean),
-      };
-    });
+    return rows;
   },
 });
 

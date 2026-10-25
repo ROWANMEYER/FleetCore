@@ -30,8 +30,9 @@ export default function OperationsLayout({ children}: { children: React.ReactNod
  :"text-[var(--nav-text-color)] hover:bg-[var(--card-bg)]"
 }`}
  >
- QuickSend
+ Transport Reports
  </Link>
+ <Link href="/operations/quick-message" className={`px-3 py-1.5 rounded-md text-sm font-medium ${isActive("/operations/quick-message") ? "nav-item-active" : "text-[var(--nav-text-color)]"}`}>QuickSend</Link>
   <Link href="/operations/customer-rates" className={`px-3 py-1.5 rounded-md text-sm font-medium ${isActive("/operations/customer-rates") ? "nav-item-active" : "text-[var(--nav-text-color)]"}`}>Customer Rates</Link>
 
   <Link href="/operations/fuel" className={`px-3 py-1.5 rounded-md text-sm font-medium ${isActive("/operations/fuel") ? "nav-item-active" : "text-[var(--nav-text-color)]"}`}>Fuel Composition</Link>

@@ -11,7 +11,7 @@ import { useToast } from "@/src/components/common/Toast";
 import { Pagination } from "@/src/components/common/Pagination";
 import { FlipCard } from "@/src/components/common/FlipCard";
 import { FlipHint } from "@/src/components/admin/FlipHint";
-import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, Truck, ChevronDown, ChevronRight, DollarSign, TrendingUp, Users, Route, FlipVertical2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, DollarSign, TrendingUp, Users, Route, FlipVertical2 } from "lucide-react";
 
 // ZAR formatter
 const fmtCurrency = (n: number) =>
@@ -70,7 +70,6 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  const [editingId, setEditingId] = useState<string | null>(null);
  const [editingState, setEditingState] = useState<any | null>(null);
  const [deletingId, setDeletingId] = useState<string | null>(null);
- const [expandedId, setExpandedId] = useState<string | null>(null);
  const [flippedId, setFlippedId] = useState<string | null>(null);
   // Keep the last successfully loaded result so a refetch (every search
   // keystroke) never unmounts the page — an unmounted input dismisses the
@@ -156,9 +155,6 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  }
  };
 
- const toggleExpanded = (id: string) => {
- setExpandedId(expandedId === id ? null : id);
- };
 
  return (
  <div className="w-full h-full p-4 sm:p-6 space-y-6 overflow-y-auto" style={{color:"var(--foreground)"}}>
@@ -166,7 +162,7 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <div className="flex items-center justify-between">
  <div>
  <h1 className="text-xl font-bold tracking-tight" style={{color:"var(--foreground)"}}>Subcontractors</h1>
- <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Manage subcontractor companies and their linked vehicles</p>
+ <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Manage subcontractor companies. Enter truck registration and driver name on each trip.</p>
  </div>
  <button
  onClick={() => setShowAddForm(!showAddForm)}
@@ -327,7 +323,6 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
  {pagedSubs.map((s: any) => {
  const isEditing = editingId === (s._id as string);
- const isExpanded = expandedId === (s._id as string);
 
  if (isEditing) {
  return (
@@ -424,65 +419,10 @@ export default function AdminSubcontractorsPage() {  const [search, setSearch] =
  }`}>
  {s.status === "inactive" ? "Inactive" : "Active"}
  </span>
- <span className="inline-flex items-center gap-1 text-xs" style={{color:"var(--nav-text-color)"}}>
- <Truck className="w-3 h-3" /> {s.truckCount || 0}
- </span>
- <span className="inline-flex items-center gap-1 text-xs" style={{color:"var(--nav-text-color)"}}>
- <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
- <rect x="2" y="4" width="20" height="16" rx="2" />
- <path d="M8 8h8" />
- <path d="M8 12h6" />
- </svg>
- {s.trailerCount || 0}
- </span>
  </div>
-
- {/* Expanded vehicles */}
- {isExpanded && (
- <div className="mt-4 pt-3 space-y-3" style={{borderTop:"1px solid var(--card-border)"}}>
- <div>
- <h4 className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5" style={{color:"var(--nav-text-color)"}}>
- <Truck className="w-3 h-3" /> Trucks ({s.truckCount || 0})
- </h4>
- {s.truckFleetNos && s.truckFleetNos.length > 0 ? (
- <div className="flex flex-wrap gap-1">
- {s.truckFleetNos.map((fn: string, i: number) => (
- <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--info-surface)] text-[var(--info-text)] border border-[var(--info-border)]">{fn}</span>
- ))}
- </div>
- ) : (
- <span className="text-xs italic" style={{color:"var(--nav-text-color)"}}>No trucks linked</span>
- )}
- </div>
- <div>
- <h4 className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1.5" style={{color:"var(--nav-text-color)"}}>
- <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
- <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M8 8h8" /><path d="M8 12h6" />
- </svg>
- Trailers ({s.trailerCount || 0})
- </h4>
- {s.trailerFleetNos && s.trailerFleetNos.length > 0 ? (
- <div className="flex flex-wrap gap-1">
- {s.trailerFleetNos.map((fn: string, i: number) => (
- <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/25">{fn}</span>
- ))}
- </div>
- ) : (
- <span className="text-xs italic" style={{color:"var(--nav-text-color)"}}>No trailers linked</span>
- )}
- </div>
- </div>
- )}
-
- {/* Expand toggle */}
- <button
- onClick={(e) => { e.stopPropagation(); toggleExpanded(s._id as string); }}
- className="mt-3 w-full flex items-center justify-center gap-1 py-1.5 text-[10px] font-medium transition-colors rounded-lg"
- style={{color:"var(--nav-text-color)"}}
- >
- {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
- {isExpanded ? "Hide vehicles" : `Show vehicles (${(s.truckCount || 0) + (s.trailerCount || 0)})`}
- </button>
+ <p className="mt-3 text-xs" style={{color:"var(--nav-text-color)"}}>
+ Truck registration and driver name are recorded per trip.
+ </p>
  </div>
  }
  back={

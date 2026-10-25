@@ -354,6 +354,7 @@ export default function Navigation() {
               >
                 <Image
                   src="/images/branding/alr-truck-sidebar.png"
+                  loading="eager"
                   alt="Anton Le Roux truck on the open road"
                   fill
                   sizes="256px"

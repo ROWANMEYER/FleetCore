@@ -97,14 +97,12 @@ export function WizardRouteHeader({
     return day === 0 || day === 6;
   })();
 
-  // C. Missing Fields (Optional but Expected). In subcontractor mode the
-  // subcontractor (not the truck) is the key identifier, so the badge keys
-  // off the subcontractor selection instead of the truck number.
+  // Fleet trailers are optional; subcontractor details are entered per trip.
   const missingFields: string[] = [];
-  if (!trailerFleetNo && truckFleetNo) missingFields.push("Trailer");
+  if (isFleetMode && !trailerFleetNo && truckFleetNo) missingFields.push("Trailer");
   if (!driverName && truckFleetNo) missingFields.push("Driver");
   if ((!routeKilometers || parseFloat(routeKilometers) === 0) && truckFleetNo) missingFields.push("KM");
-  const headerMissing = isFleetMode ? missingFields.length > 0 : !isFleetMode && !selectedSubId;
+  const headerMissing = isFleetMode ? missingFields.length > 0 : !selectedSubId || !truckFleetNo.trim() || !driverName.trim();
 
   // ---------------------------------------------------------------------------
   // DATA PREPARATION (Deduplication)
@@ -113,8 +111,7 @@ export function WizardRouteHeader({
   const uniqueTrailers = Array.from(new Map(trailers.map(t => [t._id, t])).values());
   const uniqueDrivers = Array.from(new Map(drivers.map(d => [d._id, d])).values());
 
-  // Selected subcontractor's company name (shown in the summary line instead of
-  // the truck number, which is meaningless for subcontractor routes).
+  // Subcontractor company and entered registration identify this trip.
   const selectedSubName =
     subcontractors.find((s) => s._id === selectedSubId)?.companyName?.trim() || "";
 
@@ -148,10 +145,10 @@ export function WizardRouteHeader({
           <span className="block mt-1 text-sm text-[var(--nav-text-color)] truncate">
             {collapsed
               ? !isFleetMode
-                ? `${selectedSubName || "No subcontractor"} · ${driverName || "No driver"} · ${date || "No date"}`
+                ? `${selectedSubName || "No subcontractor"} · ${truckFleetNo || "No registration"} · ${driverName || "No driver"} · ${date || "No date"}`
                 : `${truckFleetNo || "No truck"} · ${driverName || "No driver"} · ${date || "No date"}`
               : !isFleetMode
-                ? `Date: ${date} · Sub: ${selectedSubName || "—"} · Driver: ${driverName || "—"}`
+                ? `Date: ${date} · Sub: ${selectedSubName || "—"} · Registration: ${truckFleetNo || "—"} · Driver: ${driverName || "—"}`
                 : `Date: ${date} · Truck: ${truckFleetNo || "—"} · Driver: ${driverName || "—"}`}
           </span>
         </span>
@@ -239,8 +236,14 @@ export function WizardRouteHeader({
 
         {/* Truck */}
         <div className="flex flex-col gap-2">
-          <label className="text-base font-semibold text-[var(--foreground)]">Truck</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">{isFleetMode ? "Truck" : "Truck registration"}</label>
             <div className="flex items-center gap-2">
+            {!isFleetMode ? (
+              <input aria-label="Truck registration" value={truckFleetNo}
+                onChange={(e) => setTruckFleetNo(e.target.value)}
+                placeholder="Enter truck registration" autoCapitalize="characters"
+                className="w-full h-12 px-4 text-base settings-input rounded-md" />
+            ) : (
             <select
               value={truckFleetNo}
               onChange={(e) => setTruckFleetNo(e.target.value)}
@@ -253,10 +256,12 @@ export function WizardRouteHeader({
                 </option>
               ))}
             </select>
+            )}
           </div>
         </div>
 
         {/* Trailer */}
+        {isFleetMode && (
         <div className="flex flex-col gap-2">
           <label className="text-base font-semibold text-[var(--foreground)]">Trailer</label>
             <div className="flex items-center gap-2">
@@ -280,10 +285,18 @@ export function WizardRouteHeader({
           </div>
         </div>
 
+        )}
+
         {/* Driver */}
         <div className="flex flex-col gap-2">
-          <label className="text-base font-semibold text-[var(--foreground)]">Driver</label>
+          <label className="text-base font-semibold text-[var(--foreground)]">{isFleetMode ? "Driver" : "Driver name"}</label>
             <div className="flex items-center gap-2">
+            {!isFleetMode ? (
+              <input aria-label="Driver name" value={driverName}
+                onChange={(e) => setDriverName(e.target.value)}
+                placeholder="Enter driver name"
+                className="w-full h-12 px-4 text-base settings-input rounded-md" />
+            ) : (
             <select
               value={driverName}
               onChange={(e) => setDriverName(e.target.value)}
@@ -296,6 +309,7 @@ export function WizardRouteHeader({
                 </option>
               ))}
             </select>
+            )}
             {missingFields.includes("Driver") && (
               <div className="text-[var(--info-text)] flex-shrink-0">
                 <WarningIcon type="info" tooltip="Missing Driver" />

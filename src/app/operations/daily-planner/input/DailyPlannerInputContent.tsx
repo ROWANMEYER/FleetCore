@@ -298,24 +298,23 @@ function DailyPlannerInputForm() {
   // work offline (the queries themselves cannot resolve without a connection).
   const existingRoute = useQuery(api.dailyRoutes.getById, routeId ? { id: routeId, token, region: regionArg } : "skip");
   const appSettings = useQuery(api.settings.getAppSettings);
-  const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
-  const trucksLive = useQuery(api.fleet.getTrucks, { subcontractorId: subcontractorIdFilter });
+  const trucksLive = useQuery(api.fleet.getTrucks, isFleetMode ? {} : "skip");
   const trucksCached = useCachedValue(
-    `fleet.trucks:${subcontractorIdFilter ?? "all"}`,
+    "fleet.trucks:all",
     trucksLive,
     !isOnline
   );
   const trucks = useMemo(() => trucksCached ?? [], [trucksCached]);
-  const trailersLive = useQuery(api.fleet.getTrailers, { subcontractorId: subcontractorIdFilter });
+  const trailersLive = useQuery(api.fleet.getTrailers, isFleetMode ? {} : "skip");
   const trailersCached = useCachedValue(
-    `fleet.trailers:${subcontractorIdFilter ?? "all"}`,
+    "fleet.trailers:all",
     trailersLive,
     !isOnline
   );
   const trailers = useMemo(() => trailersCached ?? [], [trailersCached]);
-  const driversLive = useQuery(api.fleet.getDrivers, { subcontractorId: subcontractorIdFilter });
+  const driversLive = useQuery(api.fleet.getDrivers, isFleetMode ? {} : "skip");
   const driversCached = useCachedValue(
-    `fleet.drivers:${subcontractorIdFilter ?? "all"}`,
+    "fleet.drivers:all",
     driversLive,
     !isOnline
   );
@@ -742,12 +741,19 @@ function DailyPlannerInputForm() {
     // STAGE 4: Defensive check (Save should not proceed with missing fields).
     // Region is only ever empty in create mode with the sidebar on "All
     // Regions" — the red alert under the field demands an explicit pick.
-    if (!date || !truckFleetNo || !driverName || !region) {
+    if (!isFleetMode && !selectedSubId) {
+      setSaveStatus("error");
+      setSaveError("Please select a subcontractor.");
+      return;
+    }
+    if (!date || !truckFleetNo.trim() || !driverName.trim() || !region) {
       setSaveStatus("error");
       setSaveError(
         !region
           ? "Please select a region for this route."
-          : "Please complete all required fields (Date, Truck, Driver)."
+          : isFleetMode
+            ? "Please complete all required fields (Date, Truck, Driver)."
+            : "Please complete Date, Truck registration, and Driver name."
       );
       return;
     }
@@ -782,10 +788,10 @@ function DailyPlannerInputForm() {
         await updateRoute({
           id: routeId,
           routeDate: date,
-          truckFleetNo: truckFleetNo, // Canonical
-          truckFleetNoStr: truckFleetNo, // Legacy
-          driverName: driverName,
-          trailerFleetNoStr: trailerFleetNo || undefined,
+          truckFleetNo: truckFleetNo.trim(), // Canonical
+          truckFleetNoStr: truckFleetNo.trim(), // Legacy
+          driverName: driverName.trim(),
+          trailerFleetNoStr: isFleetMode ? trailerFleetNo || undefined : undefined,
           subcontractorId: modeSubId,
           notes: notes || undefined,
           kilometers: totals.totalKm, // Legacy field (effective)
@@ -813,10 +819,10 @@ function DailyPlannerInputForm() {
         // instead of inserting a duplicate.
         const payload = {
           routeDate: date,
-          truckFleetNo: truckFleetNo, // Canonical
-          truckFleetNoStr: truckFleetNo, // Legacy
-          driverName: driverName,
-          trailerFleetNoStr: trailerFleetNo || undefined,
+          truckFleetNo: truckFleetNo.trim(), // Canonical
+          truckFleetNoStr: truckFleetNo.trim(), // Legacy
+          driverName: driverName.trim(),
+          trailerFleetNoStr: isFleetMode ? trailerFleetNo || undefined : undefined,
           subcontractorId: modeSubId,
           notes: notes || undefined,
           kilometers: totals.totalKm, // Legacy field (effective)
@@ -955,7 +961,13 @@ function DailyPlannerInputForm() {
             subcontractors={subcontractors}
             isFleetMode={isFleetMode}
             selectedSubId={selectedSubId}
-            onFleetModeChange={setIsFleetMode}
+            onFleetModeChange={(next) => {
+              if (next === isFleetMode) return;
+              setTruckFleetNo("");
+              setTrailerFleetNo("");
+              setDriverName("");
+              setIsFleetMode(next);
+            }}
             onSubIdChange={setSelectedSubId}
             isEditable={isEditable}
             isEditMode={mode === "edit"}

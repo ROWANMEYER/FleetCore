@@ -1,5 +1,136 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-10-25 — FleetCore mobile release
+
+Release combines subcontractor trip details, grouped Operations navigation,
+QuickSend's five selectable designs, the exact-date Fuel comparison and preserved
+fuel management screen. The installed app's service-worker cache is now v76.
+Validation: 915 tests across 48 files and TypeScript pass. Local logs, environment
+files and reference PDFs are excluded from the release.
+
+## 2026-10-25 — Fixed Fuel comparison by recorded dates
+
+The Fuel landing page now follows the approved date-focused mockup: exact
+recorded From/To dates and per-litre prices, swap action, rand and percentage
+differences, editable composition, and estimated rate impact. The main page has
+no chart/history or page scrolling. Container-height rules compact the layout
+on smaller phone viewports. The Fuel tab label remains short.
+
+Comparison keys are record IDs, so prices on different dates in the same month
+remain independently selectable. Defaults use the latest two recorded dates;
+one record compares against itself. Missing/deleted selections remain unknown
+rather than silently switching records. Composition starts from the To record
+and is a local comparison input only; changing or swapping To resets it to that
+record's saved composition. Invalid or absent composition never displays a false
+zero impact. Calculation uses unrounded endpoint values, not cumulative changes.
+
+The previous full price-management UI is preserved at /operations/fuel/manage,
+with a desktop Manage prices link and an empty-state entry point. Existing
+admin access checks, backend queries, saved prices and management actions remain.
+
+Validation: 153 Fuel tests pass, including same-month exact-date, reversed,
+identical, invalid/missing-record and composition cases, plus page rendering.
+TypeScript and changed-file lint pass. Nothing pushed or deployed.
+
+## 2026-10-25 — Fuel phone layout
+
+Shortened the phone tab to Fuel while retaining the full Fuel composition
+accessible label. Added a FleetCore teal header treatment and a compact phone
+summary: latest price full-width, price change and rate impact side by side.
+Month selectors, comparison values and differences now sit beside each other
+on phones, with a narrower fallback below 360px. Scoped styling follows the
+existing light/dark theme and gives composition inputs normal form affordances.
+
+Below 768px, price history uses expandable date/price cards with the movement
+visible when closed. Expansion retains rand/percentage changes, composition,
+carried impact, notes and the same existing remove confirmation flow. Desktop
+and full-screen views retain the complete history table. No calculation,
+query, authorization, record or sort logic changed.
+
+Validation: 144 Fuel tests pass, including three new mobile-history rendering
+regressions. TypeScript and changed-file lint pass. Changes remain local.
+
+## 2026-10-25 — Five switchable QuickSend designs
+
+QuickSend now offers Clean Cards, Dark Fleet, Guided Steps, Compact Dispatch and
+Message First in the Style selector. All five reuse the same form state, so
+switching does not clear fleet IDs, template, week details or notes. Only the
+appearance preference is stored on the device; server rendering defaults to
+Clean Cards and hydrates the saved choice without a mismatch. Missing/invalid
+preferences recover to Clean Cards, and the layout stays usable if storage is
+blocked. Existing message formatting and WhatsApp handoff remain shared.
+
+Single selection cards open native modal dialogs with search, current-selection
+indicators, empty results, Escape dismissal and browser-managed focus. Guided
+Steps requires fleet details before Message and a valid template before Share.
+Dark Fleet uses local navy tokens; other styles follow the app's theme. Layout
+styles are scoped to QuickSend and respect reduced motion.
+
+Validation: 14 focused layout, preference and message tests pass. TypeScript and
+changed-file lint pass. The signed-in browser exposes the new Style control and
+Dark Fleet layout. Full interactive browser checks were limited by screenshot
+capture failure and ongoing user input; no messages were sent. Nothing pushed
+or deployed.
+
+## 2026-10-25 — QuickSend main phone tab
+
+QuickSend is now a direct main phone tab beside Operations, Fuel Composition and
+Birthdays, and is removed from the Operations chooser. Its route highlights only
+QuickSend. Fuel Composition wraps its label to fit narrow phone screens.
+
+## 2026-10-25 — QuickSend APK message builder in FleetCore
+
+Rebuilt ROWANMEYER/Quicksend's Standard and Week Format message workflows at
+/operations/quick-message. Operations on phones now includes QuickSend; desktop
+Operations distinguishes it from the existing Transport Reports email page.
+Driver, truck and trailer selections use existing FleetCore queries, with search
+and a last-known offline cache scoped to the signed-in user. Registrations are
+matched by trailer length rather than array order; messages use the personal ID
+field, never an internal database ID. Week/load validation, notes, ETA, preview,
+clipboard copy, WhatsApp handoff and clearing selections are supported. WhatsApp
+requires the user to choose the recipient and send. No backend writes or new
+backend functions were introduced. Selection persistence, APK zoom/compact
+preferences and native haptics were not ported in this first web implementation.
+
+Validation: six message-format tests pass, changed files pass lint, TypeScript
+passes, and the local route returns HTTP 200. No real WhatsApp message was sent.
+Changes remain local; nothing was pushed or deployed.
+
+## 2026-10-25 — Three main phone sections
+
+The main phone bar now has Operations, Fuel Composition and Birthdays. Operations
+opens a compact chooser for Dashboard, Input, Admin and Sheets; Admin remains
+admin-only. Selecting a screen closes the chooser. It can also be dismissed by
+tapping outside, the close control or Escape. Existing screens and routes remain.
+
+## 2026-10-25 — Phone Fuel Composition and Birthdays navigation
+
+Phone navigation retains Dashboard, Input, Admin (admin only), and Sheets, and
+adds Fuel (Fuel Composition) and Birthdays. The existing fuel page is now allowed
+by the mobile route guard; Birthdays opens the existing calendar. Compact tab
+padding keeps the six admin tabs usable on narrow phones. Desktop navigation and
+backend permissions are unchanged.
+
+## 2026-10-25 — Subcontractor trip details
+
+Subcontractor mode in trip input and route editing now accepts a manually entered
+truck registration and driver name, stored on each route using the existing text
+fields. Trailer selection is hidden and omitted from subcontractor saves. Changing
+between fleet and subcontractor mode clears the vehicle/driver selection to avoid
+carrying owned-fleet details into a subcontracted trip. A subcontractor must be
+selected before saving. Existing routes and fleet master records are not migrated.
+
+Subcontractor admin cards no longer show linked fleet trucks/trailers. Automatic
+subcontractor notes use the trip's entered registration and driver name without
+looking up owned-fleet truck registrations or driver phone numbers.
+
+Validation: all 889 tests across 42 files pass, including subcontractor form,
+notes, and draft-restoration regressions. TypeScript passes. Changed files have
+no lint errors; repository-wide lint still reports existing errors elsewhere.
+The production build compiles and typechecks, then stops during prerendering
+because this checkout has no NEXT_PUBLIC_CONVEX_URL. Backend and browser save
+verification require the deployment connection; nothing was pushed or deployed.
+
 ## 2026-10-01 — Sidebar rework and Excel-style sheet entry
 
 The desktop sidebar now carries the truck artwork as a real background layer

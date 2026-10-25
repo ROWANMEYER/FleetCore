@@ -70,10 +70,9 @@ export default function EditRouteForm({ routeId, onSuccess, onCancel, isDayMode 
   const subcontractors = useQuery(api.subcontractors.list, {}) || [];
   const [isFleetMode, setIsFleetMode] = useState(true);
   const [selectedSubId, setSelectedSubId] = useState<string>("");
-  const subcontractorIdFilter = isFleetMode ? undefined : ((selectedSubId || null) as Id<"subcontractors"> | null);
-  const trucks = useQuery(api.fleet.listTrucks, { subcontractorId: subcontractorIdFilter }) || [];
-  const trailers = useQuery(api.fleet.listTrailers, { subcontractorId: subcontractorIdFilter }) || [];
-  const drivers = useQuery(api.fleet.listDrivers, { subcontractorId: subcontractorIdFilter }) || [];
+  const trucks = useQuery(api.fleet.listTrucks, isFleetMode ? {} : "skip") || [];
+  const trailers = useQuery(api.fleet.listTrailers, isFleetMode ? {} : "skip") || [];
+  const drivers = useQuery(api.fleet.listDrivers, isFleetMode ? {} : "skip") || [];
 
   if (!route) {
     return <div className={`p-4 ${isDayMode ? "text-gray-500" : "text-gray-400"}`}>Loading route...</div>;
@@ -405,10 +404,21 @@ function EditRouteFormInner({
 
   const totals = calculateTotals();
 
+  const changeFleetMode = (next: boolean) => {
+    if (next === isFleetMode) return;
+    setTruckFleetNo("");
+    setTrailer("");
+    setDriver("");
+    onFleetModeChange(next);
+  };
+
   // --- Save Handler ---
   const handleSave = async () => {
-    if (!routeDate || !truckFleetNo || !driver) {
-      return addToast("Missing required fields: Date, Truck, or Driver", "error");
+    if (!isFleetMode && !selectedSubId) {
+      return addToast("Please select a subcontractor", "error");
+    }
+    if (!routeDate || !truckFleetNo.trim() || !driver.trim()) {
+      return addToast(isFleetMode ? "Missing required fields: Date, Truck, or Driver" : "Missing required fields: Date, Truck registration, or Driver name", "error");
     }
 
     try {
@@ -431,9 +441,9 @@ function EditRouteFormInner({
       await updateRoute({
         id: routeId,
         routeDate: routeDate,
-        truckFleetNoStr: truckFleetNo.toString(),
-        driverName: driver,
-        trailerFleetNoStr: trailer || undefined,
+        truckFleetNoStr: truckFleetNo.trim(),
+        driverName: driver.trim(),
+        trailerFleetNoStr: isFleetMode ? trailer || undefined : undefined,
         subcontractorId: modeSubId,
         notes: notes || undefined,
         kilometers: totals.totalKm,
@@ -478,7 +488,7 @@ function EditRouteFormInner({
         <span className={`text-sm font-medium ${panelTheme.text.secondary}`}>Mode:</span>
         <button
           type="button"
-          onClick={() => onFleetModeChange(true)}
+          onClick={() => changeFleetMode(true)}
           className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
             isFleetMode
               ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
@@ -489,7 +499,7 @@ function EditRouteFormInner({
         </button>
         <button
           type="button"
-          onClick={() => onFleetModeChange(false)}
+          onClick={() => changeFleetMode(false)}
           className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
             !isFleetMode
               ? "bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white shadow-sm"
@@ -533,7 +543,13 @@ function EditRouteFormInner({
           />
         </div>
         <div>
-          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Truck</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>{isFleetMode ? "Truck" : "Truck registration"}</label>
+          {!isFleetMode ? (
+            <input aria-label="Truck registration" value={truckFleetNo}
+              onChange={(e) => setTruckFleetNo(e.target.value)}
+              placeholder="Enter truck registration" autoCapitalize="characters"
+              className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`} />
+          ) : (
           <select
             value={truckFleetNo}
             onChange={(e) => setTruckFleetNo(e.target.value)}
@@ -546,7 +562,9 @@ function EditRouteFormInner({
               </option>
             ))}
           </select>
+          )}
         </div>
+        {isFleetMode && (
         <div>
           <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Trailer</label>
           <select
@@ -562,8 +580,14 @@ function EditRouteFormInner({
             ))}
           </select>
         </div>
+        )}
         <div>
-          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Driver</label>
+          <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>{isFleetMode ? "Driver" : "Driver name"}</label>
+          {!isFleetMode ? (
+            <input aria-label="Driver name" value={driver}
+              onChange={(e) => setDriver(e.target.value)} placeholder="Enter driver name"
+              className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input}`} />
+          ) : (
           <select
             value={driver}
             onChange={(e) => setDriver(e.target.value)}
@@ -576,6 +600,7 @@ function EditRouteFormInner({
               </option>
             ))}
           </select>
+          )}
         </div>
         <div>
           <label className={`block text-sm font-medium ${panelTheme.text.secondary} mb-1`}>Region</label>

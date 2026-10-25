@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAssignmentPatch,
+  generateSubNotes,
   normalizeAssignmentField,
 } from "./dailyRoutes";
 
@@ -112,5 +113,22 @@ describe("buildAssignmentPatch", () => {
     });
     expect(patch.driverName).toBe("A.GQOMFA");
     expect(patch.trailerFleetNoStr).toBe("108");
+  });
+});
+
+describe("subcontractor trip notes", () => {
+  it("uses trip registration and driver without querying owned fleet tables", async () => {
+    const ctx = {
+      db: {
+        get: async () => ({ companyName: "External Transport" }),
+        query: () => { throw new Error("Owned fleet must not be queried"); },
+      },
+    };
+    const notes = await generateSubNotes(ctx, "sub123", "CA 123-456", "External Driver", [
+      { quantity: "2", subcontractorRate: "100", subcontractorRateType: "per_unit" },
+    ]);
+    expect(notes).toBe("EXTERNAL TRANSPORT / CA 123-456 / EXTERNAL DRIVER / SUB COST: R 200.00");
+    expect(await generateSubNotes(ctx, "sub123", "EC 987-654", "Another Driver"))
+      .toBe("EXTERNAL TRANSPORT / EC 987-654 / ANOTHER DRIVER");
   });
 });

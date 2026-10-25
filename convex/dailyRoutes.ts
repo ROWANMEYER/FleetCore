@@ -56,7 +56,7 @@ function deriveTripAggregates(loads: any[]) {
 
 // Helper: Auto-complete Logic
 // Helper: Generate auto-notes for subcontractor routes
-async function generateSubNotes(
+export async function generateSubNotes(
   ctx: any,
   subcontractorId: string | undefined,
   truckFleetNoStr: string | undefined,
@@ -71,23 +71,9 @@ async function generateSubNotes(
   const sub = await ctx.db.get(subcontractorId);
   if (sub?.companyName) parts.push(sub.companyName);
 
-  // Look up truck registration by fleet number string
-  if (truckFleetNoStr) {
-    const truck = await ctx.db
-      .query("trucks")
-      .filter((q: any) => q.eq(q.field("truckFleetNoStr"), truckFleetNoStr))
-      .first();
-    if (truck?.registration) parts.push(truck.registration);
-  }
-
-  // Look up driver phone
-  if (driverName) {
-    const driver = await ctx.db
-      .query("drivers")
-      .filter((q: any) => q.eq(q.field("driverName"), driverName))
-      .first();
-    if (driver?.phone) parts.push(driver.phone);
-  }
+  // Subcontractor vehicle and driver details belong to this trip, not our fleet.
+  if (truckFleetNoStr?.trim()) parts.push(truckFleetNoStr.trim());
+  if (driverName?.trim()) parts.push(driverName.trim());
 
   // Calculate total subcontractor cost from loads
   if (loads && loads.length > 0) {

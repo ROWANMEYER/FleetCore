@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "convex/react";
-import { Copy, Send, RotateCcw, UserRound, Truck, Container, ChevronRight, ChevronDown, Check, X, Search, FileText, Palette, CircleCheck } from "lucide-react";
+import { Copy, Send, RotateCcw, UserRound, Truck, Container, ChevronRight, Check, X, Search, FileText, Palette, CircleCheck, CalendarDays } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { useToast } from "@/src/components/common/Toast";
@@ -42,6 +42,20 @@ function FleetPicker({ kind, choices, selected, onSelect, onClose }: {
   </dialog>;
 }
 
+function MessageDetailsDialog({ children, title, onClose }: { children: ReactNode; title: string; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  return <dialog ref={dialog} className={css.picker} aria-labelledby="message-details-title" onCancel={onClose}>
+    <div className={css.pickerHeader}><h2 id="message-details-title">{title}</h2><button type="button" className={css.iconButton} aria-label="Close message details" onClick={onClose}><X size={20} /></button></div>
+    <div className={css.editorBody}>{children}</div>
+    <button type="button" className={css.done} onClick={onClose}>Done</button>
+  </dialog>;
+}
+
 export default function QuickMessagePage() {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -66,7 +80,7 @@ export default function QuickMessagePage() {
   const [notes, setNotes] = useState("");
   const [style, setStyle] = useQuickSendStyle();
   const [picker, setPicker] = useState<Selector | null>(null);
-  const [step, setStep] = useState(0);
+  const [editor, setEditor] = useState<"week" | "notes" | null>(null);
 
   const activeDrivers = (drivers ?? []).filter((d) => !d.status || d.status.toLowerCase() === "active");
   const activeTrucks = trucks ?? [];
@@ -83,14 +97,13 @@ export default function QuickMessagePage() {
     trailer: { fleetNo: trailer.trailerFleetNoStr, trailers: trailer.trailers },
     week, location, shunter, loadNumber, totalLoads, eta, notes,
   }) : "";
-  const fleetReady = Boolean(driver && truck && trailer);
   const copyMessage = async () => {
     if (!ready) return;
     try { await navigator.clipboard.writeText(message); addToast("Message copied", "success"); }
     catch { addToast("Copy was unavailable. Select and copy the preview below.", "error"); }
   };
   const clearSelections = () => {
-    setDriverId(""); setTruckId(""); setTrailerId(""); setStep(0);
+    setDriverId(""); setTruckId(""); setTrailerId("");
   };
   const choices: Record<Selector, Choice[]> = {
     Driver: activeDrivers.map((d) => ({ id: d._id, title: d.driverName || "Unnamed driver", detail: [d.phone, d.idNumber ? `ID: ${d.idNumber}` : ""].filter(Boolean).join(" · "), search: [d.driverName, d.phone, d.idNumber].join(" ") })),
@@ -123,11 +136,11 @@ export default function QuickMessagePage() {
     <label>ETA<input value={eta} onChange={(e) => setEta(e.target.value)} placeholder="Optional ETA" /></label>
     {error && <p className={css.error} role="status">{error}</p>}
   </section>;
-  const notesSection = <details className={css.notes}>
-    <summary><FileText size={18} /><span>Notes <small>(optional)</small></span><ChevronDown size={16} /></summary>
-    <label className={css.notesBody}><span className={css.srOnly}>Notes</span><textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note to include in the message" /></label>
-    {notes && <p className={css.notesSummary}>{notes}</p>}
-  </details>;
+  const notesEditor = <label className={css.notesBody}><span className={css.srOnly}>Notes</span><textarea autoFocus rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note to include in the message" /></label>;
+  const detailControls = <div className={css.detailControls}>
+    {template === "week" && <button type="button" onClick={() => setEditor("week")}><CalendarDays size={16} /><span>Week {week || "—"} · Load {loadNumber || "—"}/{totalLoads || "—"}</span><ChevronRight size={16} /></button>}
+    <button type="button" onClick={() => setEditor("notes")}><FileText size={16} /><span>{notes ? `Notes: ${notes}` : "Add notes (optional)"}</span><ChevronRight size={16} /></button>
+  </div>;
   const previewSection = <section className={css.preview} aria-label="Message preview">
     <div className={css.sectionTitle}><h2><FileText size={18} />Message preview</h2><span>{ready ? "Ready to share" : "Draft"}</span></div>
     <textarea aria-label="Message preview" readOnly rows={template === "week" ? 18 : 10} value={message}
@@ -152,16 +165,12 @@ export default function QuickMessagePage() {
         <p>Fleet details. Ready to share.</p></header>
       {!online && <p className={css.notice} role="status">Using the last fleet details saved on this device. Connect to refresh.</p>}
       {loading && <p className={css.notice} role="status">{online ? "Loading fleet details…" : "Open QuickSend while connected to save your fleet list first."}</p>}
-      {style === "guided" ? <>
-        <nav className={css.steps} aria-label="QuickSend steps">{["Fleet", "Message", "Share"].map((label, index) => <button type="button" key={label}
-          aria-current={step === index ? "step" : undefined} disabled={index > 0 && !fleetReady || index === 2 && !ready}
-          onClick={() => setStep(index)}><span>{index + 1}</span>{label}</button>)}</nav>
-        {step === 0 && <>{fleetSection}<button type="button" className={css.next} disabled={!fleetReady} onClick={() => setStep(1)}>Continue to message<ChevronRight size={18} /></button></>}
-        {step === 1 && <>{templateSection}{weekSection}{notesSection}{previewSection}<div className={css.stepActions}><button type="button" onClick={() => setStep(0)}>Back to fleet</button><button type="button" className={css.next} disabled={!ready} onClick={() => setStep(2)}>Continue to share<ChevronRight size={18} /></button></div></>}
-        {step === 2 && <>{previewSection}{actionSection}<button type="button" className={css.back} onClick={() => setStep(1)}>Back to message</button></>}
-      </> : <>{templateSection}{fleetSection}{style === "message" ? <>{previewSection}{weekSection}{notesSection}</> : <>{weekSection}{notesSection}{previewSection}</>}{actionSection}</>}
-      <p className={css.preference}>Style saved on this device · Your selections stay when switching styles</p>
+      {style === "guided" && <ol className={css.progress} aria-label="Message readiness">
+        <li data-complete={Boolean(driver && truck && trailer)}>1 · Fleet</li><li data-complete={ready}>2 · Message</li><li data-complete={ready}>3 · Share</li>
+      </ol>}
+      {templateSection}{fleetSection}{style === "message" ? <>{previewSection}{detailControls}</> : <>{detailControls}{previewSection}</>}{actionSection}
     </div>
+    {editor && <MessageDetailsDialog title={editor === "week" ? "Week format details" : "Message notes"} onClose={() => setEditor(null)}>{editor === "week" ? weekSection : notesEditor}</MessageDetailsDialog>}
     {picker && <FleetPicker key={picker} kind={picker} choices={choices[picker]} selected={picker === "Driver" ? driverId : picker === "Truck" ? truckId : trailerId}
       onClose={() => setPicker(null)} onSelect={picker === "Driver" ? setDriverId : picker === "Truck" ? setTruckId : setTrailerId} />}
   </div>;

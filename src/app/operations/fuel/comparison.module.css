@@ -15,8 +15,8 @@
 .dateOption[data-comparison="true"] .calendarIcon { color: #06b6d4; }
 .dateText { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .dateText > span { text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: .6px; color: var(--nav-text-color); }
-.dateText select { display: block; width: 100%; min-width: 0; min-height: 32px; border: 0; background: transparent; font-size: clamp(15px,4.5vw,21px); font-weight: 750; letter-spacing: -.4px; color: var(--foreground); cursor: pointer; padding: 0 2px 0 0; }
-.dateText option { background: var(--background); color: var(--foreground); font-size: 16px; }
+.dateValue { display: block; width: 100%; min-width: 0; min-height: 32px; border: 0; background: transparent; font-size: clamp(15px,4.5vw,21px); font-weight: 750; letter-spacing: -.4px; color: var(--foreground); cursor: pointer; padding: 0 2px 0 0; }
+
 .dateText small { color: var(--nav-text-color); font-size: 11px; }
 .swap { position: absolute; top: -27px; right: 14px; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--card-border); color: #0891b2; background: var(--card-bg); box-shadow: 0 3px 9px #0b122010; cursor: pointer; }
 .metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; min-height: 0; }
@@ -43,13 +43,16 @@
 .status h1 { font-weight: 700; }
 .status a { color: #0891b2; text-decoration: underline; min-height: 44px; }
 .content :is(select,button,a,input):focus-visible { outline: 2px solid #06b6d4; outline-offset: 3px; }
+
+.dateOption:focus-within { border-color: #06b6d4; background: rgba(6,182,212,.08); }
+
 .percent:focus-within { outline: 2px solid #06b6d4; outline-offset: 2px; }
 :global(.dark) .dateCard h2, :global(.dark) .swap, :global(.dark) .manage { color: #67e8f9; }
 @container (max-height:560px) {
  .content { padding: 9px 12px; gap: 7px; grid-template-rows: auto minmax(142px,2fr) minmax(48px,.7fr) auto minmax(66px,1fr) auto; }
  .header h1 { font-size: 19px; } .header p { font-size: 10px; margin-top: 2px; }
  .dateCard { padding: 9px; border-radius: 14px; } .dateCard h2 { font-size: 9px; padding-bottom: 5px; }
- .dateOption { padding: 6px 9px; gap: 8px; } .dateText { gap: 1px; } .dateText select { font-size: 16px; min-height: 29px; } .dateText small { font-size: 10px; }
+ .dateOption { padding: 6px 9px; gap: 8px; } .dateText { gap: 1px; } .dateValue { font-size: 16px; min-height: 29px; } .dateText small { font-size: 10px; }
  .dateGroup + .dateGroup { margin-top: 8px; } .calendarIcon { width: 20px; } .swap { width: 40px; height: 40px; top: -24px; }
  .metrics > div { padding: 6px 10px; gap: 3px; } .metrics strong { font-size: 20px; }
  .composition { padding: 7px 10px; } .composition label { font-size: 12px; } .composition p { font-size: 9px; }
@@ -57,4 +60,8 @@
  .caption { font-size: 9px; }
 }
 @container (max-height:420px) { .header p, .composition > div > p, .dateCard h2 { display: none; } .content { gap: 5px; padding: 7px 10px; grid-template-rows: auto minmax(125px,2fr) minmax(43px,.6fr) auto minmax(55px,.8fr) auto; } .dateText small { font-size: 9px; } .dateOption { padding: 4px 8px; } .impact strong { font-size: 27px; } }
-@media(min-width:768px) { .manage { display: block; } .content { padding: 22px; gap: 14px; } .header h1 { font-size: 27px; } .dateText select { font-size: 23px; } }
+@media(min-width:768px) { .manage { display: block; } .content { padding: 22px; gap: 14px; } .header h1 { font-size: 27px; } .dateValue { font-size: 23px; } }
+
+.dateOption { text-align: left; width: 100%; color: var(--foreground); cursor: pointer; }
+.dateValue { display: flex; align-items: center; overflow-wrap: anywhere; line-height: 1.25; }
+.dateOption:focus-visible { outline: none !important; border-color: #06b6d4; box-shadow: inset 0 0 0 1px #06b6d4; }

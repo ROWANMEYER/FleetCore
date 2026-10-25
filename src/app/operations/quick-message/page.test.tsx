@@ -28,13 +28,14 @@ describe("QuickSend layout switcher", () => {
       expect(html).not.toContain("https://wa.me/");
     });
   }
-  it("starts guided mode at Fleet and prevents skipping incomplete selections", () => {
+  it("keeps guided mode on one screen with readiness indicators and disabled sharing", () => {
     const html = render("guided");
-    expect(html).toContain('aria-label="QuickSend steps"');
-    expect(html).toContain('aria-current="step"');
-    expect(html).toContain("Continue to message");
+    expect(html).toContain('aria-label="Message readiness"');
+    expect(html).toContain('aria-label="Message preview"');
+    expect(html).toContain("Copy message");
     expect(html).toContain('disabled=""');
-    expect(html).not.toContain('aria-label="Message preview"');
+    expect(html).not.toContain("Continue to message");
+    expect(html).toContain("Add notes (optional)");
   });
   it("puts the preview before notes only in Message First", () => {
     const message = render("message");

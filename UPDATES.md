@@ -1,5 +1,54 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-10-26 — Fixed-screen mobile release
+
+Release includes fixed-screen QuickSend across all five styles, the custom
+FleetCore fuel-date picker, and the paginated birthday timeline. Phone cache
+version advances to v77. No backend functions or stored records change in this
+release. Validation: 923 tests across 49 files, TypeScript and changed-file lint.
+Local logs, connection settings and reference documents stay out of Git.
+
+## 2026-10-25 — Fixed-screen birthday timeline
+
+Replaced the calendar grid and disabled Tasks tab with the chosen Birthday
+Timeline. Today, Upcoming (next 30 days, including today), and This month filters
+use existing birthday queries. Month browsing remains in the month view. Dated
+cards highlight today's birthdays and open existing WhatsApp wish drafts; missing
+phone numbers have a clear non-action state. Available photos are retained.
+
+The main screen does not scroll. Page controls keep every birthday reachable,
+with three cards per page or two below 560px available height. Query-result
+changes clamp the visible page. Dates use Africa/Johannesburg and refresh after
+midnight or app focus. No backend or saved record changes.
+
+Validation: 19 birthday/helper tests pass, including month/year boundaries,
+same-day birthdays and complete pagination. TypeScript and changed-file lint
+pass. This follow-up remains local; nothing pushed or deployed.
+
+## 2026-10-25 — Fuel recorded-date picker
+
+Replaced the browser-native date dropdowns with FleetCore-styled modal pickers.
+Each recorded date is a rounded row with the exact price per litre; the selected
+row has a teal highlight and checkmark. The panel follows the app theme, scrolls
+its own date list, supports Escape/Close and uses native dialog focus management.
+Date comparison and composition reset behavior are unchanged. Validation: nine
+page/calculation tests, TypeScript and changed-file lint pass. Local only.
+
+## 2026-10-25 — Fixed-screen QuickSend
+
+QuickSend now fits its main workspace to the available viewport in all five
+styles. Fleet selectors stay compact; notes and Week Format fields open in
+native modal editing panels, retaining their parent form state. The message
+preview uses the remaining space and scrolls internally for long messages,
+while Copy, WhatsApp and Clear remain in the main workspace. Guided Steps now
+shows readiness indicators on the single screen rather than separate pages.
+Message First still prioritises the preview above the message-detail controls.
+Container-height rules compact the layout for smaller phone windows.
+
+Validation: 14 QuickSend tests pass; TypeScript and changed-file lint pass.
+Existing message formatting, backend queries and style preference are unchanged.
+This follow-up is local and has not been pushed or deployed.
+
 ## 2026-10-25 — FleetCore mobile release
 
 Release combines subcontractor trip details, grouped Operations navigation,

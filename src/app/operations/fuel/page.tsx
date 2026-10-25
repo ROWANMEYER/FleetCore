@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { Fuel, CalendarDays, ArrowRightLeft } from "lucide-react";
+import { Fuel, CalendarDays, ArrowRightLeft, ChevronDown } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { compareFuelDates, defaultFuelDates } from "@/src/lib/fuel/compareDates";
 import { compositionProblem, compositionValue, estimatedRateImpact } from "@/src/lib/fuel/compare";
 import { DASH, formatLongDay, formatPercent, formatRand, formatSignedPercent, formatSignedRand, movementArrow, movementWord } from "@/src/lib/fuel/display";
 import css from "./comparison.module.css";
+import { FuelDatePicker } from "@/src/components/fuel/FuelDatePicker";
 
 function Result({ value, format }: { value: number | null; format: (value: number) => string }) {
   return <span data-direction={value === null || value === 0 ? "flat" : value > 0 ? "up" : "down"}>
@@ -24,6 +25,7 @@ export default function FuelComparisonPage() {
   const [chosenFrom, setChosenFrom] = useState<string | null>(null);
   const [chosenTo, setChosenTo] = useState<string | null>(null);
   const [compositionOverride, setCompositionOverride] = useState<string | null>(null);
+  const [datePicker, setDatePicker] = useState<"from" | "to" | null>(null);
   const records = rows ?? [];
   const defaults = defaultFuelDates(records);
   const fromId = chosenFrom ?? defaults.from;
@@ -44,16 +46,16 @@ export default function FuelComparisonPage() {
     <section className={css.dateCard} aria-label="Choose recorded prices">
       <h2>Compare fuel prices</h2>
       {([
-        { key: "from", label: "From · baseline", value: fromId, row: result.baseline, change: (id: string) => setChosenFrom(id) },
-        { key: "to", label: "To · comparison", value: toId, row: result.comparison, change: (id: string) => { setChosenTo(id); setCompositionOverride(null); } },
-      ] as const).map(({ key, label, value, row, change }, index) => <div key={key} className={css.dateGroup}>
+        { key: "from", label: "From · baseline", row: result.baseline },
+        { key: "to", label: "To · comparison", row: result.comparison },
+      ] as const).map(({ key, label, row }, index) => <div key={key} className={css.dateGroup}>
         {index === 1 && <button type="button" className={css.swap} aria-label="Swap selected fuel dates" onClick={() => { setChosenFrom(toId); setChosenTo(fromId); setCompositionOverride(null); }}><ArrowRightLeft size={20} /></button>}
-        <label className={css.dateOption} data-comparison={key === "to"} htmlFor={`fuel-${key}`}><CalendarDays className={css.calendarIcon} size={24} />
-          <span className={css.dateText}><span>{label}</span><select id={`fuel-${key}`} value={value} onChange={(e) => change(e.target.value)}>
-            {!row && <option value={value}>Choose a recorded date</option>}
-            {dates.map((date) => <option key={date._id} value={date._id}>{formatLongDay(date.effectiveDate)}</option>)}
-          </select><small>{row ? `${formatRand(row.pricePerLitre)} per litre` : "Selected record is unavailable"}</small></span>
-        </label>
+        <button type="button" id={`fuel-${key}`} className={css.dateOption} data-comparison={key === "to"}
+          aria-label={`${label}: ${row ? formatLongDay(row.effectiveDate) : "Choose a recorded date"}`} aria-haspopup="dialog" aria-expanded={datePicker === key} onClick={() => setDatePicker(key)}>
+          <CalendarDays className={css.calendarIcon} size={24} />
+          <span className={css.dateText}><span>{label}</span><strong className={css.dateValue}>{row ? formatLongDay(row.effectiveDate) : "Choose a recorded date"}</strong><small>{row ? `${formatRand(row.pricePerLitre)} per litre` : "Selected record is unavailable"}</small></span>
+          <ChevronDown size={18} className={css.calendarIcon} />
+        </button>
       </div>)}
     </section>
     <section className={css.metrics} aria-label="Fuel price difference">
@@ -66,5 +68,7 @@ export default function FuelComparisonPage() {
     </section>
     <section className={css.impact} aria-label="Estimated rate impact" aria-live="polite"><h2>Estimated rate impact</h2><strong>{impact === null ? DASH : formatSignedPercent(impact)}</strong><p>{percent === null ? "Enter a composition from 0 to 100%" : `At ${formatPercent(percent)} composition`}</p></section>
     <p className={css.caption}>Compares the two selected prices only.</p>
-  </main></div>;
+  </main>{datePicker && <FuelDatePicker label={datePicker === "from" ? "From · baseline" : "To · comparison"}
+    dates={dates} selected={datePicker === "from" ? fromId : toId} onClose={() => setDatePicker(null)}
+    onSelect={(id) => { if (datePicker === "from") setChosenFrom(id); else { setChosenTo(id); setCompositionOverride(null); } }} />}</div>;
 }

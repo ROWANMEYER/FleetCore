@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { RegionCell, REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
 import { DriverThumb } from "@/src/components/admin/DriverAvatar";
+import timeline from "./MobileSheetsTimeline.module.css";
 import CommitDateInput from "@/src/components/common/CommitDateInput";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -695,14 +696,14 @@ export default function MobileSheetsView({
                     {dayRoutes.length} route{dayRoutes.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className={timeline.list}>
                   {dayRoutes.map((route: any) => (
-                    <RouteCard
-                      key={route._id}
-                      route={route}
-                      statusPill={statusPill}
-                      onTap={() => onRouteTap(route)}
-                    />
+                    <div key={route._id} className={timeline.entry}>
+                      <div className={timeline.marker} title="Fleet number">
+                        {route.truckFleetNoStr || String(route.truckFleetNo ?? "—")}
+                      </div>
+                      <RouteCard route={route} statusPill={statusPill} onTap={() => onRouteTap(route)} />
+                    </div>
                   ))}
                 </div>
               </section>
@@ -992,57 +993,30 @@ function RouteCard({
           onTap();
         }
       }}
-      className="glass-card rounded-xl p-3 w-full text-left transition-all active:scale-[0.99] active:bg-[var(--card-bg)] cursor-pointer group"
+      className={timeline.card}
       aria-label={`View details for Truck ${truck}`}
     >
-      {/* Status + revenue (+ R / KM) */}
-      <div className="flex items-center justify-between gap-2 mb-1.5">
+      <div className={timeline.cardHeader}>
+        <span className={timeline.driver}>
+          <DriverThumb name={route.driverName} photoUrl={route.driverPhotoUrl} photoOriginalUrl={route.driverPhotoOriginalUrl} size={24} />
+          <strong>{route.driverName || "No driver assigned"}</strong>
+        </span>
         {statusPill(route)}
-        <div className="flex items-center gap-2 shrink-0">
-          {rPerKm > 0 && (
-            <span
-              className="inline-flex items-center rounded-md border border-[rgba(6,182,212,0.2)] bg-[rgba(6,182,212,0.08)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[#06B6D4]"
-              title="Revenue per kilometre"
-            >
-              {formatZAR(rPerKm)}/km
-            </span>
-          )}
-          <span className="text-sm font-black text-[var(--foreground)] tabular-nums">
-            {revenue > 0 ? formatZAR(revenue) : "—"}
-          </span>
-        </div>
       </div>
-
-      {/* Truck + driver */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[15px] font-black tracking-tight text-[#06B6D4]">
-          {truck}
-        </span>
-        <span className="flex items-center gap-1.5 min-w-0">
-          <DriverThumb name={route.driverName} photoUrl={route.driverPhotoUrl} photoOriginalUrl={route.driverPhotoOriginalUrl} size={18} className="ring-1 ring-[var(--card-border)]" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--nav-text-color)] truncate">
-            {route.driverName ? route.driverName.toUpperCase() : "—"}
-          </span>
-        </span>
-      </div>
-
-      {/* Client + route (merged onto one compact line) */}
-      {(route.client || froms.length > 0 || tos.length > 0) && (
-        <p className="text-[12px] font-semibold text-[var(--foreground)] mt-0.5 truncate">
-          {route.client && route.client.toUpperCase()}
-          {(froms.length > 0 || tos.length > 0) && (
-            <span className="text-[var(--nav-text-color)] font-medium">
-              {route.client ? " · " : ""}
-              {froms.length > 0 ? froms.join(", ").toUpperCase() : "?"} →{" "}
-              {tos.length > 0 ? tos.join(", ").toUpperCase() : "?"}
-            </span>
-          )}
+      {route.client && <p className={timeline.client}>{route.client}</p>}
+      <div className={timeline.journeyRevenue}>
+        <p className={timeline.journey}>
+          <span>{froms.length ? froms.join(", ") : "Origin not set"}</span>
+          <span aria-hidden="true" className={timeline.arrow}>→</span>
+          <span>{tos.length ? tos.join(", ") : "Destination not set"}</span>
         </p>
-      )}
+        <strong className={timeline.revenue}>{revenue > 0 ? formatZAR(revenue) : "—"}</strong>
+      </div>
+      {rPerKm > 0 && <p className={timeline.rate}>{formatZAR(rPerKm)}/km</p>}
 
       {/* Meta + tap affordance — the loads/trailer/km cluster truncates on
           narrow phones so the region badge and Details stay on one line. */}
-      <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-[var(--card-border)] text-[10px] font-medium text-[var(--nav-text-color)]">
+      <div className={timeline.meta}>
         {/* Region — inline dropdown for admins, read-only badge otherwise */}
         <div className="shrink-0">
           <RegionCell row={{ routeId: route._id, region: route.region || "" }} />

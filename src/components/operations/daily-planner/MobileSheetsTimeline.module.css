@@ -1,0 +1,18 @@
+.list { position:relative; display:flex; flex-direction:column; gap:12px; padding:6px 0; }
+.list::before { content:""; position:absolute; left:25px; top:28px; bottom:28px; width:1px; background:linear-gradient(#06b6d4,rgba(6,182,212,.2)); }
+.entry { position:relative; display:grid; grid-template-columns:52px minmax(0,1fr); gap:10px; align-items:start; }
+.marker { position:relative; z-index:1; margin-top:14px; min-height:48px; width:52px; padding:5px 3px; display:flex; align-items:center; justify-content:center; overflow-wrap:anywhere; border:1.5px solid #06b6d4; border-radius:24px; background:var(--background); color:var(--foreground); font-size:14px; font-weight:800; text-align:center; box-shadow:0 0 0 4px var(--background); }
+.card { min-width:0; padding:12px; border:1px solid var(--card-border); border-radius:15px; background:var(--card-bg); color:var(--foreground); cursor:pointer; text-align:left; }
+.card:focus-visible { outline:2px solid #06b6d4; outline-offset:3px; }
+.card:active { border-color:#06b6d4; }
+.cardHeader { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+.driver { display:flex; align-items:center; gap:7px; min-width:0; }
+.driver strong { font-size:12px; overflow-wrap:anywhere; line-height:1.4; }
+.client { margin:9px 0 7px; font-size:11px; font-weight:600; color:var(--nav-text-color); overflow-wrap:anywhere; }
+.journeyRevenue { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; }
+.journey { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:0; font-size:12px; overflow-wrap:anywhere; min-width:0; }
+.arrow { color:#06b6d4; }
+.revenue { font-size:15px; white-space:nowrap; }
+.rate { margin:5px 0 0; text-align:right; font-size:10px; color:#06b6d4; }
+.meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:10px; padding-top:8px; border-top:1px solid var(--card-border); font-size:10px; color:var(--nav-text-color); }
+@media(max-width:360px) { .entry { grid-template-columns:44px minmax(0,1fr); gap:7px; } .marker { width:44px; min-height:44px; font-size:12px; } .list::before { left:21px; } .card { padding:10px; } }

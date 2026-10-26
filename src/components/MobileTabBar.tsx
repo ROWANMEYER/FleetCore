@@ -39,9 +39,9 @@ export function MobileTabBar() {
     <>
       {operationsOpen && (
         <div className="md:hidden fixed inset-0 z-40">
-          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close Operations" onClick={() => setOperationsOpen(false)} />
+          <button type="button" className="absolute inset-0 bg-[var(--background)]" aria-label="Close Operations" onClick={() => setOperationsOpen(false)} />
           <section id="mobile-operations" aria-label="Operations screens"
-            className="absolute inset-x-3 rounded-2xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] p-4 shadow-xl"
+            className="absolute inset-x-3 rounded-2xl border border-[var(--sidebar-border)] bg-[var(--background)] p-4 shadow-xl"
             style={{ bottom: "calc(4rem + env(safe-area-inset-bottom) + 0.75rem)" }}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-[var(--foreground)]">Operations</h2>
@@ -61,19 +61,19 @@ export function MobileTabBar() {
         </div>
       )}
       <nav aria-label="Main phone navigation"
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]"
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t border-[var(--sidebar-border)] bg-[var(--background)]"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <button type="button" className={tabClass(operationsActive)} aria-expanded={operationsOpen} aria-controls="mobile-operations"
+        <button type="button" className={tabClass(operationsActive || operationsOpen)} aria-expanded={operationsOpen} aria-controls="mobile-operations"
           onClick={() => setOperationsOpen((open) => !open)}>
           <LayoutGrid size={22} />Operations
         </button>
-        <Link href="/operations/quick-message" onClick={() => setOperationsOpen(false)} className={tabClass(quickSendActive)} aria-current={quickSendActive ? "page" : undefined}>
+        <Link href="/operations/quick-message" onClick={() => setOperationsOpen(false)} className={tabClass(quickSendActive && !operationsOpen)} aria-current={quickSendActive ? "page" : undefined}>
           <Send size={22} />QuickSend
         </Link>
-        <Link href="/operations/fuel" aria-label="Fuel composition" title="Fuel composition" onClick={() => setOperationsOpen(false)} className={tabClass(fuelActive)} aria-current={fuelActive ? "page" : undefined}>
+        <Link href="/operations/fuel" aria-label="Fuel composition" title="Fuel composition" onClick={() => setOperationsOpen(false)} className={tabClass(fuelActive && !operationsOpen)} aria-current={fuelActive ? "page" : undefined}>
           <Fuel size={22} />Fuel
         </Link>
-        <Link href="/calendar" onClick={() => setOperationsOpen(false)} className={tabClass(birthdaysActive)} aria-current={birthdaysActive ? "page" : undefined}>
+        <Link href="/calendar" onClick={() => setOperationsOpen(false)} className={tabClass(birthdaysActive && !operationsOpen)} aria-current={birthdaysActive ? "page" : undefined}>
           <Cake size={22} />Birthdays
         </Link>
       </nav>

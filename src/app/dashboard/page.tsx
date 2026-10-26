@@ -17,6 +17,7 @@ import { BirthdayBell } from "@/src/components/notifications/BirthdayBell";
 import { AnalyticsKpiCard } from "@/src/components/common/AnalyticsKpiCard";
 import { useIsMobile } from "@/src/hooks/useIsMobile";
 import { useTilt } from "@/src/hooks/useTilt";
+import { MobilePerformance } from "@/src/components/dashboard/MobilePerformance";
 import CommitDateInput from "@/src/components/common/CommitDateInput";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -1117,7 +1118,7 @@ function RegionMasterFilter() {
    so the whole dashboard fits the viewport without scrolling. Hidden on lg+,
    where the full stacked layout renders exactly as before. */
 const DASHBOARD_TABS = [
- { key: "kpis", label: "KPIs", icon: LayoutGrid },
+ { key: "kpis", label: "Overview", icon: LayoutGrid },
  { key: "revenue", label: "Revenue", icon: TrendingUp },
  { key: "clients", label: "Clients", icon: Users },
  { key: "compare", label: "Compare", icon: GitCompareArrows },
@@ -1231,7 +1232,8 @@ export default function DashboardPage() {
 
  {/* ── Header ── */}
  <div className="flex flex-col gap-2 sm:gap-4">
- {/* Desktop-only title row — the mobile dashboard drops the header entirely */}
+ <h1 className="lg:hidden text-2xl font-extrabold tracking-tight">Dashboard</h1>
+ {/* Desktop title and region controls */}
  <div className="hidden lg:flex flex-wrap items-start justify-between gap-3">
  <div>
  <h1 className="text-xl sm:text-3xl font-black tracking-tight">Dashboard</h1>
@@ -1258,6 +1260,10 @@ export default function DashboardPage() {
  <>
  {/* ── Period KPIs ── */}
  <div key={`kpis-${activeTab === "kpis"}`} className={activeTab === "kpis" ? "flex-1 flex flex-col min-h-0 lg:flex-none lg:block" : "hidden lg:block"}>
+ <MobilePerformance summary={summary} days={revenueOverTime ?? []}
+   onPeriod={(label) => setDrill({ kind: "period", startDate, endDate, label })}
+   onCompleted={() => setDrill({ kind: "status", status: "completed", startDate, endDate, label: "Completed routes this period" })} />
+ <div className="hidden lg:block">
  <CollapsibleSection title={`Period ${startDate} → ${endDate}`} defaultOpen summary={`${fmt(summary.totalRevenue)} · ${summary.totalRoutes} routes`}>
  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 auto-rows-fr min-h-0">              <KpiCard label="Revenue" value={fmt(summary.totalRevenue)} accent="text-emerald-400"
                 onClick={() => setDrill({ kind:"period", startDate, endDate, label:"Revenue — all routes"})} />
@@ -1273,6 +1279,7 @@ export default function DashboardPage() {
                 onClick={() => setDrill({ kind:"status", status:"completed", startDate, endDate, label:"Completed routes this period"})} />
  </div>
  </CollapsibleSection>
+ </div>
  </div>
 
  {/* ── Revenue by Day + Top Clients ── */}

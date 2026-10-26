@@ -1,5 +1,64 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-10-26 — Mobile visual release
+
+Release includes Performance dashboard, Sheets timeline, opaque Operations menu
+and the road/map splash with tap to skip. Service worker cache advances to v78.
+All 933 tests pass across 51 files. No backend functions or stored data change.
+
+## 2026-10-26 — Mobile Sheets timeline
+
+Implemented the selected timeline concept with fleet-number markers connected
+within each date group. Route cards show driver, computed status, client, journey,
+revenue and existing load/trailer/km metadata. Existing filters, sorting, region
+control and detail/edit panel remain connected. No illustrative times are added.
+Long names and registrations wrap on narrow phones. Local only; not deployed.
+
+## 2026-10-26 — Performance dashboard mobile layout
+
+Implemented option 4 with completion ring, revenue summary, three compact fleet
+metrics and daily revenue bars. Uses existing scoped dashboard queries and date
+filters; summary buttons retain route drill-downs. KPIs tab is now Overview.
+Desktop layout and other dashboard sections remain available. Empty chart states
+and keyboard focus are supported. TypeScript and changed-file lint pass.
+Local only; not pushed or deployed.
+
+## 2026-10-26 — Opaque Operations menu
+
+The mobile Operations menu covers the underlying screen with a solid theme
+background. Its panel and bottom navigation are opaque too, so the birthday
+timeline cannot show through. Operations is highlighted while the menu is open;
+closing it restores the current screen tab. Changed-component lint passes.
+Local only; not pushed or deployed.
+
+## 2026-10-26 — Tap to skip splash
+
+The splash now has a full-screen tap/click action and a subtle Tap anywhere to
+continue hint. The action is keyboard accessible through a native button. Skip
+dismisses immediately, cancels pending timers and completes only once; normal
+readiness dismissal and timeout recovery remain. Ten focused splash tests pass.
+Local only; not pushed or deployed.
+
+## 2026-10-26 — Road and route-map mobile splash
+
+Implemented the approved combined truck photograph and South Africa route-map
+splash. Background-only artwork is optimized to a 109 KB WebP; logo, FleetCore
+wordmark, tagline and rotating loading ring are live markup. Map nodes pulse
+subtly; reduced-motion settings disable decorative motion. Portrait and short/
+landscape layouts have responsive branding placement. Desktop skips the overlay.
+
+Removed the previous eight-second animation and dynamic splash-loading gate.
+The app now mounts behind an inert, accessible overlay and starts its queries in
+parallel. The splash fades after artwork settles and auth is ready, with no
+minimum hold. A fallback forces dismissal within roughly 3.3 seconds even if
+auth or the image stalls. Artwork errors, duplicate completion and unmount timer
+cleanup are covered by regression tests.
+
+Validation: 931 tests across 51 files pass; production build, TypeScript and
+changed-file lint pass. Verified the actual 390×844 mobile splash in the browser,
+then its transition to sign-in with no browser errors. Follow-up remains local;
+not pushed or deployed.
+
 ## 2026-10-26 — Fixed-screen mobile release
 
 Release includes fixed-screen QuickSend across all five styles, the custom

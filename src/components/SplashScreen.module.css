@@ -1,0 +1,26 @@
+.app { width: 100%; min-height: 100dvh; }
+.splash { position: fixed; inset: 0; z-index: 9999; overflow: hidden; background: #0b1220; color: #fff; opacity: 1; transition: opacity 280ms ease; isolation: isolate; }
+.splash[data-exiting="true"] { opacity: 0; pointer-events: none; }
+.artwork { object-fit: cover; object-position: center; z-index: -3; }
+.shade { position: absolute; inset: 0; z-index: -2; background: linear-gradient(180deg,transparent 20%,#03122338 33%,#03122338 50%,transparent 65%,#030c1755 100%); }
+.routes { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.routes svg { width: 100%; height: 100%; }
+.routes circle { fill: #22d3ee; opacity: .4; filter: drop-shadow(0 0 10px #06b6d4); animation: waypoint 2.4s ease-in-out infinite; }
+.routes circle:nth-child(2) { animation-delay: .4s; }
+.routes circle:nth-child(3) { animation-delay: .8s; }
+.brand { position: absolute; left: 18px; right: 18px; top: 27%; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: env(safe-area-inset-top); }
+.logo { width: clamp(68px,18vw,94px); height: clamp(68px,18vw,94px); border-radius: 25%; display: grid; place-items: center; background: linear-gradient(140deg,#06b6d4,#0891b2 70%,#0561a4); box-shadow: 0 10px 35px #0002,0 0 35px #06b6d412; }
+.logo svg { width: 65%; height: 65%; }
+.brand h1 { margin: 15px 0 0; font-size: clamp(34px,10vw,50px); font-family: var(--font-inter),system-ui,sans-serif; line-height: 1.1; font-weight: 800; letter-spacing: -1.5px; text-shadow: 0 3px 18px #03122380; }
+.brand p { margin-top: 10px; color: #e0edf6; font-size: clamp(10px,2.7vw,13px); letter-spacing: 2px; line-height: 1.5; text-shadow: 0 2px 8px #03122380; }
+.spinner { display: block; margin-top: 23px; width: 25px; height: 25px; border: 3px solid #91c6ef30; border-top-color: #06b6d4; border-right-color: #06b6d4; border-radius: 50%; animation: loading .9s linear infinite; }
+@keyframes loading { to { transform: rotate(360deg); } }
+@keyframes waypoint { 0%,100% { opacity: .2; } 50% { opacity: .75; } }
+@media(min-width:768px) { .splash { display: none; } }
+@media(max-height:600px) { .brand { top: 19%; } .logo { width: 60px; height: 60px; } .brand h1 { font-size: 33px; margin-top: 10px; } .brand p { margin-top: 6px; } .spinner { margin-top: 12px; width: 22px; height: 22px; } }
+@media(orientation:landscape) { .artwork { object-position: center 65%; } .brand { top: 12%; } .logo { width: 48px; height: 48px; } .brand h1 { font-size: 28px; } .brand p { font-size: 10px; } .routes { opacity: .3; } }
+@media(prefers-reduced-motion:reduce) { .splash { transition: none; } .spinner,.routes circle { animation: none; } }
+
+.skip { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.skip:focus-visible { outline: 2px solid #22d3ee; outline-offset: -8px; border-radius: 10px; }
+.skipHint { position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 16px; right: 16px; text-align: center; font-size: 11px; letter-spacing: .5px; color: #d0e4f0; text-shadow: 0 1px 6px #000; z-index: 3; pointer-events: none; }

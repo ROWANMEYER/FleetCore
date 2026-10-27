@@ -61,7 +61,7 @@ describe("live driver phonebook", () => {
     expect(result.page[1]).toMatchObject({ photoUrl: "https://legacy-photo" });
     expect(getUrl).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ isDone: true, continueCursor: "next" });
-    for (const row of result.page) for (const key of ["idNumber", "accessToken", "pinHash", "photoStorageId", "failedPinAttempts"]) expect(row).not.toHaveProperty(key);
+    for (const row of result.page) for (const key of ["driverId", "idNumber", "accessToken", "pinHash", "photoStorageId", "failedPinAttempts"]) expect(row).not.toHaveProperty(key);
   });
   it("rejects guest and expired-session edits without saving anything", async () => {
     const { call, db } = fixture();

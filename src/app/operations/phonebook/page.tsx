@@ -30,7 +30,7 @@ export default function DriverPhonebookPage() {
   const query = search.trim().toLowerCase();
   const digits = query.replace(/\D/g, "");
   const filtered = drivers.filter(driver =>
-    !query || [driver.name, driver.driverId, ...driver.numbers.map(n => n.label + " " + n.number)].join(" ").toLowerCase().includes(query) ||
+    !query || [driver.name, ...driver.numbers.map(n => n.label + " " + n.number)].join(" ").toLowerCase().includes(query) ||
     (digits.length >= 3 && driver.numbers.some(n => phoneDigits(n.number).includes(digits)))
   );
 
@@ -59,7 +59,7 @@ export default function DriverPhonebookPage() {
       <label className="relative mb-5 block">
         <span className="sr-only">Search drivers</span>
         <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nav-text-color)]" />
-        <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name, driver ID or number"
+        <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name or phone number"
           className="h-11 w-full rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] pl-10 pr-3 text-sm text-[var(--foreground)] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20" />
       </label>
 
@@ -71,7 +71,7 @@ export default function DriverPhonebookPage() {
                 <DriverThumb name={driver.name} photoUrl={driver.photoUrl || undefined} photoOriginalUrl={driver.photoOriginalUrl || undefined} size={56} />
                 <div className="min-w-0 flex-1">
                   <h2 className="break-words text-base font-bold text-[var(--foreground)]">{driver.name}</h2>
-                  <p className="text-xs text-[var(--nav-text-color)]">{driver.driverId ? driver.driverId + " · " : ""}Active driver</p>
+                  <p className="text-xs text-[var(--nav-text-color)]">Active driver</p>
                 </div>
                 {user && token && (
                   <button type="button" disabled={busy} aria-label={"Edit phone numbers for " + driver.name}

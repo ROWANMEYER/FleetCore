@@ -8,7 +8,6 @@ import { cleanAdditionalPhones, driverContactNumbers } from "../src/lib/driverPh
 const contact = v.object({
   _id: v.id("drivers"),
   name: v.string(),
-  driverId: v.string(),
   phone: v.string(),
   additionalPhones: v.array(driverPhoneNumber),
   numbers: v.array(driverPhoneNumber),
@@ -28,7 +27,7 @@ export const list = query({
       const storedPhoto = storageId ? await ctx.storage.getUrl(storageId) : null;
       const photoUrl = storedPhoto || d.photoUrl || d.photoOriginalUrl || null;
       return {
-        _id: d._id, name: d.driverName || d.name || "Unnamed driver", driverId: d.driverId || "",
+        _id: d._id, name: d.driverName || d.name || "Unnamed driver",
         phone: d.phone || "", additionalPhones: d.additionalPhones || [],
         numbers: driverContactNumbers(d.phone, d.additionalPhones),
         photoUrl, photoOriginalUrl: d.photoOriginalUrl || photoUrl,

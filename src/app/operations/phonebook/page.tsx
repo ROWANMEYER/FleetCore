@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MessageCircle, Phone, Search, UserRound } from "lucide-react";
 
 type MockNumber = { label: string; value: string; whatsapp?: boolean };
@@ -58,7 +59,13 @@ function whatsappHref(value: string) {
 }
 
 export default function DriverPhonebookPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 767px)").matches) router.replace("/dashboard");
+  }, [router]);
+
   const filteredDrivers = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return MOCK_DRIVERS;

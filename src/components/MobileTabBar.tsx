@@ -11,7 +11,6 @@ const OPERATION_SCREENS = [
   { href: "/operations/daily-planner/input", label: "Input", icon: ClipboardPlus, adminOnly: false },
   { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
   { href: "/operations/daily-planner/sheets", label: "Sheets", icon: FileSpreadsheet, adminOnly: false },
-  { href: "/operations/phonebook", label: "Phonebook", icon: Phone, adminOnly: false },
 ];
 
 export function MobileTabBar() {
@@ -22,6 +21,7 @@ export function MobileTabBar() {
   const fuelActive = pathname === "/operations/fuel" || pathname.startsWith("/operations/fuel/");
   const birthdaysActive = pathname === "/calendar" || pathname.startsWith("/calendar/");
   const quickSendActive = pathname === "/operations/quick-message" || pathname.startsWith("/operations/quick-message/");
+  const phonebookActive = pathname === "/operations/phonebook";
   const operationsActive = !fuelActive && !birthdaysActive && !quickSendActive;
 
   const openOperations = () => {
@@ -82,6 +82,9 @@ export function MobileTabBar() {
         </Link>
         <Link href="/operations/fuel" aria-label="Fuel composition" title="Fuel composition" onClick={() => setOperationsOpen(false)} className={tabClass(fuelActive && !operationsOpen)} aria-current={fuelActive ? "page" : undefined}>
           <Fuel size={22} />Fuel
+        </Link>
+        <Link href="/operations/phonebook" onClick={() => setOperationsOpen(false)} className={tabClass(phonebookActive && !operationsOpen)} aria-current={phonebookActive ? "page" : undefined}>
+          <Phone size={22} />Phonebook
         </Link>
         <Link href="/calendar" onClick={() => setOperationsOpen(false)} className={tabClass(birthdaysActive && !operationsOpen)} aria-current={birthdaysActive ? "page" : undefined}>
           <Cake size={22} />Birthdays

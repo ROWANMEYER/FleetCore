@@ -6,6 +6,7 @@ import Navigation from "@/src/components/Navigation";
 import { AmbientBackground } from "@/src/components/AmbientBackground";
 import { useAuth } from "./AuthProvider";
 import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileChromeContext";
+import { isMobileAppEnvironment } from "@/src/lib/appMode";
 
 /* Phones keep the existing operational screens, Fuel Composition and Birthdays.
    Desktop keeps the full sidebar and all screens. */
@@ -58,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Track mobile viewport (matches the md: breakpoint used across the app)
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
-    const update = () => setIsMobile(mq.matches);
+    const update = () => setIsMobile(isMobileAppEnvironment());
     update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);

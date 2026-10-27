@@ -4,13 +4,14 @@ import { useCallback, useState, useSyncExternalStore, type ReactNode } from "rea
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import SplashScreen from "@/src/components/SplashScreen";
 import css from "./SplashScreen.module.css";
+import { isMobileAppEnvironment } from "@/src/lib/appMode";
 
 function subscribeViewport(listener: () => void) {
   const media = window.matchMedia("(max-width: 767px)");
   media.addEventListener("change", listener);
   return () => media.removeEventListener("change", listener);
 }
-function mobileSnapshot() { return window.matchMedia("(max-width: 767px)").matches; }
+function mobileSnapshot() { return isMobileAppEnvironment(); }
 function serverSnapshot() { return true; }
 
 /** Mount the real app behind a mobile-only overlay so its queries load in parallel. */

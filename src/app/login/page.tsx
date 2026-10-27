@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Lock, LogIn, Mail } from "lucide-react";
+import { ArrowLeft, BarChart3, Lock, LogIn, Mail } from "lucide-react";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 
 export default function LoginPage() {
@@ -33,6 +33,15 @@ export default function LoginPage() {
   return (
     <div className="flex-1 flex items-center justify-center p-6">
       <div className="w-full max-w-sm glass-card-premium rounded-2xl p-8">
+        <button
+          type="button"
+          onClick={() => router.push("/calendar")}
+          className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--nav-text-color)] transition-colors hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06B6D4] rounded-md"
+        >
+          <ArrowLeft size={16} />
+          Back to tabs
+        </button>
+
         {/* Brand */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-lg shadow-[rgba(6,182,212,0.35)] mb-4">

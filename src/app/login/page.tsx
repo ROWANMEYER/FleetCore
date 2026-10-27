@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm glass-card-premium rounded-2xl p-8">
         <button
           type="button"
-          onClick={() => router.push("/calendar")}
+          onClick={() => router.push("/start")}
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[var(--nav-text-color)] transition-colors hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06B6D4] rounded-md"
         >
           <ArrowLeft size={16} />

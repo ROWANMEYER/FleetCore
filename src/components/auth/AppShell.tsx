@@ -10,6 +10,7 @@ import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileCh
 /* Phones keep the existing operational screens, Fuel Composition and Birthdays.
    Desktop keeps the full sidebar and all screens. */
 const MOBILE_ALLOWED_PATHS = [
+  "/start",
   "/dashboard",
   "/operations/daily-planner/input",
   "/operations/daily-planner/edit",
@@ -26,6 +27,7 @@ const MOBILE_ALLOWED_PATHS = [
 // authenticated part of the mobile app, while these screens can be opened by
 // anyone who has the app link.
 const MOBILE_PUBLIC_PATHS = [
+  "/start",
   "/operations/quick-message",
   "/operations/fuel",
   "/calendar",
@@ -48,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   const isLogin = pathname === "/login";
+  const isMobileStart = isMobile === true && pathname === "/start";
 
   // Track mobile viewport (matches the md: breakpoint used across the app)
   useEffect(() => {
@@ -124,8 +127,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const showApp = (!isLogin && !!user) || (!isLogin && isMobile === true && isMobilePublic(pathname));
+  const showApp = !isMobileStart && ((!isLogin && !!user) || (!isLogin && isMobile === true && isMobilePublic(pathname)));
   const showLogin = !user && isLogin;
+  const showStandalone = isMobileStart;
 
   return (
     <MobileChromeProvider>
@@ -134,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {showApp && <Navigation />}
 
-        <AppMain showApp={showApp}>{showApp || showLogin ? children : null}</AppMain>
+        <AppMain showApp={showApp}>{showApp || showLogin || showStandalone ? children : null}</AppMain>
       </div>
     </MobileChromeProvider>
   );

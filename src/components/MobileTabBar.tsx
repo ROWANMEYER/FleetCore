@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LayoutGrid, ClipboardPlus, FileSpreadsheet, Shield, Fuel, Cake, X, Send } from "lucide-react";
 import { useAuth } from "@/src/components/auth/AuthProvider";
@@ -15,12 +15,21 @@ const OPERATION_SCREENS = [
 
 export function MobileTabBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuth();
   const [operationsOpen, setOperationsOpen] = useState(false);
   const fuelActive = pathname === "/operations/fuel" || pathname.startsWith("/operations/fuel/");
   const birthdaysActive = pathname === "/calendar" || pathname.startsWith("/calendar/");
   const quickSendActive = pathname === "/operations/quick-message" || pathname.startsWith("/operations/quick-message/");
   const operationsActive = !fuelActive && !birthdaysActive && !quickSendActive;
+
+  const openOperations = () => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setOperationsOpen((open) => !open);
+  };
 
   useEffect(() => {
     if (!operationsOpen) return;
@@ -63,8 +72,8 @@ export function MobileTabBar() {
       <nav aria-label="Main phone navigation"
         className="md:hidden fixed bottom-0 inset-x-0 z-50 flex border-t border-[var(--sidebar-border)] bg-[var(--background)]"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <button type="button" className={tabClass(operationsActive || operationsOpen)} aria-expanded={operationsOpen} aria-controls="mobile-operations"
-          onClick={() => setOperationsOpen((open) => !open)}>
+        <button type="button" className={tabClass(operationsActive || operationsOpen)} aria-expanded={user ? operationsOpen : undefined} aria-controls={user ? "mobile-operations" : undefined}
+          onClick={openOperations}>
           <LayoutGrid size={22} />Operations
         </button>
         <Link href="/operations/quick-message" onClick={() => setOperationsOpen(false)} className={tabClass(quickSendActive && !operationsOpen)} aria-current={quickSendActive ? "page" : undefined}>

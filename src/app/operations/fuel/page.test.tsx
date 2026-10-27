@@ -19,9 +19,9 @@ describe("date-focused fuel screen", () => {
     expect(html).not.toContain("Price history");
     expect(html).toContain('/operations/fuel/manage');
   });
-  it("retains existing admin-only access", () => {
+  it("allows regional and guest users to view the public comparison", () => {
     state.role = "regional";
-    expect(renderToStaticMarkup(<FuelComparisonPage />)).toContain("Admin access is required");
+    expect(renderToStaticMarkup(<FuelComparisonPage />)).toContain("Fuel comparison");
     state.role = "admin";
   });
 });

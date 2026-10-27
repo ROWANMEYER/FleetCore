@@ -19,9 +19,9 @@ function Result({ value, format }: { value: number | null; format: (value: numbe
 }
 
 export default function FuelComparisonPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const admin = user?.role === "admin";
-  const rows = useQuery(api.fuelPrices.list, admin && token ? { token } : "skip");
+  const rows = useQuery(api.fuelPrices.list, {});
   const [chosenFrom, setChosenFrom] = useState<string | null>(null);
   const [chosenTo, setChosenTo] = useState<string | null>(null);
   const [compositionOverride, setCompositionOverride] = useState<string | null>(null);
@@ -37,12 +37,11 @@ export default function FuelComparisonPage() {
   const impact = percent === null ? null : estimatedRateImpact(result.dieselPercentChange, percent);
   const dates = [...records].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
 
-  if (!admin) return <p className="p-6">Admin access is required to view fuel prices.</p>;
   if (rows === undefined) return <div className={css.screen}><p role="status" className={css.status}>Loading recorded fuel dates…</p></div>;
-  if (!records.length) return <div className={css.screen}><div className={css.status}><Fuel size={30} /><h1>No recorded fuel prices</h1><p>Add at least one price to start comparing.</p><Link href="/operations/fuel/manage">Manage fuel prices</Link></div></div>;
+  if (!records.length) return <div className={css.screen}><div className={css.status}><Fuel size={30} /><h1>No recorded fuel prices</h1><p>Add at least one price to start comparing.</p>{admin && <Link href="/operations/fuel/manage">Manage fuel prices</Link>}</div></div>;
 
   return <div className={css.screen}><main className={css.content} aria-label="Fuel date comparison">
-    <header className={css.header}><span className={css.icon}><Fuel size={24} /></span><div><h1>Fuel comparison</h1><p>Choose two recorded fuel dates</p></div><Link className={css.manage} href="/operations/fuel/manage">Manage prices</Link></header>
+    <header className={css.header}><span className={css.icon}><Fuel size={24} /></span><div><h1>Fuel comparison</h1><p>Choose two recorded fuel dates</p></div>{admin && <Link className={css.manage} href="/operations/fuel/manage">Manage prices</Link>}</header>
     <section className={css.dateCard} aria-label="Choose recorded prices">
       <h2>Compare fuel prices</h2>
       {([

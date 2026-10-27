@@ -205,14 +205,15 @@ describe("priceProblem", () => {
 });
 
 describe("access", () => {
-  it("refuses a missing or expired session", async () => {
+  it("allows public read access without a session", async () => {
     const h = await fixture();
-    await expect(h.call(prices.list, { token: "nope" })).rejects.toThrow("Sign in again");
-    await expect(h.call(prices.list, { token: "expired" })).rejects.toThrow("Sign in again");
+    expect(await h.call(prices.list, {})).toEqual([]);
+    expect(await h.call(prices.list, { token: "nope" })).toEqual([]);
+    expect(await h.call(prices.list, { token: "expired" })).toEqual([]);
   });
   it("refuses a non-admin, who must not be able to set the price of fuel", async () => {
     const h = await fixture();
-    await expect(h.call(prices.list, { token: "regional" })).rejects.toThrow("Admin access");
+    expect(await h.call(prices.list, { token: "regional" })).toEqual([]);
     await expect(h.save("2026-09-02", 31.32, { token: "regional" })).rejects.toThrow("Admin access");
   });
 });

@@ -22,15 +22,30 @@ const MOBILE_ALLOWED_PATHS = [
   "/operations/quick-message",
 ];
 
+// These mobile tabs are intentionally public. The Operations tab remains the
+// authenticated part of the mobile app, while these screens can be opened by
+// anyone who has the app link.
+const MOBILE_PUBLIC_PATHS = [
+  "/operations/quick-message",
+  "/operations/fuel",
+  "/calendar",
+];
+
 function isMobileAllowed(path: string) {
   return MOBILE_ALLOWED_PATHS.some((allowed) => path === allowed || path.startsWith(`${allowed}/`));
+}
+
+function isMobilePublic(path: string) {
+  // Keep nested management routes (for example /operations/fuel/manage)
+  // protected even though the public comparison screen lives under /fuel.
+  return MOBILE_PUBLIC_PATHS.some((allowed) => path === allowed);
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
   const isLogin = pathname === "/login";
 
@@ -44,15 +59,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (loading) return;
-    if (!user && !isLogin) router.replace("/login");
+    if (loading || isMobile === null) return;
+    const guestMobilePublic = isMobile && !isLogin && isMobilePublic(pathname);
+    if (!user && !isLogin && !guestMobilePublic) router.replace("/login");
     if (user && isLogin) router.replace("/dashboard");
-  }, [loading, user, isLogin, router]);
+  }, [loading, user, isMobile, isLogin, pathname, router]);
 
   // Mobile guard: only the supported phone sections are reachable.
   useEffect(() => {
-    if (loading || !user || !isMobile || isLogin) return;
+    if (loading || isMobile === null || isLogin) return;
     if (!isMobileAllowed(pathname)) router.replace("/dashboard");
+    if (!user && !isMobilePublic(pathname)) router.replace("/login");
   }, [loading, user, isMobile, isLogin, pathname, router]);
 
   // Kill the browser's pull-to-refresh gesture. Dragging down when the app is
@@ -107,7 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const showApp = !!user && !isLogin;
+  const showApp = (!isLogin && !!user) || (!isLogin && isMobile === true && isMobilePublic(pathname));
   const showLogin = !user && isLogin;
 
   return (

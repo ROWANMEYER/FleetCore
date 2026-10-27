@@ -30,9 +30,10 @@ function validDate(value: string) {
  * The derived figures are worked out walking forwards from the oldest row, because each price can only be compared with the one before it. A first row has nothing before it, so it carries no movement at all. The order returned is the order it was worked out in, so the list reads as a timeline from the start.
  */
 export const list = query({
-  args: { token: v.string() },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.token);
+  // Reading the fuel timeline is public on the mobile Fuel tab. Writes remain
+  // protected by requireAdmin below.
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx) => {
     const rows = await ctx.db.query("fuelPrices").withIndex("by_effectiveDate").collect();
     const ascending = [...rows].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
     return ascending.map((row, index) => {

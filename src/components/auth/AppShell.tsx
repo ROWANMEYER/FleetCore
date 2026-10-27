@@ -71,9 +71,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (user && isLogin) router.replace("/dashboard");
   }, [loading, user, isMobile, isLogin, pathname, router]);
 
-  // Mobile guard: only the supported phone sections are reachable.
+  // Mobile guard: only the supported phone sections are reachable. Desktop
+  // routing is intentionally left to the normal Next.js pages and auth gate.
   useEffect(() => {
-    if (loading || isMobile === null || isLogin) return;
+    if (loading || isMobile !== true || isLogin) return;
     if (!isMobileAllowed(pathname)) router.replace("/dashboard");
     if (!user && !isMobilePublic(pathname)) router.replace("/login");
   }, [loading, user, isMobile, isLogin, pathname, router]);

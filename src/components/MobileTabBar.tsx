@@ -22,7 +22,7 @@ export function MobileTabBar() {
   const birthdaysActive = pathname === "/calendar" || pathname.startsWith("/calendar/");
   const quickSendActive = pathname === "/operations/quick-message" || pathname.startsWith("/operations/quick-message/");
   const phonebookActive = pathname === "/operations/phonebook";
-  const operationsActive = !fuelActive && !birthdaysActive && !quickSendActive;
+  const operationsActive = !fuelActive && !birthdaysActive && !quickSendActive && !phonebookActive;
 
   const openOperations = () => {
     if (!user) {

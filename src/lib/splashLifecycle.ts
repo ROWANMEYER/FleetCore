@@ -1,7 +1,5 @@
-/** Splash exits once artwork and auth are ready, or after a bounded fallback. */
+/** Splash stays visible for ten seconds unless the user taps to skip it. */
 export function createSplashLifecycle(onComplete: () => void, onFade: () => void) {
-  let ready = false;
-  let artworkSettled = false;
   let fading = false;
   let finished = false;
   let disposed = false;
@@ -11,17 +9,17 @@ export function createSplashLifecycle(onComplete: () => void, onFade: () => void
     finished = true;
     onComplete();
   };
-  const fade = (force = false) => {
-    if (disposed || finished || fading || (!force && (!ready || !artworkSettled))) return;
+  const fade = () => {
+    if (disposed || finished || fading) return;
     fading = true;
     clearTimeout(deadline);
     onFade();
     fadeTimer = setTimeout(finish, 280);
   };
-  const deadline = setTimeout(() => fade(true), 3000);
+  const deadline = setTimeout(fade, 10_000);
   return {
-    setReady(value: boolean) { ready = value; fade(); },
-    settleArtwork() { artworkSettled = true; fade(); },
+    setReady(value: boolean) { void value; },
+    settleArtwork() {},
     skip() { clearTimeout(deadline); clearTimeout(fadeTimer); finish(); },
     dispose() { disposed = true; clearTimeout(deadline); clearTimeout(fadeTimer); },
   };

@@ -10,6 +10,7 @@ import { MobileChromeProvider, useMobileChrome } from "@/src/components/MobileCh
 /* Phones keep the existing operational screens, Fuel Composition and Birthdays.
    Desktop keeps the full sidebar and all screens. */
 const MOBILE_ALLOWED_PATHS = [
+  "/",
   "/start",
   "/dashboard",
   "/operations/daily-planner/input",
@@ -27,6 +28,7 @@ const MOBILE_ALLOWED_PATHS = [
 // authenticated part of the mobile app, while these screens can be opened by
 // anyone who has the app link.
 const MOBILE_PUBLIC_PATHS = [
+  "/",
   "/start",
   "/operations/quick-message",
   "/operations/fuel",

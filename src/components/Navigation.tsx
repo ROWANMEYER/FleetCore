@@ -310,6 +310,17 @@ export default function Navigation() {
             <RegionSwitcher compact />
             <RefreshButton />
             {mounted && <ThemeToggleButton />}
+            {user && (
+              <button
+                type="button"
+                onClick={() => void logout()}
+                aria-label="Log out"
+                title="Log out"
+                className="flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[var(--text-secondary)] transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
+              >
+                <LogOut size={15} strokeWidth={1.9} />
+              </button>
+            )}
           </div>
         </header>
       )}

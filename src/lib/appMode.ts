@@ -1,7 +1,7 @@
 /**
- * Distinguishes the mobile/PWA shell from the desktop web app.
- * A narrow desktop browser window must remain the web app; mobile behavior is
- * enabled only for a real mobile user agent or an installed standalone PWA.
+ * Distinguishes the mobile/PWA shell from the desktop web app using the same
+ * breakpoint as the mobile CSS. The in-app browser used to review the PWA can
+ * report a desktop user agent, so user-agent detection cannot be authoritative.
  */
 export function isMobileAppEnvironment(): boolean {
   if (typeof window === "undefined") return false;
@@ -9,10 +9,5 @@ export function isMobileAppEnvironment(): boolean {
   const narrowViewport = window.matchMedia("(max-width: 767px)").matches;
   if (!narrowViewport) return false;
 
-  const standalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent);
-
-  return standalone || mobileUserAgent;
+  return narrowViewport;
 }

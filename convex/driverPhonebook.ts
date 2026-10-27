@@ -21,7 +21,9 @@ export const list = query({
   returns: v.object({ page: v.array(contact), isDone: v.boolean(), continueCursor: v.string() }),
   handler: async (ctx, args) => {
     const result = await ctx.db.query("drivers").withIndex("by_driverName").paginate(args.paginationOpts);
-    const active = result.page.filter(d => !d.isTest && (d.subcontractorId ? d.subStatus !== "inactive" : d.status !== "inactive"));
+    // The driver's activation flag is authoritative, including subcontractors.
+    // A subStatus of "active" must never re-include a deactivated driver.
+    const active = result.page.filter(d => !d.isTest && d.status === "active" && (!d.subcontractorId || d.subStatus !== "inactive"));
     const page = await Promise.all(active.map(async d => {
       const storageId = d.photoStorageId ? ctx.db.system.normalizeId("_storage", d.photoStorageId) : null;
       const storedPhoto = storageId ? await ctx.storage.getUrl(storageId) : null;

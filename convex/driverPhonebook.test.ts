@@ -14,7 +14,7 @@ function fixture() {
     ["sessions:3", { _id: "sessions:3", token: "regional", userId: "users:2", expiresAt: Date.now() + 60_000 }],
     ["drivers:1", { _id: "drivers:1", driverName: "Example Driver", driverId: "D1", phone: "0821234567", status: "active", photoStorageId: "storage:photo", photoUrl: "https://old-photo", photoOriginalUrl: "https://original-photo", idNumber: "private-id", pinHash: "private-hash", accessToken: "private-token" }],
     ["drivers:2", { _id: "drivers:2", driverName: "Inactive", status: "inactive" }],
-    ["drivers:3", { _id: "drivers:3", name: "Legacy Driver", phone: "0832345678", photoUrl: "https://legacy-photo" }],
+    ["drivers:3", { _id: "drivers:3", name: "Legacy Driver", status: "active", phone: "0832345678", photoUrl: "https://legacy-photo" }],
     ["drivers:4", { _id: "drivers:4", driverName: "Test Driver", status: "active", isTest: true }],
   ]);
   let sequence = 10;
@@ -53,6 +53,21 @@ function fixture() {
 }
 
 describe("live driver phonebook", () => {
+  it("excludes deactivated subcontractor drivers even when their sub status is active", async () => {
+    const { rows, list } = fixture();
+    rows.set("drivers:5", { _id: "drivers:5", driverName: "Deactivated subcontractor", status: "inactive", subcontractorId: "sub:1", subStatus: "active" });
+    rows.set("drivers:6", { _id: "drivers:6", driverName: "Unactivated", phone: "0832345678" });
+    rows.set("drivers:7", { _id: "drivers:7", driverName: "Inactive sub assignment", status: "active", subcontractorId: "sub:1", subStatus: "inactive" });
+    rows.set("drivers:8", { _id: "drivers:8", driverName: "Active subcontractor", status: "active", subcontractorId: "sub:1", subStatus: "active" });
+    expect((await list()).page.map(d => d.name)).toEqual(["Example Driver", "Legacy Driver", "Active subcontractor"]);
+  });
+  it("removes a driver from the phonebook immediately after deactivation", async () => {
+    const { rows, list } = fixture();
+    expect((await list()).page.some(d => d._id === "drivers:1")).toBe(true);
+    rows.set("drivers:1", { ...rows.get("drivers:1")!, status: "inactive" });
+    expect((await list()).page.some(d => d._id === "drivers:1")).toBe(false);
+    expect(rows.get("drivers:1")?.photoUrl).toBe("https://old-photo");
+  });
   it("publishes active contacts with current photos, omitting private fields and test drivers", async () => {
     const { list, getUrl } = fixture();
     const result = await list();

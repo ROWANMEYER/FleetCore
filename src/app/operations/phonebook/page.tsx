@@ -78,10 +78,10 @@ export default function DriverPhonebookPage() {
   }, [search]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 pb-8 pt-5 md:px-8 md:pt-8">
+    <main className="mx-auto h-full w-full max-w-2xl overflow-y-auto px-4 pb-8 pt-5 md:px-8 md:pt-8">
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#06B6D4]">Operations</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#06B6D4]">Contacts</p>
           <h1 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)]">Driver phonebook</h1>
           <p className="mt-1 text-sm text-[var(--nav-text-color)]">Five mobile card mockups for review</p>
         </div>

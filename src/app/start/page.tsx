@@ -2,17 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Cake, Fuel, LockKeyhole, Send } from "lucide-react";
+import { BarChart3, Cake, Fuel, LockKeyhole, Phone, Send } from "lucide-react";
+import { useAuth } from "@/src/components/auth/AuthProvider";
 
 const TABS = [
   { href: "/operations/quick-message", label: "QuickSend", description: "Send a quick message", icon: Send },
   { href: "/operations/fuel", label: "Fuel", description: "Compare fuel prices", icon: Fuel },
+  { href: "/operations/phonebook", label: "Phonebook", description: "Find driver contact numbers", icon: Phone },
   { href: "/calendar", label: "Birthdays", description: "Celebrate your people", icon: Cake },
 ] as const;
 
 export default function StartPage() {
+  const { user } = useAuth();
   return (
-    <main className="relative isolate flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden px-5 py-10 text-white">
+    <main className="relative isolate flex min-h-dvh w-full shrink-0 flex-col items-center justify-center overflow-hidden px-5 py-6 text-white">
       <Image
         src="/images/splash/fleetcore-road-map.webp"
         alt=""
@@ -38,14 +41,14 @@ export default function StartPage() {
         <h1 className="mt-5 text-4xl font-black tracking-tight">FleetCore</h1>
         <p className="mt-2 text-xs uppercase tracking-[0.24em] text-cyan-50/85">People. Freight. Solutions.</p>
 
-        <div className="mt-10 space-y-3 text-left">
+        <div className="mt-6 space-y-3 text-left">
           <p className="px-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-50/70">Choose a tab</p>
           <Link
-            href="/login"
+            href={user ? "/dashboard" : "/login"}
             className="flex min-h-16 items-center gap-4 rounded-2xl border border-white/15 bg-slate-950/45 px-4 py-3 shadow-lg backdrop-blur-md transition-colors hover:bg-slate-950/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
           >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/15 text-cyan-200"><LockKeyhole size={20} /></span>
-            <span><strong className="block text-sm">Operations</strong><span className="text-xs text-cyan-50/70">Sign in to continue</span></span>
+            <span><strong className="block text-sm">Operations</strong><span className="text-xs text-cyan-50/70">{user ? "Open fleet operations" : "Sign in to continue"}</span></span>
           </Link>
           {TABS.map(({ href, label, description, icon: Icon }) => (
             <Link

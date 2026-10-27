@@ -19,10 +19,11 @@ import {
   RefreshCw,
   User,
   Globe,
+  ArrowLeft,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
-import { MobileTabBar } from "@/src/components/MobileTabBar";
+import { MobileOperationsMenu } from "@/src/components/MobileOperationsMenu";
 import { useMobileChrome } from "@/src/components/MobileChromeContext";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
@@ -293,20 +294,24 @@ export default function Navigation() {
 
   return (
     <>
-      {/* ─── Mobile top bar + bottom tab bar (hidden while the sheets screen
+      {/* ─── Mobile top bar (hidden while the sheets screen
              is minimized — only the route cards should remain visible) ─── */}
       {!minimized && (
         <header className="md:hidden fixed top-0 inset-x-0 z-40 h-14 flex items-center gap-3 px-4 glass-sidebar border-b border-[var(--sidebar-border)]">
           <div className="flex items-center gap-2 min-w-0">
+            <Link href="/start" aria-label="Back to Choose a tab" className="inline-flex min-h-11 items-center gap-1 rounded-lg text-xs font-semibold text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">
+              <ArrowLeft size={18} />Tabs
+            </Link>
             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] shadow-md shadow-[rgba(6,182,212,0.3)] shrink-0">
               <BarChart3 size={14} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="font-[var(--font-heading)] font-bold text-sm tracking-tight truncate">
+            <span className="hidden min-[420px]:inline font-[var(--font-heading)] font-bold text-sm tracking-tight truncate">
               FleetCore
             </span>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <MobileOperationsMenu key={pathname} />
             <RegionSwitcher compact />
             <RefreshButton />
             {mounted && <ThemeToggleButton />}
@@ -324,9 +329,6 @@ export default function Navigation() {
           </div>
         </header>
       )}
-
-      {/* ─── Mobile bottom tab bar (Dashboard + Input) ─────────── */}
-      {!minimized && <MobileTabBar />}
 
       {/* ─── Sidebar (desktop only) ───────────────────────────── */}
       <aside

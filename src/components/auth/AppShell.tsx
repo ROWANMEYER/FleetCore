@@ -22,6 +22,7 @@ const MOBILE_ALLOWED_PATHS = [
   "/calendar",
   "/operations/fuel",
   "/operations/quick-message",
+  "/operations/phonebook",
 ];
 
 // These mobile tabs are intentionally public. The Operations tab remains the

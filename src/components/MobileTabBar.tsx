@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutGrid, ClipboardPlus, FileSpreadsheet, Shield, Fuel, Cake, X, Send } from "lucide-react";
+import { LayoutGrid, ClipboardPlus, FileSpreadsheet, Shield, Fuel, Cake, X, Send, Phone } from "lucide-react";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 
 const OPERATION_SCREENS = [
@@ -11,6 +11,7 @@ const OPERATION_SCREENS = [
   { href: "/operations/daily-planner/input", label: "Input", icon: ClipboardPlus, adminOnly: false },
   { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
   { href: "/operations/daily-planner/sheets", label: "Sheets", icon: FileSpreadsheet, adminOnly: false },
+  { href: "/operations/phonebook", label: "Phonebook", icon: Phone, adminOnly: false },
 ];
 
 export function MobileTabBar() {

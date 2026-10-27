@@ -1,6 +1,9 @@
 import { query, mutation, action, internalMutation } from "./_generated/server"; 
 import { v } from "convex/values"; 
 import { internal } from "./_generated/api";
+import { driverPhoneNumber } from "./driverPhoneFields";
+import { cleanAdditionalPhones } from "../src/lib/driverPhones";
+import { requireDriverContactEditor } from "./lib/driverContactAccess";
 
 export const listTrucks = query({ 
     args: { 
@@ -310,6 +313,7 @@ export const getDrivers = query({
                     (d.driverId || "").toLowerCase().includes(q) ||
                     (d.idNumber || "").toLowerCase().includes(q) ||
                     (d.phone || "").toLowerCase().includes(q) ||
+                    (d.additionalPhones || []).some(number => `${number.label} ${number.number}`.toLowerCase().includes(q)) ||
                     (d.status || "").toLowerCase().includes(q)
                 );
             });
@@ -427,6 +431,8 @@ export const deleteTruck = mutation({
 
 export const createDriver = mutation({
     args: {
+        token: v.optional(v.string()),
+        additionalPhones: v.optional(v.array(driverPhoneNumber)),
         driverId: v.string(),
         driverName: v.string(),
         idNumber: v.string(),
@@ -439,27 +445,35 @@ export const createDriver = mutation({
         licenseExpiryDate: v.optional(v.string()),
         pdpExpiryDate: v.optional(v.string()),
     },
+    returns: v.id("drivers"),
     handler: async (ctx, args) => {
+        const { token, ...body } = args;
+        if (body.additionalPhones !== undefined) {
+            await requireDriverContactEditor(ctx, token);
+            body.additionalPhones = cleanAdditionalPhones(body.phone, body.additionalPhones);
+        }
         // Simple uniqueness check on driverId
         const existing = await ctx.db
             .query("drivers")
-            .filter((q) => q.eq(q.field("driverId"), args.driverId))
+            .withIndex("by_driverId", q => q.eq("driverId", args.driverId))
             .first();
         if (existing) {
             throw new Error("Driver with this driverId already exists");
         }
-        return await ctx.db.insert("drivers", args);
+        return await ctx.db.insert("drivers", body);
     },
 });
 
 export const updateDriver = mutation({
     args: {
+        token: v.optional(v.string()),
         id: v.id("drivers"),
         patch: v.object({
             driverId: v.optional(v.string()),
             driverName: v.optional(v.string()),
             idNumber: v.optional(v.string()),
             phone: v.optional(v.string()),
+            additionalPhones: v.optional(v.array(driverPhoneNumber)),
             subcontractorId: v.optional(v.union(v.id("subcontractors"), v.null())),
             subStatus: v.optional(v.string()),
             status: v.optional(v.string()),
@@ -469,14 +483,19 @@ export const updateDriver = mutation({
             pdpExpiryDate: v.optional(v.string()),
         }),
     },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const current = await ctx.db.get(args.id);
         if (!current) throw new Error("Driver not found");
+        if (args.patch.additionalPhones !== undefined) {
+            await requireDriverContactEditor(ctx, args.token);
+            args.patch.additionalPhones = cleanAdditionalPhones(args.patch.phone ?? current.phone ?? "", args.patch.additionalPhones);
+        }
         // If changing driverId ensure uniqueness
         if (args.patch.driverId && args.patch.driverId !== current.driverId) {
             const exists = await ctx.db
                 .query("drivers")
-                .filter((q) => q.eq(q.field("driverId"), args.patch.driverId!))
+                .withIndex("by_driverId", q => q.eq("driverId", args.patch.driverId!))
                 .first();
             if (exists) throw new Error("Another driver already has this driverId");
         }
@@ -484,6 +503,7 @@ export const updateDriver = mutation({
         const sanitizedPatch = { ...args.patch } as any;
         if (sanitizedPatch.subcontractorId === null) sanitizedPatch.subcontractorId = undefined;
         await ctx.db.patch(args.id, sanitizedPatch);
+        return null;
     },
 });
 

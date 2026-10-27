@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { laneField, pricingUnit } from "./rateSheetFields";
+import { driverPhoneNumber } from "./driverPhoneFields";
 
 export default defineSchema({
   /** A customer's live rate card: lanes with their rates, notes, and the diesel the rates are priced against. */
@@ -184,6 +185,7 @@ export default defineSchema({
     pdpExpiryDate: v.optional(v.string()),
     phone: v.optional(v.string()),
     photoStorageId: v.optional(v.string()),
+    additionalPhones: v.optional(v.array(driverPhoneNumber)),
     photoUrl: v.optional(v.string()),
     photoOriginalUrl: v.optional(v.string()),
     pinHash: v.optional(v.string()),
@@ -191,7 +193,7 @@ export default defineSchema({
     status: v.optional(v.string()),
     subcontractorId: v.optional(v.id("subcontractors")),
     subStatus: v.optional(v.string()),
-  }).index("by_driverId", ["driverId"]),
+  }).index("by_driverId", ["driverId"]).index("by_driverName", ["driverName"]),
   fleetSetupBaseline: defineTable({
     assignments: v.array(
       v.object({

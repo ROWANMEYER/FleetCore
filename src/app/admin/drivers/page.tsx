@@ -6,6 +6,9 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useKpiFilter } from "@/src/lib/useKpiFilter";
 import { DriverAvatar } from "@/src/components/admin/DriverAvatar";
+import { DriverPhoneFields } from "@/src/components/admin/DriverPhoneFields";
+import { useAuth } from "@/src/components/auth/AuthProvider";
+import { driverContactNumbers, type DriverPhoneNumber } from "@/src/lib/driverPhones";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
@@ -105,6 +108,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 export default function AdminDriversPage() {
+  const { token } = useAuth();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"driverName" | "driverId" | "status">("driverName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -127,6 +131,7 @@ export default function AdminDriversPage() {
     driverName: "",
     idNumber: "",
     phone: "",
+    additionalPhones: [] as DriverPhoneNumber[],
     status: "active",
     subcontractorId: "",
     subStatus: "active",
@@ -181,10 +186,11 @@ export default function AdminDriversPage() {
       }
       await createDriver({
         ...newDriver,
+        token: token || undefined,
         subcontractorId: newDriver.subcontractorId ? (newDriver.subcontractorId as Id<"subcontractors">) : undefined,
         subStatus: newDriver.subcontractorId ? newDriver.subStatus : undefined,
       });
-      setNewDriver({ driverId: "", driverName: "", idNumber: "", phone: "", status: "active", subcontractorId: "", subStatus: "active" });
+      setNewDriver({ driverId: "", driverName: "", idNumber: "", phone: "", additionalPhones: [], status: "active", subcontractorId: "", subStatus: "active" });
       setShowAddForm(false);
       addToast("Driver created", "success");
     } catch (e: any) {
@@ -205,11 +211,12 @@ export default function AdminDriversPage() {
   const saveEdit = async () => {
     if (!editingId || !editingState) return;
     try {
-      await updateDriver({ id: editingId as Id<"drivers">, patch: {
+      await updateDriver({ token: token || undefined, id: editingId as Id<"drivers">, patch: {
         driverId: editingState.driverId,
         driverName: editingState.driverName,
         idNumber: editingState.idNumber,
         phone: editingState.phone,
+        additionalPhones: editingState.additionalPhones || [],
         status: editingState.status,
         subcontractorId: editingState.subcontractorId || null,
         subStatus: editingState.subStatus || undefined,
@@ -330,9 +337,6 @@ export default function AdminDriversPage() {
             <input
               className="rounded-lg px-3 py-2 text-xs settings-input"
               placeholder="ID Number" value={newDriver.idNumber} onChange={(e) => setNewDriver({ ...newDriver, idNumber: e.target.value })} />
-            <input
-              className="rounded-lg px-3 py-2 text-xs settings-input"
-              placeholder="Phone" value={newDriver.phone} onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })} />
             <select value={newDriver.subcontractorId} onChange={(e) => setNewDriver({ ...newDriver, subcontractorId: e.target.value })}
               className="rounded-lg px-2 py-2 text-xs outline-none"
               style={{
@@ -356,6 +360,8 @@ export default function AdminDriversPage() {
               </select>
             )}
           </div>
+          <DriverPhoneFields phone={newDriver.phone} onPhoneChange={phone => setNewDriver({ ...newDriver, phone })}
+            additionalPhones={newDriver.additionalPhones} onAdditionalPhonesChange={additionalPhones => setNewDriver({ ...newDriver, additionalPhones })} />
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs font-medium transition-colors" style={{color:"var(--nav-text-color)"}}>Cancel</button>
             <button onClick={handleCreate} className="px-4 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Add Driver</button>
@@ -399,9 +405,8 @@ export default function AdminDriversPage() {
                     className="rounded-lg px-3 py-2 text-xs settings-input"
                     value={editingState.idNumber} onChange={(e) => setEditingState({ ...editingState, idNumber: e.target.value })} placeholder="ID Number" />
                 </div>
-                <input
-                  className="w-full rounded-lg px-3 py-2 text-xs settings-input"
-                  value={editingState.phone} onChange={(e) => setEditingState({ ...editingState, phone: e.target.value })} placeholder="Phone" />
+                <DriverPhoneFields phone={editingState.phone || ""} onPhoneChange={phone => setEditingState({ ...editingState, phone })}
+                  additionalPhones={editingState.additionalPhones || []} onAdditionalPhonesChange={additionalPhones => setEditingState({ ...editingState, additionalPhones })} />
                 <select value={editingState.subcontractorId || ""} onChange={(e) => setEditingState({ ...editingState, subcontractorId: e.target.value || null })}
                   className="w-full rounded-lg px-2 py-2 text-xs outline-none"
                   style={{
@@ -465,7 +470,9 @@ export default function AdminDriversPage() {
                       <div className="text-sm font-bold tracking-tight truncate" style={{color:"var(--foreground)"}}>
                         {d.driverName}
                       </div>
-                      <div className="text-[10px] truncate mt-0.5" style={{color:"var(--nav-text-color)"}}>{d.phone}</div>
+                      {driverContactNumbers(d.phone, d.additionalPhones).map((number, index) => (
+                        <div key={index} className="text-[10px] truncate mt-0.5" style={{color:"var(--nav-text-color)"}}>{number.label}: {number.number}</div>
+                      ))}
                       <div className="flex flex-wrap items-center gap-1.5 mt-1">
                         <OwnerBadge sub={sub} subStatus={d.subStatus} />
                         <StatusBadge status={d.status} />

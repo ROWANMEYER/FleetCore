@@ -8,7 +8,7 @@ import { useKpiFilter } from "@/src/lib/useKpiFilter";
 import { DriverAvatar } from "@/src/components/admin/DriverAvatar";
 import { DriverPhoneFields } from "@/src/components/admin/DriverPhoneFields";
 import { useAuth } from "@/src/components/auth/AuthProvider";
-import { driverContactNumbers, type DriverPhoneNumber } from "@/src/lib/driverPhones";
+import { cleanAdditionalPhones, driverContactNumbers, type DriverPhoneNumber } from "@/src/lib/driverPhones";
 import { SkeletonPage } from "@/src/components/common/Skeleton";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { useToast } from "@/src/components/common/Toast";
@@ -140,6 +140,7 @@ export default function AdminDriversPage() {
   const { addToast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<any | null>(null);
+  const [formError, setFormError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [flippedId, setFlippedId] = useState<string | null>(null);
 
@@ -179,13 +180,16 @@ export default function AdminDriversPage() {
   };
 
   const handleCreate = async () => {
+    setFormError("");
     try {
       if (!newDriver.driverId || !newDriver.driverName || !newDriver.idNumber || !newDriver.phone) {
-        addToast("All fields are required", "error");
+        setFormError("All fields are required");
         return;
       }
+      const additionalPhones = cleanAdditionalPhones(newDriver.phone, newDriver.additionalPhones);
       await createDriver({
         ...newDriver,
+        additionalPhones,
         token: token || undefined,
         subcontractorId: newDriver.subcontractorId ? (newDriver.subcontractorId as Id<"subcontractors">) : undefined,
         subStatus: newDriver.subcontractorId ? newDriver.subStatus : undefined,
@@ -194,29 +198,35 @@ export default function AdminDriversPage() {
       setShowAddForm(false);
       addToast("Driver created", "success");
     } catch (e: any) {
-      addToast(e.message || String(e), "error");
+      const message = e.message || String(e);
+      setFormError(message);
+      addToast(message, "error");
     }
   };
 
   const startEdit = (d: any) => {
+    setFormError("");
     setEditingId(d._id as string);
     setEditingState({ ...d });
   };
 
   const cancelEdit = () => {
+    setFormError("");
     setEditingId(null);
     setEditingState(null);
   };
 
   const saveEdit = async () => {
     if (!editingId || !editingState) return;
+    setFormError("");
     try {
+      const additionalPhones = cleanAdditionalPhones(editingState.phone || "", editingState.additionalPhones || []);
       await updateDriver({ token: token || undefined, id: editingId as Id<"drivers">, patch: {
         driverId: editingState.driverId,
         driverName: editingState.driverName,
         idNumber: editingState.idNumber,
         phone: editingState.phone,
-        additionalPhones: editingState.additionalPhones || [],
+        additionalPhones,
         status: editingState.status,
         subcontractorId: editingState.subcontractorId || null,
         subStatus: editingState.subStatus || undefined,
@@ -224,7 +234,9 @@ export default function AdminDriversPage() {
       addToast("Driver updated", "success");
       cancelEdit();
     } catch (e: any) {
-      addToast(e.message || String(e), "error");
+      const message = e.message || String(e);
+      setFormError(message);
+      addToast(message, "error");
     }
   };
 
@@ -264,7 +276,7 @@ export default function AdminDriversPage() {
           <p className="text-xs mt-0.5" style={{color:"var(--nav-text-color)"}}>Manage driver master data</p>
         </div>
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => { setFormError(""); setShowAddForm(!showAddForm); }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-br from-[#06B6D4] to-[#0891B2] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm"
         >
           {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -362,6 +374,7 @@ export default function AdminDriversPage() {
           </div>
           <DriverPhoneFields phone={newDriver.phone} onPhoneChange={phone => setNewDriver({ ...newDriver, phone })}
             additionalPhones={newDriver.additionalPhones} onAdditionalPhonesChange={additionalPhones => setNewDriver({ ...newDriver, additionalPhones })} />
+          {formError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500">{formError}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs font-medium transition-colors" style={{color:"var(--nav-text-color)"}}>Cancel</button>
             <button onClick={handleCreate} className="px-4 py-1.5 text-xs font-semibold rounded-lg text-white bg-gradient-to-br from-[#06B6D4] to-[#0891B2] hover:opacity-90 transition-all shadow-sm">Add Driver</button>
@@ -407,6 +420,7 @@ export default function AdminDriversPage() {
                 </div>
                 <DriverPhoneFields phone={editingState.phone || ""} onPhoneChange={phone => setEditingState({ ...editingState, phone })}
                   additionalPhones={editingState.additionalPhones || []} onAdditionalPhonesChange={additionalPhones => setEditingState({ ...editingState, additionalPhones })} />
+                {formError && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500">{formError}</p>}
                 <select value={editingState.subcontractorId || ""} onChange={(e) => setEditingState({ ...editingState, subcontractorId: e.target.value || null })}
                   className="w-full rounded-lg px-2 py-2 text-xs outline-none"
                   style={{

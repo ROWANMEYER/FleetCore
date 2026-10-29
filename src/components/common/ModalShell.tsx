@@ -16,13 +16,15 @@ interface ModalShellProps {
    * whole point is typing something (a confirmation word) turns it on.
    */
   autoFocus?: boolean;
+  /** Stacking order for the backdrop/panel (defaults to z-50). */
+  zIndexClass?: string;
 }
 
 /** Shared by the focus trap and the autoFocus handover, so both agree on what "focusable" means. */
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function ModalShell({ open, onClose, children, className = "", style, portal = false, autoFocus = false }: ModalShellProps) {
+export function ModalShell({ open, onClose, children, className = "", style, portal = false, autoFocus = false, zIndexClass = "z-50" }: ModalShellProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const autoFocusRef = useRef(autoFocus);
@@ -90,7 +92,7 @@ export function ModalShell({ open, onClose, children, className = "", style, por
   if (!open) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay-backdrop)] backdrop-blur-sm">
+    <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center bg-[var(--overlay-backdrop)] backdrop-blur-sm`}>
       <div
         ref={modalRef}
         tabIndex={-1}

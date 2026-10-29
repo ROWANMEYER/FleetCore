@@ -66,6 +66,25 @@ describe("amountToRate", () => {
     const withRate = { ...typed, rate: amountToRate("9600", typed) };
     expect(quickAddAmount(withRate)).toBe(9600);
   });
+
+  it.each([
+    ["15 757,61", 15757.61],
+    ["2700,00", 2700],
+    ["18830.70", 18830.7],
+    ["0,05", 0.05],
+  ])("preserves the total and saved rate for %s", (input, expected) => {
+    for (const rateType of ["per_unit", "flat"] as const) {
+      const original = draft({ qty: "12", rateType });
+      const withRate = { ...original, rate: amountToRate(input, original) };
+      expect(quickAddAmount(withRate)).toBeCloseTo(expected, 8);
+      const payload = buildQuickAddPayload(withRate);
+      const savedLoad = payload.loads[0];
+      const savedTotal = rateType === "flat"
+        ? Number(savedLoad.rate)
+        : Number(savedLoad.quantity) * Number(savedLoad.rate);
+      expect(savedTotal).toBeCloseTo(expected, 8);
+    }
+  });
 });
 
 describe("quickAddRPerKm", () => {

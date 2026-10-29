@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QUICK_SEND_STYLES, type QuickSendStyle } from "@/src/lib/quicksend/useQuickSendStyle";
 import QuickMessagePage from "./page";
 
-const view = vi.hoisted(() => ({ style: "cards" }));
+const view = vi.hoisted(() => ({ style: "cards", mobile: true }));
+vi.mock("@/src/hooks/useIsMobile", () => ({ useIsMobile: () => view.mobile }));
 vi.mock("convex/react", () => ({ useQuery: () => [] }));
 vi.mock("@/src/components/auth/AuthProvider", () => ({ useAuth: () => ({ user: { _id: "test-user" } }) }));
 vi.mock("@/src/components/common/Toast", () => ({ useToast: () => ({ addToast: vi.fn() }) }));
@@ -14,6 +15,7 @@ vi.mock("@/src/lib/quicksend/useQuickSendStyle", async (original) => ({
 }));
 
 function render(style: QuickSendStyle) {
+  view.mobile = true;
   view.style = style;
   return renderToStaticMarkup(<QuickMessagePage />);
 }
@@ -42,5 +44,21 @@ describe("QuickSend layout switcher", () => {
     const cards = render("cards");
     expect(message.indexOf('aria-label="Message preview"')).toBeLessThan(message.indexOf("(optional)"));
     expect(cards.indexOf('aria-label="Message preview"')).toBeGreaterThan(cards.indexOf("(optional)"));
+  });
+  it("keeps the desktop workspace independent of every saved mobile style", () => {
+    view.mobile = false;
+    for (const style of QUICK_SEND_STYLES) {
+      view.style = style.id;
+      const html = renderToStaticMarkup(<QuickMessagePage />);
+      expect(html).not.toContain("data-style=");
+      expect(html).not.toContain('id="quick-send-style"');
+      expect(html).not.toContain('aria-label="Message readiness"');
+      expect(html).toContain('aria-label="Fleet selections"');
+      expect(html).toContain('aria-labelledby="quick-send-notes"');
+      expect(html).toContain('aria-label="Message preview"');
+      expect(html).toContain("Copy message");
+      expect(html).toContain("WhatsApp");
+    }
+    view.mobile = true;
   });
 });

@@ -1,5 +1,76 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-10-29 — Mobile install button and clearer driver phone validation
+
+Mobile now has a dedicated **Download FleetCore** action in the top bar and on
+`/start`, with a custom install dialog for Android/Chrome, iOS Safari and
+in-app browsers. `beforeinstallprompt` is captured before hydration so the
+native install prompt can be deferred to the button. The PWA cache advances from
+v79 to v80.
+
+Adding or editing a driver's additional phone numbers is now validated in the
+admin form before the mutation runs. Duplicate numbers are reported inline and
+name the conflicting number or primary number (for example, local `082…` and
+international `+27 82…` entries are treated as the same number). The Convex-side
+validation is unchanged.
+
+Validation: TypeScript, changed-file lint and the full Vitest suite (53 files,
+953 tests) pass. GitHub push and production deployment are part of this handoff.
+
+## 2026-10-28 — Production release: desktop layouts and comma amount entry
+
+Both fixes below are live at https://fleetcore-mu.vercel.app. Vercel deployment
+`dpl_5BSwoCDufAsPyq3BUeDr7id5cSnQ` is READY and assigned to that production domain.
+The installed-app cache advances from v78 to v79.
+
+Release validation: 210 combined regression tests and the complete local and
+Vercel builds pass. Live-bundle browser checks verify desktop QuickSend, restored
+Fuel history/chart, all five mobile QuickSend styles, the mobile date picker,
+decimal-comma entry and simulated route-save payloads. Real backend traffic was
+blocked during interaction tests; no records were created or changed. The
+existing production Convex deployment remains connected, with no backend push.
+The initial deployment runtime error/fatal-log scan returned no entries.
+
+Published the reviewed local source through the connected Vercel integration.
+The base Git commit remains `70e4809`; release changes are still uncommitted in
+the local working tree and have not been pushed to GitHub. Preserve and commit
+these changes during the next requested GitHub handoff.
+
+## 2026-10-28 — Preserve decimal commas in the Sheets new-route Amount cell
+
+The new-row Amount input now keeps its raw text while typing instead of
+rewriting every keystroke from a rounded numeric total. Decimal commas, points,
+trailing zeros and pasted ZAR amounts remain editable. Existing amount-to-rate
+conversion and save payloads are unchanged. Changing quantity, rate or rate type
+returns the cell to its calculated total; save, Clear and Escape reset its text.
+
+Validation: 43 sheet/helper tests, TypeScript and changed-file lint pass. An
+isolated browser check verifies incremental comma entry, backspace, trailing
+zeros, formatted ZAR paste, quantity/rate edits, simulated Enter-save payloads,
+and clearing after save/Escape. All backend traffic was intercepted; no real
+routes were created. Deployed in the production release above; not pushed to GitHub.
+
+## 2026-10-28 — Separate desktop QuickSend and Fuel layouts from mobile
+
+The Fuel Composition desktop tab again renders the existing full overview,
+trend chart, monthly comparison and price history from the management screen,
+including its existing admin access requirement. Mobile keeps the public
+recorded-date comparison and its date picker. Both management entry points use
+the same existing component; backend calculations and saved records are unchanged.
+
+QuickSend now has a desktop workspace with fleet selections, inline week fields
+and notes beside the preview and share actions. It follows the web theme and
+uses the available width. The five saved phone styles and fixed-height mobile
+workspace apply only to mobile. Both layouts retain the same message state,
+formatting, fleet queries and sharing behavior.
+
+Validation: 167 focused tests pass, including desktop/mobile regression cases;
+TypeScript, changed-file lint and a local production build pass. Isolated Chrome
+checks with synthetic query responses verify fleet selection, generated messages,
+week fields, notes, desktop history, all five phone styles and the mobile date
+picker without browser errors or backend writes. Local changes only; not pushed
+or deployed at initial implementation; now deployed in the production release above.
+
 ## 2026-10-26 — Mobile visual release
 
 Release includes Performance dashboard, Sheets timeline, opaque Operations menu

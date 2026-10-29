@@ -17,7 +17,8 @@ export function isDialablePhone(value: string): boolean {
 /** Validate only newly supplied extra numbers; old primary numbers stay intact. */
 export function cleanAdditionalPhones(primary: string, values: DriverPhoneNumber[]): DriverPhoneNumber[] {
   if (values.length > MAX_ADDITIONAL_PHONES) throw new Error(`Add up to ${MAX_ADDITIONAL_PHONES} additional numbers.`);
-  const seen = new Set(primary.trim() ? [phoneDigits(primary)] : []);
+  const seen = new Map<string, string>();
+  if (primary.trim()) seen.set(phoneDigits(primary), "the primary number");
   const result: DriverPhoneNumber[] = [];
   for (const value of values) {
     const number = value.number.trim();
@@ -26,8 +27,8 @@ export function cleanAdditionalPhones(primary: string, values: DriverPhoneNumber
     if (!label || label.length > 32) throw new Error("Give each number a label of 1–32 characters.");
     if (!isDialablePhone(number)) throw new Error(`Enter a valid phone number for ${label}.`);
     const key = phoneDigits(number);
-    if (seen.has(key)) throw new Error("The same phone number is listed more than once.");
-    seen.add(key);
+    if (seen.has(key)) throw new Error(`${number} is listed more than once — it is already used as ${seen.get(key)}.`);
+    seen.set(key, label);
     result.push({ label, number, whatsapp: value.whatsapp });
   }
   return result;

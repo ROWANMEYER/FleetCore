@@ -24,6 +24,7 @@ import {
 import { useTheme } from "next-themes";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { MobileOperationsMenu } from "@/src/components/MobileOperationsMenu";
+import { InstallAppButton } from "@/src/components/InstallAppButton";
 import { useMobileChrome } from "@/src/components/MobileChromeContext";
 
 /* ─── Navigation items ─────────────────────────────────────────── */
@@ -313,6 +314,7 @@ export default function Navigation() {
           <div className="ml-auto flex items-center gap-2">
             <MobileOperationsMenu key={pathname} />
             <RegionSwitcher compact />
+            <InstallAppButton />
             <RefreshButton />
             {mounted && <ThemeToggleButton />}
             {user && (

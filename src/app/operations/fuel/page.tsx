@@ -11,6 +11,8 @@ import { compositionProblem, compositionValue, estimatedRateImpact } from "@/src
 import { DASH, formatLongDay, formatPercent, formatRand, formatSignedPercent, formatSignedRand, movementArrow, movementWord } from "@/src/lib/fuel/display";
 import css from "./comparison.module.css";
 import { FuelDatePicker } from "@/src/components/fuel/FuelDatePicker";
+import { useIsMobile } from "@/src/hooks/useIsMobile";
+import FuelCompositionPage from "./manage/page";
 
 function Result({ value, format }: { value: number | null; format: (value: number) => string }) {
   return <span data-direction={value === null || value === 0 ? "flat" : value > 0 ? "up" : "down"}>
@@ -18,7 +20,12 @@ function Result({ value, format }: { value: number | null; format: (value: numbe
   </span>;
 }
 
-export default function FuelComparisonPage() {
+export default function FuelPage() {
+  const isMobile = useIsMobile();
+  return isMobile ? <FuelComparisonPage /> : <FuelCompositionPage />;
+}
+
+function FuelComparisonPage() {
   const { user } = useAuth();
   const admin = user?.role === "admin";
   const rows = useQuery(api.fuelPrices.list, {});

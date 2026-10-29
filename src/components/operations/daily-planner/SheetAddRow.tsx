@@ -91,6 +91,9 @@ export default function SheetAddRow({
   const [draft, setDraft] = useState<QuickAddDraft>(() =>
     emptyQuickAddDraft(defaultDate || todayIso())
   );
+  // Keep decimal separators and trailing zeros while the amount is being typed.
+  // The numeric total still comes from the existing quantity/rate calculation.
+  const [amountInput, setAmountInput] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +115,7 @@ export default function SheetAddRow({
 
   const set = (field: keyof QuickAddDraft) => (value: string) => {
     setError(null);
+    if (field === "qty" || field === "rate") setAmountInput(null);
     setDraft((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -122,10 +126,12 @@ export default function SheetAddRow({
   // against the quantity, so the column users see always matches the row.
   const setAmountFromInput = (value: string) => {
     setError(null);
+    setAmountInput(value);
     setDraft((prev) => ({ ...prev, rate: amountToRate(value, prev) }));
   };
 
   const reset = (keepDate: boolean) => {
+    setAmountInput(null);
     setDraft((prev) => emptyQuickAddDraft(keepDate ? prev.date : defaultDate || todayIso()));
   };
 
@@ -257,7 +263,8 @@ export default function SheetAddRow({
                   }}
                   type="text"
                   inputMode="decimal"
-                  value={amount > 0 ? String(Number(amount.toFixed(2))) : ""}
+                  aria-label="Amount"
+                  value={amountInput ?? (amount > 0 ? String(Number(amount.toFixed(2))) : "")}
                   placeholder="Amount"
                   onChange={(e) => setAmountFromInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -318,12 +325,13 @@ export default function SheetAddRow({
             <span className="text-[var(--nav-text-color)]">Rate type</span>
             <select
               value={draft.rateType}
-              onChange={(e) =>
+              onChange={(e) => {
+                setAmountInput(null);
                 setDraft((prev) => ({
                   ...prev,
                   rateType: e.target.value as "per_unit" | "flat",
-                }))
-              }
+                }));
+              }}
               className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] px-1.5 py-1 text-[12px] outline-none focus:border-[#06B6D4]"
             >
               {RATE_TYPE_OPTIONS.map((o) => (

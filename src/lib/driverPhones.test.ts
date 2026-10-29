@@ -24,7 +24,12 @@ describe("driver phone numbers", () => {
     expect(isDialablePhone("+27 82 123 4567")).toBe(true);
   });
   it("validates labels, number length and duplicates before saving", () => {
-    expect(() => cleanAdditionalPhones("0821234567", [{ label: "Work", number: "+27821234567", whatsapp: true }])).toThrow("more than once");
+    expect(() => cleanAdditionalPhones("0821234567", [{ label: "Work", number: "+27821234567", whatsapp: true }]))
+      .toThrow(/\+27821234567 is listed more than once — it is already used as the primary number/);
+    expect(() => cleanAdditionalPhones("", [
+      { label: "Work", number: "0832345678", whatsapp: false },
+      { label: "Personal", number: "083 234 5678", whatsapp: true },
+    ])).toThrow(/083 234 5678 is listed more than once — it is already used as Work/);
     expect(() => cleanAdditionalPhones("", [{ label: "", number: "0832345678", whatsapp: false }])).toThrow("label");
     expect(() => cleanAdditionalPhones("", [{ label: "Work", number: "123", whatsapp: false }])).toThrow("valid phone");
     expect(cleanAdditionalPhones("legacy unchanged", [

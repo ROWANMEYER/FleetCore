@@ -8,6 +8,7 @@ import { useAuth } from "@/src/components/auth/AuthProvider";
 import { useToast } from "@/src/components/common/Toast";
 import { useCachedValue } from "@/src/lib/offline/useCachedValue";
 import { useOnlineStatus } from "@/src/lib/offline/useOnline";
+import { useIsMobile } from "@/src/hooks/useIsMobile";
 import { buildQuickMessage, isoWeek, weekProblem } from "@/src/lib/quicksend/message";
 
 import { QUICK_SEND_STYLES, useQuickSendStyle } from "@/src/lib/quicksend/useQuickSendStyle";
@@ -57,6 +58,7 @@ function MessageDetailsDialog({ children, title, onClose }: { children: ReactNod
 }
 
 export default function QuickMessagePage() {
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const { addToast } = useToast();
   const online = useOnlineStatus();
@@ -136,7 +138,7 @@ export default function QuickMessagePage() {
     <label>ETA<input value={eta} onChange={(e) => setEta(e.target.value)} placeholder="Optional ETA" /></label>
     {error && <p className={css.error} role="status">{error}</p>}
   </section>;
-  const notesEditor = <label className={css.notesBody}><span className={css.srOnly}>Notes</span><textarea autoFocus rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note to include in the message" /></label>;
+  const notesEditor = <label className={css.notesBody}><span className={css.srOnly}>Notes</span><textarea autoFocus={isMobile} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add a note to include in the message" /></label>;
   const detailControls = <div className={css.detailControls}>
     {template === "week" && <button type="button" onClick={() => setEditor("week")}><CalendarDays size={16} /><span>Week {week || "—"} · Load {loadNumber || "—"}/{totalLoads || "—"}</span><ChevronRight size={16} /></button>}
     <button type="button" onClick={() => setEditor("notes")}><FileText size={16} /><span>{notes ? `Notes: ${notes}` : "Add notes (optional)"}</span><ChevronRight size={16} /></button>
@@ -153,24 +155,32 @@ export default function QuickMessagePage() {
     <button type="button" className={css.clear} onClick={clearSelections}><RotateCcw size={15} />Clear selections</button>
   </div>;
 
-  return <div className={css.page} data-style={style}>
+  return <div className={css.page} data-style={isMobile ? style : undefined}>
     <div className={css.content}>
-      <div className={css.stylePicker}><Palette size={17} /><label htmlFor="quick-send-style">Style</label>
+      {isMobile && <div className={css.stylePicker}><Palette size={17} /><label htmlFor="quick-send-style">Style</label>
         <select id="quick-send-style" value={style} onChange={(event) => {
           const next = QUICK_SEND_STYLES.find((option) => option.id === event.target.value);
           if (next) setStyle(next.id);
         }}>{QUICK_SEND_STYLES.map((option, index) => <option key={option.id} value={option.id}>{index + 1} · {option.label}</option>)}</select>
-      </div>
+      </div>}
       <header className={css.header}><div className={css.heading}><Send size={28} /><h1>QuickSend</h1><span className={css.live} data-online={online}>{online ? "Live" : "Offline"}</span></div>
         <p>Fleet details. Ready to share.</p></header>
       {!online && <p className={css.notice} role="status">Using the last fleet details saved on this device. Connect to refresh.</p>}
       {loading && <p className={css.notice} role="status">{online ? "Loading fleet details…" : "Open QuickSend while connected to save your fleet list first."}</p>}
-      {style === "guided" && <ol className={css.progress} aria-label="Message readiness">
+      {isMobile && style === "guided" && <ol className={css.progress} aria-label="Message readiness">
         <li data-complete={Boolean(driver && truck && trailer)}>1 · Fleet</li><li data-complete={ready}>2 · Message</li><li data-complete={ready}>3 · Share</li>
       </ol>}
-      {templateSection}{fleetSection}{style === "message" ? <>{previewSection}{detailControls}</> : <>{detailControls}{previewSection}</>}{actionSection}
+      {isMobile ? <>
+        {templateSection}{fleetSection}{style === "message" ? <>{previewSection}{detailControls}</> : <>{detailControls}{previewSection}</>}{actionSection}
+      </> : <div className={css.desktopWorkspace}>
+        <div className={css.desktopForm}>
+          {templateSection}{fleetSection}{weekSection}
+          <section className={css.notes} aria-labelledby="quick-send-notes"><h2 id="quick-send-notes">Notes (optional)</h2>{notesEditor}</section>
+        </div>
+        <div className={css.desktopMessage}>{previewSection}{actionSection}</div>
+      </div>}
     </div>
-    {editor && <MessageDetailsDialog title={editor === "week" ? "Week format details" : "Message notes"} onClose={() => setEditor(null)}>{editor === "week" ? weekSection : notesEditor}</MessageDetailsDialog>}
+    {isMobile && editor && <MessageDetailsDialog title={editor === "week" ? "Week format details" : "Message notes"} onClose={() => setEditor(null)}>{editor === "week" ? weekSection : notesEditor}</MessageDetailsDialog>}
     {picker && <FleetPicker key={picker} kind={picker} choices={choices[picker]} selected={picker === "Driver" ? driverId : picker === "Truck" ? truckId : trailerId}
       onClose={() => setPicker(null)} onSelect={picker === "Driver" ? setDriverId : picker === "Truck" ? setTruckId : setTrailerId} />}
   </div>;

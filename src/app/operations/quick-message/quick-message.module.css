@@ -122,6 +122,31 @@
 @media (min-width:768px) { .page { padding: 24px 28px 40px; } .content { max-width: 760px; } .fleet { grid-template-columns: repeat(3,minmax(0,1fr)); } .card { flex-wrap: wrap; } .cardText { flex-basis: 100%; } .chevron { display: none; } .page[data-style="cards"] .card { min-height: 155px; } }
 @media (prefers-reduced-motion:reduce) { .card, .notes summary > svg:last-child { transition: none; } }
 
+/* Desktop follows the web theme; phone style preferences stay on the phone UI. */
+.page:not([data-style]) {
+  --qs-bg: var(--background); --qs-surface: var(--card-bg); --qs-text: var(--foreground);
+  --qs-muted: var(--nav-text-color); --qs-border: var(--card-border);
+  --qs-soft: var(--accent-soft-bg); --qs-input: var(--surface-sunken); --qs-accent: #0891b2;
+  background: transparent; color-scheme: inherit;
+}
+:global(.dark) .page:not([data-style]) {
+  --qs-bg: var(--background); --qs-surface: var(--card-bg); --qs-text: var(--foreground);
+  --qs-muted: var(--nav-text-color); --qs-border: var(--card-border);
+  --qs-soft: var(--accent-soft-bg); --qs-input: var(--surface-sunken); --qs-accent: #22d3ee;
+  background: transparent; color-scheme: inherit;
+}
+.page:not([data-style]) .content { max-width: none; gap: 24px; }
+.desktopWorkspace { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; gap: 24px; }
+.desktopForm, .desktopMessage { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.desktopForm .fleet { grid-template-columns: 1fr; }
+.desktopForm .card { min-height: 88px; flex-wrap: nowrap; }
+.desktopForm .cardText { flex-basis: auto; }
+.desktopForm .chevron { display: block; }
+.desktopForm .notes h2 { font-size: 13px; font-weight: 650; padding: 14px 14px 10px; }
+.desktopMessage .preview { padding: 20px; }
+.desktopMessage .preview textarea { min-height: 280px; max-height: 560px; font-size: 13px; }
+@media (max-width:1099px) { .desktopWorkspace { grid-template-columns: minmax(0,1fr); } }
+
 /* Fixed QuickSend workspace: only pickers, editors and long previews scroll. */
 .page[data-style] { padding: 12px; overflow: hidden; container-type: size; min-height: 0; }
 .page[data-style] .content { height: 100%; min-height: 0; gap: 9px; }

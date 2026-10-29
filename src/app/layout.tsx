@@ -61,6 +61,12 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
       >
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__fleetcoreInstallPrompt=e;});',
+          }}
+        />
         <ThemeProvider>
           <ConvexClientProvider>
             <ToastProvider>

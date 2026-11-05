@@ -106,6 +106,8 @@ export const upcomingBirthdays = query({
       daysUntil: number;
       birthdayDate: string;
       birthYear: number;
+      photoUrl: string;
+      photoOriginalUrl: string;
     }[] = [];
 
     for (const d of drivers) {
@@ -116,6 +118,9 @@ export const upcomingBirthdays = query({
       if (!bd) continue;
       const daysUntil = daysUntilBirthday(bd.month, bd.day, today);
       if (daysUntil <= windowDays) {
+        const storageId = d.photoStorageId ? ctx.db.system.normalizeId("_storage", d.photoStorageId) : null;
+        const storedPhoto = storageId ? await ctx.storage.getUrl(storageId) : null;
+        const photoUrl = storedPhoto || d.photoUrl || d.photoOriginalUrl || "";
         out.push({
           driverId: String(d._id),
           name: toName(d),
@@ -125,6 +130,8 @@ export const upcomingBirthdays = query({
           daysUntil,
           birthdayDate: occurrenceDate(bd.month, bd.day, today),
           birthYear: bd.year,
+          photoUrl,
+          photoOriginalUrl: d.photoOriginalUrl || photoUrl,
         });
       }
     }
@@ -158,12 +165,15 @@ export const getBirthdaysForMonth = query({
       if ((d as any).status === "inactive") continue;
       const bd = getBirthdayFromSAID((d as any).idNumber ?? "");
       if (!bd || bd.month !== args.month) continue;
+      const storageId = d.photoStorageId ? ctx.db.system.normalizeId("_storage", d.photoStorageId) : null;
+      const storedPhoto = storageId ? await ctx.storage.getUrl(storageId) : null;
+      const photoUrl = storedPhoto || d.photoUrl || d.photoOriginalUrl || "";
       out.push({
         driverId: String(d._id),
         name: toName(d),
         phoneNumber: (d as any).phone ?? "",
-        photoUrl: (d as any).photoUrl ?? "",
-        photoOriginalUrl: (d as any).photoOriginalUrl ?? "",
+        photoUrl,
+        photoOriginalUrl: d.photoOriginalUrl || photoUrl,
         day: bd.day,
         birthYear: bd.year,
       });

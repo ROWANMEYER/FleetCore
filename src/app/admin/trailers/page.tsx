@@ -15,6 +15,18 @@ import { Plus, Pencil, Trash2, Power, PowerOff, Search, X, FlipVertical2, Contai
 
 type SortDir = "asc" | "desc";
 
+const UNKNOWN_TRAILER_TYPE = "__unknown__";
+
+function trailerTypeKey(value: unknown): string {
+  const type = String(value ?? "").trim().toLocaleLowerCase();
+  return type || UNKNOWN_TRAILER_TYPE;
+}
+
+function trailerTypeLabel(value: unknown): string {
+  const type = String(value ?? "").trim();
+  return type || "Unknown type";
+}
+
 function OwnerBadge({ sub, subStatus }: { sub?: { _id: string; companyName: string } | null; subStatus?: string }) {
   if (sub) {
     return (
@@ -111,6 +123,7 @@ export default function AdminTrailersPage() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [includeInactive, setIncludeInactive] = useState(true);
   const [kpiFilter, setKpiFilter] = useKpiFilter();
+  const [selectedTypeKeys, setSelectedTypeKeys] = useState<string[]>([]);
 
   const trailersQuery = useQuery(api.fleet.getTrailers, { includeInactive });
   const statsQuery = useQuery(api.fleet.getTrailerStats);
@@ -140,11 +153,31 @@ export default function AdminTrailersPage() {
   const [deletingTrailer, setDeletingTrailer] = useState<{ id: string; length: string; registration: string } | null>(null);
   const [flippedId, setFlippedId] = useState<string | null>(null);
 
-  const trailersRaw = trailersQuery || [];
+  const trailersRaw = useMemo(() => trailersQuery ?? [], [trailersQuery]);
+
+  const trailerTypeFilters = useMemo(() => {
+    const types = new Map<string, { key: string; label: string; count: number; ids: Set<string> }>();
+    for (const trailer of trailersRaw as any[]) {
+      const key = trailerTypeKey(trailer?.type);
+      const existing = types.get(key) ?? { key, label: trailerTypeLabel(trailer?.type), count: 0, ids: new Set<string>() };
+      const id = String(trailer?._id ?? "");
+      if (!existing.ids.has(id)) {
+        existing.ids.add(id);
+        existing.count += 1;
+      }
+      types.set(key, existing);
+    }
+    return Array.from(types.values())
+      .map((type) => ({ key: type.key, label: type.label, count: type.count }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }, [trailersRaw]);
+
+  const selectedTypeSet = useMemo(() => new Set(selectedTypeKeys), [selectedTypeKeys]);
 
   const trailers = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = trailersRaw.filter((t: any) => {
+      if (selectedTypeSet.size > 0 && !selectedTypeSet.has(trailerTypeKey(t?.type))) return false;
       if (!includeInactive) {
         const status = String(t?.status ?? "").toLowerCase();
         if (status === "inactive") return false;
@@ -163,7 +196,7 @@ export default function AdminTrailersPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return filtered;
-  }, [trailersRaw, includeInactive, search, sortBy, sortDir]);
+  }, [trailersRaw, includeInactive, search, sortBy, sortDir, selectedTypeSet]);
 
   const filteredTrailers =
     kpiFilter === "total"
@@ -207,7 +240,15 @@ export default function AdminTrailersPage() {
   const totalPages = Math.max(1, Math.ceil(allGroups.length / pageSize));
   const pagedGroups = allGroups.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter]);
+  useEffect(() => { setPage(1); }, [search, sortBy, sortDir, includeInactive, kpiFilter, selectedTypeKeys]);
+
+  useEffect(() => {
+    const availableTypeKeys = new Set(trailerTypeFilters.map((type) => type.key));
+    setSelectedTypeKeys((current) => {
+      const next = current.filter((key) => availableTypeKeys.has(key));
+      return next.length === current.length ? current : next;
+    });
+  }, [trailerTypeFilters]);
 
   if (trailersQuery === undefined || statsQuery === undefined) return <SkeletonPage />;
 
@@ -346,6 +387,55 @@ export default function AdminTrailersPage() {
           );
         })}
       </div>
+
+      <section aria-labelledby="trailer-type-filters" className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="trailer-type-filters" className="text-xs font-semibold uppercase tracking-wider" style={{color:"var(--nav-text-color)"}}>Filter by trailer type</h2>
+            <p className="text-[11px] mt-0.5" style={{color:"var(--nav-text-color)"}}>Select one or more types</p>
+          </div>
+          {selectedTypeKeys.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedTypeKeys([])}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors hover:bg-[var(--card-border)]"
+              style={{color:"#06B6D4", border:"1px solid var(--card-border)"}}
+            >
+              <X className="w-3 h-3" />
+              Clear filters
+            </button>
+          )}
+        </div>
+        {trailerTypeFilters.length === 0 ? (
+          <div className="glass-card rounded-xl px-3 py-3 text-xs" style={{color:"var(--nav-text-color)"}}>No trailer types available.</div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+            {trailerTypeFilters.map((type) => {
+              const isSelected = selectedTypeSet.has(type.key);
+              return (
+                <button
+                  key={type.key}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => setSelectedTypeKeys((current) =>
+                    current.includes(type.key)
+                      ? current.filter((key) => key !== type.key)
+                      : [...current, type.key]
+                  )}
+                  className={`glass-card rounded-xl px-3 py-2 text-left transition-all cursor-pointer ${isSelected ? "ring-2 ring-[#06B6D4]/70" : "hover:ring-1 hover:ring-[#06B6D4]/40"}`}
+                  style={isSelected ? { background: "color-mix(in srgb, #06B6D4 14%, var(--card-bg))" } : undefined}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Container className="w-3.5 h-3.5 shrink-0" style={{color: isSelected ? "#06B6D4" : "var(--nav-text-color)"}} />
+                    <span className="text-[10px] uppercase tracking-wider font-semibold truncate" style={{color:"var(--nav-text-color)"}}>{type.label}</span>
+                  </div>
+                  <div className="text-xl font-black mt-0.5" style={{color: isSelected ? "#06B6D4" : "var(--foreground)"}}>{type.count}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-xs">

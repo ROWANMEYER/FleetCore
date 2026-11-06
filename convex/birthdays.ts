@@ -78,6 +78,13 @@ function toName(d: any): string {
   return d.driverName || d.name || "Driver";
 }
 
+function ageOnDate(birthYear: number, month: number, day: number, today: Date): number {
+  let age = today.getFullYear() - birthYear;
+  const birthdayHasPassed = today.getMonth() + 1 > month || (today.getMonth() + 1 === month && today.getDate() >= day);
+  if (!birthdayHasPassed) age -= 1;
+  return age;
+}
+
 // ============================================================================
 // Queries
 // ============================================================================
@@ -181,6 +188,100 @@ export const getBirthdaysForMonth = query({
 
     out.sort((a, b) => a.day - b.day);
     return out;
+  },
+});
+
+/** Live age distribution for the active drivers shown on the birthday screen. */
+export const getDriverAgeStats = query({
+  args: {},
+  returns: v.object({
+    totalDrivers: v.number(),
+    driversWithAge: v.number(),
+    driversWithoutAge: v.number(),
+    averageAge: v.union(v.number(), v.null()),
+    age60Plus: v.number(),
+    ageBands: v.array(v.object({ label: v.string(), count: v.number() })),
+    oldest: v.array(v.object({ driverId: v.string(), name: v.string(), age: v.number() })),
+  }),
+  handler: async (ctx) => {
+    const drivers = await ctx.db.query("drivers").withIndex("by_driverName").take(5000);
+    const today = new Date();
+    const bands = [
+      { label: "Under 30", count: 0 },
+      { label: "30–39", count: 0 },
+      { label: "40–49", count: 0 },
+      { label: "50–59", count: 0 },
+      { label: "60+", count: 0 },
+    ];
+    const ages: { driverId: string; name: string; age: number }[] = [];
+    let driversWithoutAge = 0;
+
+    for (const driver of drivers) {
+      if ((driver as any).status === "inactive") continue;
+      const birthday = getBirthdayFromSAID((driver as any).idNumber ?? "");
+      if (!birthday) {
+        driversWithoutAge += 1;
+        continue;
+      }
+      const age = ageOnDate(birthday.year, birthday.month, birthday.day, today);
+      ages.push({ driverId: String(driver._id), name: toName(driver), age });
+      if (age < 30) bands[0]!.count += 1;
+      else if (age < 40) bands[1]!.count += 1;
+      else if (age < 50) bands[2]!.count += 1;
+      else if (age < 60) bands[3]!.count += 1;
+      else bands[4]!.count += 1;
+    }
+
+    ages.sort((a, b) => b.age - a.age || a.name.localeCompare(b.name));
+    const totalAge = ages.reduce((sum, driver) => sum + driver.age, 0);
+    return {
+      totalDrivers: drivers.filter((driver) => (driver as any).status !== "inactive").length,
+      driversWithAge: ages.length,
+      driversWithoutAge,
+      averageAge: ages.length ? Math.round((totalAge / ages.length) * 10) / 10 : null,
+      age60Plus: bands[4]!.count,
+      ageBands: bands,
+      oldest: ages.slice(0, 3),
+    };
+  },
+});
+
+/** All active driver birthdays for the dashboard directory. */
+export const getAllDriverBirthdays = query({
+  args: {},
+  returns: v.array(v.object({
+    driverId: v.string(),
+    name: v.string(),
+    phoneNumber: v.string(),
+    month: v.number(),
+    day: v.number(),
+    age: v.number(),
+    photoUrl: v.string(),
+    photoOriginalUrl: v.string(),
+  })),
+  handler: async (ctx) => {
+    const drivers = await ctx.db.query("drivers").withIndex("by_driverName").take(5000);
+    const today = new Date();
+    const rows = [];
+    for (const driver of drivers) {
+      if ((driver as any).status === "inactive") continue;
+      const birthday = getBirthdayFromSAID((driver as any).idNumber ?? "");
+      if (!birthday) continue;
+      const storageId = driver.photoStorageId ? ctx.db.system.normalizeId("_storage", driver.photoStorageId) : null;
+      const storedPhoto = storageId ? await ctx.storage.getUrl(storageId) : null;
+      const photoUrl = storedPhoto || driver.photoUrl || driver.photoOriginalUrl || "";
+      rows.push({
+        driverId: String(driver._id),
+        name: toName(driver),
+        phoneNumber: driver.phone || "",
+        month: birthday.month,
+        day: birthday.day,
+        age: ageOnDate(birthday.year, birthday.month, birthday.day, today),
+        photoUrl,
+        photoOriginalUrl: driver.photoOriginalUrl || photoUrl,
+      });
+    }
+    return rows.sort((a, b) => a.month - b.month || a.day - b.day || a.name.localeCompare(b.name));
   },
 });
 

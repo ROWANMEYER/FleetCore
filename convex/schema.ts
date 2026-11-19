@@ -28,6 +28,7 @@ export default defineSchema({
     version: v.number(),
     fileHash: v.string(),
     fileName: v.string(),
+    storageId: v.optional(v.id("_storage")),
     snapshot: ceramicShipmentSnapshot,
     importedAt: v.number(),
     importedBy: v.string(),

@@ -1,0 +1,34 @@
+name: Ceramic Tiles feature checks
+
+on:
+  push:
+    branches:
+      - feature/ceramic-tiles-stage1-foundation
+  pull_request:
+    paths:
+      - 'convex/ceramicTiles*'
+      - 'convex/schema.ts'
+      - 'src/lib/ceramic-tiles/**'
+      - 'src/app/operations/ceramic-tiles/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ceramic-tiles-check.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Parser tests
+        run: npx vitest run src/lib/ceramic-tiles/parser.test.ts
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint feature files
+        run: npx eslint src/lib/ceramic-tiles/parser.ts src/lib/ceramic-tiles/pdfReader.ts src/lib/ceramic-tiles/parser.test.ts src/app/operations/ceramic-tiles/page.tsx convex/ceramicTiles.ts convex/ceramicTilesFields.ts

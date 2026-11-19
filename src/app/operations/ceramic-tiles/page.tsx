@@ -32,6 +32,51 @@ const rowStatusLabel: Record<string, string> = {
   version_conflict: "Version conflict",
 };
 
+function ShipmentHistoryPanel({
+  token, region, shipmentId, onClose,
+}: {
+  token: string;
+  region: Region;
+  shipmentId: Id<"ceramicShipments">;
+  onClose: () => void;
+}) {
+  const history = useQuery(api.ceramicTiles.versions, { token, region, shipmentId });
+  return <section className={`${panel} p-4`} aria-label="Ceramic Tiles shipment version history">
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-semibold">Shipment details & revision history</h2>
+        <p className="text-xs text-[var(--nav-text-color)]">Each imported revision is preserved for comparison. The newest version is active.</p>
+      </div>
+      <button type="button" className={secondaryButton} onClick={onClose}>Close</button>
+    </div>
+    {!history ? <p className="text-sm text-[var(--nav-text-color)]">Loading revision history...</p>
+      : history.length === 0 ? <p className="text-sm text-[var(--nav-text-color)]">No revisions found.</p>
+      : <div className="space-y-2">{history.map((revision, index) =>
+        <details className="rounded-lg border border-[var(--card-border)] p-3" key={revision._id} open={index === 0}>
+          <summary className="cursor-pointer text-xs font-semibold">
+            Version {revision.version} · {revision.fileName} · {new Date(revision.importedAt).toLocaleString("en-ZA")}
+          </summary>
+          <p className="mt-2 text-xs text-[var(--nav-text-color)]">
+            Loading {revision.snapshot.plannedLoadingDate ?? "—"} · Delivery {revision.snapshot.plannedDeliveryDate ?? "—"} ·
+            {formatNumber(revision.snapshot.totalWeightKg)} kg · {formatNumber(revision.snapshot.totalPallets)} pallets
+          </p>
+          {revision.snapshot.destinations.map((destination, destinationIndex) => <div key={destinationIndex} className="mt-3 border-t border-[var(--card-border)] pt-2">
+            <p className="text-xs font-semibold">{destination.name}</p>
+            <p className="text-xs text-[var(--nav-text-color)]">{destination.addressLines.join(", ")}</p>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[600px] text-left text-xs">
+                <thead className="text-[var(--nav-text-color)]"><tr><th>Delivery</th><th>Order</th><th>Collection</th><th>Weight (kg)</th><th>Pallets</th></tr></thead>
+                <tbody>{destination.orders.map((order) => <tr key={order.deliveryNumber} className="border-t border-[var(--card-border)]">
+                  <td className="py-2">{order.deliveryNumber}</td><td>{order.orderNumber}</td><td>{order.collectFrom || "—"}</td>
+                  <td>{formatNumber(order.weightKg)}</td><td>{formatNumber(order.palletsEstimate)}</td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+          </div>)}
+        </details>)}</div>}
+  </section>;
+}
+
 export default function CeramicTilesPage() {
   const { user, token } = useAuth();
   const [regionChoice, setRegionChoice] = useState<Region>("garden_route");
@@ -44,6 +89,7 @@ export default function CeramicTilesPage() {
   const [failure, setFailure] = useState("");
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignDraft>>({});
   const [assignmentSavingId, setAssignmentSavingId] = useState<string | null>(null);
+  const [historyId, setHistoryId] = useState<Id<"ceramicShipments"> | null>(null);
 
   const ready = useMemo(() => entries.filter((item): item is Entry & { shipment: CeramicShipment } => !!item.shipment), [entries]);
   const comparison = useQuery(
@@ -177,7 +223,7 @@ export default function CeramicTilesPage() {
         </div>
         {user.role === "admin" && <label className="flex items-center gap-2 text-xs font-medium">
           Region
-          <select aria-label="Ceramic Tiles region" className={input} value={regionChoice} onChange={(event) => setRegionChoice(event.target.value as Region)}>
+          <select aria-label="Ceramic Tiles region" className={input} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setEntries([]); }}>
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
@@ -325,12 +371,13 @@ export default function CeramicTilesPage() {
                     <option value="">Not assigned</option>
                     {(fleet?.trucks ?? []).map((truck) => <option value={truck.id} key={truck.id}>{truck.fleetNumber}</option>)}
                   </select></td>
-                  <td className="px-3 py-3"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button></td>
+                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button></div></td>
                 </tr>;
               })}</tbody>
             </table>
           </div>}
       </section>
+      {historyId && <ShipmentHistoryPanel token={token} region={region} shipmentId={historyId} onClose={() => setHistoryId(null)} />}
     </div>
   </main>;
 }

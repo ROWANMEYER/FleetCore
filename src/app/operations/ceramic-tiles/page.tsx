@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { parseCeramicShipmentText, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
 import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/pdfReader";
+import { CeramicDriverInstructions } from "@/src/components/ceramic-tiles/DriverInstructionsPanel";
 
 type Region = "garden_route" | "eastern_cape";
 type Entry = {
@@ -92,6 +93,7 @@ export default function CeramicTilesPage() {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignDraft>>({});
   const [assignmentSavingId, setAssignmentSavingId] = useState<string | null>(null);
   const [historyId, setHistoryId] = useState<Id<"ceramicShipments"> | null>(null);
+  const [instructionId, setInstructionId] = useState<Id<"ceramicShipments"> | null>(null);
 
   const ready = useMemo(() => entries.filter((item): item is Entry & { shipment: CeramicShipment } => !!item.shipment), [entries]);
   const comparison = useQuery(
@@ -245,7 +247,7 @@ export default function CeramicTilesPage() {
         </div>
         {user.role === "admin" && <label className="flex items-center gap-2 text-xs font-medium">
           Region
-          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setEntries([]); }}>
+          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setInstructionId(null); setEntries([]); }}>
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
@@ -399,13 +401,25 @@ export default function CeramicTilesPage() {
                     <option value="">Not assigned</option>
                     {(fleet?.trucks ?? []).map((truck) => <option value={truck.id} key={truck.id}>{truck.fleetNumber}</option>)}
                   </select></td>
-                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button></div></td>
+                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button><button type="button" className={secondaryButton} onClick={() => setInstructionId(row._id)}>Driver instructions</button></div></td>
                 </tr>;
               })}</tbody>
             </table>
           </div>}
       </section>
       {historyId && <ShipmentHistoryPanel token={token} region={region} shipmentId={historyId} onClose={() => setHistoryId(null)} />}
+      {instructionId && imported && token && fleet && (() => {
+        const shipment = imported.find((record) => record._id === instructionId);
+        return shipment ? <CeramicDriverInstructions
+          key={shipment._id}
+          shipment={shipment}
+          token={token}
+          region={region}
+          drivers={fleet.drivers}
+          trucks={fleet.trucks}
+          onClose={() => setInstructionId(null)}
+        /> : null;
+      })()}
     </div>
   </main>;
 }

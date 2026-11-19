@@ -14,6 +14,12 @@ export default defineSchema({
     snapshot: ceramicShipmentSnapshot,
     driverId: v.optional(v.id("drivers")),
     truckId: v.optional(v.id("trucks")),
+    driverInstructions: v.optional(v.object({
+      safetyNotes: v.string(),
+      additionalNotes: v.string(),
+      updatedAt: v.number(),
+      updatedBy: v.string(),
+    })),
     createdAt: v.number(),
     updatedAt: v.number(),
     updatedBy: v.string(),

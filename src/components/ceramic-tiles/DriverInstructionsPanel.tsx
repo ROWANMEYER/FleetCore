@@ -1,0 +1,140 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
+import { Check, ClipboardCopy, MessageCircle, Save, X } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import type { Doc } from "@/convex/_generated/dataModel";
+import {
+  DEFAULT_CERAMIC_SAFETY_NOTES,
+  buildCeramicDriverMessage,
+  normaliseWhatsAppNumber,
+} from "@/src/lib/ceramic-tiles/driverInstructions";
+
+type Region = "garden_route" | "eastern_cape";
+type DriverChoice = { id: string; name: string; phone: string | null };
+type TruckChoice = { id: string; fleetNumber: string };
+
+export function CeramicDriverInstructions({
+  shipment,
+  token,
+  region,
+  drivers,
+  trucks,
+  onClose,
+}: {
+  shipment: Doc<"ceramicShipments">;
+  token: string;
+  region: Region;
+  drivers: DriverChoice[];
+  trucks: TruckChoice[];
+  onClose: () => void;
+}) {
+  const [safetyNotes, setSafetyNotes] = useState(shipment.driverInstructions?.safetyNotes ?? DEFAULT_CERAMIC_SAFETY_NOTES);
+  const [additionalNotes, setAdditionalNotes] = useState(shipment.driverInstructions?.additionalNotes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const save = useMutation(api.ceramicTiles.saveDriverInstructions);
+  const assignedDriver = drivers.find((driver) => driver.id === shipment.driverId);
+  const assignedTruck = trucks.find((truck) => truck.id === shipment.truckId);
+  const phone = normaliseWhatsAppNumber(assignedDriver?.phone);
+  const dirty =
+    safetyNotes !== (shipment.driverInstructions?.safetyNotes ?? DEFAULT_CERAMIC_SAFETY_NOTES) ||
+    additionalNotes !== (shipment.driverInstructions?.additionalNotes ?? "");
+  const message = useMemo(() => buildCeramicDriverMessage({
+    shipment: shipment.snapshot,
+    driverName: assignedDriver?.name ?? "",
+    truckNumber: assignedTruck?.fleetNumber ?? "",
+    safetyNotes,
+    additionalNotes,
+  }), [shipment.snapshot, assignedDriver?.name, assignedTruck?.fleetNumber, safetyNotes, additionalNotes]);
+
+  const handleSave = async () => {
+    setError(""); setSuccess(""); setSaving(true);
+    try {
+      await save({ token, region, shipmentId: shipment._id, safetyNotes, additionalNotes });
+      setSuccess("Driver instructions saved.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save driver instructions.");
+    } finally { setSaving(false); }
+  };
+
+  const copyMessage = async () => {
+    setError(""); setSuccess("");
+    try {
+      await navigator.clipboard.writeText(message);
+      setSuccess("Instructions copied. Review the message and send it in WhatsApp.");
+    } catch {
+      setError("Could not copy automatically. Select the preview text and copy it manually.");
+    }
+  };
+
+  const canOpenWhatsApp = !!phone && !!assignedDriver && !!assignedTruck && !dirty && !saving;
+
+  return <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm" aria-label="Ceramic Tiles driver instructions">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#0891B2]">Dispatch instructions</p>
+        <h2 className="text-lg font-semibold">{shipment.shipmentNumber} · Driver handoff</h2>
+        <p className="text-xs text-[var(--nav-text-color)]">Safety guidance is provided automatically. Edit and save before opening WhatsApp.</p>
+      </div>
+      <button type="button" onClick={onClose} className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] px-3 py-2 text-xs font-semibold"><X size={14}/>Close</button>
+    </div>
+
+    {error && <p role="alert" className="mb-3 rounded-md border border-[var(--danger-border)] bg-[var(--danger-surface)] p-2 text-sm text-[var(--danger-text)]">{error}</p>}
+    {success && <p role="status" className="mb-3 flex items-center gap-2 rounded-md border border-[var(--success-border)] bg-[var(--success-surface)] p-2 text-sm text-[var(--success-text)]"><Check size={15}/>{success}</p>}
+
+    <div className="mb-4 grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] p-3 text-xs md:grid-cols-3">
+      <p><span className="font-semibold">Driver:</span> {assignedDriver?.name || "Not assigned"}</p>
+      <p><span className="font-semibold">Truck:</span> {assignedTruck?.fleetNumber || "Not assigned"}</p>
+      <p><span className="font-semibold">WhatsApp:</span> {assignedDriver?.phone || "No driver contact number"}</p>
+    </div>
+
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="space-y-4">
+        <label className="block text-xs font-semibold">
+          Standard safety instructions (editable)
+          <textarea rows={11} maxLength={4000} value={safetyNotes} onChange={(event) => { setSafetyNotes(event.target.value); setSuccess(""); }}
+            className="mt-1 w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm font-normal text-[var(--foreground)] outline-none focus:border-[#06B6D4]" />
+        </label>
+        <label className="block text-xs font-semibold">
+          Additional collection, offloading or driver notes
+          <textarea rows={5} maxLength={4000} value={additionalNotes} onChange={(event) => { setAdditionalNotes(event.target.value); setSuccess(""); }}
+            placeholder="Add warehouse times, contact names, delivery restrictions or special instructions..."
+            className="mt-1 w-full resize-y rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm font-normal text-[var(--foreground)] outline-none focus:border-[#06B6D4]" />
+        </label>
+        <button type="button" onClick={() => void handleSave()} disabled={!dirty || saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+          <Save size={15}/>{saving ? "Saving..." : "Save instructions"}
+        </button>
+      </div>
+
+      <div className="flex min-h-[350px] flex-col overflow-hidden rounded-lg border border-[var(--card-border)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] bg-[var(--surface-sunken)] px-3 py-2">
+          <h3 className="text-sm font-semibold">WhatsApp message preview</h3>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => void copyMessage()}
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-xs font-semibold"><ClipboardCopy size={14}/>Copy</button>
+            {canOpenWhatsApp
+              ? <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-3 py-2 text-xs font-bold text-white">
+                  <MessageCircle size={15}/>Open WhatsApp
+                </a>
+              : <button type="button" disabled
+                  title={dirty ? "Save changes first" : !assignedDriver || !assignedTruck ? "Assign a driver and truck first" : "Driver has no valid WhatsApp number"}
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] px-3 py-2 text-xs font-semibold opacity-40">
+                  <MessageCircle size={15}/>Open WhatsApp
+                </button>}
+          </div>
+        </div>
+        <textarea readOnly aria-label="Review WhatsApp driver instructions" value={message} className="min-h-[400px] w-full flex-1 resize-y bg-[var(--card-bg)] p-3 font-mono text-xs text-[var(--foreground)] outline-none" />
+        <p className="border-t border-[var(--card-border)] p-3 text-xs text-[var(--nav-text-color)]">
+          {dirty ? "Save the edited instructions before opening WhatsApp. " : ""}
+          WhatsApp opens a draft only — you must review and press Send yourself.
+          If the phone number is missing or the message is too long, use Copy.
+        </p>
+      </div>
+    </div>
+  </section>;
+}

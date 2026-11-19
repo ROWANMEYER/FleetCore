@@ -64,6 +64,15 @@ function validateInput(entry: ShipmentInput): void {
   }
 }
 
+/** Authenticated, short-lived upload URL for an original shipment PDF. */
+export const generateUploadUrl = mutation({
+  args: { token: v.string(), region: ceramicRegion },
+  handler: async (ctx, args) => {
+    await requireRegion(ctx, args.token, args.region);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const previewBatch = query({
   args: {
     token: v.string(),
@@ -103,6 +112,7 @@ export const commitBatch = mutation({
       snapshot: ceramicShipmentSnapshot,
       fileName: v.string(),
       fileHash: v.string(),
+      storageId: v.optional(v.id("_storage")),
     })),
   },
   handler: async (ctx, args) => {
@@ -119,6 +129,14 @@ export const commitBatch = mutation({
         .withIndex("by_region_number", (q) => q.eq("region", region).eq("shipmentNumber", number)).first();
       if (existing && file.snapshot.version === existing.version && file.fileHash !== existing.fileHash) {
         throw new Error(`${number} version ${file.snapshot.version} differs from the imported version; review before replacing it.`);
+      }
+      if (!existing || file.snapshot.version > existing.version) {
+        if (!file.storageId) throw new Error(`${number}: original PDF must be uploaded before import.`);
+        const metadata = await ctx.db.system.get("_storage", file.storageId);
+        if (!metadata) throw new Error(`${number}: uploaded PDF was not found.`);
+        if (metadata.contentType !== "application/pdf" || metadata.size > 20 * 1024 * 1024) {
+          throw new Error(`${number}: the uploaded file is not a valid PDF under 20 MB.`);
+        }
       }
       staged.push({ file, number, existing });
     }
@@ -160,7 +178,7 @@ export const commitBatch = mutation({
       await ctx.db.insert("ceramicShipmentVersions", {
         shipmentId, region, shipmentNumber: number,
         version: snapshot.version, fileName: file.fileName,
-        fileHash: file.fileHash, snapshot,
+        fileHash: file.fileHash, storageId: file.storageId, snapshot,
         importedAt: now, importedBy: actor,
       });
       result.push({
@@ -190,7 +208,10 @@ export const versions = query({
     if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
     const entries = await ctx.db.query("ceramicShipmentVersions")
       .withIndex("by_shipment", (q) => q.eq("shipmentId", args.shipmentId)).collect();
-    return entries.sort((a, b) => b.version - a.version);
+    return await Promise.all(entries.sort((a, b) => b.version - a.version).map(async (entry) => ({
+      ...entry,
+      fileUrl: entry.storageId ? await ctx.storage.getUrl(entry.storageId) : null,
+    })));
   },
 });
 

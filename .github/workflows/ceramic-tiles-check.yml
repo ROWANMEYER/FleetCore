@@ -31,4 +31,4 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
       - name: Lint feature files
-        run: npx eslint src/lib/ceramic-tiles/parser.ts src/lib/ceramic-tiles/pdfReader.ts src/lib/ceramic-tiles/parser.test.ts src/lib/ceramic-tiles/pdfReader.test.ts src/app/operations/ceramic-tiles/page.tsx convex/ceramicTiles.ts convex/ceramicTilesFields.ts
+        run: npx eslint src/lib/ceramic-tiles/parser.ts src/lib/ceramic-tiles/pdfReader.ts src/lib/ceramic-tiles/parser.test.ts src/lib/ceramic-tiles/pdfReader.test.ts src/lib/ceramic-tiles/driverInstructions.ts src/lib/ceramic-tiles/driverInstructions.test.ts src/components/ceramic-tiles/DriverInstructionsPanel.tsx src/app/operations/ceramic-tiles/page.tsx convex/ceramicTiles.ts convex/ceramicTilesFields.ts

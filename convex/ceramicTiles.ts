@@ -236,6 +236,37 @@ export const assign = mutation({
   },
 });
 
+/** Editable driver instructions; preserved when a later PDF revision arrives. */
+export const saveDriverInstructions = mutation({
+  args: {
+    token: v.string(),
+    region: ceramicRegion,
+    shipmentId: v.id("ceramicShipments"),
+    safetyNotes: v.string(),
+    additionalNotes: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { region, actor } = await requireRegion(ctx, args.token, args.region);
+    const shipment = await ctx.db.get(args.shipmentId);
+    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (args.safetyNotes.length > 4000 || args.additionalNotes.length > 4000) {
+      throw new Error("Each instruction field has a 4,000-character limit.");
+    }
+    const now = Date.now();
+    await ctx.db.patch(shipment._id, {
+      driverInstructions: {
+        safetyNotes: args.safetyNotes.trim(),
+        additionalNotes: args.additionalNotes.trim(),
+        updatedAt: now,
+        updatedBy: actor,
+      },
+      updatedAt: now,
+      updatedBy: actor,
+    });
+    return { saved: true, updatedAt: now };
+  },
+});
+
 export const fleetChoices = query({
   args: { token: v.string(), region: ceramicRegion },
   handler: async (ctx, args) => {
@@ -245,7 +276,7 @@ export const fleetChoices = query({
       ctx.db.query("trucks").collect(),
     ]);
     return {
-      drivers: drivers.map((driver) => ({ id: driver._id, name: driver.driverName ?? driver.name ?? "" }))
+      drivers: drivers.map((driver) => ({ id: driver._id, name: driver.driverName ?? driver.name ?? "", phone: driver.phone ?? null }))
         .filter((d) => d.name.trim()).sort((a, b) => a.name.localeCompare(b.name)),
       trucks: trucks.map((truck) => ({ id: truck._id, fleetNumber: String(truck.truckFleetNo ?? "") }))
         .sort((a, b) => a.fleetNumber.localeCompare(b.fleetNumber, undefined, { numeric: true })),

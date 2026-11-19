@@ -23,6 +23,17 @@ export default function OperationsLayout({ children}: { children: React.ReactNod
  </Link>
 
  <Link
+ href="/operations/ceramic-tiles"
+ className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+ isActive("/operations/ceramic-tiles")
+ ?"nav-item-active text-white"
+ :"text-[var(--nav-text-color)] hover:bg-[var(--card-bg)]"
+ }`}
+ >
+ Ceramic Tiles
+ </Link>
+
+ <Link
  href="/operations/quicksend"
  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
  isActive("/operations/quicksend")

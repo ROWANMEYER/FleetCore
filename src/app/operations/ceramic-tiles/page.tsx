@@ -12,6 +12,7 @@ import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/p
 type Region = "garden_route" | "eastern_cape";
 type Entry = {
   id: string;
+  file: File;
   filename: string;
   hash: string;
   shipment?: CeramicShipment;
@@ -56,6 +57,7 @@ function ShipmentHistoryPanel({
           <summary className="cursor-pointer text-xs font-semibold">
             Version {revision.version} · {revision.fileName} · {new Date(revision.importedAt).toLocaleString("en-ZA")}
           </summary>
+          {revision.fileUrl && <a href={revision.fileUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-xs font-semibold text-[#0891B2] underline">Open original PDF</a>}
           <p className="mt-2 text-xs text-[var(--nav-text-color)]">
             Loading {revision.snapshot.plannedLoadingDate ?? "—"} · Delivery {revision.snapshot.plannedDeliveryDate ?? "—"} ·
             {formatNumber(revision.snapshot.totalWeightKg)} kg · {formatNumber(revision.snapshot.totalPallets)} pallets
@@ -102,6 +104,7 @@ export default function CeramicTilesPage() {
   );
   const imported = useQuery(api.ceramicTiles.list, token ? { token, region } : "skip");
   const fleet = useQuery(api.ceramicTiles.fleetChoices, token ? { token, region } : "skip");
+  const generateUploadUrl = useMutation(api.ceramicTiles.generateUploadUrl);
   const commitBatch = useMutation(api.ceramicTiles.commitBatch);
   const assign = useMutation(api.ceramicTiles.assign);
 
@@ -125,7 +128,7 @@ export default function CeramicTilesPage() {
     try {
       const batch: Entry[] = [];
       for (const file of list) {
-        const entry: Entry = { id: crypto.randomUUID(), filename: file.name, hash: "", expanded: false };
+        const entry: Entry = { id: crypto.randomUUID(), file, filename: file.name, hash: "", expanded: false };
         try {
           // The PDF is read on the device. Only the reviewed structured shipment
           // and SHA-256 content hash are transmitted when the user presses Import.
@@ -175,10 +178,28 @@ export default function CeramicTilesPage() {
     setFailure("");
     setMessage("");
     try {
-      const outcome = await commitBatch({
-        token, region,
-        files: ready.map(({ filename, hash, shipment }) => ({ fileName: filename, fileHash: hash, snapshot: shipment })),
-      });
+      const staged = [];
+      for (const item of ready) {
+        const decision = statusByNumber.get(item.shipment.shipmentNumber.toUpperCase());
+        if (!decision) throw new Error(`Version comparison is not ready for ${item.shipment.shipmentNumber}.`);
+        let storageId: Id<"_storage"> | undefined;
+        if (decision.status === "new" || decision.status === "revision") {
+          setMessage(`Uploading original PDF for ${item.shipment.shipmentNumber}...`);
+          const uploadUrl = await generateUploadUrl({ token, region });
+          const response = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/pdf" },
+            body: item.file,
+          });
+          if (!response.ok) throw new Error(`Upload failed for ${item.filename} (HTTP ${response.status}). No shipment records were changed.`);
+          const result: { storageId?: string } = await response.json();
+          if (!result.storageId) throw new Error(`No storage ID was returned for ${item.filename}.`);
+          storageId = result.storageId as Id<"_storage">;
+        }
+        staged.push({ fileName: item.filename, fileHash: item.hash, snapshot: item.shipment, storageId });
+      }
+      setMessage("Saving reviewed shipments and revision history...");
+      const outcome = await commitBatch({ token, region, files: staged });
       const created = outcome.filter((r) => r.status === "created").length;
       const revised = outcome.filter((r) => r.status === "revised").length;
       const skipped = outcome.length - created - revised;
@@ -343,7 +364,7 @@ export default function CeramicTilesPage() {
               </div>}
             </article>;
           })}
-          <p className="text-[11px] text-[var(--nav-text-color)]">Import saves structured shipment data and the document fingerprint. Original PDF files are not yet archived in FleetCore; retain your Outlook attachments until document storage is added.</p>
+          <p className="text-[11px] text-[var(--nav-text-color)]">Original PDFs are archived in FleetCore Convex storage for each newly imported revision. Extraction happens locally in your browser before the confirmed upload.</p>
         </div>}
       </section>
 

@@ -7,7 +7,7 @@
  */
 type PositionedRun = { x: number; y: number; width: number; text: string };
 
-function renderLines(runs: PositionedRun[]): string[] {
+export function renderLines(runs: PositionedRun[]): string[] {
   const sorted = [...runs].sort((a, b) => b.y - a.y || a.x - b.x);
   const lines: { y: number; runs: PositionedRun[] }[] = [];
   for (const run of sorted) {
@@ -22,7 +22,6 @@ function renderLines(runs: PositionedRun[]): string[] {
   return lines.map((line) => {
     const parts = line.runs.sort((a, b) => a.x - b.x);
     let result = "";
-    let rightEdge = -Infinity;
     for (const part of parts) {
       const text = part.text.trim();
       if (!text) continue;
@@ -32,9 +31,7 @@ function renderLines(runs: PositionedRun[]): string[] {
         result += " ";
       }
       result += text;
-      rightEdge = Math.max(rightEdge, part.x + part.width);
     }
-    void rightEdge;
     return result.replace(/\s+/g, " ").trim();
   }).filter(Boolean);
 }

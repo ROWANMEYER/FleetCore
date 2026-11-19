@@ -112,6 +112,7 @@ export default function CeramicTilesPage() {
   }, []);
 
   const addFiles = useCallback(async (selection: FileList | File[]) => {
+    if (busy || saving) return;
     const list = Array.from(selection);
     if (!list.length) return;
     setMessage("");
@@ -145,7 +146,7 @@ export default function CeramicTilesPage() {
     } finally {
       setBusy(false);
     }
-  }, [entries.length]);
+  }, [busy, saving, entries.length]);
 
   const onSelectFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const chosen = event.target.files;
@@ -223,7 +224,7 @@ export default function CeramicTilesPage() {
         </div>
         {user.role === "admin" && <label className="flex items-center gap-2 text-xs font-medium">
           Region
-          <select aria-label="Ceramic Tiles region" className={input} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setEntries([]); }}>
+          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setEntries([]); }}>
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
@@ -300,6 +301,12 @@ export default function CeramicTilesPage() {
                   </label>
                   <label className="text-xs">Planned delivery
                     <input type="date" className={input} value={shipment.plannedDeliveryDate ?? ""} onChange={(e) => updateShipment(entry.id, (s) => ({ ...s, plannedDeliveryDate: e.target.value || null }))} />
+                  </label>
+                  <label className="text-xs">Total weight (kg)
+                    <input type="number" min="0" step="any" className={input} value={shipment.totalWeightKg ?? ""} onChange={(e) => updateShipment(entry.id, (s) => ({ ...s, totalWeightKg: e.target.value === "" ? null : Number(e.target.value) }))} />
+                  </label>
+                  <label className="text-xs">Total pallets
+                    <input type="number" min="0" step="any" className={input} value={shipment.totalPallets ?? ""} onChange={(e) => updateShipment(entry.id, (s) => ({ ...s, totalPallets: e.target.value === "" ? null : Number(e.target.value) }))} />
                   </label>
                 </div>
                 {shipment.destinations.map((destination, destinationIndex) => <div key={destinationIndex} className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">

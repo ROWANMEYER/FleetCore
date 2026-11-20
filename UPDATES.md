@@ -1,5 +1,42 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Implement the guided mobile dispatch workflow
+
+Replaced the single long mobile shipment page with Truck & driver, Stops, and
+Review & send steps. Existing assignments appear in a compact summary with
+Change controls; Next saves an edited assignment before advancing. Stops uses
+Loading/Deliveries tabs, compact draggable rows, on-demand Move menus and
+expandable delivery addresses. Next saves ordering and the reviewed version.
+Back preserves draft values and the selected stop tab. Failed saves stay on the
+current step with an error; navigation and sending are gated while saving.
+
+A bounded step-content area owns scrolling while the action footer stays visible
+inside the real Operations layout. The review step shows an assignment/route
+summary, expandable readable message and safety/extra notes, and inline system
+or manual WhatsApp recipient fields. Notes edited during review must be saved
+using the footer before WhatsApp becomes available. No automatic sending occurs.
+A newer shipment version resets the wizard and requires another saved review.
+Leaving with unsaved edits asks before abandoning them. Mobile manual recipients
+remain per draft and do not change driver records.
+
+Shared useCeramicInstructions retains the desktop/mobile message/save/version
+contract; shared recipient fields and a tested pure URL helper retain the existing
+desktop recipient dialog. No backend schema/function or deployment change is
+needed. The desktop PDF importer and calendar are unchanged. Cache v84 refreshes
+installed apps for the new flow.
+
+Validation: 997 tests in 60 files (42 Ceramic Tiles tests), TypeScript and repository
+lint pass (0 errors, 64 pre-existing warnings); the local Next.js production build
+passes. Actual-AppShell/Operations Chrome checks cover sign-in return, filters,
+assignment/save failures, compact tabs/detail disclosure, Move controls and touch
+dragging, Back/draft preservation, exact Copy/WhatsApp text, recipient choices,
+notes-save gating, reopen/persistence, new-version reset/review, regional saves
+and the retained desktop uploader. Pinned actions, long unknown-town/warehouse
+and six long deliveries, wheel and finger scrolling, and 320/390/430px widths are
+verified. Light/dark screenshots reviewed. Existing desktop drag/cancel/order
+and recipient dialog checks pass. Synthetic services only; no real shipment,
+contact or WhatsApp message was changed by verification. Release status is on PR #1.
+
 ## 2026-11-20 — Choose a WhatsApp recipient before dispatch
 
 Open WhatsApp now asks the dispatcher whether to use the driver's system number

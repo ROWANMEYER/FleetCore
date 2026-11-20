@@ -1,19 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useMutation } from "convex/react";
 import { Check, ClipboardCopy, Save, X } from "lucide-react";
-import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import {
-  DEFAULT_CERAMIC_SAFETY_NOTES,
-  buildCeramicDriverMessage,
-  ceramicSafetyNotes,
-} from "@/src/lib/ceramic-tiles/driverInstructions";
+import { useCeramicInstructions } from "./useCeramicInstructions";
 
 import { CeramicStopOrderEditor } from "./StopOrderEditor";
 import { WhatsAppRecipientPicker } from "./WhatsAppRecipientPicker";
-import { resolveCeramicStopOrder } from "@/src/lib/ceramic-tiles/stopOrder";
 
 type Region = "garden_route" | "eastern_cape";
 type DriverChoice = { id: string; name: string; phone: string | null };
@@ -38,53 +30,9 @@ export function CeramicDriverInstructions({
   requireVersionReview?: boolean;
   compact?: boolean;
 }) {
-  const [safetyNotes, setSafetyNotes] = useState(ceramicSafetyNotes(shipment.driverInstructions?.safetyNotes));
-  const [additionalNotes, setAdditionalNotes] = useState(shipment.driverInstructions?.additionalNotes ?? "");
-  const [stopOrder, setStopOrder] = useState(() => resolveCeramicStopOrder(shipment.snapshot, shipment.driverInstructions?.stopOrder));
-  const currentStopOrder = useMemo(() => resolveCeramicStopOrder(shipment.snapshot, stopOrder), [shipment.snapshot, stopOrder]);
-  const savedStopOrder = resolveCeramicStopOrder(shipment.snapshot, shipment.driverInstructions?.stopOrder);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const save = useMutation(api.ceramicTiles.saveDriverInstructions);
-  const assignedDriver = drivers.find((driver) => driver.id === shipment.driverId);
-  const assignedTruck = trucks.find((truck) => truck.id === shipment.truckId);
-  const needsVersionReview = requireVersionReview && shipment.driverInstructions?.reviewedVersion !== shipment.version;
-  const dirty = needsVersionReview ||
-    safetyNotes !== (shipment.driverInstructions?.safetyNotes ?? DEFAULT_CERAMIC_SAFETY_NOTES) ||
-    additionalNotes !== (shipment.driverInstructions?.additionalNotes ?? "") ||
-    JSON.stringify(currentStopOrder) !== JSON.stringify(savedStopOrder);
-  const message = useMemo(() => buildCeramicDriverMessage({
-    shipment: shipment.snapshot,
-    driverName: assignedDriver?.name ?? "",
-    truckNumber: assignedTruck?.fleetNumber ?? "",
-    truckRegistration: assignedTruck?.registration ?? "",
-    safetyNotes,
-    additionalNotes,
-    stopOrder: currentStopOrder,
-  }), [shipment.snapshot, assignedDriver?.name, assignedTruck?.fleetNumber, assignedTruck?.registration, safetyNotes, additionalNotes, currentStopOrder]);
-
-  const handleSave = async () => {
-    setError(""); setSuccess(""); setSaving(true);
-    try {
-      await save({ token, region, shipmentId: shipment._id, safetyNotes, additionalNotes, stopOrder: currentStopOrder, expectedVersion: shipment.version });
-      setSuccess("Driver instructions saved.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save driver instructions.");
-    } finally { setSaving(false); }
-  };
-
-  const copyMessage = async () => {
-    setError(""); setSuccess("");
-    try {
-      await navigator.clipboard.writeText(message);
-      setSuccess("Instructions copied. Review the message and send it in WhatsApp.");
-    } catch {
-      setError("Could not copy automatically. Select the preview text and copy it manually.");
-    }
-  };
-
-  const canOpenWhatsApp = !!assignedDriver && !!assignedTruck && !dirty && !saving;
+  const { safetyNotes, setSafetyNotes, additionalNotes, setAdditionalNotes, currentStopOrder, setStopOrder,
+    assignedDriver, assignedTruck, needsVersionReview, dirty, saving, error, success, setSuccess,
+    handleSave, copyMessage, canOpenWhatsApp, message } = useCeramicInstructions({ shipment, token, region, drivers, trucks, requireVersionReview });
 
   return <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm" aria-label="Ceramic Tiles driver instructions">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">

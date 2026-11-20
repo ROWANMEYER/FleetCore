@@ -1,50 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight, Package, Search, Truck, UserRound } from "lucide-react";
-import { useMutation, useQuery } from "convex/react";
+import { ChevronRight, Package, Search, Truck, UserRound } from "lucide-react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { ceramicAssignmentComplete, ceramicPalletLabel, ceramicVersionNeedsReview, mobileCeramicShipments, type MobileShipmentFilter } from "@/src/lib/ceramic-tiles/mobileDispatch";
-import { CeramicDriverInstructions } from "./DriverInstructionsPanel";
+import { MobileShipmentWizard } from "./MobileShipmentWizard";
 
 type Region = "garden_route" | "eastern_cape";
-type Fleet = { drivers: { id: string; name: string; phone: string | null }[]; trucks: { id: string; fleetNumber: string; registration?: string | null }[] };
-const field = "mt-1 min-h-11 w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm text-[var(--foreground)]";
-
-function MobileShipmentDispatch({ shipment, fleet, token, region, onBack }: { shipment: Doc<"ceramicShipments">; fleet: Fleet; token: string; region: Region; onBack: () => void }) {
-  const [driverId, setDriverId] = useState<string>(shipment.driverId ?? "");
-  const [truckId, setTruckId] = useState<string>(shipment.truckId ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const assign = useMutation(api.ceramicTiles.assign);
-  const dirty = driverId !== (shipment.driverId ?? "") || truckId !== (shipment.truckId ?? "");
-  const ready = ceramicAssignmentComplete(shipment) && !dirty;
-  const save = async () => {
-    if (!driverId || !truckId || saving) return;
-    setSaving(true); setError("");
-    try {
-      await assign({ token, region, shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks"> });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save assignment."); }
-    finally { setSaving(false); }
-  };
-  return <div className="space-y-4">
-    <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0891B2]"><ArrowLeft size={18} />Shipments</button>
-    <header><p className="text-xs font-semibold uppercase tracking-widest text-[#0891B2]">Ceramic Tiles · Version {shipment.version}</p><h1 className="mt-1 break-words text-2xl font-bold">{shipment.shipmentNumber}</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">{ceramicPalletLabel(shipment.snapshot)} · {shipment.snapshot.destinations.length} delivery stops</p></header>
-    {ceramicVersionNeedsReview(shipment) && <p role="status" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-[var(--foreground)]">Shipment updated—review before sending. Check Version {shipment.version} quantities and stop order below.</p>}
-    <section aria-label="Assign shipment" className="space-y-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-      <h2 className="text-base font-bold">1. Assign truck &amp; driver</h2>
-      <label className="block text-xs font-semibold">Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={saving} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
-      <label className="block text-xs font-semibold">Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={saving} onChange={event => setDriverId(event.target.value)}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
-      {error && <p role="alert" className="text-sm text-[var(--danger-text)]">{error}</p>}
-      <button type="button" onClick={() => void save()} disabled={!driverId || !truckId || !dirty || saving} className="min-h-11 w-full rounded-xl bg-[#0891B2] px-4 text-sm font-bold text-white disabled:opacity-40">{saving ? "Saving assignment…" : dirty ? "Save assignment" : ready ? "Assignment saved" : "Save assignment"}</button>
-      {!ready && <p className="text-xs text-[var(--nav-text-color)]">Choose both a truck and driver, then save to arrange stops and prepare WhatsApp instructions.</p>}
-    </section>
-    {ready && <section aria-label="Order and send shipment" className="space-y-2"><h2 className="text-base font-bold">2. Order stops &amp; send</h2><CeramicDriverInstructions key={`${shipment._id}:${shipment.version}:${shipment.driverId}:${shipment.truckId}`} shipment={shipment} token={token} region={region} drivers={fleet.drivers} trucks={fleet.trucks} onClose={onBack} requireVersionReview compact /></section>}
-  </div>;
-}
-
 export function MobileCeramicTiles() {
   const { user, token } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -65,8 +29,8 @@ export function MobileCeramicTiles() {
   const selected = records?.find(record => record._id === selectedId);
   useEffect(() => { pageRef.current?.scrollTo({ top: 0, behavior: "auto" }); }, [selectedId, selected?.version, region]);
   if (!user || !token) return <p className="p-4 text-sm">Sign in to view Ceramic Tiles shipments.</p>;
-  return <main ref={pageRef} aria-label="Ceramic Tiles mobile workspace" className="h-full min-h-0 w-full min-w-0 shrink-0 overflow-y-auto overscroll-y-contain p-4 pb-8 text-[var(--foreground)]"><div className="mx-auto max-w-lg space-y-4">
-    {selectedId ? records === undefined || !fleet ? <p role="status">Loading shipment…</p> : selected ? <MobileShipmentDispatch key={`${selected._id}:${selected.version}`} shipment={selected} fleet={fleet} token={token} region={selected.region} onBack={() => setSelectedId(null)} /> : <div><p>Shipment is no longer available in this region.</p><button type="button" className="mt-3 min-h-11 text-[#0891B2]" onClick={() => setSelectedId(null)}>Back to shipments</button></div> : <>
+  return <main ref={pageRef} aria-label="Ceramic Tiles mobile workspace" className={`h-full min-h-0 w-full min-w-0 shrink-0 text-[var(--foreground)] ${selectedId ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain p-4 pb-8"}`}><div className={`mx-auto w-full max-w-lg ${selectedId ? "h-full min-h-0" : "space-y-4"}`}>
+    {selectedId ? records === undefined || !fleet ? <p role="status">Loading shipment…</p> : selected ? <MobileShipmentWizard key={`${selected._id}:${selected.version}`} shipment={selected} fleet={fleet} token={token} region={selected.region} onBack={() => setSelectedId(null)} /> : <div><p>Shipment is no longer available in this region.</p><button type="button" className="mt-3 min-h-11 text-[#0891B2]" onClick={() => setSelectedId(null)}>Back to shipments</button></div> : <>
       <header><div className="mb-2 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-[#0891B2]"><Package size={14} />Mobile dispatch</div><h1 className="text-2xl font-bold">Ceramic Tiles</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">Choose a shipment imported on the web app.</p></header>
       <nav aria-label="Shipment assignment filter" className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1">{([['unassigned','Unassigned'],['assigned','Assigned'],['all','All']] as const).map(([value,label]) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-11 rounded-lg px-2 text-xs font-semibold ${filter === value ? 'bg-[#0891B2] text-white' : 'text-[var(--nav-text-color)]'}`}>{label}</button>)}</nav>
       <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3"><Search size={16} className="shrink-0 text-[var(--nav-text-color)]" /><input type="search" aria-label="Search shipment number" placeholder="Search shipment number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full min-w-0 bg-transparent text-sm outline-none" /></label>

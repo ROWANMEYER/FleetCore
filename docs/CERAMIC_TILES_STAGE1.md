@@ -129,3 +129,25 @@ opens a draft and the user presses Send. The shared mobile/web modal scrolls on
 short screens and uses an opaque surface for readability. Cache v83 refreshes
 the installed app. Browser coverage includes all choices and invalid/missing
 numbers without contacting WhatsApp or modifying real records.
+
+## Guided mobile dispatch — 20 November 2026
+
+Phones now use three short screens: Truck & driver → Stops → Review & send.
+Next confirms/saves the assignment, then saves loading/delivery order and the
+reviewed shipment version before entering review. Failed saves remain on the
+current screen. Back retains draft values and the stop tab; leaving unsaved work
+requires confirmation. A new shipment version resets the flow for another review.
+
+Loading and Deliveries tabs show compact draggable rows. Move opens keyboard
+Up/Down controls; delivery names expand to show addresses. A single bounded step
+content area scrolls, with primary/back actions pinned below it. The review screen
+has a compact route summary, expandable readable message and editable notes,
+and inline system/manual WhatsApp choices. Edited review notes require Save
+changes before sending. Manual recipient choices never change fleet records.
+
+The desktop uploader, driver-message format and recipient dialog keep their existing
+behavior. Shared instruction state keeps expectedVersion checks and persisted stop
+order consistent. No backend change is required. Verified with 997 tests, TypeScript,
+lint, build and synthetic Chrome workflows including failures, persistence, new
+versions, touch dragging, long labels and short/narrow phones. Cache v84 refreshes
+installed apps. Real driver messaging remains a deliberate operator action.

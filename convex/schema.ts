@@ -40,7 +40,8 @@ export default defineSchema({
     snapshot: ceramicShipmentSnapshot,
     importedAt: v.number(),
     importedBy: v.string(),
-  }).index("by_shipment", ["shipmentId"]),
+  }).index("by_shipment", ["shipmentId"])
+    .index("by_storage", ["storageId"]),
 
   /** A customer's live rate card: lanes with their rates, notes, and the diesel the rates are priced against. */
   rateSheets: defineTable({

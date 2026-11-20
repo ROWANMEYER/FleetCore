@@ -1,5 +1,33 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Web shipment deletion prepared
+
+The authenticated desktop Imported shipments table now has a red Delete action.
+Confirmation names the shipment and explains permanent removal of all revisions,
+archived PDFs and saved instructions from both web and mobile. Cancel receives
+initial focus; Cancel/Escape perform no write. While deleting, controls cannot
+submit twice or close the dialog. Failures stay visible in the confirmation;
+success removes the row through the reactive query and clears its local drafts.
+
+ceramicTiles.remove requires a valid Operations session and server-resolved
+region. Anonymous mobile access still has only the original four dispatch APIs.
+The version and updatedAt captured when confirmation opens must match, preventing
+deletion after a newer import or another dispatch edit. The atomic mutation uses
+bounded indexed revision reads (max 500), deletes those revisions and the active
+record, and deletes each distinct PDF only when no other shipment references it.
+The new by_storage index supports that check. Shared fleet records are untouched.
+An operator can import the shipment again after removal; old history is not restored.
+
+Verified development target quixotic-gopher-969 remotely before sync. API/schema
+sync passed, including the new storage-reference index. The full suite passed:
+1017 tests / 62 files, including 62 Ceramic Tiles tests and 9 deletion boundary
+cases. TypeScript, lint and local production build (33 pages) passed. Synthetic
+Chrome verified Cancel/Escape, safe focus, errors, locked loading, exact stale
+version/timestamp arguments and target-only removal, with no browser errors.
+The actual development endpoint rejects missing arguments. No real shipment was
+deleted in testing. Cache v87 is prepared. Production is unchanged; this deletion
+feature requires separate production release approval.
+
 ## 2026-11-20 — Release explicitly public mobile Ceramic Tiles access
 
 The owner explicitly selected open access: anyone with the app link may view

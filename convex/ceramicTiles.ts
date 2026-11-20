@@ -217,6 +217,36 @@ export const versions = query({
   },
 });
 
+/** Authenticated removal; the anonymous mobile API cannot delete. */
+export const remove = mutation({
+  args: {
+    token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"),
+    expectedVersion: v.number(), expectedUpdatedAt: v.number(),
+  },
+  returns: v.object({ deleted: v.boolean() }),
+  handler: async (ctx, args) => {
+    const { region } = await requireRegion(ctx, args.token, args.region);
+    const shipment = await ctx.db.get(args.shipmentId);
+    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (args.expectedVersion !== shipment.version || args.expectedUpdatedAt !== shipment.updatedAt) {
+      throw new Error("Shipment changed. Cancel and review the latest shipment before deleting.");
+    }
+    const revisions = await ctx.db.query("ceramicShipmentVersions")
+      .withIndex("by_shipment", (q) => q.eq("shipmentId", shipment._id)).take(501);
+    if (revisions.length > 500) throw new Error("This shipment has too many revisions to delete here. Contact support.");
+    const files = new Set(revisions.flatMap((revision) => revision.storageId ? [revision.storageId] : []));
+    for (const revision of revisions) await ctx.db.delete(revision._id);
+    // Reads see this transaction's deletes. Keep PDFs still referenced by another shipment.
+    for (const storageId of files) {
+      const remaining = await ctx.db.query("ceramicShipmentVersions")
+        .withIndex("by_storage", (q) => q.eq("storageId", storageId)).first();
+      if (!remaining) await ctx.storage.delete(storageId);
+    }
+    await ctx.db.delete(shipment._id);
+    return { deleted: true };
+  },
+});
+
 /** Optional assignment uses existing FleetCore records, never trailer records. */
 export const assign = mutation({
   args: {

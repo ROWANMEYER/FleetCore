@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragE
 import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, CheckCircle2, FileText, FolderUp, LoaderCircle, RefreshCw, Trash2, Truck } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { parseCeramicShipmentText, withCeramicReviewWarnings, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
 import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/pdfReader";
 import { CeramicDriverInstructions } from "@/src/components/ceramic-tiles/DriverInstructionsPanel";
 
+import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { MobileCeramicTiles } from "@/src/components/ceramic-tiles/MobileCeramicTiles";
 import { isMobileAppEnvironment } from "@/src/lib/appMode";
 
@@ -96,6 +97,9 @@ function CeramicTilesDesktopPage() {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignDraft>>({});
   const [assignmentSavingId, setAssignmentSavingId] = useState<string | null>(null);
   const [historyId, setHistoryId] = useState<Id<"ceramicShipments"> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Doc<"ceramicShipments"> | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [instructionId, setInstructionId] = useState<Id<"ceramicShipments"> | null>(null);
 
   const ready = useMemo(() => entries.filter((item): item is Entry & { shipment: CeramicShipment } => !!item.shipment), [entries]);
@@ -112,6 +116,7 @@ function CeramicTilesDesktopPage() {
   const generateUploadUrl = useMutation(api.ceramicTiles.generateUploadUrl);
   const commitBatch = useMutation(api.ceramicTiles.commitBatch);
   const assign = useMutation(api.ceramicTiles.assign);
+  const removeShipment = useMutation(api.ceramicTiles.remove);
 
   const updateShipment = useCallback((id: string, update: (shipment: CeramicShipment) => CeramicShipment) => {
     setEntries((prev) => prev.map((item) =>
@@ -217,6 +222,30 @@ function CeramicTilesDesktopPage() {
     }
   };
 
+  const deleteShipment = async () => {
+    if (!token || !deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    setHistoryId((id) => id === deleteTarget._id ? null : id);
+    setInstructionId((id) => id === deleteTarget._id ? null : id);
+    try {
+      await removeShipment({ token, region: deleteTarget.region, shipmentId: deleteTarget._id,
+        expectedVersion: deleteTarget.version, expectedUpdatedAt: deleteTarget.updatedAt });
+      setMessage(`Shipment ${deleteTarget.shipmentNumber} deleted.`);
+      setFailure("");
+      setAssignmentDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[deleteTarget._id];
+        return next;
+      });
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete shipment. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const saveAssignment = async (shipmentId: Id<"ceramicShipments">, existingDriver: string, existingTruck: string) => {
     if (!token) return;
     setFailure("");
@@ -250,7 +279,7 @@ function CeramicTilesDesktopPage() {
         </div>
         {user.role === "admin" && <label className="flex items-center gap-2 text-xs font-medium">
           Region
-          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setInstructionId(null); setEntries([]); }}>
+          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving || !!deleteTarget} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setInstructionId(null); setEntries([]); }}>
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
@@ -404,12 +433,25 @@ function CeramicTilesDesktopPage() {
                     <option value="">Not assigned</option>
                     {(fleet?.trucks ?? []).map((truck) => <option value={truck.id} key={truck.id}>{truck.fleetNumber}</option>)}
                   </select></td>
-                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button><button type="button" className={secondaryButton} onClick={() => setInstructionId(row._id)}>Driver instructions</button></div></td>
+                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button><button type="button" className={secondaryButton} onClick={() => setInstructionId(row._id)}>Driver instructions</button><button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--danger-border)] px-3 py-2 text-xs font-semibold text-[var(--danger-text)] hover:bg-[var(--danger-surface)] disabled:opacity-50" disabled={busy || saving || assignmentSavingId !== null || deleting} aria-label={`Delete shipment ${row.shipmentNumber}`} onClick={() => { setDeleteError(""); setDeleteTarget(row); }}><Trash2 className="h-3.5 w-3.5" />Delete</button></div></td>
                 </tr>;
               })}</tbody>
             </table>
           </div>}
       </section>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Delete shipment ${deleteTarget?.shipmentNumber ?? ""}?`}
+        message="This permanently removes this shipment, all its versions, archived PDFs and saved driver instructions from the web and mobile app. This cannot be undone. Truck and driver records are kept."
+        confirmLabel="Delete shipment"
+        variant="danger"
+        loading={deleting}
+        autoFocus
+        onConfirm={() => void deleteShipment()}
+        onCancel={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(""); } }}
+      >
+        {deleteError && <p role="alert" className="text-sm text-[var(--danger-text)]">{deleteError}</p>}
+      </ConfirmDialog>
       {historyId && <ShipmentHistoryPanel token={token} region={region} shipmentId={historyId} onClose={() => setHistoryId(null)} />}
       {instructionId && imported && token && fleet && (() => {
         const shipment = imported.find((record) => record._id === instructionId);

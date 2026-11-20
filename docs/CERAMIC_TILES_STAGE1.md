@@ -179,3 +179,23 @@ GitHub Actions jobs failed before runner assignment, so hosted CI is not claimed
 as passed; the local gates and Vercel production build passed. Main is unmerged.
 Cache v86 refreshes installed apps. This intentionally public write access was
 selected by the owner; do not silently replace it with a PIN or login flow.
+
+
+## Web shipment deletion — prepared 20 November 2026
+
+Signed-in desktop users can choose Delete beside a shipment, then confirm its
+permanent removal. This removes the active record, all revisions and saved driver
+instructions from web/mobile. Archived PDFs are deleted unless another shipment
+still references the same file. Truck and driver records remain intact. Reimport
+creates a fresh shipment; prior history cannot be recovered in the app.
+
+ceramicTiles.remove enforces the existing session/region scope on the server and
+requires the displayed version and updatedAt to still match. Revision cleanup is
+indexed and bounded at 500, with no partial deletion on rejection. The public
+mobile API gains no deletion function. Cancel/Escape are safe, Cancel gets first
+focus, pending deletion cannot be repeated/closed and errors remain in the dialog.
+
+Development API/schema sync passed after remote target verification. 1017 tests,
+TypeScript, lint, production build and synthetic Chrome deletion/error/cancel
+checks passed. No real shipment deletion or messaging was performed. Cache v87
+is ready; production release awaits explicit approval for this new feature.

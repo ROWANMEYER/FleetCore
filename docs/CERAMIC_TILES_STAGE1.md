@@ -151,3 +151,25 @@ order consistent. No backend change is required. Verified with 997 tests, TypeSc
 lint, build and synthetic Chrome workflows including failures, persistence, new
 versions, touch dragging, long labels and short/narrow phones. Cache v85 refreshes
 installed apps. Real driver messaging remains a deliberate operator action.
+
+## Public mobile access — prepared 20 November 2026
+
+The owner explicitly chose open access for anyone with the app link. The exact
+mobile Ceramic Tiles screen no longer requires an Operations login and uses
+ceramicTilesMobile.list/fleetChoices/assign/saveDriverInstructions across both
+regions. These four APIs are deliberately anonymous and can also be called by
+other clients; viewport detection is a presentation choice, not a security gate.
+They expose only dispatch shipment/fleet fields and update only Ceramic Tiles
+assignment or validated notes/order, with required expectedVersion checks and a
+server-owned public audit marker. They cannot import/delete shipments, retrieve
+PDF archives, edit fleet records or grant Operations access. Existing authenticated
+import/history/region rules and other Operations endpoints stay protected.
+
+The implementation and development sync are complete and verified. 1008 tests,
+TypeScript, lint/build and guest mobile workflow checks pass. Production release
+is pending fresh explicit permission after automatic approval review rejected the
+production-release helper commands. No production mutation ran. On approval,
+verify the active production target, sync the API, then release the matching
+frontend and check anonymous mobile reads plus protected Operations/imports.
+Cache v86 refreshes installed apps. This intentionally public write access was
+selected by the owner; do not silently replace it with a PIN or login flow.

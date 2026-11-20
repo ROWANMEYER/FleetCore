@@ -16,6 +16,7 @@ import type * as backfillStatus from "../backfillStatus.js";
 import type * as birthdays from "../birthdays.js";
 import type * as ceramicTiles from "../ceramicTiles.js";
 import type * as ceramicTilesFields from "../ceramicTilesFields.js";
+import type * as ceramicTilesMobile from "../ceramicTilesMobile.js";
 import type * as cleanupTrailerSwaps from "../cleanupTrailerSwaps.js";
 import type * as cleanup_trucks from "../cleanup_trucks.js";
 import type * as crons from "../crons.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   birthdays: typeof birthdays;
   ceramicTiles: typeof ceramicTiles;
   ceramicTilesFields: typeof ceramicTilesFields;
+  ceramicTilesMobile: typeof ceramicTilesMobile;
   cleanupTrailerSwaps: typeof cleanupTrailerSwaps;
   cleanup_trucks: typeof cleanup_trucks;
   crons: typeof crons;

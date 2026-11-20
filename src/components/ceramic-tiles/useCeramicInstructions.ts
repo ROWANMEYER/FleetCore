@@ -2,15 +2,15 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { CeramicDispatchShipment } from "@/src/lib/ceramic-tiles/mobileDispatch";
 import { DEFAULT_CERAMIC_SAFETY_NOTES, buildCeramicDriverMessage, ceramicSafetyNotes } from "@/src/lib/ceramic-tiles/driverInstructions";
 import { resolveCeramicStopOrder } from "@/src/lib/ceramic-tiles/stopOrder";
 export type CeramicDriverChoice = { id: string; name: string; phone: string | null };
 export type CeramicTruckChoice = { id: string; fleetNumber: string; registration?: string | null };
 export type CeramicFleet = { drivers: CeramicDriverChoice[]; trucks: CeramicTruckChoice[] };
-export function useCeramicInstructions({ shipment, token, region, drivers, trucks, requireVersionReview = false }: {
-  shipment: Doc<"ceramicShipments">; token: string; region: "garden_route" | "eastern_cape";
-  drivers: CeramicDriverChoice[]; trucks: CeramicTruckChoice[]; requireVersionReview?: boolean;
+export function useCeramicInstructions({ shipment, token, region, drivers, trucks, requireVersionReview = false, publicMobile = false }: {
+  shipment: CeramicDispatchShipment; token?: string; region: "garden_route" | "eastern_cape";
+  drivers: CeramicDriverChoice[]; trucks: CeramicTruckChoice[]; requireVersionReview?: boolean; publicMobile?: boolean;
 }) {
   const [safetyNotes, setSafetyNotes] = useState(ceramicSafetyNotes(shipment.driverInstructions?.safetyNotes));
   const [additionalNotes, setAdditionalNotes] = useState(shipment.driverInstructions?.additionalNotes ?? "");
@@ -21,6 +21,7 @@ export function useCeramicInstructions({ shipment, token, region, drivers, truck
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const save = useMutation(api.ceramicTiles.saveDriverInstructions);
+  const saveMobile = useMutation(api.ceramicTilesMobile.saveDriverInstructions);
   const assignedDriver = drivers.find((driver) => driver.id === shipment.driverId);
   const assignedTruck = trucks.find((truck) => truck.id === shipment.truckId);
   const needsVersionReview = requireVersionReview && shipment.driverInstructions?.reviewedVersion !== shipment.version;
@@ -42,7 +43,12 @@ export function useCeramicInstructions({ shipment, token, region, drivers, truck
   const handleSave = async () => {
     setError(""); setSuccess(""); setSaving(true);
     try {
-      await save({ token, region, shipmentId: shipment._id, safetyNotes, additionalNotes, stopOrder: currentStopOrder, expectedVersion: shipment.version });
+      const fields = { shipmentId: shipment._id, safetyNotes, additionalNotes, stopOrder: currentStopOrder, expectedVersion: shipment.version };
+      if (publicMobile) await saveMobile(fields);
+      else {
+        if (!token) throw new Error("Sign in again to save driver instructions.");
+        await save({ ...fields, token, region });
+      }
       // Match the server trim without overwriting an edit made during the request.
       setSafetyNotes(current => current === safetyNotes ? safetyNotes.trim() : current);
       setAdditionalNotes(current => current === additionalNotes ? additionalNotes.trim() : current);

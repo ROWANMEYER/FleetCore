@@ -4,33 +4,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Package, Search, Truck, UserRound } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useAuth } from "@/src/components/auth/AuthProvider";
 import { ceramicAssignmentComplete, ceramicPalletLabel, ceramicVersionNeedsReview, mobileCeramicShipments, type MobileShipmentFilter } from "@/src/lib/ceramic-tiles/mobileDispatch";
 import { MobileShipmentWizard } from "./MobileShipmentWizard";
 
-type Region = "garden_route" | "eastern_cape";
 export function MobileCeramicTiles() {
-  const { user, token } = useAuth();
-  const isAdmin = user?.role === "admin";
-  const region: Region = user?.role === "regional" ? (user.region ?? "garden_route") : "garden_route";
   const [filter, setFilter] = useState<MobileShipmentFilter>("unassigned");
   const [search, setSearch] = useState("");
   const pageRef = useRef<HTMLElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const ownRegionRecords = useQuery(api.ceramicTiles.list, token ? { token, region } : "skip");
-  const easternRecords = useQuery(api.ceramicTiles.list, token && isAdmin ? { token, region: "eastern_cape" } : "skip");
-  // Each query retains the existing server-enforced scope; admins see both regions without a selector.
-  const records = useMemo(() => ownRegionRecords === undefined || (isAdmin && easternRecords === undefined) ? undefined
-    : isAdmin ? [...ownRegionRecords, ...(easternRecords ?? [])] : ownRegionRecords, [ownRegionRecords, easternRecords, isAdmin]);
-  const fleet = useQuery(api.ceramicTiles.fleetChoices, token ? { token, region } : "skip");
+  const records = useQuery(api.ceramicTilesMobile.list, {});
+  const fleet = useQuery(api.ceramicTilesMobile.fleetChoices, {});
   const visible = useMemo(() => mobileCeramicShipments(records ?? [], filter, search), [records, filter, search]);
   const drivers = new Map((fleet?.drivers ?? []).map(driver => [driver.id as string, driver.name]));
   const trucks = new Map((fleet?.trucks ?? []).map(truck => [truck.id as string, [truck.fleetNumber, truck.registration].filter(Boolean).join(" · ")]));
   const selected = records?.find(record => record._id === selectedId);
-  useEffect(() => { pageRef.current?.scrollTo({ top: 0, behavior: "auto" }); }, [selectedId, selected?.version, region]);
-  if (!user || !token) return <p className="p-4 text-sm">Sign in to view Ceramic Tiles shipments.</p>;
+  useEffect(() => { pageRef.current?.scrollTo({ top: 0, behavior: "auto" }); }, [selectedId, selected?.version]);
   return <main ref={pageRef} aria-label="Ceramic Tiles mobile workspace" className={`h-full min-h-0 w-full min-w-0 shrink-0 text-[var(--foreground)] ${selectedId ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain p-4 pb-8"}`}><div className={`mx-auto w-full max-w-lg ${selectedId ? "h-full min-h-0" : "space-y-4"}`}>
-    {selectedId ? records === undefined || !fleet ? <p role="status">Loading shipment…</p> : selected ? <MobileShipmentWizard key={`${selected._id}:${selected.version}`} shipment={selected} fleet={fleet} token={token} region={selected.region} onBack={() => setSelectedId(null)} /> : <div><p>Shipment is no longer available in this region.</p><button type="button" className="mt-3 min-h-11 text-[#0891B2]" onClick={() => setSelectedId(null)}>Back to shipments</button></div> : <>
+    {selectedId ? records === undefined || !fleet ? <p role="status">Loading shipment…</p> : selected ? <MobileShipmentWizard key={`${selected._id}:${selected.version}`} shipment={selected} fleet={fleet} onBack={() => setSelectedId(null)} /> : <div><p>Shipment is no longer available.</p><button type="button" className="mt-3 min-h-11 text-[#0891B2]" onClick={() => setSelectedId(null)}>Back to shipments</button></div> : <>
       <header><div className="mb-2 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-[#0891B2]"><Package size={14} />Mobile dispatch</div><h1 className="text-2xl font-bold">Ceramic Tiles</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">Choose a shipment imported on the web app.</p></header>
       <nav aria-label="Shipment assignment filter" className="grid grid-cols-3 gap-1 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1">{([['unassigned','Unassigned'],['assigned','Assigned'],['all','All']] as const).map(([value,label]) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-11 rounded-lg px-2 text-xs font-semibold ${filter === value ? 'bg-[#0891B2] text-white' : 'text-[var(--nav-text-color)]'}`}>{label}</button>)}</nav>
       <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3"><Search size={16} className="shrink-0 text-[var(--nav-text-color)]" /><input type="search" aria-label="Search shipment number" placeholder="Search shipment number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full min-w-0 bg-transparent text-sm outline-none" /></label>

@@ -1,5 +1,42 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Prepare explicitly public mobile Ceramic Tiles access
+
+The owner explicitly selected open access: anyone with the app link may view
+Ceramic Tiles shipments and change dispatch assignments/instructions without an
+Operations account. This is a scoped exception to the regional signed-in mobile
+flow, not an authentication bypass for general Operations.
+
+Added ceramicTilesMobile with exactly four public functions: list, fleetChoices,
+assign and saveDriverInstructions. Reads cover the existing two regions with
+bounded indexed shipment queries. The dispatch projection excludes file hashes,
+creation/import metadata and original-PDF/archive links; fleet results contain
+only assignment/contact fields. Writes can change only Ceramic Tiles assignment
+or notes/order, require the expected current version, validate existing fleet IDs
+and complete stop permutations, limit notes and record public:ceramic-mobile as
+the server-owned actor. No public import, delete, history or fleet-edit APIs exist.
+Existing token/region checks on authenticated Ceramic Tiles and other modules
+are unchanged. The exact mobile Ceramic Tiles route is public; the desktop
+importer and other Operations routes still require sign-in. The mobile wizard
+uses the new public endpoints for guests and signed-in users alike, across both
+regions, without client role/session/region claims. Cache v86 is prepared.
+
+Development target was remotely verified before sync/codegen and the functions
+are active there. Public anonymous development reads succeed; the returned field
+projection is checked and unexpected role arguments/old protected reads are
+rejected. The full suite passes: 1008 tests in 61 files, including 53 Ceramic
+Tiles tests and 11 public handler/validator boundary tests. TypeScript, targeted
+lint, repository lint (0 errors, 64 existing warnings) and local production build
+pass. Synthetic real-shell guest browser checks cover no-login entry, both
+regions, token-free assignment/instruction calls, failures, version review,
+ordering/persistence, recipients, short/narrow scrolling and desktop login gates.
+
+Production has not been updated for this change. Automatic approval review
+rejected production-release helper invocations as potentially mutating production
+without fresh current-task production authorization. Complete release permission
+before syncing the public API to the verified production backend and publishing
+the matching frontend. No production mutation or live record edit was performed.
+
 ## 2026-11-20 — Implement the guided mobile dispatch workflow
 
 Replaced the single long mobile shipment page with Truck & driver, Stops, and

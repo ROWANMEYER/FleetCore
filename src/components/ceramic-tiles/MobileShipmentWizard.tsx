@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, ClipboardCopy, MessageCircle, Truck, UserRound } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
-import { ceramicAssignmentComplete, ceramicPalletLabel, ceramicVersionNeedsReview } from "@/src/lib/ceramic-tiles/mobileDispatch";
+import type { Id } from "@/convex/_generated/dataModel";
+import { ceramicAssignmentComplete, ceramicPalletLabel, ceramicVersionNeedsReview, type CeramicDispatchShipment } from "@/src/lib/ceramic-tiles/mobileDispatch";
 import { normaliseWhatsAppNumber } from "@/src/lib/ceramic-tiles/driverInstructions";
 import { orderedCeramicStops } from "@/src/lib/ceramic-tiles/stopOrder";
 import { whatsAppDraftHref, type WhatsAppRecipientMode } from "@/src/lib/ceramic-tiles/whatsAppRecipient";
@@ -17,8 +17,8 @@ type Step = 0 | 1 | 2;
 const field = "mt-1 min-h-11 w-full min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-base text-[var(--foreground)]";
 const primary = "inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0891B2] px-3 py-3 text-center text-sm font-bold text-white disabled:opacity-40";
 
-export function MobileShipmentWizard({ shipment, fleet, token, region, onBack }: {
-  shipment: Doc<"ceramicShipments">; fleet: CeramicFleet; token: string; region: "garden_route" | "eastern_cape"; onBack: () => void;
+export function MobileShipmentWizard({ shipment, fleet, onBack }: {
+  shipment: CeramicDispatchShipment; fleet: CeramicFleet; onBack: () => void;
 }) {
   const [step, setStep] = useState<Step>(0);
   const [stopTab, setStopTab] = useState<"loading" | "deliveries">("loading");
@@ -32,8 +32,8 @@ export function MobileShipmentWizard({ shipment, fleet, token, region, onBack }:
   const [manualNumber, setManualNumber] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const assign = useMutation(api.ceramicTiles.assign);
-  const instructions = useCeramicInstructions({ shipment, token, region, ...fleet, requireVersionReview: true });
+  const assign = useMutation(api.ceramicTilesMobile.assign);
+  const instructions = useCeramicInstructions({ shipment, region: shipment.region, ...fleet, requireVersionReview: true, publicMobile: true });
   const chosenDriver = fleet.drivers.find(driver => driver.id === driverId);
   const chosenTruck = fleet.trucks.find(truck => truck.id === truckId);
   const assignmentDirty = driverId !== (shipment.driverId ?? "") || truckId !== (shipment.truckId ?? "");
@@ -48,7 +48,7 @@ export function MobileShipmentWizard({ shipment, fleet, token, region, onBack }:
     if (!chosenDriver || !chosenTruck || busy) return;
     setAssignmentError(""); setAssigning(true);
     try {
-      if (assignmentDirty) await assign({ token, region, shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks"> });
+      if (assignmentDirty) await assign({ shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks">, expectedVersion: shipment.version });
       setEditingAssignment(false); setStep(1);
     } catch (cause) { setAssignmentError(cause instanceof Error ? cause.message : "Could not save assignment."); }
     finally { setAssigning(false); }

@@ -28,9 +28,8 @@ const MOBILE_ALLOWED_PATHS = [
   "/operations/phonebook",
 ];
 
-// These mobile tabs are intentionally public. Operations and Ceramic Tiles remain the
-// authenticated parts of the mobile app, while these screens can be opened by
-// anyone who has the app link.
+// These exact mobile routes are intentionally public. Operations and desktop
+// importing remain authenticated; Ceramic Tiles has its own public dispatch API.
 const MOBILE_PUBLIC_PATHS = [
   "/",
   "/start",
@@ -38,6 +37,7 @@ const MOBILE_PUBLIC_PATHS = [
   "/operations/fuel",
   "/calendar",
   "/operations/phonebook",
+  "/operations/ceramic-tiles",
 ];
 
 function isMobileAllowed(path: string) {

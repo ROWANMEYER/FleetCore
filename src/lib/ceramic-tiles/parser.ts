@@ -52,6 +52,48 @@ const isSectionStart = (line: string) =>
   DESTINATION.test(line) || ORDER.test(line) || DATE.test(line) ||
   PAGE_HEADER.test(line.trim()) || isDivider(line);
 
+/**
+ * Recompute warnings from the CURRENT reviewed values. Without this, an operator
+ * can fix a field and still see its old warning, or edit a correct weight into a
+ * mismatch without receiving a new warning.
+ */
+export function withCeramicReviewWarnings(shipment: CeramicShipment): CeramicShipment {
+  const isLiveWarning = (warning: string) =>
+    warning.startsWith("Shipment weight ") ||
+    warning.startsWith("Repeated delivery number ") ||
+    warning.startsWith("Invalid planned loading date.") ||
+    warning.startsWith("Invalid planned delivery date.") ||
+    warning === "One or more delivery addresses are missing; review before assignment." ||
+    warning === "Some collection points could not be read; review the affected orders." ||
+    warning === "Planned loading or delivery date is missing.";
+
+  const warnings = shipment.warnings.filter((warning) => !isLiveWarning(warning));
+  const orders = shipment.destinations.flatMap((destination) => destination.orders);
+  if (shipment.destinations.some((destination) => !destination.addressLines.some((line) => line.trim()))) {
+    warnings.push("One or more delivery addresses are missing; review before assignment.");
+  }
+  if (orders.some((order) => !order.collectFrom.trim())) {
+    warnings.push("Some collection points could not be read; review the affected orders.");
+  }
+  if (!shipment.plannedLoadingDate || !shipment.plannedDeliveryDate) {
+    warnings.push("Planned loading or delivery date is missing.");
+  }
+  if (shipment.totalWeightKg !== null) {
+    const orderWeight = orders.reduce((sum, order) => sum + order.weightKg, 0);
+    if (Number.isFinite(orderWeight) && Math.abs(shipment.totalWeightKg - orderWeight) > 0.1) {
+      warnings.push(`Shipment weight ${shipment.totalWeightKg.toFixed(2)} kg differs from delivery order total ${orderWeight.toFixed(2)} kg; review this document.`);
+    }
+  }
+  const deliveryNumbers = new Set<string>();
+  for (const order of orders) {
+    if (deliveryNumbers.has(order.deliveryNumber)) {
+      warnings.push(`Repeated delivery number ${order.deliveryNumber}; review the shipment.`);
+    }
+    deliveryNumbers.add(order.deliveryNumber);
+  }
+  return { ...shipment, warnings: [...new Set(warnings)] };
+}
+
 /** Extracts shipment data, keeping orders under each delivery address (including across page breaks). */
 export function parseCeramicShipmentText(raw: string): CeramicParseResult {
   const lines = raw.replace(/\r\n?/g, "\n").replace(/\f/g, "\n").split("\n").map((line) => line.trimEnd());
@@ -174,7 +216,7 @@ export function parseCeramicShipmentText(raw: string): CeramicParseResult {
     if (seen.has(order.deliveryNumber)) warnings.push(`Repeated delivery number ${order.deliveryNumber}; review the shipment.`);
     seen.add(order.deliveryNumber);
   }
-  return { ok: true, shipment: {
+  return { ok: true, shipment: withCeramicReviewWarnings({
     shipmentNumber: header[1].toUpperCase(),
     version: Number(version[1]),
     totalWeightKg: parseNumber(header[2]),
@@ -184,5 +226,5 @@ export function parseCeramicShipmentText(raw: string): CeramicParseResult {
     plannedDeliveryDate: deliveryDate,
     destinations,
     warnings: [...new Set(warnings)],
-  } };
+  }) };
 }

@@ -35,6 +35,37 @@
 - **Verified 20 November 2026:** 15/15 Ceramic Tiles tests passed during a Vercel feature-branch build (nine parser, three PDF geometry, three driver-message tests), followed by successful Next.js compilation, TypeScript and static page generation on the `fleetcore` preview project. The driver message decimal-separator regression found by the first run was corrected.
 - **Still outstanding:** The feature-specific Convex schema/functions are not deployed to FleetCore development, so browser-to-database imports, PDF archive access, driver assignments and WhatsApp handoff have not been tested end to end. GitHub Actions runners did not start successfully; do not treat their jobs as passing.
 
+## Safe activation from the FleetCore Windows PC
+
+An authenticated Convex CLI session on the PC is needed to deploy backend code. The GitHub integration and current Convex guidance connector cannot deploy to the existing backend themselves.
+
+The feature branch includes `scripts/activateCeramicDev.ps1`. From the repository root in Windows PowerShell:
+
+```powershell
+git fetch origin
+git switch feature/ceramic-tiles-stage1-foundation
+git pull --ff-only
+
+# Safe checks only: does NOT push Convex
+powershell -ExecutionPolicy Bypass -File scripts/activateCeramicDev.ps1
+
+# Explicitly activate ONLY after the checks succeed and the target is verified
+powershell -ExecutionPolicy Bypass -File scripts/activateCeramicDev.ps1 -DeployToDevelopment
+```
+
+The activation script refuses to proceed unless:
+
+- The current branch is exactly `feature/ceramic-tiles-stage1-foundation` and the working tree has no uncommitted files.
+- `.env.local` contains **both** `CONVEX_DEPLOYMENT=dev:quixotic-gopher-969` and `NEXT_PUBLIC_CONVEX_URL=https://quixotic-gopher-969.convex.cloud`.
+- No `CONVEX_DEPLOY_KEY` or `CONVEX_SELF_HOSTED_URL` override is present in the environment or local dotenv file.
+- Dependencies, 15 Ceramic Tiles regression tests, TypeScript, targeted lint, and Next.js build all complete successfully.
+
+It invokes `npx convex dev --once --env-file .env.local` only with the explicit deployment switch. It will not run `npx convex deploy`, select or create another deployment, push to production, merge the PR, or send WhatsApp messages.
+
+**Important:** Older project agent notes also mention `dev:precise-chickadee-602` while other FleetCore documentation and the Vercel development setting identify `quixotic-gopher-969`. This discrepancy has **not** been resolved against the local CLI configuration. If the script detects it, stop and verify the actual development target in the Convex dashboard rather than modifying the script to bypass the safety guard. Do not share passwords, deployment keys or the contents of `.env.local` in chat.
+
+After development deployment, test with a signed-in FleetCore development account: import one PDF, repeat it, import a higher version, verify history and original PDF links, assign a driver/truck, edit safety notes and manually open the WhatsApp draft. No production enablement until all checks pass.
+
 ## Known limits / next steps
 - Original PDFs are uploaded to Convex storage **after user confirmation** for newly imported revisions, and their storage IDs are recorded in version history. Duplicate and older versions are skipped. Until end-to-end validation succeeds, retain your source PDFs locally.
 - Scanned/image-only PDFs are rejected; OCR not enabled.

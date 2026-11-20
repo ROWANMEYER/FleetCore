@@ -12,7 +12,7 @@ export const DEFAULT_CERAMIC_SAFETY_NOTES = [
 ].join("\n");
 
 const number = (value: number | null): string =>
-  value === null ? "Not specified" : value.toLocaleString("en-ZA", { maximumFractionDigits: 3 });
+  value === null ? "Not specified" : value.toLocaleString("en-GB", { maximumFractionDigits: 3 });
 
 const displayDate = (value: string | null): string =>
   value ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}` : "To be confirmed";

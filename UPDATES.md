@@ -1,6 +1,6 @@
 # FleetCore — Project Scope & Updates
 
-## 2026-11-20 — Web shipment deletion prepared
+## 2026-11-20 — Web shipment deletion released
 
 The authenticated desktop Imported shipments table now has a red Delete action.
 Confirmation names the shipment and explains permanent removal of all revisions,
@@ -25,8 +25,19 @@ cases. TypeScript, lint and local production build (33 pages) passed. Synthetic
 Chrome verified Cancel/Escape, safe focus, errors, locked loading, exact stale
 version/timestamp arguments and target-only removal, with no browser errors.
 The actual development endpoint rejects missing arguments. No real shipment was
-deleted in testing. Cache v87 is prepared. Production is unchanged; this deletion
-feature requires separate production release approval.
+deleted in testing. After explicit owner approval, the remotely verified
+production backend dependable-quail-107 was updated with the new mutation/index,
+and source 228a67496c49f5e42c198981c02a82a8da9543aa was released to fleetcore.
+Deployment dpl_3sCv4wKpbj3q4NG5j5HTtmZ3cfkW is READY and serves
+https://fleetcore-mu.vercel.app. Signed-out Chrome verified the live deletion
+bundle/expectedUpdatedAt guard, cache v87, public mobile dispatch (no Delete),
+and protected Operations/desktop login gates, with no browser errors. HTTP
+anonymous/missing-token deletion attempts were rejected; authenticated diagnostics
+confirmed the handler's invalid-session denial (production HTTP hides details).
+The release runtime scan found no error/fatal Vercel logs. Live verification
+performed no successful record writes or real deletions. Actual deletion with a
+valid operator login was exercised only against synthetic services/handler tests;
+no destructive live acceptance check was performed. Main remains unmerged.
 
 ## 2026-11-20 — Release explicitly public mobile Ceramic Tiles access
 

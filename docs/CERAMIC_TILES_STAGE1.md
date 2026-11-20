@@ -181,7 +181,7 @@ Cache v86 refreshes installed apps. This intentionally public write access was
 selected by the owner; do not silently replace it with a PIN or login flow.
 
 
-## Web shipment deletion — prepared 20 November 2026
+## Web shipment deletion — live 20 November 2026
 
 Signed-in desktop users can choose Delete beside a shipment, then confirm its
 permanent removal. This removes the active record, all revisions and saved driver
@@ -197,5 +197,12 @@ focus, pending deletion cannot be repeated/closed and errors remain in the dialo
 
 Development API/schema sync passed after remote target verification. 1017 tests,
 TypeScript, lint, production build and synthetic Chrome deletion/error/cancel
-checks passed. No real shipment deletion or messaging was performed. Cache v87
-is ready; production release awaits explicit approval for this new feature.
+checks passed. No real shipment deletion or messaging was performed. Following
+explicit owner approval, backend dependable-quail-107 and the matching frontend
+were released from source 228a674. Deployment dpl_3sCv4wKpbj3q4NG5j5HTtmZ3cfkW
+is READY on https://fleetcore-mu.vercel.app with cache v87. Live Chrome verified
+the deletion bundle, public mobile regression, login gates and no browser errors.
+Anonymous/missing-token deletion was rejected, and authenticated diagnostics
+confirmed invalid-session handler denial. Vercel's release runtime scan found no
+error/fatal logs. No successful live record write was attempted; valid deletion
+was tested using synthetic services/handler tests. Main remains unmerged.

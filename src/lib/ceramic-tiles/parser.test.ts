@@ -70,6 +70,33 @@ describe("Ceramic Tiles shipment parser", () => {
     expect(result.shipment.destinations[1].orders[0].deliveryNumber).toBe("281400003");
   });
 
+  it("rejects a PDF that accidentally combines two different shipments", () => {
+    const mixed = base.replace(
+      "Delivery : 281400002",
+      "SHIPMENT SH00999999 1000.00 KG\nDelivery : 281400002",
+    );
+    const result = parseCeramicShipmentText(mixed);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("multiple shipment numbers");
+  });
+
+  it("rejects inconsistent revisions across pages", () => {
+    const mixed = base.replace(
+      "Delivery : 281400002",
+      "Version: 6\nDelivery : 281400002",
+    );
+    const result = parseCeramicShipmentText(mixed);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("inconsistent shipment versions");
+  });
+
+  it("flags mismatched order weights but leaves the shipment reviewable", () => {
+    const result = parseCeramicShipmentText(base.replace("250.50 KG", "251.50 KG"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.shipment.warnings.some((warning) => warning.includes("Shipment weight") && warning.includes("delivery order total"))).toBe(true);
+  });
+
   it("flags repeated delivery numbers without silently hiding them", () => {
     const result = parseCeramicShipmentText(base.replace("281400002", "281400001"));
     expect(result.ok).toBe(true);

@@ -1,5 +1,23 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Authorize the live Ceramic Tiles release
+
+The user explicitly requested the production update. The live fleetcore Vercel
+project and domain were verified; its production NEXT_PUBLIC_CONVEX_URL points
+to dependable-quail-107, independently confirmed by the authenticated Convex
+management API as the default production deployment of fleet-backend. Development
+remains on quixotic-gopher-969. The previous production Vercel deployment was
+recorded for rollback. The release adds the Ceramic Tiles backend/schema there
+and builds this reviewed commit using the existing production environment.
+
+Bumped the service-worker cache to fleetcore-v81 so installed mobile apps detect
+the release and replace older cached assets. The existing worker update flow
+reloads open clients after clearing an older cache. No shipment records are
+copied from development into production; import PDFs through the live web app.
+The release uses the fleetcore project only. Its separately linked fleet-core
+project and the live photo-upload audit are excluded from this release path.
+See the PR release status for the actual deployment and post-release results.
+
 ## 2026-11-20 — Prepare Ceramic Tiles feature branch for review and release
 
 Prepared the accumulated PDF-reader, compact WhatsApp, persistent drag ordering,

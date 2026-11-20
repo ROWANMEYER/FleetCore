@@ -4,7 +4,7 @@
  * - Stale-while-revalidate for hashed static assets
  * - Convex API / cross-origin requests are never cached (they need the network)
  */
-const CACHE_NAME = "fleetcore-v80";
+const CACHE_NAME = "fleetcore-v81";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -82,7 +82,7 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-/* ── Web Push ─────────────────────────────────────────────────────────── */
+/* â”€â”€ Web Push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 self.addEventListener("push", (event) => {
   let data = {};
   try {

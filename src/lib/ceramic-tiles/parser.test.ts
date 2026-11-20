@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCeramicShipmentText } from "./parser";
+import { parseCeramicShipmentText, withCeramicReviewWarnings } from "./parser";
 
 /** Redacted representative SAP plan layout; no customer shipment PDFs in Git. */
 const base = `
@@ -95,6 +95,23 @@ describe("Ceramic Tiles shipment parser", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.shipment.warnings.some((warning) => warning.includes("Shipment weight") && warning.includes("delivery order total"))).toBe(true);
+  });
+
+  it("updates warnings when dispatch edits order weights or collection details", () => {
+    const initial = parseCeramicShipmentText(base);
+    expect(initial.ok).toBe(true);
+    if (!initial.ok) return;
+    const snapshot = initial.shipment;
+    const first = snapshot.destinations[0].orders[0];
+    const mismatch = withCeramicReviewWarnings({
+      ...snapshot,
+      destinations: [{ ...snapshot.destinations[0], orders: [{ ...first, weightKg: first.weightKg + 5, collectFrom: "" }, snapshot.destinations[0].orders[1]] }],
+    });
+    expect(mismatch.warnings.some((warning) => warning.startsWith("Shipment weight "))).toBe(true);
+    expect(mismatch.warnings.some((warning) => warning.includes("collection points"))).toBe(true);
+    const restored = withCeramicReviewWarnings(snapshot);
+    expect(restored.warnings.some((warning) => warning.startsWith("Shipment weight "))).toBe(false);
+    expect(restored.warnings.some((warning) => warning.includes("collection points"))).toBe(false);
   });
 
   it("flags repeated delivery numbers without silently hiding them", () => {

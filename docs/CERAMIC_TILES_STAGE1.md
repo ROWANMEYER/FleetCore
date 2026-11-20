@@ -149,5 +149,5 @@ The desktop uploader, driver-message format and recipient dialog keep their exis
 behavior. Shared instruction state keeps expectedVersion checks and persisted stop
 order consistent. No backend change is required. Verified with 997 tests, TypeScript,
 lint, build and synthetic Chrome workflows including failures, persistence, new
-versions, touch dragging, long labels and short/narrow phones. Cache v84 refreshes
+versions, touch dragging, long labels and short/narrow phones. Cache v85 refreshes
 installed apps. Real driver messaging remains a deliberate operator action.

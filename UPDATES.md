@@ -24,7 +24,7 @@ remain per draft and do not change driver records.
 Shared useCeramicInstructions retains the desktop/mobile message/save/version
 contract; shared recipient fields and a tested pure URL helper retain the existing
 desktop recipient dialog. No backend schema/function or deployment change is
-needed. The desktop PDF importer and calendar are unchanged. Cache v84 refreshes
+needed. The desktop PDF importer and calendar are unchanged. Cache v85 refreshes
 installed apps for the new flow.
 
 Validation: 997 tests in 60 files (42 Ceramic Tiles tests), TypeScript and repository

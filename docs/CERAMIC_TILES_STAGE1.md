@@ -152,7 +152,7 @@ lint, build and synthetic Chrome workflows including failures, persistence, new
 versions, touch dragging, long labels and short/narrow phones. Cache v85 refreshes
 installed apps. Real driver messaging remains a deliberate operator action.
 
-## Public mobile access — prepared 20 November 2026
+## Public mobile access — live 20 November 2026
 
 The owner explicitly chose open access for anyone with the app link. The exact
 mobile Ceramic Tiles screen no longer requires an Operations login and uses
@@ -166,10 +166,16 @@ PDF archives, edit fleet records or grant Operations access. Existing authentica
 import/history/region rules and other Operations endpoints stay protected.
 
 The implementation and development sync are complete and verified. 1008 tests,
-TypeScript, lint/build and guest mobile workflow checks pass. Production release
-is pending fresh explicit permission after automatic approval review rejected the
-production-release helper commands. No production mutation ran. On approval,
-verify the active production target, sync the API, then release the matching
-frontend and check anonymous mobile reads plus protected Operations/imports.
+TypeScript, lint/build and guest mobile workflow checks pass. After fresh explicit
+owner approval, the remotely verified production backend dependable-quail-107 was
+updated and matching source commit 5ec5dfe was released to fleetcore. Deployment
+dpl_9vPMzHVafJXQWLmB37LXJzGfRiSe is READY on https://fleetcore-mu.vercel.app.
+Signed-out production Chrome checks passed for tile entry, shipment/fleet reads,
+assignment selectors, layout width, protected Operations/desktop imports and
+cache v86. Anonymous API projection/argument checks and protected import denial
+also passed. No browser errors or error/fatal runtime logs appeared in the release
+verification window. Verification performed no real record writes or messaging.
+GitHub Actions jobs failed before runner assignment, so hosted CI is not claimed
+as passed; the local gates and Vercel production build passed. Main is unmerged.
 Cache v86 refreshes installed apps. This intentionally public write access was
 selected by the owner; do not silently replace it with a PIN or login flow.

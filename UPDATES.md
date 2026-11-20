@@ -1,6 +1,6 @@
 # FleetCore — Project Scope & Updates
 
-## 2026-11-20 — Prepare explicitly public mobile Ceramic Tiles access
+## 2026-11-20 — Release explicitly public mobile Ceramic Tiles access
 
 The owner explicitly selected open access: anyone with the app link may view
 Ceramic Tiles shipments and change dispatch assignments/instructions without an
@@ -19,7 +19,7 @@ Existing token/region checks on authenticated Ceramic Tiles and other modules
 are unchanged. The exact mobile Ceramic Tiles route is public; the desktop
 importer and other Operations routes still require sign-in. The mobile wizard
 uses the new public endpoints for guests and signed-in users alike, across both
-regions, without client role/session/region claims. Cache v86 is prepared.
+regions, without client role/session/region claims. Cache v86 is live.
 
 Development target was remotely verified before sync/codegen and the functions
 are active there. Public anonymous development reads succeed; the returned field
@@ -31,11 +31,19 @@ pass. Synthetic real-shell guest browser checks cover no-login entry, both
 regions, token-free assignment/instruction calls, failures, version review,
 ordering/persistence, recipients, short/narrow scrolling and desktop login gates.
 
-Production has not been updated for this change. Automatic approval review
-rejected production-release helper invocations as potentially mutating production
-without fresh current-task production authorization. Complete release permission
-before syncing the public API to the verified production backend and publishing
-the matching frontend. No production mutation or live record edit was performed.
+The owner then explicitly approved production release. After remote target
+verification, production Convex dependable-quail-107 was updated and source commit
+5ec5dfe007669512874680d971c0d27d702b558e was published to the fleetcore project.
+Deployment dpl_9vPMzHVafJXQWLmB37LXJzGfRiSe is READY and serves
+https://fleetcore-mu.vercel.app. Signed-out Chrome verified mobile tile entry,
+shipment/fleet reads and assignment selectors, no horizontal overflow, protected
+Operations and desktop importer login gates, and live cache v86. Anonymous API
+checks verified the dispatch projection and rejection of unexpected role claims
+and invalid-session protected import previews. No browser errors or production
+error/fatal runtime logs were found in the release verification window. No real
+shipment records were edited and no messages were sent. GitHub Actions remains
+unverified because jobs fail before runner assignment; local gates and the
+Vercel production build passed. The branch is not merged into main.
 
 ## 2026-11-20 — Implement the guided mobile dispatch workflow
 

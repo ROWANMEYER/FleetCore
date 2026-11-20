@@ -66,8 +66,8 @@ export function parseCeramicShipmentText(raw: string): CeramicParseResult {
   // A file can contain repeated headers across pages. All headers must refer
   // to exactly the same shipment and version. Mixed shipment documents must
   // be split before import or their orders could be assigned to the wrong truck.
-  const headerNumbers = Array.from(fullText.matchAll(/\\bSHIPMENT\\s+(SH\\d+)\\s+[\\d,.]+\\s*KG\\b/gi), (match) => match[1].toUpperCase());
-  const versions = Array.from(fullText.matchAll(/\\bVersion\\s*:\\s*(\\d+)\\b/gi), (match) => Number(match[1]));
+  const headerNumbers = Array.from(fullText.matchAll(/\bSHIPMENT\s+(SH\d+)\s+[\d,.]+\s*KG\b/gi), (match) => match[1].toUpperCase());
+  const versions = Array.from(fullText.matchAll(/\bVersion\s*:\s*(\d+)\b/gi), (match) => Number(match[1]));
   if (headerNumbers.some((number) => number !== header[1].toUpperCase())) {
     return { ok: false, errors: ["This PDF contains multiple shipment numbers. Split the PDF and import each shipment separately."] };
   }

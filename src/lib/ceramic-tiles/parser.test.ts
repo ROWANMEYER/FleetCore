@@ -91,7 +91,7 @@ describe("Ceramic Tiles shipment parser", () => {
   });
 
   it("flags mismatched order weights but leaves the shipment reviewable", () => {
-    const result = parseCeramicShipmentText(base.replace("250.50 KG", "251.50 KG"));
+    const result = parseCeramicShipmentText(base.replace("Order No. : ABC123 re    250.50 KG", "Order No. : ABC123 re    251.50 KG"));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.shipment.warnings.some((warning) => warning.includes("Shipment weight") && warning.includes("delivery order total"))).toBe(true);

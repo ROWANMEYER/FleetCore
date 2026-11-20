@@ -25,7 +25,7 @@ const panel = "rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]
 const input = "w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[#06B6D4]";
 const secondaryButton = "rounded-lg border border-[var(--card-border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-sunken)] disabled:opacity-50";
 const primaryButton = "rounded-lg bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50";
-const formatNumber = (value: number | null) => value === null ? "—" : value.toLocaleString("en-ZA", { maximumFractionDigits: 3 });
+const formatNumber = (value: number | null) => value === null ? "—" : value.toLocaleString("en-GB", { maximumFractionDigits: 3 });
 const rowStatusLabel: Record<string, string> = {
   new: "New shipment",
   revision: "Newer revision",

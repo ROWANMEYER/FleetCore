@@ -116,3 +116,16 @@ dependencies at high severity. A synthetic export round-trip retained all five
 template sheets and 14,029 formulas. Mobile, drag, calendar and real Webpack PDF
 checks were repeated after the updates. The obsolete Next.js 16.1 development
 type cache was preserved in the local backup folder before regeneration.
+
+## WhatsApp recipient choice — 20 November 2026
+
+Open WhatsApp first asks Use system number or Choose manually. Manual mode can
+use a different valid local/international number for this draft, or leave the
+number blank to choose a contact in WhatsApp. Driver contact details and shipment
+records are not edited by this choice. Missing/invalid system numbers default
+to manual selection. Cancel/Escape closes the prompt, and reopening resets it.
+The saved assignment, instruction and version-review gates still apply; WhatsApp
+opens a draft and the user presses Send. The shared mobile/web modal scrolls on
+short screens and uses an opaque surface for readability. Cache v83 refreshes
+the installed app. Browser coverage includes all choices and invalid/missing
+numbers without contacting WhatsApp or modifying real records.

@@ -2,17 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
-import { Check, ClipboardCopy, MessageCircle, Save, X } from "lucide-react";
+import { Check, ClipboardCopy, Save, X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import {
   DEFAULT_CERAMIC_SAFETY_NOTES,
   buildCeramicDriverMessage,
   ceramicSafetyNotes,
-  normaliseWhatsAppNumber,
 } from "@/src/lib/ceramic-tiles/driverInstructions";
 
 import { CeramicStopOrderEditor } from "./StopOrderEditor";
+import { WhatsAppRecipientPicker } from "./WhatsAppRecipientPicker";
 import { resolveCeramicStopOrder } from "@/src/lib/ceramic-tiles/stopOrder";
 
 type Region = "garden_route" | "eastern_cape";
@@ -49,7 +49,6 @@ export function CeramicDriverInstructions({
   const save = useMutation(api.ceramicTiles.saveDriverInstructions);
   const assignedDriver = drivers.find((driver) => driver.id === shipment.driverId);
   const assignedTruck = trucks.find((truck) => truck.id === shipment.truckId);
-  const phone = normaliseWhatsAppNumber(assignedDriver?.phone);
   const needsVersionReview = requireVersionReview && shipment.driverInstructions?.reviewedVersion !== shipment.version;
   const dirty = needsVersionReview ||
     safetyNotes !== (shipment.driverInstructions?.safetyNotes ?? DEFAULT_CERAMIC_SAFETY_NOTES) ||
@@ -85,7 +84,7 @@ export function CeramicDriverInstructions({
     }
   };
 
-  const canOpenWhatsApp = !!phone && !!assignedDriver && !!assignedTruck && !dirty && !saving;
+  const canOpenWhatsApp = !!assignedDriver && !!assignedTruck && !dirty && !saving;
 
   return <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm" aria-label="Ceramic Tiles driver instructions">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">
@@ -104,7 +103,7 @@ export function CeramicDriverInstructions({
     <div className="mb-4 grid gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] p-3 text-xs md:grid-cols-3">
       <p><span className="font-semibold">Driver:</span> {assignedDriver?.name || "Not assigned"}</p>
       <p><span className="font-semibold">Truck:</span> {assignedTruck ? [assignedTruck.registration, assignedTruck.fleetNumber].filter(Boolean).join(" · ") : "Not assigned"}</p>
-      <p><span className="font-semibold">WhatsApp:</span> {assignedDriver?.phone || "No driver contact number"}</p>
+      <p><span className="font-semibold">System number:</span> {assignedDriver?.phone || "No driver contact number"}</p>
     </div>
 
     <div className="grid gap-4 xl:grid-cols-2">
@@ -133,16 +132,8 @@ export function CeramicDriverInstructions({
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => void copyMessage()}
               className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-xs font-semibold"><ClipboardCopy size={14}/>Copy</button>
-            {canOpenWhatsApp
-              ? <a href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md bg-gradient-to-br from-[#06B6D4] to-[#0891B2] px-3 py-2 text-xs font-bold text-white">
-                  <MessageCircle size={15}/>Open WhatsApp
-                </a>
-              : <button type="button" disabled
-                  title={dirty ? "Save changes first" : !assignedDriver || !assignedTruck ? "Assign a driver and truck first" : "Driver has no valid WhatsApp number"}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] px-3 py-2 text-xs font-semibold opacity-40">
-                  <MessageCircle size={15}/>Open WhatsApp
-                </button>}
+            <WhatsAppRecipientPicker message={message} driverName={assignedDriver?.name ?? "the assigned driver"} systemNumber={assignedDriver?.phone}
+              disabled={!canOpenWhatsApp} disabledReason={dirty ? "Save changes first" : saving ? "Saving instructions" : "Assign a driver and truck first"} />
           </div>
         </div>
         <textarea readOnly aria-label="Review WhatsApp driver instructions" value={message} className="min-h-[400px] w-full flex-1 resize-y bg-[var(--card-bg)] p-3 font-mono text-xs text-[var(--foreground)] outline-none" />

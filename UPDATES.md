@@ -1,5 +1,30 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Choose a WhatsApp recipient before dispatch
+
+Open WhatsApp now asks the dispatcher whether to use the driver's system number
+or choose manually. Manual mode accepts another WhatsApp number for this draft,
+or can stay blank to select a contact inside WhatsApp. A missing/invalid driver
+number no longer prevents manual handoff. The system number is displayed clearly;
+manual choices do not update it or persist to a driver or shipment record.
+
+The shared web/mobile picker is a native modal with focus handling, Escape and
+Cancel, an opaque themed surface, 44px controls and bounded phone scrolling.
+Every opening resets the recipient choice. Existing assignment/save/version
+review gates and the exact instruction message remain intact. Only a draft is
+opened; the operator must review and press Send in WhatsApp. Service-worker
+cache v83 refreshes installed apps. No backend change is needed.
+
+Validation: 35 feature tests, targeted ESLint and TypeScript pass. Chrome covers
+saved/local/international/manual-contact recipients, invalid numbers, missing or
+invalid system numbers, reset/cancel/Escape, 320px modal scrolling and dark/desktop
+views. It checks exact draft text and that no contact or shipment writes occur.
+Existing real Operations-shell scrolling, mouse/touch/keyboard ordering and
+save/reopen regressions also pass with synthetic services. No real message was
+sent. WhatsApp's documented message-only link supplies its native contact chooser:
+https://faq.whatsapp.com/5913398998672934/.
+The production build and release status are recorded on the PR.
+
 ## 2026-11-20 — Fix mobile stop-card text alignment
 
 Long pickup town, warehouse and destination names were squeezed beside the

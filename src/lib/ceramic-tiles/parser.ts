@@ -62,6 +62,18 @@ export function parseCeramicShipmentText(raw: string): CeramicParseResult {
   if (!header) errors.push("Shipment number and weight not found (expected SH... in a LOADING / SHIPMENT PLAN).");
   if (!version) errors.push("Shipment version not found.");
   if (errors.length || !header || !version) return { ok: false, errors };
+
+  // A file can contain repeated headers across pages. All headers must refer
+  // to exactly the same shipment and version. Mixed shipment documents must
+  // be split before import or their orders could be assigned to the wrong truck.
+  const headerNumbers = Array.from(fullText.matchAll(/\\bSHIPMENT\\s+(SH\\d+)\\s+[\\d,.]+\\s*KG\\b/gi), (match) => match[1].toUpperCase());
+  const versions = Array.from(fullText.matchAll(/\\bVersion\\s*:\\s*(\\d+)\\b/gi), (match) => Number(match[1]));
+  if (headerNumbers.some((number) => number !== header[1].toUpperCase())) {
+    return { ok: false, errors: ["This PDF contains multiple shipment numbers. Split the PDF and import each shipment separately."] };
+  }
+  if (versions.some((number) => number !== Number(version[1]))) {
+    return { ok: false, errors: ["This PDF contains inconsistent shipment versions. Verify the pages before importing."] };
+  }
   const destinations: CeramicDestination[] = [];
   const warnings: string[] = [];
   let active: CeramicDestination | null = null;
@@ -150,6 +162,13 @@ export function parseCeramicShipmentText(raw: string): CeramicParseResult {
   if (destinations.some((d) => !d.addressLines.length)) warnings.push("One or more delivery addresses are missing; review before assignment.");
   if (orders.some((order) => !order.collectFrom)) warnings.push("Some collection points could not be read; review the affected orders.");
   if (!loadingDate || !deliveryDate) warnings.push("Planned loading or delivery date is missing.");
+  // A mismatch may indicate a truncated PDF, missed delivery lines or a source
+  // document issue. Flag it, but let dispatch review/correct before import.
+  const declaredWeight = parseNumber(header[2]);
+  const orderWeight = orders.reduce((sum, order) => sum + order.weightKg, 0);
+  if (declaredWeight !== null && Math.abs(declaredWeight - orderWeight) > 0.1) {
+    warnings.push(`Shipment weight ${declaredWeight.toFixed(2)} kg differs from delivery order total ${orderWeight.toFixed(2)} kg; review this document.`);
+  }
   const seen = new Set<string>();
   for (const order of orders) {
     if (seen.has(order.deliveryNumber)) warnings.push(`Repeated delivery number ${order.deliveryNumber}; review the shipment.`);

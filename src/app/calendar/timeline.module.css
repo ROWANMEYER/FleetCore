@@ -326,3 +326,11 @@
  .metricsFooter { font-size: 8px; }
  .metricsFooter span { display: none; }
 }
+
+
+.workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.viewControls { display: flex; justify-content: center; gap: 6px; flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--card-border); }
+.viewControls button { min-height: 36px; padding: 6px 18px; border: 1px solid var(--card-border); border-radius: 10px; background: var(--card-bg); color: var(--nav-text-color); font-size: 12px; font-weight: 700; cursor: pointer; }
+.viewControls button[aria-pressed="true"] { border-color: #0891b2; background: #0891b2; color: white; }
+.viewControls button:focus-visible { outline: 2px solid #06b6d4; outline-offset: 2px; }
+.viewBody { flex: 1; min-height: 0; min-width: 0; }

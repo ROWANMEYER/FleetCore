@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BarChart3, Lock, LogIn, Mail } from "lucide-react";
+import { signInDestination } from "@/src/lib/signInDestination";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 
 export default function LoginPage() {
@@ -21,10 +22,11 @@ export default function LoginPage() {
     }
     setBusy(true);
     setError("");
+    const destination = signInDestination(window.location.search);
     const res = await login(email.trim(), password);
     setBusy(false);
     if (res.ok) {
-      router.push("/dashboard");
+      router.push(destination);
     } else {
       setError(res.error || "Login failed.");
     }

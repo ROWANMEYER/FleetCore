@@ -313,7 +313,7 @@ export default function Navigation() {
 
           <div className="ml-auto flex items-center gap-2">
             <MobileOperationsMenu key={pathname} />
-            <RegionSwitcher compact />
+            {!pathname.startsWith("/operations/ceramic-tiles") && <RegionSwitcher compact />}
             <InstallAppButton />
             <RefreshButton />
             {mounted && <ThemeToggleButton />}

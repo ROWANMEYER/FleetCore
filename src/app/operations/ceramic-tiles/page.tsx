@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, FileText, FolderUp, LoaderCircle, RefreshC
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
-import { parseCeramicShipmentText, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
+import { parseCeramicShipmentText, withCeramicReviewWarnings, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
 import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/pdfReader";
 import { CeramicDriverInstructions } from "@/src/components/ceramic-tiles/DriverInstructionsPanel";
 
@@ -112,7 +112,7 @@ export default function CeramicTilesPage() {
 
   const updateShipment = useCallback((id: string, update: (shipment: CeramicShipment) => CeramicShipment) => {
     setEntries((prev) => prev.map((item) =>
-      item.id === id && item.shipment ? { ...item, shipment: update(item.shipment) } : item
+      item.id === id && item.shipment ? { ...item, shipment: withCeramicReviewWarnings(update(item.shipment)) } : item
     ));
   }, []);
 

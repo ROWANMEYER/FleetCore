@@ -1,5 +1,24 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-20 — Fix mobile stop-card text alignment
+
+Long pickup town, warehouse and destination names were squeezed beside the
+Up/Down controls, wrapping into very narrow vertical columns. On phone widths,
+stop cards now reserve a full label row and put the controls beneath it. At
+larger widths the controls remain inline. Labels use 14px text with 20px line
+height, top alignment and normal word wrapping; drag handles and phone move
+buttons have 44px touch targets. Service-worker cache v82 refreshes installed
+apps for this follow-up production update. Shipment ordering and message
+content are unchanged; no backend deployment is needed.
+
+Validation: 35 Ceramic Tiles tests and targeted ESLint pass. Chrome checks with
+long unknown-town/warehouse and delivery labels at 320, 390 and 430px verify
+wide text, controls below labels, 44px grips and no horizontal overflow. Light
+and dark screenshots reviewed. Mouse/touch dragging, invalid cross-town drops,
+Escape cancellation, keyboard buttons and save/reopen still pass. The actual
+Operations shell scroll/dispatch regression also passes with synthetic data.
+The production Vercel build and post-release result are recorded on the PR.
+
 ## 2026-11-20 — Authorize the live Ceramic Tiles release
 
 The user explicitly requested the production update. The live fleetcore Vercel

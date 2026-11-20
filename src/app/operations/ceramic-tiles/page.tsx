@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, CheckCircle2, FileText, FolderUp, LoaderCircle, RefreshCw, Trash2, Truck } from "lucide-react";
 import { api } from "@/convex/_generated/api";
@@ -9,6 +9,9 @@ import { useAuth } from "@/src/components/auth/AuthProvider";
 import { parseCeramicShipmentText, withCeramicReviewWarnings, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
 import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/pdfReader";
 import { CeramicDriverInstructions } from "@/src/components/ceramic-tiles/DriverInstructionsPanel";
+
+import { MobileCeramicTiles } from "@/src/components/ceramic-tiles/MobileCeramicTiles";
+import { isMobileAppEnvironment } from "@/src/lib/appMode";
 
 type Region = "garden_route" | "eastern_cape";
 type Entry = {
@@ -80,7 +83,7 @@ function ShipmentHistoryPanel({
   </section>;
 }
 
-export default function CeramicTilesPage() {
+function CeramicTilesDesktopPage() {
   const { user, token } = useAuth();
   const [regionChoice, setRegionChoice] = useState<Region>("garden_route");
   const region: Region = user?.role === "regional" ? (user.region ?? "garden_route") : regionChoice;
@@ -422,4 +425,16 @@ export default function CeramicTilesPage() {
       })()}
     </div>
   </main>;
+}
+
+export default function CeramicTilesPage() {
+  const [mobile, setMobile] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setMobile(isMobileAppEnvironment());
+    update(); mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  if (mobile === null) return <p role="status" className="p-4 text-sm">Loading Ceramic Tiles…</p>;
+  return mobile ? <MobileCeramicTiles /> : <CeramicTilesDesktopPage />;
 }

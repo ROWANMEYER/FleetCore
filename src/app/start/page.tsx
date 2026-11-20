@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Cake, Fuel, LockKeyhole, Phone, Send } from "lucide-react";
+import { BarChart3, Cake, Fuel, LockKeyhole, Phone, Send, Package } from "lucide-react";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { InstallAppButton } from "@/src/components/InstallAppButton";
 
 const TABS = [
+  { href: "/operations/ceramic-tiles", label: "Ceramic Tiles", description: "Assign shipments & send instructions", icon: Package },
   { href: "/operations/quick-message", label: "QuickSend", description: "Send a quick message", icon: Send },
   { href: "/operations/fuel", label: "Fuel", description: "Compare fuel prices", icon: Fuel },
   { href: "/operations/phonebook", label: "Phonebook", description: "Find driver contact numbers", icon: Phone },
@@ -51,7 +52,6 @@ export default function StartPage() {
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-400/15 text-cyan-200"><LockKeyhole size={20} /></span>
             <span><strong className="block text-sm">Operations</strong><span className="text-xs text-cyan-50/70">{user ? "Open fleet operations" : "Sign in to continue"}</span></span>
           </Link>
-          <InstallAppButton variant="card" />
           {TABS.map(({ href, label, description, icon: Icon }) => (
             <Link
               key={href}
@@ -62,6 +62,7 @@ export default function StartPage() {
               <span><strong className="block text-sm">{label}</strong><span className="text-xs text-cyan-50/70">{description}</span></span>
             </Link>
           ))}
+          <InstallAppButton variant="card" />
         </div>
       </section>
     </main>

@@ -6,13 +6,17 @@ on:
       - feature/ceramic-tiles-stage1-foundation
   pull_request:
     paths:
-      - 'convex/ceramicTiles*'
-      - 'convex/schema.ts'
-      - 'src/lib/ceramic-tiles/**'
-      - 'src/app/operations/ceramic-tiles/**'
+      - 'convex/**'
+      - 'src/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'next.config.*'
+      - 'tsconfig.json'
+      - 'vitest.config.*'
       - '.github/workflows/ceramic-tiles-check.yml'
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -26,9 +30,16 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Parser tests
-        run: npx vitest run src/lib/ceramic-tiles
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Full regression suite
+        run: npm test
       - name: Type check
         run: npx tsc --noEmit
-      - name: Lint feature files
-        run: npx eslint src/lib/ceramic-tiles/parser.ts src/lib/ceramic-tiles/pdfReader.ts src/lib/ceramic-tiles/parser.test.ts src/lib/ceramic-tiles/pdfReader.test.ts src/lib/ceramic-tiles/driverInstructions.ts src/lib/ceramic-tiles/driverInstructions.test.ts src/components/ceramic-tiles/DriverInstructionsPanel.tsx src/app/operations/ceramic-tiles/page.tsx convex/ceramicTiles.ts convex/ceramicTilesFields.ts
+      - name: Lint
+        run: npm run lint
+      - name: Production compilation (no deployment)
+        env:
+          # Compilation only: no credentials or access to a live backend.
+          NEXT_PUBLIC_CONVEX_URL: https://ci-build-only.convex.cloud
+        run: npm run build

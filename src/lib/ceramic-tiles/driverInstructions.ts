@@ -1,7 +1,7 @@
 import type { CeramicShipment } from "./parser";
+import { orderedCeramicStops, type CeramicStopOrder } from "./stopOrder";
 
-/** Initial guidance is generated for each shipment and may be edited by dispatch. */
-export const DEFAULT_CERAMIC_SAFETY_NOTES = [
+const LEGACY_CERAMIC_SAFETY_NOTES = [
   "Perform a complete pre-trip vehicle and equipment inspection.",
   "Confirm the shipment, delivery orders and pallet quantities at every collection point.",
   "Inspect freight and packaging for visible damage before accepting it. Report shortages, damage or discrepancies to dispatch immediately.",
@@ -11,70 +11,52 @@ export const DEFAULT_CERAMIC_SAFETY_NOTES = [
   "Obtain signed proof of delivery and report delays or problems without waiting until the end of the day.",
 ].join("\n");
 
-const number = (value: number | null): string =>
-  value === null ? "Not specified" : value.toLocaleString("en-GB", { maximumFractionDigits: 3 });
+export const DEFAULT_CERAMIC_SAFETY_NOTES = [
+  "Please tarp all boxes that can get wet.",
+  "Please ask the security at the last warehouse you are loading to weigh your axles.",
+  "Please look for broken tiles; baths and toilets, and take pictures.",
+  "Please all CASHBUILD delivery notes must be STAMPED",
+].join("\n");
 
-const displayDate = (value: string | null): string =>
-  value ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}` : "To be confirmed";
+/** Refresh only the previous built-in template; preserve dispatch's custom notes. */
+export function ceramicSafetyNotes(saved?: string): string {
+  const normalize = (value: string) => value.replace(/\r\n/g, "\n").trim();
+  return saved === undefined || normalize(saved) === normalize(LEGACY_CERAMIC_SAFETY_NOTES)
+    ? DEFAULT_CERAMIC_SAFETY_NOTES : saved;
+}
 
 export type DriverMessageArgs = {
   shipment: CeramicShipment;
   driverName: string;
   truckNumber: string;
+  truckRegistration?: string;
   safetyNotes: string;
   additionalNotes: string;
+  stopOrder?: CeramicStopOrder;
 };
 
-/**
- * Deterministic, reviewable plain-text WhatsApp draft.
- * No transmission occurs in this helper.
- */
+/** Dispatch's compact WhatsApp draft; no sending and no inferred stop reordering. */
 export function buildCeramicDriverMessage({
-  shipment, driverName, truckNumber, safetyNotes, additionalNotes,
+  shipment, driverName, truckNumber, truckRegistration, safetyNotes, additionalNotes, stopOrder,
 }: DriverMessageArgs): string {
-  const lines: string[] = [
-    "*CERAMIC TILES — DRIVER INSTRUCTIONS*",
-    `Shipment: ${shipment.shipmentNumber} (Version ${shipment.version})`,
-    `Driver: ${driverName.trim() || "Unassigned"}`,
-    `Truck: ${truckNumber.trim() || "Unassigned"}`,
-    `Planned loading: ${displayDate(shipment.plannedLoadingDate)}`,
-    `Planned delivery: ${displayDate(shipment.plannedDeliveryDate)}`,
-    `Shipment weight: ${number(shipment.totalWeightKg)} kg`,
-    `Shipment pallets: ${number(shipment.totalPallets)}`,
-    "",
-    "*COLLECTION POINTS*",
+  const lines = [
+    driverName.trim().toUpperCase() || "DRIVER TO BE ASSIGNED",
+    truckRegistration?.trim().toUpperCase() || "TRUCK REGISTRATION TO BE CONFIRMED",
+    truckNumber.trim().toUpperCase() || "TRUCK FLEET NUMBER TO BE CONFIRMED",
   ];
-  const collectionMap = new Map<string, string[]>();
-  for (const destination of shipment.destinations) {
-    for (const order of destination.orders) {
-      const place = order.collectFrom.trim() || "Collection point to be confirmed";
-      const list = collectionMap.get(place) ?? [];
-      list.push(order.deliveryNumber);
-      collectionMap.set(place, list);
-    }
-  }
-  for (const [place, deliveries] of collectionMap) {
-    lines.push(`• ${place} — delivery refs: ${deliveries.join(", ")}`);
-  }
-  lines.push("", "*DELIVERY DESTINATIONS*");
-  shipment.destinations.forEach((destination, index) => {
-    lines.push(`${index + 1}. ${destination.name}`);
-    if (destination.addressLines.length) {
-      lines.push(`   ${destination.addressLines.join(", ")}`);
-    }
-    for (const order of destination.orders) {
-      lines.push(
-        `   Delivery ${order.deliveryNumber} | Order ${order.orderNumber} | ${number(order.weightKg)} kg | ${number(order.palletsEstimate)} PAL`
-      );
-    }
+  lines.push("", `SHIPMENT ${shipment.shipmentNumber}`,
+    shipment.totalPallets === null ? "PALLETS TO BE CONFIRMED" : `${shipment.totalPallets.toLocaleString("en-GB", { maximumFractionDigits: 3 })} PALLETS`);
+  const notes = safetyNotes.split(/\r?\n/).map(note => note.replace(/^(?:\s|[•*\-]|🆘)+/u, "").trim()).filter(Boolean);
+  if (notes.length) lines.push("", ...notes.map(note => `🆘${note}`));
+  const stops = orderedCeramicStops(shipment, stopOrder);
+  stops.pickups.forEach((town, index) => {
+    lines.push("", "PICK UP " + (index + 1) + ") " + town.label);
+    town.warehouses.forEach((warehouse, stopIndex) => lines.push((stopIndex + 1) + ". " + warehouse.label));
   });
-  if (additionalNotes.trim()) lines.push("", "*ADDITIONAL INSTRUCTIONS*", additionalNotes.trim());
-  if (safetyNotes.trim()) {
-    lines.push("", "*SAFETY & DELIVERY PROCEDURES*");
-    safetyNotes.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
-      .forEach((note) => lines.push(`• ${note.replace(/^[•\-*\s]+/, "")}`));
-  }
-  lines.push("", "Please confirm you received these instructions and contact dispatch about any discrepancies.");
+  lines.push("", "PLEASE OFFLOAD AS FOLLOW:");
+  stops.offloads.forEach((destination, index) => lines.push((index + 1) + ". " + destination.label));
+  if (additionalNotes.trim()) lines.push("", additionalNotes.trim());
+  lines.push("", "PLEASE TRAVEL SAFELY 🙏");
   return lines.join("\n");
 }
 

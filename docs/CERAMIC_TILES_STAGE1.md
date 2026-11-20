@@ -17,7 +17,7 @@
 5. Pinned PDF.js package in `package.json` and `package-lock.json` and added new module to `convex/_generated/api.d.ts`.
 6. Added an Operations navigation tab and a separate GitHub Actions workflow for parser tests, TypeScript and lint checks.
 7. `src/lib/ceramic-tiles/driverInstructions.ts` and `src/components/ceramic-tiles/DriverInstructionsPanel.tsx`: editable standard safety instructions, additional dispatch notes, and deterministic WhatsApp draft from shipment/driver/truck information. No automatic sending.
-8. `npm run test:ceramic` runs all three Ceramic Tiles test files. The feature branch currently runs the tests before its Next.js build.
+8. `npm run test:ceramic` runs all five Ceramic Tiles test files. The feature branch currently runs the tests before its Next.js build.
 
 ## Duplicate/version rules
 - Same shipment ID + identical version + same file hash: already imported, skip.
@@ -33,7 +33,7 @@
 - A local reconstruction using the PDFs' text-coordinate geometry returned the expected shipment numbers, versions, stop counts, order counts, dates and pallet totals.
 - Parser has synthetic/redacted regression tests. **Real customer PDF files were not committed to GitHub.**
 - **Verified 20 November 2026:** 15/15 Ceramic Tiles tests passed during a Vercel feature-branch build (nine parser, three PDF geometry, three driver-message tests), followed by successful Next.js compilation, TypeScript and static page generation on the `fleetcore` preview project. The driver message decimal-separator regression found by the first run was corrected.
-- **Still outstanding:** The feature-specific Convex schema/functions are not deployed to FleetCore development, so browser-to-database imports, PDF archive access, driver assignments and WhatsApp handoff have not been tested end to end. GitHub Actions runners did not start successfully; do not treat their jobs as passing.
+- **Development activation verified 20 November 2026:** The guarded activation script synced the functions/schema to quixotic-gopher-969 after the authenticated management API confirmed its development type and matching URL. All eight Ceramic Tiles public functions are present. Invalid-session calls to list and fleetChoices reach the handlers and deny access. Fifteen feature tests, TypeScript, targeted lint, local Next.js build, code generation and post-sync TypeScript passed. Calendar changes were preserved and restored. **Still outstanding:** authenticated browser-to-database imports, PDF archive access, driver assignments and WhatsApp handoff have not been tested end to end. GitHub Actions runners did not start successfully; do not treat their jobs as passing.
 
 ## Safe activation from the FleetCore Windows PC
 
@@ -58,19 +58,61 @@ The activation script refuses to proceed unless:
 - The current branch is exactly `feature/ceramic-tiles-stage1-foundation` and the working tree has no uncommitted files.
 - `.env.local` contains **both** `CONVEX_DEPLOYMENT=dev:quixotic-gopher-969` and `NEXT_PUBLIC_CONVEX_URL=https://quixotic-gopher-969.convex.cloud`.
 - No `CONVEX_DEPLOY_KEY` or `CONVEX_SELF_HOSTED_URL` override is present in the environment or local dotenv file.
-- Dependencies, 15 Ceramic Tiles regression tests, TypeScript, targeted lint, and Next.js build all complete successfully.
+- Dependencies, Ceramic Tiles regression tests, TypeScript, targeted lint, and Next.js build all complete successfully.
 
 It invokes `npx convex dev --once --env-file .env.local` only with the explicit deployment switch. It will not run `npx convex deploy`, select or create another deployment, push to production, merge the PR, or send WhatsApp messages.
 
-**Important:** Older project agent notes also mention `dev:precise-chickadee-602` while other FleetCore documentation and the Vercel development setting identify `quixotic-gopher-969`. This discrepancy has **not** been resolved against the local CLI configuration. If the script detects it, stop and verify the actual development target in the Convex dashboard rather than modifying the script to bypass the safety guard. Do not share passwords, deployment keys or the contents of `.env.local` in chat.
+**Important:** Older project agent notes also mention `dev:precise-chickadee-602` while other FleetCore documentation and the Vercel development setting identify `quixotic-gopher-969`. On 20 November 2026, the authenticated management API confirmed quixotic-gopher-969 as the development deployment in fleet-backend, matching the local CLI selectors and frontend URL. The guarded development sync then succeeded against that target. If the script detects it, stop and verify the actual development target in the Convex dashboard rather than modifying the script to bypass the safety guard. Do not share passwords, deployment keys or the contents of `.env.local` in chat.
 
 After development deployment, test with a signed-in FleetCore development account: import one PDF, repeat it, import a higher version, verify history and original PDF links, assign a driver/truck, edit safety notes and manually open the WhatsApp draft. No production enablement until all checks pass.
+
+## Driver handoff format — updated 20 November 2026
+
+The draft uses driver name, truck registration and truck fleet number (no trailer), shipment/pallet totals, dispatch's four SOS notices, pickups grouped by town, numbered offloads and PLEASE TRAVEL SAFELY. It uses actual assigned fleet records. Custom safety and dispatch notes remain editable; unchanged legacy standard notices refresh to the new template and must be saved before WhatsApp if marked dirty. Full shipment/order details remain in the review/history screens. Loading and offloading default to PDF order. In Driver instructions, drag the grip handles under Loading & offloading order to arrange pickup towns, warehouses within towns and delivery stops (Up/Down buttons remain for keyboard access); Save instructions keeps the selection. Reset to PDF order restores the defaults. The message preview and saved WhatsApp draft follow this order. The registration response is active in verified development; 35 feature tests, 990 total tests and isolated panel/ordering mouse/touch browser checks pass. No automatic sending occurs.
+
+## Mobile dispatch — implemented 20 November 2026
+
+The /start screen has its own Ceramic Tiles tile between Operations and QuickSend. It requires the existing sign-in and returns to Ceramic Tiles after login. On phones, the Ceramic Tiles route displays imported shipment cards with Unassigned/Assigned/All filters, assignment controls, the shared draggable stop editor and WhatsApp preview. The mobile workspace has its own vertical scroll area inside the Operations layout. There are no region selectors on this screen or its mobile header: admins see both authorized regional lists, while regional users retain their server-enforced scope. Saves use the selected shipment's actual region. Imports remain in the desktop web view. Both views read the same records and fleet identities.
+
+Mobile saves the reviewed shipment version. A newer version shows Shipment updated—review before sending and requires another instruction review/save; stale expectedVersion saves are rejected server-side. Existing notes, assignments, history and saved ordering remain compatible. The review schema/functions are active in verified development. No production publishing occurred; installed production apps require a separate release. Browser verification uses synthetic services; no real records or messages are changed.
 
 ## Known limits / next steps
 - Original PDFs are uploaded to Convex storage **after user confirmation** for newly imported revisions, and their storage IDs are recorded in version history. Duplicate and older versions are skipped. Until end-to-end validation succeeds, retain your source PDFs locally.
 - Scanned/image-only PDFs are rejected; OCR not enabled.
 - PDF uploads occur before the atomic DB import commit; if final validation fails, storage uploads may remain unlinked. Add orphan cleanup before high-volume rollout.
 - Editable driver instructions and the manual WhatsApp handoff are coded; driver receipt/confirmation and enforcement of one active shipment per driver remain future work.
-- The pinned PDF.js worker compiled during the Next.js Turbopack preview build, but **actual in-browser PDF reading still needs verification**. If worker loading fails, self-host the matching installed worker rather than using an external CDN.
+- **PDF reader fix verified 20 November 2026:** reproduced the PDF.js unminified entry collision in Next.js 16.1.7 Webpack with a generated shipment PDF. Switched to the equivalent pinned minified entry and matching bundled module worker. Actual Chrome PDF extraction, shipment parsing and repeated reads pass in an isolated Webpack fixture with external requests blocked. This verifies the browser reader using synthetic data; retrying the original customer PDF and authenticated import flow remains outstanding.
 - In the authenticated FleetCore checkout, first verify that `.env.local` and the Convex CLI point to the existing FleetCore **development** deployment (not production). Only then run `npm ci`, `npx convex dev --once`, `npx convex codegen`, `npm run test:ceramic`, `npx tsc --noEmit`, targeted ESLint, and `npm run build`. Never use `npx convex deploy` without confirming the target and intended release.
 - Test a batch containing new, duplicate, higher-version, older-version and same-version-conflict PDFs, plus driver/truck assignment and revision history.
+
+## Production release gate — 20 November 2026
+
+The feature branch contains the mobile dispatch and preserved calendar changes.
+Local release checks pass: 990 tests, repository lint (0 errors, 64 existing
+warnings), TypeScript via the successful Next.js production build, and all 33
+pages generated. Feature CI now runs the full suite, TypeScript, lint and a
+build with a non-live placeholder backend URL. No deployment is part of CI.
+
+Keep the existing PR in draft until an authenticated development user verifies
+new/duplicate/older/higher/conflicting PDF imports, revision history and archived
+PDF access, truck/driver assignment, saved ordering and the manual WhatsApp
+handoff on a physical phone. Synthetic browser checks have passed but do not
+replace that real backend check. Keep original PDFs until this gate passes.
+
+Verify the real Vercel production environment and its Convex deployment mapping
+before rollout. Legacy mobile-audit comments say the live site uses the dev
+backend; the deployment type alone does not establish isolation from live use.
+Do not run the live upload audit as a release check. A separately authorized
+release is needed for any main merge, production backend sync or publishing.
+
+Release dependency preparation pins Next.js/eslint-config-next 16.4.6, official
+SheetJS 0.20.3 and compatible security lockfile updates. React hooks lint remains
+on the existing 7.0.1 baseline to preserve the repository lint freeze. The final
+runtime audit reports 0 critical/high findings and 2 moderate UUID/ExcelJS
+findings. ExcelJS only invokes UUID v4; the advisory concerns v3/v5/v6 when given
+a buffer. Record that residual dependency risk during release review; no forced
+ExcelJS downgrade or cross-major UUID override was applied. CI audits runtime
+dependencies at high severity. A synthetic export round-trip retained all five
+template sheets and 14,029 formulas. Mobile, drag, calendar and real Webpack PDF
+checks were repeated after the updates. The obsolete Next.js 16.1 development
+type cache was preserved in the local backup folder before regeneration.

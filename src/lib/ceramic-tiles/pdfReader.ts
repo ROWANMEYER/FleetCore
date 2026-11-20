@@ -43,10 +43,16 @@ export async function extractCeramicPdfText(file: File): Promise<string> {
     throw new Error("Only PDF files are supported.");
   }
 
-  // Lazy-load the browser/webpack entry only after a PDF is selected. This
-  // entry bundles the matching PDF.js worker, avoiding a version-mismatched
-  // CDN worker and keeping document contents on the user's device.
-  const pdfjs = await import("pdfjs-dist/webpack.mjs");
+  // The unminified PDF.js entry collides with Next.js 16's bundled Webpack
+  // runtime in development. Use the equivalent minified build and its matching
+  // bundled module worker; no CDN or external document service is involved.
+  const pdfjs = await import("pdfjs-dist/build/pdf.min.mjs");
+  if (!pdfjs.GlobalWorkerOptions.workerPort) {
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+      new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url),
+      { type: "module" },
+    );
+  }
   const bytes = new Uint8Array(await file.arrayBuffer());
   const task = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
   const document = await task.promise;

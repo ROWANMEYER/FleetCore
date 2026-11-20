@@ -1,3 +1,5 @@
+import { assertCeramicStopOrder } from "../src/lib/ceramic-tiles/stopOrder";
+import { ceramicStopOrder } from "./ceramicTilesFields";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { resolveUserScope } from "./userSessions";
@@ -244,17 +246,27 @@ export const saveDriverInstructions = mutation({
     shipmentId: v.id("ceramicShipments"),
     safetyNotes: v.string(),
     additionalNotes: v.string(),
+    stopOrder: v.optional(ceramicStopOrder),
+    expectedVersion: v.optional(v.number()),
   },
+  returns: v.object({ saved: v.boolean(), updatedAt: v.number() }),
   handler: async (ctx, args) => {
     const { region, actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
     if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (args.expectedVersion !== undefined && args.expectedVersion !== shipment.version) {
+      throw new Error("Shipment updated. Reopen instructions and review the latest version before saving.");
+    }
     if (args.safetyNotes.length > 4000 || args.additionalNotes.length > 4000) {
       throw new Error("Each instruction field has a 4,000-character limit.");
     }
+    if (args.stopOrder) assertCeramicStopOrder(shipment.snapshot, args.stopOrder);
     const now = Date.now();
     await ctx.db.patch(shipment._id, {
       driverInstructions: {
+        ...shipment.driverInstructions,
+        ...(args.expectedVersion !== undefined ? { reviewedVersion: shipment.version } : {}),
+        ...(args.stopOrder ? { stopOrder: args.stopOrder } : {}),
         safetyNotes: args.safetyNotes.trim(),
         additionalNotes: args.additionalNotes.trim(),
         updatedAt: now,
@@ -269,16 +281,20 @@ export const saveDriverInstructions = mutation({
 
 export const fleetChoices = query({
   args: { token: v.string(), region: ceramicRegion },
+  returns: v.object({
+    drivers: v.array(v.object({ id: v.id("drivers"), name: v.string(), phone: v.union(v.string(), v.null()) })),
+    trucks: v.array(v.object({ id: v.id("trucks"), fleetNumber: v.string(), registration: v.union(v.string(), v.null()) })),
+  }),
   handler: async (ctx, args) => {
     await requireRegion(ctx, args.token, args.region);
     const [drivers, trucks] = await Promise.all([
-      ctx.db.query("drivers").collect(),
-      ctx.db.query("trucks").collect(),
+      ctx.db.query("drivers").take(5000),
+      ctx.db.query("trucks").take(5000),
     ]);
     return {
       drivers: drivers.map((driver) => ({ id: driver._id, name: driver.driverName ?? driver.name ?? "", phone: driver.phone ?? null }))
         .filter((d) => d.name.trim()).sort((a, b) => a.name.localeCompare(b.name)),
-      trucks: trucks.map((truck) => ({ id: truck._id, fleetNumber: String(truck.truckFleetNo ?? "") }))
+      trucks: trucks.map((truck) => ({ id: truck._id, fleetNumber: String(truck.truckFleetNo || truck.fleetNumber || ""), registration: truck.registration ?? null }))
         .sort((a, b) => a.fleetNumber.localeCompare(b.fleetNumber, undefined, { numeric: true })),
     };
   },

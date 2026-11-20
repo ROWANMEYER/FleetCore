@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { signInDestination, signInPageFor } from "@/src/lib/signInDestination";
 import Navigation from "@/src/components/Navigation";
 import { AmbientBackground } from "@/src/components/AmbientBackground";
 import { useAuth } from "./AuthProvider";
@@ -23,11 +24,12 @@ const MOBILE_ALLOWED_PATHS = [
   "/calendar",
   "/operations/fuel",
   "/operations/quick-message",
+  "/operations/ceramic-tiles",
   "/operations/phonebook",
 ];
 
-// These mobile tabs are intentionally public. The Operations tab remains the
-// authenticated part of the mobile app, while these screens can be opened by
+// These mobile tabs are intentionally public. Operations and Ceramic Tiles remain the
+// authenticated parts of the mobile app, while these screens can be opened by
 // anyone who has the app link.
 const MOBILE_PUBLIC_PATHS = [
   "/",
@@ -69,8 +71,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || isMobile === null) return;
     const guestMobilePublic = isMobile && !isLogin && isMobilePublic(pathname);
-    if (!user && !isLogin && !guestMobilePublic) router.replace("/login");
-    if (user && isLogin) router.replace("/dashboard");
+    if (!user && !isLogin && !guestMobilePublic) router.replace(signInPageFor(pathname));
+    if (user && isLogin) router.replace(signInDestination(window.location.search));
   }, [loading, user, isMobile, isLogin, pathname, router]);
 
   // Mobile guard: only the supported phone sections are reachable. Desktop
@@ -78,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || isMobile !== true || isLogin) return;
     if (!isMobileAllowed(pathname)) router.replace("/dashboard");
-    if (!user && !isMobilePublic(pathname)) router.replace("/login");
+    if (!user && !isMobilePublic(pathname)) router.replace(signInPageFor(pathname));
   }, [loading, user, isMobile, isLogin, pathname, router]);
 
   // Kill the browser's pull-to-refresh gesture. Dragging down when the app is

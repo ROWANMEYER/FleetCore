@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { laneField, pricingUnit } from "./rateSheetFields";
 import { driverPhoneNumber } from "./driverPhoneFields";
-import { ceramicRegion, ceramicShipmentSnapshot } from "./ceramicTilesFields";
+import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
 
 export default defineSchema({
   /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
@@ -15,6 +15,8 @@ export default defineSchema({
     driverId: v.optional(v.id("drivers")),
     truckId: v.optional(v.id("trucks")),
     driverInstructions: v.optional(v.object({
+      stopOrder: v.optional(ceramicStopOrder),
+      reviewedVersion: v.optional(v.number()),
       safetyNotes: v.string(),
       additionalNotes: v.string(),
       updatedAt: v.number(),

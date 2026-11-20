@@ -27,3 +27,9 @@ export const ceramicShipmentSnapshot = v.object({
   destinations: v.array(ceramicDestination),
   warnings: v.array(v.string()),
 });
+
+export const ceramicStopOrder = v.object({
+  pickupTowns: v.array(v.string()),
+  pickupWarehouses: v.array(v.string()),
+  offloads: v.array(v.string()),
+});

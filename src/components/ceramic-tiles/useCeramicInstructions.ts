@@ -43,6 +43,9 @@ export function useCeramicInstructions({ shipment, token, region, drivers, truck
     setError(""); setSuccess(""); setSaving(true);
     try {
       await save({ token, region, shipmentId: shipment._id, safetyNotes, additionalNotes, stopOrder: currentStopOrder, expectedVersion: shipment.version });
+      // Match the server trim without overwriting an edit made during the request.
+      setSafetyNotes(current => current === safetyNotes ? safetyNotes.trim() : current);
+      setAdditionalNotes(current => current === additionalNotes ? additionalNotes.trim() : current);
       setSuccess("Driver instructions saved.");
       return true;
     } catch (cause) {

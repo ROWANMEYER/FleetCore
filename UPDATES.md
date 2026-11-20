@@ -14,7 +14,9 @@ A bounded step-content area owns scrolling while the action footer stays visible
 inside the real Operations layout. The review step shows an assignment/route
 summary, expandable readable message and safety/extra notes, and inline system
 or manual WhatsApp recipient fields. Notes edited during review must be saved
-using the footer before WhatsApp becomes available. No automatic sending occurs.
+using the footer before WhatsApp becomes available. Saved text matches the server
+trim so trailing spaces do not leave the send action blocked; a desktop edit made
+during an in-flight save is preserved. No automatic sending occurs.
 A newer shipment version resets the wizard and requires another saved review.
 Leaving with unsaved edits asks before abandoning them. Mobile manual recipients
 remain per draft and do not change driver records.

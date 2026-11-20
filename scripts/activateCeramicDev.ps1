@@ -57,6 +57,14 @@ try {
 
   $Deployment = Get-EnvSetting "CONVEX_DEPLOYMENT"
   $Url = Get-EnvSetting "NEXT_PUBLIC_CONVEX_URL"
+  # A deploy key inside the dotenv file can silently override deployment
+  # selection even if the public URL looks correct. Never allow it here.
+  if ((Get-EnvSetting "CONVEX_DEPLOY_KEY") -or (Get-EnvSetting "CONVEX_SELF_HOSTED_URL")) {
+    throw "Remove any deployment-key or self-hosted Convex override from .env.local before using the development activation script."
+  }
+  if ($env:CONVEX_SELF_HOSTED_URL) {
+    throw "Terminal CONVEX_SELF_HOSTED_URL is set. This script permits only the verified Convex development cloud deployment."
+  }
   if ($Deployment -cne $ExpectedDeployment -or $Url -cne $ExpectedUrl) {
     throw "Local Convex settings do not BOTH match the verified development target. Expected CONVEX_DEPLOYMENT=$ExpectedDeployment and NEXT_PUBLIC_CONVEX_URL=$ExpectedUrl. Inspect .env.local privately. Nothing was deployed."
   }
@@ -110,7 +118,7 @@ try {
 
   Write-Host ""
   Write-Host "Deploying Convex functions and schema to VERIFIED DEVELOPMENT ONLY." -ForegroundColor Yellow
-  Invoke-Checked "Convex development sync" "npx" @("convex", "dev", "--once")
+  Invoke-Checked "Convex development sync" "npx" @("convex", "dev", "--once", "--env-file", ".env.local")
 
   # Regenerate frontend references from the newly synced development schema.
   Invoke-Checked "Regenerate Convex TypeScript references" "npx" @("convex", "codegen")

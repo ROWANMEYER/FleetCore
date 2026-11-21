@@ -1,5 +1,29 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-21 - Customer-transfer frontend release preparation
+
+The owner explicitly authorized GitHub and production updates for the customer
+CSV transfer. The release incorporates the existing live FleetCore source
+228a674 (plus its production-release documentation) before applying the transfer
+change, retaining Ceramic Tiles and the current calendar. Customer Rates Phase 1
+remains separate and is not part of this release. No Convex schema/function or
+backend dependency difference exists against the current live source.
+
+The final release passes 1,019 tests in 62 files, TypeScript, repository lint
+(0 errors, 64 existing warnings) and the local production build (33 pages).
+Service-worker cache v88 refreshes installed clients. The production customer
+import endpoint on dependable-quail-107 was verified to reject an invalid
+session, without writing records. This release needs only a Vercel frontend
+build using the project's existing production environment.
+
+Ageanalysis's export release is based on its live 8eff71e source, preserving the
+payment calendar. Its 16 exporter tests, four calendar tests, TypeScript, feature
+lint and production build pass; cache v6 is released. Existing dashboard and
+build-info edits in the original local checkout remain untouched. The production
+Ageanalysis backend remains ardent-lyrebird-333. No real customer list is exported
+or imported by release verification.
+
+
 ## 2026-11-21 - Customer list transfer from Ageanalysis
 
 Ageanalysis Customers now exports its full customer master list as a dated,

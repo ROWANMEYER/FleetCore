@@ -1,6 +1,6 @@
 export type TimelineBirthday = {
   driverId: string; name: string; phoneNumber: string; day: number; month: number;
-  photoUrl?: string; photoOriginalUrl?: string;
+  photoUrl?: string; photoOriginalUrl?: string; birthYear?: number;
 };
 export function johannesburgDay(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-ZA", { timeZone: "Africa/Johannesburg", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);

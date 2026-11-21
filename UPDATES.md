@@ -1,5 +1,34 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-21 - Customer list transfer from Ageanalysis
+
+Ageanalysis Customers now exports its full customer master list as a dated,
+17-column CSV compatible with FleetCore's existing admin importer. The file
+includes blocked status, contact information, delivery/postal addresses, aliases,
+COD and tax reference. It excludes balances, payments, credit limits and tariffs.
+Search and filters in Ageanalysis do not restrict the export.
+
+FleetCore's import dialog and transfer documentation now identify the exact
+Customers -> Export CSV step. A synthetic fixture produced by the actual
+Ageanalysis exporter verifies field mapping, quoted/multiline text, Unicode,
+leading-zero identifiers, blocked-to-inactive mapping, existing-customer
+preservation and repeat-import skipping. The importer remains add-only and
+admin-only; no schema or backend function changes are needed.
+
+This work is local only. No real customer list was transferred and no app or
+backend was deployed. Existing Ageanalysis dashboard/build-info edits are
+preserved. Customer Rates work remains on its separate feature branch/PR.
+
+Verification: all 16 Ageanalysis exporter tests and 955 FleetCore tests pass.
+Both TypeScript checks and production builds pass; Ageanalysis was built in an
+isolated copy to preserve its tracked build-info file. Changed-file lint passes.
+Real browser export with a search active still downloaded all three synthetic
+customers; uploading that exact file imported two (one inactive), skipped the
+existing customer, and a second selection offered no further imports. Both
+consoles were clean. Final API audits confirm all source records, existing target
+customers, Planner, fuel and tariffs remain unchanged.
+
+
 ## 2026-10-29 — Mobile install button and clearer driver phone validation
 
 Mobile now has a dedicated **Download FleetCore** action in the top bar and on

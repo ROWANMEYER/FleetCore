@@ -1,0 +1,5 @@
+﻿"Rekno","Name","Blocked","Aliases","COD","Contact","Email","Telephone","Mobile","Fax","Delivery Address 1","Delivery Address 2","Delivery Address 3","Postal Address 1","Postal Address 2","Postal Code","Tax Reference"
+"0007","Transfer Crème, ""Timber""","No","Timber | CT","Yes","Anne ""A""","anne@example.test","0440123456","0820000000","0440000001","First floor
+Warehouse, George","George","Western Cape","Box 1","George","0653","00001234"
+"0008","Transfer Blocked","Yes","","No","","","","0820123456","","","","","Box 2","Knysna","0657",""
+"0099","Acceptance Legacy","No","","No","","","","","","","","","","","",""

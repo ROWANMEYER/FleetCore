@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { compositionProblem, DEFAULT_FUEL_COMPOSITION, pricingUnits, validDay, type AgreementType } from "@/convex/rateSheetFields";
@@ -57,6 +58,11 @@ function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string
     form.lanes.map(l => [l.loadingPoint.trim(), l.destination.trim(), l.pricingUnit, round2(l.rate), l.date ?? ""]), form.agreementType ?? "", form.fuelCompositionPercent === undefined ? "" : Number(form.fuelCompositionPercent)]);
 }
 export { formKey };
+
+export function sheetErrorMessage(error: unknown, fallback = "Could not save."): string {
+  if (error instanceof ConvexError) return typeof error.data === "string" ? error.data : fallback;
+  return error instanceof Error ? error.message : fallback;
+}
 
 export function SheetEditor({ token, sheet, customer, customerName, onDeleted }: { token: string; sheet: Sheet; customer?: { _id?: string; name?: string; accountNumber?: string; contactPerson?: string; phone?: string; email?: string; address?: string; vatNumber?: string }; customerName: string; onDeleted: () => void }) {
   const save = useMutation(api.rateSheets.saveLanes);
@@ -165,7 +171,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     } catch (e) {
       // The server is the authority on "nothing changed". If it says so, that is not a failure worth shouting about.
       if (e instanceof Error && e.message.startsWith("Nothing changed")) { setError(""); setSaved(""); setNotice("No changes to save."); return; }
-      setError(e instanceof Error ? e.message : "Could not save.");
+      setError(sheetErrorMessage(e));
     } finally { setBusy(false); }
   }
   return <div className="space-y-6">
@@ -277,7 +283,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
           onDeleted();
         } catch (err) {
           // The dialog stays open so the reason sits next to the field the user still has to fix.
-          setError(err instanceof Error ? err.message : "Could not delete the rate sheet.");
+          setError(sheetErrorMessage(err, "Could not delete the rate sheet."));
         } finally { setDeleting(false); }
       }}
       onCancel={() => { if (!deleting) { setConfirmDelete(false); setError(""); } }}

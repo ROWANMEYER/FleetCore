@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ConvexError } from "convex/values";
 import { sameState, validDate } from "@/convex/rateSheets";
-import { addedDateProblem, formKey, formatAddedDate, laneProblem, type DraftLane } from "./SheetEditor";
+import { addedDateProblem, sheetErrorMessage, formKey, formatAddedDate, laneProblem, type DraftLane } from "./SheetEditor";
 
 const lane = (patch: Partial<DraftLane> = {}): DraftLane => ({ key: "row-1", id: "", loadingPoint: "George", destination: "Cape Town", pricingUnit: "", rate: "1500", ...patch });
 
@@ -149,5 +150,16 @@ describe("Phase 1 editor fields", () => {
     expect(formKey(base)).not.toBe(formKey({ ...base, fuelCompositionPercent: "45.001" }));
     expect(formKey(base)).toBe(formKey({ ...base, fuelCompositionPercent: "45.000" }));
     expect(formKey(base)).not.toBe(formKey({ ...base, lanes: [lane({ date: "2026-10-01" })] }));
+  });
+});
+
+
+describe("expected server errors", () => {
+  it("shows the stale-save message without the Convex request wrapper or stack", () => {
+    const message = "These rates changed in another session. Reopen the customer before saving.";
+    expect(sheetErrorMessage(new ConvexError(message))).toBe(message);
+    expect(sheetErrorMessage(new ConvexError({ unexpected: true }))).toBe("Could not save.");
+    expect(sheetErrorMessage(new Error("Original validation message"))).toBe("Original validation message");
+    expect(sheetErrorMessage(null)).toBe("Could not save.");
   });
 });

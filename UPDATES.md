@@ -1,5 +1,33 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-21 - Customer Rates Phase 1 acceptance verification
+
+Verified against an isolated anonymous Convex backend on local ports 3218/3219,
+using a temporary source copy and synthetic data only. Deployed the pre-feature
+schema, seeded a legacy tariff plus Planner/fuel sentinel records, then applied
+Phase 1. The schema upgrade and final preservation audit left those records
+exactly unchanged. No existing cloud deployment or real business data was used.
+
+Eleven integration checks pass: default/customer/fixed agreements, session and
+admin checks, persisted lane dates, stale/no-op/invalid rejection, runtime return
+validators, indexed history pagination, retained history after synthetic card
+removal/recreation, and browser-save persistence. Real desktop-browser checks
+cover login gates, 45% defaults, 60% customization, individual dates, save/reopen,
+zero/invalid composition, fixed rates, legacy 50% calculations, older history and
+concurrent editing. A downloaded fixed-rate PDF was extracted and visually
+rendered: all three monthly tariffs remain R 1 000,00. Only the two deliberately
+triggered stale-save errors appeared in the browser console.
+
+Browser verification found that stale-save messages included Convex's request
+wrapper/stack. The backend now sends that expected error as a ConvexError, and
+the editor displays its data message. A regression test covers the message.
+
+Final checks: 995 tests across 54 files, TypeScript and the local production
+build pass. Repository lint has 0 errors and 64 existing warnings. The isolated
+acceptance services were stopped after verification. Feature-branch automatic
+Vercel deployments are disabled in vercel.json for this code-only GitHub handoff. Production remains unchanged;
+no cloud Convex sync, real-record mutation, migration or release was performed.
+
 ## 2026-11-21 — Customer Rates automation Phase 1 (local only)
 
 New customer rate sheets default to a 45% fuel-linked agreement. Admins can set

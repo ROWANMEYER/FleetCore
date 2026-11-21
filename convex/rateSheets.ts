@@ -1,4 +1,4 @@
-import { v, type Infer } from "convex/values";
+import { ConvexError, v, type Infer } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -46,7 +46,7 @@ async function requireSheet(ctx: QueryCtx, customerId: Id<"customers">) {
 }
 function checkRevision(sheet: Sheet, expected: number | undefined) {
   // Optional for compatibility with already-open legacy clients; the new editor always supplies it.
-  if (expected !== undefined && expected !== sheet.revision) throw new Error("These rates changed in another session. Reopen the customer before saving.");
+  if (expected !== undefined && expected !== sheet.revision) throw new ConvexError("These rates changed in another session. Reopen the customer before saving.");
 }
 export function normalizeLanes(input: SheetLane[], previous: SheetLane[]): SheetLane[] {
   if (!input.length) throw new Error("Add at least one lane.");

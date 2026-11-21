@@ -1,26 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { laneField, pricingUnit } from "./rateSheetFields";
+import { rateSheetFields, tariffHistoryFields } from "./rateSheetFields";
 import { driverPhoneNumber } from "./driverPhoneFields";
 
 export default defineSchema({
-  /** A customer's live rate card: lanes with their rates, notes, and the diesel the rates are priced against. */
-  rateSheets: defineTable({
-    customerId: v.id("customers"),
-    defaultPricingUnit: pricingUnit,
-    /** The day these rates were added, set by hand and adjustable on any save. Absent means it has not been set yet. */
-    effectiveDate: v.optional(v.string()),
-    notes: v.string(),
-    oldDieselPrice: v.number(),
-    newDieselPrice: v.number(),
-    lanes: v.array(laneField),
-    contacts: v.array(v.object({ name: v.string(), email: v.string(), isPrimary: v.boolean(), isActive: v.boolean() })),
-    revision: v.number(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-    updatedBy: v.id("users"),
-    updatedByEmail: v.string(),
-  }).index("by_customer", ["customerId"]),
+  /** Optional agreement fields keep existing records valid without a migration. */
+  rateSheets: defineTable(rateSheetFields).index("by_customer", ["customerId"]),
+  /** Append-only tariff snapshots; retained when a live rate sheet is removed. */
+  rateSheetHistory: defineTable(tariffHistoryFields)
+    .index("by_customer", ["customerId"])
+    .index("by_sheet", ["sheetId"]),
   /**
    * The diesel price history: what a litre cost on each date it changed, and the composition recorded against it. The movement in rand and the percentage are derived from the price before it on read, so neither is stored and neither can contradict the prices.
    */

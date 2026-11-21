@@ -41,3 +41,23 @@ describe("monthly rate sheet PDF", () => {
     expect(doc.output()).toContain("Decrease");
   });
 });
+
+describe("agreement-aware rate sheet PDF data", () => {
+  it("shares the 45% default and individual dates with the screen calculation", () => {
+    const data = buildRateSheetData({ ...sheet, agreementType: "fuel_linked", lanes: [
+      { loadingPoint: "George", destination: "Cape Town", rate: 1000, sortOrder: 0 },
+      { loadingPoint: "George", destination: "Durban", rate: 2000, date: "2026-09-02", sortOrder: 1 },
+    ] }, undefined, fuel);
+    expect(data.lanes.map(lane => lane.rates)).toEqual([[null, 1000, 1045], [null, null, 2000]]);
+    expect(data.calculationProblem).toBeUndefined();
+  });
+  it("prints fixed rates without requiring a fuel price", () => {
+    const data = buildRateSheetData({ ...sheet, agreementType: "fixed", lanes: [{ loadingPoint: "George", destination: "Cape Town", rate: 1000, sortOrder: 0 }] });
+    expect(data.lanes[0].rates).toEqual([null, null, 1000]);
+    expect(() => generateRateSheetPDF(data)).not.toThrow();
+  });
+  it("uses the customer composition rather than the fuel record composition", () => {
+    const data = buildRateSheetData({ ...sheet, agreementType: "fuel_linked", fuelCompositionPercent: 20, lanes: [{ loadingPoint: "George", destination: "Cape Town", rate: 1000, sortOrder: 0 }] }, undefined, fuel);
+    expect(data.lanes[0].rates).toEqual([null, 1000, 1020]);
+  });
+});

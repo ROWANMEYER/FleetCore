@@ -1,5 +1,42 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-21 — Customer Rates automation Phase 1 (local only)
+
+New customer rate sheets default to a 45% fuel-linked agreement. Admins can set
+a customer-specific composition from 0 to 100%, or choose a fixed-rate agreement
+that ignores fuel movements. The existing signed percentage, chronological
+compounding and cent-rounding helpers are unchanged. Existing sheets without an
+agreement keep their original recorded fuel composition and sheet-date baseline
+until an admin explicitly selects a new agreement; there is no data backfill.
+
+Fuel-linked and fixed agreements support an individual effective date per lane,
+with a blank date falling back to the customer effective date. The editor retains
+stored lane dates on save. Screen and PDF use the same lane-aware calculation;
+changes on the baseline day are already included, and earlier months stay blank.
+Fixed rates can be calculated without fuel history.
+
+Each rate save or default-unit change atomically preserves an immutable tariff
+snapshot with its effective dates, lanes, starting amounts, unit, agreement,
+composition, notes, revision and actor. The first edit also records the previous
+card, including legacy data. These are historical starting tariffs, not a second
+set of recalculating monthly totals. Removing/recreating a live card retains the
+history, available through an admin-only, indexed, paginated read-only panel.
+No-op and rejected saves add no history. The new editor sends its accepted
+revision on save/delete to reject stale edits; legacy callers remain compatible.
+
+Schema additions are optional on existing cards and introduce a separate history
+table. Daily Planner routes, fuel records, customer data and region enforcement
+are unchanged. This work is local on feature/customer-rates-phase1; no Git push,
+Convex sync, migration, data write or production deployment was performed.
+
+Validation with the branch lockfile dependencies: all 994 tests in 54 files pass
+(953 baseline tests plus 41 regressions); TypeScript and the local Next.js 16.1.7
+production build pass (32 pages). Changed-file lint is clean. Repository lint
+passes with 0 errors and the same 64 existing warnings. Git diff --check passes.
+No live-backend or browser interaction test was run. The checkout was clean
+before switching; the separate attached checkout and its edits were untouched.
+
+
 ## 2026-10-29 — Mobile install button and clearer driver phone validation
 
 Mobile now has a dedicated **Download FleetCore** action in the top bar and on

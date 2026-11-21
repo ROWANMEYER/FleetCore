@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
+import { TariffHistory } from "@/src/components/customer-rates/TariffHistory";
 import { SheetEditor } from "@/src/components/customer-rates/SheetEditor";
 import { filterCustomers, type SheetFilter } from "@/src/components/customer-rates/customerFilter";
 
@@ -49,6 +50,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
       {error && <p role="alert" className="text-red-500">{error}</p>}
       <button className="rounded-lg px-4 py-2 bg-cyan-600 text-white disabled:opacity-50" disabled={!!busy} onClick={() => start(open)}>{busy ? "Starting…" : "Start a rate sheet"}</button>
     </section>}
+    {open && token && <TariffHistory key={open} token={token} customerId={open} />}
     {!open && <>
       <div className="flex flex-wrap gap-4 items-end max-w-3xl">
         <label className="block flex-1 min-w-[240px]">Search customers
@@ -77,7 +79,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
               <td className="p-2">{sheet?.effectiveDate ?? "-"}</td>
               <td className="p-2">{sheet ? `${diesel.priceOnDate?.pricePerLitre.toFixed(2) ?? "-"} → ${diesel.latest?.pricePerLitre.toFixed(2) ?? "-"}` : "-"}</td>
               <td className="p-2 text-[var(--nav-text-color)]">{sheet ? new Date(sheet.updatedAt).toISOString().slice(0, 10) : "-"}</td>
-              <td className="p-2">{sheet ? <button className={button} onClick={() => onOpen(c._id)}>Open</button> : <button className={button} disabled={!!busy} onClick={() => start(c._id)}>{busy === c._id ? "Starting…" : "Add rates"}</button>}</td>
+              <td className="p-2">{sheet ? <button className={button} onClick={() => onOpen(c._id)}>Open</button> : <button className={button} disabled={!!busy} onClick={() => start(c._id)}>{busy === c._id ? "Starting…" : "Add rates"}</button>}{!sheet && <button className={button} onClick={() => onOpen(c._id)}>History</button>}</td>
             </tr>;
           })}</tbody>
         </table>

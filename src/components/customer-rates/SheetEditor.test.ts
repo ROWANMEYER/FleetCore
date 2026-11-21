@@ -136,3 +136,18 @@ describe("formKey", () => {
     }
   });
 });
+
+describe("Phase 1 editor fields", () => {
+  it("rejects invalid individual dates and allows blank fallback dates", () => {
+    expect(laneProblem(lane({ date: "2026-02-31" }))).toBe("needs a valid effective date");
+    expect(laneProblem(lane({ date: "2026-09-02" }))).toBeNull();
+    expect(laneProblem(lane({ date: "" }))).toBeNull();
+  });
+  it("counts agreement, customer percentage and lane date changes as edits", () => {
+    const base = { effectiveDate: "2026-09-02", notes: "", oldDiesel: "0", newDiesel: "0", agreementType: "fuel_linked", fuelCompositionPercent: "45", lanes: [lane()] };
+    expect(formKey(base)).not.toBe(formKey({ ...base, agreementType: "fixed" }));
+    expect(formKey(base)).not.toBe(formKey({ ...base, fuelCompositionPercent: "45.001" }));
+    expect(formKey(base)).toBe(formKey({ ...base, fuelCompositionPercent: "45.000" }));
+    expect(formKey(base)).not.toBe(formKey({ ...base, lanes: [lane({ date: "2026-10-01" })] }));
+  });
+});

@@ -37,6 +37,13 @@ function memoryDb() {
           return found.at(0) ?? null;
         },
         collect: async () => rowsIn.filter(predicate),
+        take: async (n: number) => rowsIn.filter(predicate).slice(0, n),
+        order: (_direction: string) => ({ paginate: async ({ numItems, cursor }: { numItems: number; cursor: string | null }) => {
+          const found = rowsIn.filter(predicate);
+          if (_direction === "desc") found.reverse();
+          const start = Number(cursor ?? 0), page = found.slice(start, start + numItems);
+          return { page, isDone: start + page.length >= found.length, continueCursor: String(start + page.length) };
+        } }),
       });
       return {
         ...match(all(), () => true),
@@ -64,7 +71,7 @@ async function fixture() {
   const regionalId = await db.insert("users", { email: "regional@example.com", role: "regional" });
   const regionalSession = await db.insert("sessions", { userId: regionalId, token: "regional", expiresAt: Date.now() + 60_000 });
   const args = { token: "valid", customerId };
-  const lane = (id: string, rate: number, sortOrder = 0): { id: string; loadingPoint: string; destination: string; rate: number; sortOrder: number; pricingUnit?: string } =>
+  const lane = (id: string, rate: number, sortOrder = 0): { id: string; loadingPoint: string; destination: string; rate: number; sortOrder: number; pricingUnit?: string; date?: string } =>
     ({ id, loadingPoint: "George", destination: id === "a" ? "Cape Town" : "Durban", rate, sortOrder });
   const save = (lanes: ReturnType<typeof lane>[], patch: Record<string, unknown> = {}) =>
     call(sheets.saveLanes, { ...args, effectiveDate: "2026-09-02", notes: "", oldDieselPrice: 20, newDieselPrice: 23.15, lanes, ...patch });
@@ -295,5 +302,108 @@ describe("deleteSheet", () => {
     const again = await h.call(sheets.create, { ...h.args, defaultPricingUnit: "ton" });
     expect(again).toBeTruthy();
     expect(h.db.all("rateSheets")).toHaveLength(1);
+  });
+});
+
+describe("Phase 1 agreements and immutable tariff history", () => {
+  let h: Awaited<ReturnType<typeof fixture>>;
+  beforeEach(async () => { h = await fixture(); await h.call(sheets.create, { ...h.args, defaultPricingUnit: "full" }); });
+  it("creates new sheets with the 45% fuel-linked default", () => {
+    expect(h.db.all("rateSheets")[0]).toMatchObject({ agreementType: "fuel_linked", fuelCompositionPercent: 45, revision: 0 });
+  });
+  it("does not convert an existing legacy sheet when create is called again or rates are saved", async () => {
+    const existing = h.db.all("rateSheets")[0];
+    await h.db.patch(existing._id, { agreementType: undefined, fuelCompositionPercent: undefined });
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "ton" });
+    await h.save([h.lane("a", 1000)]);
+    const sheet = h.db.all("rateSheets")[0];
+    expect(sheet.agreementType).toBeUndefined();
+    expect(sheet.fuelCompositionPercent).toBeUndefined();
+    expect(sheet.defaultPricingUnit).toBe("full");
+  });
+  it("stores customer percentages including zero and both boundary values", async () => {
+    for (const percent of [0, 100, 35.125]) {
+      await h.save([h.lane("a", 1000)], { fuelCompositionPercent: percent });
+      expect(h.db.all("rateSheets")[0].fuelCompositionPercent).toBe(percent);
+    }
+  });
+  it.each([-1, 100.01, NaN, Infinity])("rejects invalid composition %s before any write", async percent => {
+    await expect(h.save([h.lane("a", 1000)], { fuelCompositionPercent: percent })).rejects.toThrow("0 and 100");
+    expect(h.db.all("rateSheetHistory")).toHaveLength(0);
+    expect(h.db.all("rateSheets")[0].revision).toBe(0);
+  });
+  it("saves individual dates, retains them on later edits and allows a lane to use the customer fallback again", async () => {
+    await h.save([{ ...h.lane("a", 1000), date: "2026-10-01" }]);
+    const lane = (h.db.all("rateSheets")[0].lanes as ReturnType<typeof h.lane>[])[0];
+    await h.save([{ ...lane, rate: 1100, date: "2026-10-01" }]);
+    expect((h.db.all("rateSheets")[0].lanes as Row[])[0].date).toBe("2026-10-01");
+    await h.save([{ ...lane, rate: 1100, date: "" }]);
+    expect((h.db.all("rateSheets")[0].lanes as Row[])[0].date).toBeUndefined();
+  });
+  it("rejects impossible individual dates before recording a tariff", async () => {
+    await expect(h.save([{ ...h.lane("a", 1000), date: "2026-02-31" }])).rejects.toThrow("valid date");
+    expect(h.db.all("rateSheetHistory")).toHaveLength(0);
+  });
+  it("preserves the original legacy tariff, including its dates, before converting the agreement", async () => {
+    const sheet = h.db.all("rateSheets")[0];
+    await h.db.patch(sheet._id, { agreementType: undefined, fuelCompositionPercent: undefined, effectiveDate: "2026-08-01", lanes: [{ ...h.lane("a", 900), date: "2026-08-15" }] });
+    await h.save([{ ...h.lane("a", 1000), date: "2026-09-15" }], { agreementType: "fixed", expectedRevision: 0 });
+    const records = h.db.all("rateSheetHistory");
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({ revision: 0, action: "baseline", snapshot: { effectiveDate: "2026-08-01", lanes: [{ rate: 900, date: "2026-08-15" }] } });
+    expect(records[1]).toMatchObject({ revision: 1, action: "save", recordedBy: h.userId, snapshot: { agreementType: "fixed", fuelCompositionPercent: 45, lanes: [{ rate: 1000, date: "2026-09-15" }] } });
+    const original = JSON.stringify(records);
+    await h.save([h.lane("a", 1100)], { agreementType: "fuel_linked", fuelCompositionPercent: 30, expectedRevision: 1 });
+    expect(JSON.stringify(h.db.all("rateSheetHistory").slice(0, 2))).toBe(original);
+  });
+  it("refuses stale saves, unit changes and deletions without adding history", async () => {
+    await h.save([h.lane("a", 1000)], { expectedRevision: 0 });
+    await expect(h.save([h.lane("a", 2000)], { expectedRevision: 0 })).rejects.toThrow("another session");
+    await expect(h.call(sheets.setDefaultUnit, { ...h.args, defaultPricingUnit: "ton", expectedRevision: 0 })).rejects.toThrow("another session");
+    await expect(h.call(sheets.deleteSheet, { ...h.args, confirmName: "George Agri", expectedRevision: 0 })).rejects.toThrow("another session");
+    expect(h.db.all("rateSheetHistory")).toHaveLength(2);
+    expect((h.db.all("rateSheets")[0].lanes as Row[])[0].rate).toBe(1000);
+  });
+  it("does not create revisions for no-op saves or unchanged default units", async () => {
+    await h.save([h.lane("a", 1000)]);
+    const lane = (h.db.all("rateSheets")[0].lanes as ReturnType<typeof h.lane>[])[0];
+    await expect(h.save([lane])).rejects.toThrow("Nothing changed");
+    await h.call(sheets.setDefaultUnit, { ...h.args, defaultPricingUnit: "full" });
+    expect(h.db.all("rateSheetHistory")).toHaveLength(2);
+    expect(h.db.all("rateSheets")[0].revision).toBe(1);
+  });
+  it("records default unit changes and keeps history when the live card is deleted and recreated", async () => {
+    await h.save([h.lane("a", 1000)]);
+    await h.call(sheets.setDefaultUnit, { ...h.args, defaultPricingUnit: "ton", expectedRevision: 1 });
+    const unitRecord = h.db.all("rateSheetHistory").at(-1)!;
+    expect(unitRecord).toMatchObject({ action: "unit", revision: 2, snapshot: { defaultPricingUnit: "ton" } });
+    await h.call(sheets.deleteSheet, { ...h.args, confirmName: "George Agri", expectedRevision: 2 });
+    expect(h.db.all("rateSheets")).toHaveLength(0);
+    expect(h.db.all("rateSheetHistory").at(-1)).toMatchObject({ action: "delete", revision: 3 });
+    await h.call(sheets.create, { ...h.args, defaultPricingUnit: "pallet" });
+    await h.save([h.lane("a", 2000)]);
+    expect(h.db.all("rateSheetHistory")).toHaveLength(6);
+    const page = await h.call(sheets.history, { ...h.args, paginationOpts: { numItems: 2, cursor: null } }) as { page: Row[]; isDone: boolean; continueCursor: string };
+    expect(page.page).toHaveLength(2);
+    expect(page.isDone).toBe(false);
+    const older = await h.call(sheets.history, { ...h.args, paginationOpts: { numItems: 10, cursor: page.continueCursor } }) as { page: Row[]; isDone: boolean };
+    expect(older.page).toHaveLength(4);
+    expect(older.isDone).toBe(true);
+    expect(await h.db.get(h.customerId)).toMatchObject({ name: "George Agri", isActive: true });
+  });
+  it("protects historical records with admin session checks and scopes them to the customer", async () => {
+    await h.save([h.lane("a", 1000)]);
+    for (const token of ["nope", "expired", "regional"]) {
+      await expect(h.call(sheets.history, { ...h.args, token, paginationOpts: { numItems: 5, cursor: null } })).rejects.toThrow();
+    }
+    const result = await h.call(sheets.history, { ...h.args, customerId: h.inactiveId, paginationOpts: { numItems: 5, cursor: null } }) as { page: Row[] };
+    expect(result.page).toEqual([]);
+  });
+  it("does not modify planner routes or fuel records when saving an agreement", async () => {
+    const route = await h.db.insert("dailyRoutes", { rate: 1234, routeDate: "2026-09-01", loads: [{ rate: "1234" }] });
+    const fuel = await h.db.insert("fuelPrices", { effectiveDate: "2026-09-01", pricePerLitre: 20 });
+    const before = JSON.stringify([await h.db.get(route), await h.db.get(fuel)]);
+    await h.save([h.lane("a", 2000)], { agreementType: "fixed" });
+    expect(JSON.stringify([await h.db.get(route), await h.db.get(fuel)])).toBe(before);
   });
 });

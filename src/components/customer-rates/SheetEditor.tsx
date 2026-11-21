@@ -3,10 +3,10 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
-import { pricingUnits, validDay } from "@/convex/rateSheetFields";
+import { compositionProblem, DEFAULT_FUEL_COMPOSITION, pricingUnits, validDay, type AgreementType } from "@/convex/rateSheetFields";
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { ModalShell } from "@/src/components/common/ModalShell";
-import { monthlyRates } from "@/src/lib/fuel/monthlyRates";
+import { customerMonthlyRates } from "@/src/lib/fuel/monthlyRates";
 import { formatCurrency, formatRateMonth } from "@/src/pdf/formatters";
 import { buildRateSheetData } from "@/src/pdf/rateSheetBuilder";
 import { generateRateSheetPDF } from "@/src/pdf/rateSheetTemplate";
@@ -18,21 +18,21 @@ import type jsPDF from "jspdf";
  * `key` identifies the row on screen and is local only; `id` is the server's lane id, empty until the lane is first saved, when the server mints one. The two are kept apart so two brand new lanes cannot collide before they are saved.
  */
 type Sheet = NonNullable<FunctionReturnType<typeof api.rateSheets.get>>;
-type DraftLane = { key: string; id: string; loadingPoint: string; destination: string; pricingUnit: string; rate: string };
+type DraftLane = { key: string; id: string; loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string };
 export type { DraftLane };
 const button = "rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm hover:bg-[var(--card-bg)] disabled:opacity-40";
 const input = "settings-input";
-let rowCounter = 0;
-const nextRowKey = () => `row-${++rowCounter}`;
+const nextRowKey = () => crypto.randomUUID();
 /** Why a lane cannot be saved, or null when it is fine. Mirrors the server rule so an unfinished row is caught here instead of failing the whole save. */
 export function laneProblem(lane: DraftLane): string | null {
   if (!lane.loadingPoint.trim() || !lane.destination.trim()) return "needs a loading point and a destination";
   // An empty rate field is a mistake, not a rate of zero: Number("") is 0, so without this a cleared field would quietly save as R 0.
   if (!lane.rate.trim() || !Number.isFinite(Number(lane.rate)) || Number(lane.rate) < 0) return "needs a rate of zero or more";
+  if (lane.date && !validDay(lane.date)) return "needs a valid effective date";
   return null;
 }
 /** Rounds the way the server does, so "1500.00" and 1500 are the same value to both sides. */
-const round2 = (raw: string) => { const n = Number(raw.trim()); return Number.isFinite(n) ? Math.round(n * 100) / 100 : raw.trim(); };
+const round2 = (raw: string) => { const n = Number(raw.trim()); return Number.isFinite(n) ? Math.round((n + Number.EPSILON) * 100) / 100 : raw.trim(); };
 
 /**
  * Why the added date is not usable yet, or null when it is. Only a sheet that has never been saved cares: once a date is locked the field is read only, so there is nothing left to check.
@@ -52,16 +52,21 @@ export function formatAddedDate(iso: string): string {
 /**
  * Everything the server compares when deciding whether a save changed anything, and nothing else. Lane ids are deliberately excluded: the server mints them itself, so including them would make a freshly saved sheet look edited.
  */
-function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string; newDiesel: string; lanes: { loadingPoint: string; destination: string; pricingUnit: string; rate: string }[] }) {
+function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string; newDiesel: string; agreementType?: string; fuelCompositionPercent?: string; lanes: { loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string }[] }) {
   return JSON.stringify([form.effectiveDate, form.notes, round2(form.oldDiesel), round2(form.newDiesel),
-    form.lanes.map(l => [l.loadingPoint.trim(), l.destination.trim(), l.pricingUnit, round2(l.rate)])]);
+    form.lanes.map(l => [l.loadingPoint.trim(), l.destination.trim(), l.pricingUnit, round2(l.rate), l.date ?? ""]), form.agreementType ?? "", form.fuelCompositionPercent === undefined ? "" : Number(form.fuelCompositionPercent)]);
 }
 export { formKey };
 
 export function SheetEditor({ token, sheet, customer, customerName, onDeleted }: { token: string; sheet: Sheet; customer?: { _id?: string; name?: string; accountNumber?: string; contactPerson?: string; phone?: string; email?: string; address?: string; vatNumber?: string }; customerName: string; onDeleted: () => void }) {
   const save = useMutation(api.rateSheets.saveLanes);
   const deleteSheet = useMutation(api.rateSheets.deleteSheet);
-  const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })));
+  const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "" })));
+  const [agreement, setAgreement] = useState<AgreementType | "legacy">(sheet.agreementType ?? "legacy");
+  const [percent, setPercent] = useState(String(sheet.fuelCompositionPercent ?? DEFAULT_FUEL_COMPOSITION));
+  const [revision, setRevision] = useState(sheet.revision);
+  const agreementProblem = agreement === "fuel_linked" ? (!percent.trim() ? "Enter a fuel composition." : compositionProblem(Number(percent))) : null;
+  const settings = { ...(agreement !== "legacy" ? { agreementType: agreement } : {}), ...(agreement !== "legacy" ? { fuelCompositionPercent: Number(percent) } : {}) };
   const [notes, setNotes] = useState(sheet.notes);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,8 +92,8 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const fuel = useQuery(api.fuelPrices.list, token ? { token } : "skip");
   const oldDiesel = sheet.oldDieselPrice;
   const newDiesel = sheet.newDieselPrice;
-  const carried = { effectiveDate: addedDate, oldDiesel: String(oldDiesel), newDiesel: String(newDiesel) };
-  const timeline = monthlyRates(lanes.map(l => l.rate.trim() ? Number(l.rate) : NaN), addedDate, fuel ?? []);
+  const carried = { effectiveDate: addedDate, oldDiesel: String(oldDiesel), newDiesel: String(newDiesel), agreementType: agreement === "legacy" ? undefined : agreement, fuelCompositionPercent: agreement === "legacy" ? undefined : percent };
+  const timeline = customerMonthlyRates(lanes.map(l => ({ rate: l.rate.trim() ? Number(l.rate) : NaN, date: l.date })), addedDate, fuel ?? [], settings);
   /**
    * The PDF prints what is on screen, not what is stored: the reader can lay out a change, look at the printable sheet, and only then save it.
    */
@@ -98,6 +103,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const generatePdf = () => {
     const doc = generateRateSheetPDF(buildRateSheetData(
       {
+        ...settings,
         effectiveDate: addedDate || undefined,
         notes,
         oldDieselPrice: oldDiesel,
@@ -108,7 +114,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
           destination: l.destination,
           pricingUnit: l.pricingUnit || undefined,
           rate: Number(l.rate) || 0,
-          date: sheet.lanes.find(s => s.id === l.id)?.date ?? undefined,
+          date: l.date || undefined,
           sortOrder: index,
         })),
       },
@@ -129,7 +135,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   };
   // The last state the server accepted, so a save with no real edit is recognised here and never sent.
   const [savedKey, setSavedKey] = useState(() => formKey({ ...carried, notes: sheet.notes,
-    lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate) })) }));
+    lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "" })) }));
   const unitOptions = pricingUnits;
   const edit = (key: string, patch: Partial<DraftLane>) => { setNotice(""); setLanes(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r)); };
   const problems = lanes.map((lane, index) => ({ index, problem: laneProblem(lane) })).filter(p => p.problem);
@@ -138,20 +144,23 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   async function saveSheet() {
     // Checked here so one unfinished row cannot take the rest of the table down with it.
     if (problems.length) { setSaved(""); setNotice(""); setError(`${problems.length} lane${problems.length === 1 ? "" : "s"} still to finish: ${problems.map(p => `row ${p.index + 1} ${p.problem}`).join("; ")}. Finish or remove ${problems.length === 1 ? "it" : "them"}, then save.`); return; }
+    if (agreementProblem) { setError(agreementProblem); return; }
     if (dateProblem) { setSaved(""); setNotice(""); setError(dateProblem); return; }
     if (clean) { setError(""); setSaved(""); setNotice("No changes to save."); return; }
     setBusy(true); setError(""); setSaved(""); setNotice("");
     try {
-      const request = { token, customerId: sheet.customerId, effectiveDate: addedDate, notes, oldDieselPrice: oldDiesel, newDieselPrice: newDiesel,
-        lanes: lanes.map((l, index) => ({ id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, ...(l.pricingUnit ? { pricingUnit: l.pricingUnit } : {}), rate: Number(l.rate), sortOrder: index })) };
+      const request = { token, customerId: sheet.customerId, expectedRevision: revision, ...settings, effectiveDate: addedDate, notes, oldDieselPrice: oldDiesel, newDieselPrice: newDiesel,
+        lanes: lanes.map((l, index) => ({ id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, ...(l.pricingUnit ? { pricingUnit: l.pricingUnit } : {}), ...(l.date ? { date: l.date } : {}), rate: Number(l.rate), sortOrder: index })) };
       const saved = await save(request);
+      setRevision(saved.revision);
       // The server mints the ids for newly added lanes and returns them in the order saved, so each row picks up its real id and later saves keep it.
-      setLanes(rows => rows.map((row, index) => saved.lanes[index] ? { ...row, id: saved.lanes[index].id } : row));
+      const accepted = saved.lanes.map((lane, index) => ({ key: lanes[index].key, id: lane.id, loadingPoint: lane.loadingPoint, destination: lane.destination, pricingUnit: lane.pricingUnit ?? "", rate: String(lane.rate), date: lane.date ?? "" }));
+      setLanes(accepted);
       // The date the server settled on, which trims and validates what was typed. Taking it rather than assuming keeps the field honest about what is stored.
       if (saved.effectiveDate) setAddedDate(saved.effectiveDate);
       // Back to the big display: the date is settled until the reader asks to move it again.
       setAdjustingDate(false);
-      setSavedKey(formKey({ ...carried, notes, lanes }));
+      setSavedKey(formKey({ ...carried, effectiveDate: saved.effectiveDate, notes, lanes: accepted }));
       setSaved("Saved. These rates are live.");
     } catch (e) {
       // The server is the authority on "nothing changed". If it says so, that is not a failure worth shouting about.
@@ -160,14 +169,30 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     } finally { setBusy(false); }
   }
   return <div className="space-y-6">
+    <fieldset disabled={busy || deleting} className="contents">
+    <section className="glass-card rounded-xl p-5 space-y-3">
+      <h2 className="font-semibold">Customer agreement</h2>
+      <label className="block text-sm">Rate agreement
+        <select className={`${input} w-full mt-1`} value={agreement} onChange={e => { setAgreement(e.target.value as AgreementType | "legacy"); if (!percent.trim() || compositionProblem(Number(percent))) setPercent(String(DEFAULT_FUEL_COMPOSITION)); setNotice(""); }}>
+          {!sheet.agreementType && <option value="legacy">Recorded fuel composition (existing calculation)</option>}
+          <option value="fuel_linked">Fuel-linked rates</option><option value="fixed">Fixed-rate agreement</option>
+        </select>
+      </label>
+      {agreement === "fuel_linked" && <label className="block text-sm">Customer fuel composition (%)
+        <input className={`${input} w-full mt-1`} type="number" min="0" max="100" step="any" value={percent} onChange={e => setPercent(e.target.value)} aria-invalid={!!agreementProblem} />
+        <span className="block mt-1 text-xs text-[var(--nav-text-color)]">Default 45%. Applies to this customer&apos;s later fuel changes; zero is allowed.</span>
+      </label>}
+      {agreementProblem && <p role="alert" className="text-red-500 text-sm">{agreementProblem}</p>}
+      <p className="text-sm text-[var(--nav-text-color)]">{agreement === "fixed" ? "Rates stay fixed regardless of diesel movements. Changing the agreed rate creates a historical tariff record." : agreement === "legacy" ? "Existing calculations and dates are preserved. Choose fuel-linked or fixed rates to activate individual lane dates." : "Fuel changes compound from each lane's effective date, rounded to cents as before."}</p>
+    </section>
     <section className="glass-card rounded-xl p-5 space-y-3">
       <h2 className="font-semibold">Automatic monthly rates</h2>
-      <p className="text-sm text-[var(--nav-text-color)]">Enter the starting rates for the date below. Each later fuel change applies its composition effect automatically. Months before the starting month stay blank.</p>
+      <p className="text-sm text-[var(--nav-text-color)]">Enter agreed starting rates. Leave a lane date blank to use the customer date below. Months before each effective month stay blank.</p>
       <p className="font-semibold">{timeline.months.map(formatRateMonth).join(" / ")}</p>
-      {fuel === undefined ? <p>Loading fuel prices…</p> : timeline.problem ? <p role="alert" className="text-amber-500">{timeline.problem}</p> : <p className="text-sm text-[var(--nav-text-color)]">Calculated through {formatAddedDate(fuel.at(-1)!.effectiveDate)}. Save a new price in Fuel Compositions to update all customer monthly rates.</p>}
+      {agreement === "fixed" ? <p className="text-sm text-[var(--nav-text-color)]">Fixed-rate agreement: no fuel adjustments apply.</p> : fuel === undefined ? <p>Loading fuel prices…</p> : timeline.problem ? <p role="alert" className="text-amber-500">{timeline.problem}</p> : <p className="text-sm text-[var(--nav-text-color)]">Calculated through {formatAddedDate(fuel.at(-1)?.effectiveDate ?? addedDate)}. Save a new price in Fuel Compositions to update all customer monthly rates.</p>}
     </section>
     <section className="glass-card rounded-xl p-5 space-y-2">
-      <h2 className="font-semibold">Date added</h2>
+      <h2 className="font-semibold">Customer effective date</h2>
       {dateSaved
         ? <>
           <p className="text-2xl sm:text-3xl font-black tabular-nums leading-none">{formatAddedDate(sheet.effectiveDate!)}</p>
@@ -195,7 +220,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     <section className="glass-card rounded-xl p-5 space-y-4">
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left">
-          <thead><tr><th className="p-2">Loading point</th><th className="p-2">Destination</th><th className="p-2">Unit</th><th className="p-2">Starting rate</th>{timeline.months.map((month, index) => <th key={index} className="p-2 whitespace-nowrap">{formatRateMonth(month)}</th>)}<th /></tr></thead>
+          <thead><tr><th className="p-2">Loading point</th><th className="p-2">Destination</th><th className="p-2">Unit</th><th className="p-2">Starting rate</th><th className="p-2">Lane effective date</th>{timeline.months.map((month, index) => <th key={index} className="p-2 whitespace-nowrap">{formatRateMonth(month)}</th>)}<th /></tr></thead>
           <tbody>{lanes.map((lane, index) => {
             const problem = laneProblem(lane);
             return <tr key={lane.key} className={problem ? "bg-red-500/10" : undefined}>
@@ -203,6 +228,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
             <td className="p-1"><input aria-label={`Row ${index + 1} destination`} aria-invalid={!!problem} className={`${input} w-full`} value={lane.destination} onChange={e => edit(lane.key, { destination: e.target.value })} /></td>
             <td className="p-1"><select className={`${input} w-24`} value={lane.pricingUnit} onChange={e => edit(lane.key, { pricingUnit: e.target.value })}><option value="">Default</option>{unitOptions.map(u => <option key={u} value={u}>{u}</option>)}</select></td>
             <td className="p-1"><input type="number" min="0" step="0.01" className={`${input} w-32`} value={lane.rate} onChange={e => edit(lane.key, { rate: e.target.value })} /></td>
+            <td className="p-1"><input aria-label={`Row ${index + 1} effective date`} type="date" className={`${input} w-40`} value={lane.date ?? ""} disabled={agreement === "legacy"} title={agreement === "legacy" ? "Choose a customer agreement to activate individual dates" : `Blank uses ${addedDate || "the customer date"}`} onChange={e => edit(lane.key, { date: e.target.value })} /></td>
             {timeline.rates[index].map((rate, column) => <td key={column} className="p-2 whitespace-nowrap tabular-nums">{rate === null ? "" : formatCurrency(rate)}</td>)}
             <td className="p-1 flex gap-1">
               <button className={button} disabled={index === 0} onClick={() => setLanes(rows => { const next = [...rows]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })} aria-label="Move up">↑</button>
@@ -214,8 +240,8 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button className={button} onClick={() => setLanes(rows => [...rows, { key: nextRowKey(), id: "", loadingPoint: "", destination: "", pricingUnit: "", rate: "0" }])}>Add lane</button>
-        <button className="rounded-lg px-4 py-2 bg-cyan-600 text-white disabled:opacity-50" disabled={busy || clean} onClick={saveSheet}>{busy ? "Saving…" : "Save rates"}</button>
-        <button className={button} disabled={problems.length > 0 || !!dateProblem || fuel === undefined || !!timeline.problem || lanes.length === 0} onClick={generatePdf} title={timeline.problem ?? (problems.length ? "Finish every lane first" : "Open the printable rate sheet")}>View PDF</button>
+        <button className="rounded-lg px-4 py-2 bg-cyan-600 text-white disabled:opacity-50" disabled={busy || clean || !!agreementProblem || problems.length > 0 || !!dateProblem || lanes.length === 0} onClick={saveSheet}>{busy ? "Saving…" : "Save rates"}</button>
+        <button className={button} disabled={!!agreementProblem || problems.length > 0 || !!dateProblem || fuel === undefined || !!timeline.problem || lanes.length === 0} onClick={generatePdf} title={timeline.problem ?? (problems.length ? "Finish every lane first" : "Open the printable rate sheet")}>View PDF</button>
         {saved && <p className="text-emerald-400 text-sm">{saved}</p>}
         {notice && <p className="text-sm text-[var(--nav-text-color)]">{notice}</p>}
         {error && <p role="alert" className="text-red-500 text-sm">{error}</p>}
@@ -224,17 +250,18 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     <section className="glass-card rounded-xl p-5 space-y-3">
       <h2 className="font-semibold">Notes on this sheet</h2>
       <textarea className={`${input} w-full h-24`} value={notes} onChange={e => { setNotice(""); setNotes(e.target.value); }} placeholder="Anything the customer should read on the PDF." />
-      <p className="text-xs text-[var(--nav-text-color)]">Notes save with the rates. Edit a rate and press Save rates to publish both.</p>
+      <p className="text-xs text-[var(--nav-text-color)]">Notes save with the rates. Press Save rates to save notes and rates together. Every save keeps a historical tariff record.</p>
     </section>
     <section className="glass-card rounded-xl p-5 space-y-3 border border-red-500/30">
       <h2 className="font-semibold text-red-500">Remove these rates</h2>
-      <p className="text-sm text-[var(--nav-text-color)]">Deletes the whole rate sheet for {customerName}: every lane, rate and the notes. The customer itself is not touched and a new sheet can be started afterwards. This cannot be undone.</p>
+      <p className="text-sm text-[var(--nav-text-color)]">Removes the live rate sheet for {customerName}. Historical tariff records and the customer are retained. A new sheet can be started afterwards.</p>
       <button className="rounded-lg px-4 py-2 text-sm border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-40" onClick={() => { setDeleteWord(""); setError(""); setConfirmDelete(true); }}>Delete rate sheet…</button>
     </section>
+    </fieldset>
     <ConfirmDialog
       open={confirmDelete}
       title={`Delete the rate sheet for ${customerName}?`}
-      message={`Every lane and rate goes with it, and this cannot be undone.\n\nType "${customerName}" to confirm.`}
+      message={`The live card is removed. Historical tariff records are retained.\n\nType "${customerName}" to confirm.`}
       confirmLabel="Delete rate sheet"
       variant="danger"
       loading={deleting}
@@ -245,7 +272,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
         if (!deleteReady) { setError(`Type "${customerName}" exactly to delete this rate sheet.`); return; }
         setDeleting(true); setError("");
         try {
-          await deleteSheet({ token, customerId: sheet.customerId, confirmName: deleteWord });
+          await deleteSheet({ token, customerId: sheet.customerId, confirmName: deleteWord, expectedRevision: revision });
           setConfirmDelete(false);
           onDeleted();
         } catch (err) {

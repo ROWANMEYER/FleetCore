@@ -1,5 +1,20 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-22 - Approve the merged main production release
+
+The owner explicitly approved deploying the tested merged release after the
+initial commit/merge-only approval boundary. The production Convex update is now
+active on dependable-quail-107: optional agreement fields and the two tariff
+history indexes were added without deleting indexes or rewriting records.
+Before/after rate, fuel and Ceramic counts/checksums match. Development is also
+updated. FleetCore main Git auto-deployment is restored for the frontend release.
+
+Every remaining remote branch in FleetCore and Ageanalysis is an ancestor of
+its repository's main. The combined FleetCore release passes 1,067 tests, types,
+lint (0 errors, 64 existing warnings), and its 33-page build. Ageanalysis passes
+20 tests, types and its 19-page build. Original Ageanalysis dashboard/build-info
+edits remain byte-identical, and generated customer PDFs remain local.
+
 ## 2026-11-22 - Consolidate every remaining branch into main
 
 Merged the Ceramic Tiles foundation, customer CSV transfer, Customer Rates Phase

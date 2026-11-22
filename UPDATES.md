@@ -1,5 +1,27 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-22 - Group customer-rate PDF destinations by loading point
+
+The PDF now groups destinations under a shaded loading-point heading instead of
+repeating the origin on every rate line. Ceramic's two divisions use the full
+bold uppercase headings KRUGERSDORP + VEREENIGING and BABALEGI + KRUGERSDORP +
+VEREENIGING. The heading repeats on continuation pages and always stays
+with at least one destination. Other loading points use their full names, with
+wrapping for long section headings. Destinations and SP labels wrap within their
+column, and measured section/row heights keep the notes and footer fixed.
+
+This also removes the old 30-character route truncation and the pagination bug
+that drew only 20 of each 21-row slice. The revised Ceramic PDF is six pages and
+contains all 105 destinations, including all 37 SP entries. All 315 rate amounts
+match the stored calculations; the 300 amounts present in the supplied PDF are
+preserved, and five formerly omitted routes are restored. Rendered pages and
+geometry checks confirm readable headings, no clipped destination text, and no
+orphan section headings.
+
+Validation: 1,022 tests across 62 files, TypeScript, and targeted PDF lint pass.
+This is a local frontend fix; no database records or production deployment were
+changed.
+
 ## 2026-11-21 - Customer-transfer frontend release preparation
 
 The owner explicitly authorized GitHub and production updates for the customer

@@ -60,3 +60,11 @@ describe("Ageanalysis customer screen export compatibility", () => {
     expect(existing[0]).toEqual({ name: "Acceptance Legacy", normalizedName: "acceptance legacy", accountNumber: "existing-account", isActive: true });
   });
 });
+
+
+describe("CSV line endings", () => {
+  it.each(["\n", "\r\n", "\r"])("normalizes quoted multiline addresses for %j", newline => {
+    const csv = `Rekno,Name,Blocked,Delivery Address 1${newline}0001,Example,No,"First floor${newline}Warehouse"${newline}`;
+    expect(parseAgeAnalysisCustomers(csv)[0].address).toBe("First floor\nWarehouse");
+  });
+});

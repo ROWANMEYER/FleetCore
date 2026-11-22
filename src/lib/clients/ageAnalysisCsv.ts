@@ -2,7 +2,7 @@ import type { CustomerImportRow } from "@/convex/customerImportRules";
 
 /** RFC-style quoted CSV, preserving account numbers and telephone numbers as text. */
 export function parseCsvRecords(input: string): string[][] {
-  const text = input.replace(/^\uFEFF/, "");
+  const text = input.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const rows: string[][] = []; let row: string[] = []; let field = "";
   let quoted = false; let closedQuote = false;
   const pushField = () => { row.push(field); field = ""; closedQuote = false; };

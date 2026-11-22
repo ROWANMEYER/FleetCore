@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "sync/session-handoff": false,
-      "feature/customer-rates-phase1": false
+      "feature/customer-rates-phase1": false,
+      "main": false
     }
   }
 }

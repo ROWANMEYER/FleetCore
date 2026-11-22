@@ -1,5 +1,30 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-22 - Consolidate every remaining branch into main
+
+Merged the Ceramic Tiles foundation, customer CSV transfer, Customer Rates Phase
+1, the completed grouped PDF layout, and the guarded demo importer/docs. Both
+Ceramic shipment tables and the additive tariff-history table are retained.
+Ageanalysis's customer-export release is also being merged into its main branch;
+its original checkout's dashboard and build-info edits remain untouched.
+
+The integrated release fixes CRLF/CR multiline CSV addresses and passes 1,067
+FleetCore tests in 63 files, TypeScript, lint (0 errors, 64 existing warnings),
+and the 33-page production build. Ageanalysis's 16 export tests and four calendar
+tests pass. Cache v89 refreshes FleetCore clients. Automatic mobile audits remain
+read-only: the photo-upload audit requires a manual run and an explicit test URL.
+
+Development backend activation adds rateSheetHistory and its two indexes.
+Before/after counts and checksums match for live rates, fuel and Ceramic records
+in both development and production. No existing records were migrated or rewritten.
+
+Production deployment is pending explicit approval: automatic approval review
+rejected the production backend deployment as outside the commit/merge request.
+FleetCore's main Git auto-deployment is held in vercel.json so a new frontend
+cannot be published against the old backend. Production remains on the previous
+working release. A full production ZIP backup was also rejected; it was not run.
+The authorized development backup is kept privately outside the repositories.
+
 ## 2026-11-22 - Group customer-rate PDF destinations by loading point
 
 The PDF now groups destinations under a shaded loading-point heading instead of

@@ -522,6 +522,71 @@ unchanged.
 Validation: TypeScript, changed-file lint, the production Next.js build and the
 full Vitest suite (53 files, 953 tests) pass.
 
+## 2026-11-21 - Customer Rates Phase 1 acceptance verification
+
+Verified against an isolated anonymous Convex backend on local ports 3218/3219,
+using a temporary source copy and synthetic data only. Deployed the pre-feature
+schema, seeded a legacy tariff plus Planner/fuel sentinel records, then applied
+Phase 1. The schema upgrade and final preservation audit left those records
+exactly unchanged. No existing cloud deployment or real business data was used.
+
+Eleven integration checks pass: default/customer/fixed agreements, session and
+admin checks, persisted lane dates, stale/no-op/invalid rejection, runtime return
+validators, indexed history pagination, retained history after synthetic card
+removal/recreation, and browser-save persistence. Real desktop-browser checks
+cover login gates, 45% defaults, 60% customization, individual dates, save/reopen,
+zero/invalid composition, fixed rates, legacy 50% calculations, older history and
+concurrent editing. A downloaded fixed-rate PDF was extracted and visually
+rendered: all three monthly tariffs remain R 1 000,00. Only the two deliberately
+triggered stale-save errors appeared in the browser console.
+
+Browser verification found that stale-save messages included Convex's request
+wrapper/stack. The backend now sends that expected error as a ConvexError, and
+the editor displays its data message. A regression test covers the message.
+
+Final checks: 995 tests across 54 files, TypeScript and the local production
+build pass. Repository lint has 0 errors and 64 existing warnings. The isolated
+acceptance services were stopped after verification. Feature-branch automatic
+Vercel deployments are disabled in vercel.json for this code-only GitHub handoff. Production remains unchanged;
+no cloud Convex sync, real-record mutation, migration or release was performed.
+
+## 2026-11-21 — Customer Rates automation Phase 1 (local only)
+
+New customer rate sheets default to a 45% fuel-linked agreement. Admins can set
+a customer-specific composition from 0 to 100%, or choose a fixed-rate agreement
+that ignores fuel movements. The existing signed percentage, chronological
+compounding and cent-rounding helpers are unchanged. Existing sheets without an
+agreement keep their original recorded fuel composition and sheet-date baseline
+until an admin explicitly selects a new agreement; there is no data backfill.
+
+Fuel-linked and fixed agreements support an individual effective date per lane,
+with a blank date falling back to the customer effective date. The editor retains
+stored lane dates on save. Screen and PDF use the same lane-aware calculation;
+changes on the baseline day are already included, and earlier months stay blank.
+Fixed rates can be calculated without fuel history.
+
+Each rate save or default-unit change atomically preserves an immutable tariff
+snapshot with its effective dates, lanes, starting amounts, unit, agreement,
+composition, notes, revision and actor. The first edit also records the previous
+card, including legacy data. These are historical starting tariffs, not a second
+set of recalculating monthly totals. Removing/recreating a live card retains the
+history, available through an admin-only, indexed, paginated read-only panel.
+No-op and rejected saves add no history. The new editor sends its accepted
+revision on save/delete to reject stale edits; legacy callers remain compatible.
+
+Schema additions are optional on existing cards and introduce a separate history
+table. Daily Planner routes, fuel records, customer data and region enforcement
+are unchanged. This work is local on feature/customer-rates-phase1; no Git push,
+Convex sync, migration, data write or production deployment was performed.
+
+Validation with the branch lockfile dependencies: all 994 tests in 54 files pass
+(953 baseline tests plus 41 regressions); TypeScript and the local Next.js 16.1.7
+production build pass (32 pages). Changed-file lint is clean. Repository lint
+passes with 0 errors and the same 64 existing warnings. Git diff --check passes.
+No live-backend or browser interaction test was run. The checkout was clean
+before switching; the separate attached checkout and its edits were untouched.
+
+
 ## 2026-10-29 — Mobile install button and clearer driver phone validation
 
 Mobile now has a dedicated **Download FleetCore** action in the top bar and on

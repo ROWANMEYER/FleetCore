@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { ConvexError } from "convex/values";
 import { sameState, validDate } from "@/convex/rateSheets";
-import { addedDateProblem, formKey, formatAddedDate, laneProblem, type DraftLane } from "./SheetEditor";
+import { addedDateProblem, sheetErrorMessage, formKey, formatAddedDate, laneProblem, type DraftLane } from "./SheetEditor";
 
 const lane = (patch: Partial<DraftLane> = {}): DraftLane => ({ key: "row-1", id: "", loadingPoint: "George", destination: "Cape Town", pricingUnit: "", rate: "1500", ...patch });
 
@@ -134,5 +135,31 @@ describe("formKey", () => {
         expect(formKey(a) === formKey(b)).toBe(sameState(serverState(a), serverState(b)));
       });
     }
+  });
+});
+
+describe("Phase 1 editor fields", () => {
+  it("rejects invalid individual dates and allows blank fallback dates", () => {
+    expect(laneProblem(lane({ date: "2026-02-31" }))).toBe("needs a valid effective date");
+    expect(laneProblem(lane({ date: "2026-09-02" }))).toBeNull();
+    expect(laneProblem(lane({ date: "" }))).toBeNull();
+  });
+  it("counts agreement, customer percentage and lane date changes as edits", () => {
+    const base = { effectiveDate: "2026-09-02", notes: "", oldDiesel: "0", newDiesel: "0", agreementType: "fuel_linked", fuelCompositionPercent: "45", lanes: [lane()] };
+    expect(formKey(base)).not.toBe(formKey({ ...base, agreementType: "fixed" }));
+    expect(formKey(base)).not.toBe(formKey({ ...base, fuelCompositionPercent: "45.001" }));
+    expect(formKey(base)).toBe(formKey({ ...base, fuelCompositionPercent: "45.000" }));
+    expect(formKey(base)).not.toBe(formKey({ ...base, lanes: [lane({ date: "2026-10-01" })] }));
+  });
+});
+
+
+describe("expected server errors", () => {
+  it("shows the stale-save message without the Convex request wrapper or stack", () => {
+    const message = "These rates changed in another session. Reopen the customer before saving.";
+    expect(sheetErrorMessage(new ConvexError(message))).toBe(message);
+    expect(sheetErrorMessage(new ConvexError({ unexpected: true }))).toBe("Could not save.");
+    expect(sheetErrorMessage(new Error("Original validation message"))).toBe("Original validation message");
+    expect(sheetErrorMessage(null)).toBe("Could not save.");
   });
 });

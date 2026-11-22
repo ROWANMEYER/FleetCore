@@ -1,5 +1,5 @@
 import type { RateSheetData } from "./types";
-import { monthlyRates, type FuelPeriod } from "@/src/lib/fuel/monthlyRates";
+import { customerMonthlyRates, type RateAgreement, type FuelPeriod } from "@/src/lib/fuel/monthlyRates";
 import { priceChange } from "@/convex/fuelPriceFields";
 import { formatRateMonth } from "./formatters";
 
@@ -10,7 +10,7 @@ import { formatRateMonth } from "./formatters";
  * `formatters.ts` and every drawing decision in `rateSheetTemplate.ts`.
  */
 export const buildRateSheetData = (
-  sheet: {
+  sheet: RateAgreement & {
     effectiveDate?: string;
     notes: string;
     oldDieselPrice: number;
@@ -22,7 +22,7 @@ export const buildRateSheetData = (
   fuelHistory: FuelPeriod[] = [],
 ): RateSheetData => {
   const sortedLanes = [...sheet.lanes].sort((a, b) => a.sortOrder - b.sortOrder);
-  const timeline = monthlyRates(sortedLanes.map(l => l.rate), sheet.effectiveDate ?? "", fuelHistory);
+  const timeline = customerMonthlyRates(sortedLanes, sheet.effectiveDate ?? "", fuelHistory, sheet);
   const rateLabels = timeline.months.map(formatRateMonth);
   const fuel = [...fuelHistory].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
   const latest = fuel.at(-1);

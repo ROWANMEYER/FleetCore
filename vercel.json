@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "sync/session-handoff": false
+      "sync/session-handoff": false,
+      "feature/customer-rates-phase1": false
     }
   }
 }

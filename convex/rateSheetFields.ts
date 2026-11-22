@@ -21,3 +21,33 @@ export function validDay(value: string): boolean {
     && Number.isFinite(Date.parse(value))
     && new Date(value).toISOString().slice(0, 10) === value;
 }
+
+/** Missing agreementType preserves the original recorded-composition calculation. */
+export const DEFAULT_FUEL_COMPOSITION = 45;
+export const agreementType = v.union(v.literal("fuel_linked"), v.literal("fixed"));
+export type AgreementType = "fuel_linked" | "fixed";
+export function compositionProblem(value: number): string | null {
+  return Number.isFinite(value) && value >= 0 && value <= 100 ? null : "Fuel composition must be between 0 and 100%.";
+}
+
+export const tariffSnapshotFields = {
+  effectiveDate: v.optional(v.string()),
+  notes: v.string(), oldDieselPrice: v.number(), newDieselPrice: v.number(),
+  lanes: v.array(laneField), defaultPricingUnit: pricingUnit,
+  agreementType: v.optional(agreementType), fuelCompositionPercent: v.optional(v.number()),
+};
+export const rateSheetFields = {
+  ...tariffSnapshotFields,
+  customerId: v.id("customers"),
+  contacts: v.array(v.object({ name: v.string(), email: v.string(), isPrimary: v.boolean(), isActive: v.boolean() })),
+  revision: v.number(), createdAt: v.number(), updatedAt: v.number(),
+  updatedBy: v.id("users"), updatedByEmail: v.string(),
+};
+export const rateSheetDocument = v.object({ _id: v.id("rateSheets"), _creationTime: v.number(), ...rateSheetFields });
+export const tariffHistoryFields = {
+  customerId: v.id("customers"), sheetId: v.id("rateSheets"), revision: v.number(),
+  action: v.union(v.literal("baseline"), v.literal("save"), v.literal("unit"), v.literal("delete")),
+  snapshot: v.object(tariffSnapshotFields),
+  recordedAt: v.number(), recordedBy: v.id("users"), recordedByEmail: v.string(),
+};
+export const tariffHistoryDocument = v.object({ _id: v.id("rateSheetHistory"), _creationTime: v.number(), ...tariffHistoryFields });

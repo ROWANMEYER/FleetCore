@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthlyRates, rateMonths, type FuelPeriod } from "./monthlyRates";
+import { customerMonthlyRates, monthlyRates, rateMonths, type FuelPeriod } from "./monthlyRates";
 
 const fuel: FuelPeriod[] = [
   { effectiveDate: "2026-07-01", pricePerLitre: 18, compositionPercent: 50 },
@@ -62,5 +62,68 @@ describe("automatic monthly rates", () => {
   });
   it("does not backfill a future sheet into past columns", () => {
     expect(monthlyRates([1000], "2026-10-07", fuel).rates).toEqual([[null, null, null]]);
+  });
+});
+
+describe("customer agreements", () => {
+  const history = [
+    { effectiveDate: "2026-08-01", pricePerLitre: 20, compositionPercent: 50 },
+    { effectiveDate: "2026-09-01", pricePerLitre: 22, compositionPercent: 50 },
+    { effectiveDate: "2026-10-01", pricePerLitre: 19.8, compositionPercent: 50 },
+  ];
+  it("defaults new fuel-linked agreements to 45% while preserving the original call", () => {
+    expect(monthlyRates([1000], "2026-08-01", history).rates).toEqual([[1000, 1050, 997.5]]);
+    expect(monthlyRates([1000], "2026-08-01", history, { agreementType: "fuel_linked" }).rates).toEqual([[1000, 1045, 997.97]]);
+  });
+  it.each([0, 35, 60, 100])("uses the customer's %s%% even when fuel records have no composition", percent => {
+    const result = monthlyRates([1000], "2026-08-01", history.slice(0, 2).map(row => ({ ...row, compositionPercent: undefined })), { agreementType: "fuel_linked", fuelCompositionPercent: percent });
+    expect(result.problem).toBeNull();
+    expect(result.rates[0][2]).toBe(1000 * (1 + percent / 1000));
+  });
+  it.each([-1, 101, NaN, Infinity])("rejects invalid customer composition %s", percent => {
+    expect(monthlyRates([1000], "2026-08-01", history, { agreementType: "fuel_linked", fuelCompositionPercent: percent }).problem).toContain("0 and 100");
+  });
+  it("holds fixed agreements through fuel increases, decreases and missing composition", () => {
+    expect(monthlyRates([1000, 0], "2026-08-01", history.map(row => ({ ...row, compositionPercent: undefined })), { agreementType: "fixed" }).rates).toEqual([[1000, 1000, 1000], [0, 0, 0]]);
+  });
+  it("can calculate fixed agreements without any recorded fuel", () => {
+    expect(monthlyRates([1000], "2026-10-01", [], { agreementType: "fixed" })).toEqual({ months: ["2026-08", "2026-09", "2026-10"], rates: [[null, null, 1000]], problem: null });
+  });
+  it("still requires a previous fuel price for fuel-linked changes", () => {
+    expect(monthlyRates([1000], "2026-08-01", [history[1]], { agreementType: "fuel_linked" }).problem).toContain("preceding fuel price");
+  });
+});
+
+describe("individual tariff effective dates", () => {
+  const history = [
+    { effectiveDate: "2026-08-01", pricePerLitre: 20, compositionPercent: 50 },
+    { effectiveDate: "2026-09-01", pricePerLitre: 22, compositionPercent: 50 },
+    { effectiveDate: "2026-10-01", pricePerLitre: 24.2, compositionPercent: 50 },
+  ];
+  const lanes = [{ rate: 1000 }, { rate: 2000, date: "2026-09-01" }, { rate: 3000, date: "2026-10-15" }];
+  it("applies only changes strictly after each lane date and falls back to the customer date", () => {
+    expect(customerMonthlyRates(lanes, "2026-08-01", history, { agreementType: "fuel_linked" }).rates).toEqual([[1000, 1045, 1092.02], [null, 2000, 2090], [null, null, 3000]]);
+  });
+  it("keeps legacy lane date metadata from changing existing calculations", () => {
+    expect(customerMonthlyRates(lanes, "2026-08-01", history)).toEqual(monthlyRates(lanes.map(lane => lane.rate), "2026-08-01", history));
+  });
+  it("does not compound on a price change that is already included in a same-day starting rate", () => {
+    expect(customerMonthlyRates([{ rate: 2000, date: "2026-09-01" }], "2026-08-01", history, { agreementType: "fuel_linked" }).rates).toEqual([[null, 2000, 2090]]);
+  });
+  it("aligns fixed lane columns without fuel history even when lane dates differ", () => {
+    expect(customerMonthlyRates(lanes, "2026-10-01", [], { agreementType: "fixed" })).toEqual({ months: ["2026-08", "2026-09", "2026-10"], rates: [[null, null, 1000], [null, 2000, 2000], [null, null, 3000]], problem: null });
+  });
+  it("keeps future lanes blank and reports invalid dates without corrupting other lanes", () => {
+    expect(customerMonthlyRates([{ rate: 1000, date: "2027-01-01" }], "2026-08-01", history, { agreementType: "fixed" }).rates).toEqual([[null, null, null]]);
+    const result = customerMonthlyRates([{ rate: 1000 }, { rate: 1000, date: "2026-02-31" }], "2026-08-01", history, { agreementType: "fuel_linked" });
+    expect(result.problem).toContain("valid starting date");
+    expect(result.rates[0]).toEqual([1000, 1045, 1092.02]);
+    expect(result.rates[1]).toEqual([null, null, null]);
+  });
+  it("repeated calculations do not mutate the stored baselines or fuel history", () => {
+    const before = JSON.stringify({ lanes, history });
+    const first = customerMonthlyRates(lanes, "2026-08-01", history, { agreementType: "fuel_linked" });
+    expect(customerMonthlyRates(lanes, "2026-08-01", history, { agreementType: "fuel_linked" })).toEqual(first);
+    expect(JSON.stringify({ lanes, history })).toBe(before);
   });
 });

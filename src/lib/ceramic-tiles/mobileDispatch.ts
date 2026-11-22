@@ -1,7 +1,7 @@
 import type { Doc } from "@/convex/_generated/dataModel";
 import type { CeramicShipment } from "./parser";
 
-export type CeramicDispatchShipment = Pick<Doc<"ceramicShipments">, "_id" | "region" | "shipmentNumber" | "version" | "snapshot" | "driverId" | "truckId" | "driverInstructions" | "updatedAt">;
+export type CeramicDispatchShipment = Pick<Doc<"ceramicShipments">, "_id" | "region" | "shipmentNumber" | "version" | "snapshot" | "driverId" | "truckId" | "driverInstructions" | "updatedAt" | "routeDate" | "plannerVersion">;
 
 export type MobileShipmentFilter = "unassigned" | "assigned" | "all";
 type DispatchRecord = { shipmentNumber: string; version: number; driverId?: string; truckId?: string; updatedAt: number; driverInstructions?: { reviewedVersion?: number } };

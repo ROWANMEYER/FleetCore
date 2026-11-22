@@ -1,3 +1,5 @@
+import { resolveUserScope } from "./userSessions";
+import { syncCeramicAssignment } from "./ceramicPlanning";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
@@ -10,6 +12,7 @@ const savedResult = v.object({ saved: v.boolean(), updatedAt: v.number() });
 const dispatchShipment = v.object({
   _id: v.id("ceramicShipments"), region: ceramicRegion, shipmentNumber: v.string(),
   version: v.number(), snapshot: ceramicShipmentSnapshot, updatedAt: v.number(),
+  routeDate: v.optional(v.string()), plannerVersion: v.optional(v.number()),
   driverId: v.optional(v.id("drivers")), truckId: v.optional(v.id("trucks")),
   driverInstructions: v.optional(v.object({
     stopOrder: v.optional(ceramicStopOrder), reviewedVersion: v.optional(v.number()),
@@ -32,6 +35,7 @@ export const list = query({
     return rows.sort((a, b) => b.updatedAt - a.updatedAt || b._creationTime - a._creationTime).map(row => ({
       _id: row._id, region: row.region, shipmentNumber: row.shipmentNumber,
       version: row.version, snapshot: row.snapshot, updatedAt: row.updatedAt,
+      ...(row.routeDate ? { routeDate: row.routeDate } : {}), ...(row.plannerVersion !== undefined ? { plannerVersion: row.plannerVersion } : {}),
       ...(row.driverId ? { driverId: row.driverId } : {}), ...(row.truckId ? { truckId: row.truckId } : {}),
       ...(row.driverInstructions ? { driverInstructions: row.driverInstructions } : {}),
     }));
@@ -56,18 +60,20 @@ export const fleetChoices = query({
   },
 });
 
-/** Public dispatch can assign existing fleet records, never create/edit them. */
+/** Planner-linked assignments require login; public browsing/instructions remain available. */
 export const assign = mutation({
-  args: { shipmentId: v.id("ceramicShipments"), driverId: v.id("drivers"), truckId: v.id("trucks"), expectedVersion: v.number() },
+  args: { shipmentId: v.id("ceramicShipments"), driverId: v.id("drivers"), truckId: v.id("trucks"), expectedVersion: v.number(), token: v.optional(v.string()), routeDate: v.string() },
   returns: savedResult,
   handler: async (ctx, args) => {
+    const scope = await resolveUserScope(ctx, args.token);
+    if (!scope) throw new Error("Sign in to assign the main load to Daily Planner and reports.");
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw new Error("Shipment not found.");
+    if (!shipment || (scope.role === "regional" && shipment.region !== scope.region)) throw new Error("Shipment not found.");
     assertVersion(shipment.version, args.expectedVersion);
-    if (!await ctx.db.get(args.driverId)) throw new Error("Driver not found.");
-    if (!await ctx.db.get(args.truckId)) throw new Error("Truck not found.");
+    const actor = scope.role === "regional" ? `regional:${scope.region}` : "admin";
+    await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
-    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, updatedAt: now, updatedBy: publicActor });
+    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, updatedAt: now, updatedBy: actor });
     return { saved: true, updatedAt: now };
   },
 });

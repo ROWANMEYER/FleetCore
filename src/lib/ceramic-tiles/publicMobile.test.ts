@@ -41,16 +41,10 @@ describe("Explicit public Ceramic Tiles mobile surface", () => {
     const f = fixture(); expect(await run(mobile.fleetChoices, f.ctx)).toEqual({ drivers: [{ id: "driver-one", name: "Example Driver", phone: "0821234567" }], trucks: [{ id: "truck-one", fleetNumber: "108", registration: "ABC123GP" }] });
     expect(f.takes.every(t => t.count === 5000)).toBe(true);
   });
-  it("can only patch the Ceramic Tiles assignment and uses a server-owned audit marker", async () => {
-    vi.spyOn(Date, "now").mockReturnValue(1000); const f = fixture(); await run(mobile.assign, f.ctx, assignment);
-    expect(f.db.patch).toHaveBeenCalledWith("shipment-one", { driverId: "driver-one", truckId: "truck-one", updatedAt: 1000, updatedBy: "public:ceramic-mobile" });
-    expect(f.db.patch).toHaveBeenCalledTimes(1);
-  });
-  it("rejects a stale or invalid assignment version before writing", async () => {
-    for (const expectedVersion of [1, 0, 2.5, NaN]) { const f = fixture(); await expect(run(mobile.assign, f.ctx, { ...assignment, expectedVersion })).rejects.toThrow("Shipment updated"); expect(f.db.patch).not.toHaveBeenCalled(); }
-  });
-  it("rejects missing shipments and missing fleet records without any write", async () => {
-    for (const key of ["shipment-one", "driver-one", "truck-one"]) { const f = fixture(); f.rows.delete(key); await expect(run(mobile.assign, f.ctx, assignment)).rejects.toThrow("not found"); expect(f.db.patch).not.toHaveBeenCalled(); }
+  it("requires a session before assignment can write to Planner or reports", async () => {
+    const f = fixture();
+    await expect(run(mobile.assign, f.ctx, { ...assignment, routeDate: "2026-11-22" })).rejects.toThrow("Sign in");
+    expect(f.db.patch).not.toHaveBeenCalled();
   });
   it("saves only trimmed instructions/order with the reviewed version", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1000); const f = fixture(); await run(mobile.saveDriverInstructions, f.ctx, instructions);

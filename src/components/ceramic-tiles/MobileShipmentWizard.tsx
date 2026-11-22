@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useAuth } from "@/src/components/auth/AuthProvider";
+import { ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, ClipboardCopy, MessageCircle, Truck, UserRound } from "lucide-react";
 import { useMutation } from "convex/react";
@@ -20,6 +23,8 @@ const primary = "inline-flex min-h-11 min-w-0 flex-1 items-center justify-center
 export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   shipment: CeramicDispatchShipment; fleet: CeramicFleet; onBack: () => void;
 }) {
+  const { token, user } = useAuth();
+  const [routeDate, setRouteDate] = useState(shipment.routeDate ?? ceramicPlanningDate());
   const [step, setStep] = useState<Step>(0);
   const [stopTab, setStopTab] = useState<"loading" | "deliveries">("loading");
   const [driverId, setDriverId] = useState<string>(shipment.driverId ?? "");
@@ -36,7 +41,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   const instructions = useCeramicInstructions({ shipment, region: shipment.region, ...fleet, requireVersionReview: true, publicMobile: true });
   const chosenDriver = fleet.drivers.find(driver => driver.id === driverId);
   const chosenTruck = fleet.trucks.find(truck => truck.id === truckId);
-  const assignmentDirty = driverId !== (shipment.driverId ?? "") || truckId !== (shipment.truckId ?? "");
+  const assignmentDirty = driverId !== (shipment.driverId ?? "") || truckId !== (shipment.truckId ?? "") || routeDate !== shipment.routeDate || shipment.plannerVersion !== shipment.version;
   const assignmentReady = ceramicAssignmentComplete(shipment) && !assignmentDirty && !!instructions.assignedDriver && !!instructions.assignedTruck;
   const busy = assigning || instructions.saving;
   const stops = orderedCeramicStops(shipment.snapshot, instructions.currentStopOrder);
@@ -48,7 +53,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
     if (!chosenDriver || !chosenTruck || busy) return;
     setAssignmentError(""); setAssigning(true);
     try {
-      if (assignmentDirty) await assign({ shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks">, expectedVersion: shipment.version });
+      if (assignmentDirty) await assign({ token: token ?? undefined, routeDate, shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks">, expectedVersion: shipment.version });
       setEditingAssignment(false); setStep(1);
     } catch (cause) { setAssignmentError(cause instanceof Error ? cause.message : "Could not save assignment."); }
     finally { setAssigning(false); }
@@ -93,6 +98,9 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
           <label className="block text-sm font-semibold">Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={busy} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
           <label className="block text-sm font-semibold">Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={busy} onChange={event => { const id = event.target.value; setDriverId(id); setRecipientMode(normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === id)?.phone) ? "system" : "manual"); setManualNumber(""); }}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
         </>}
+        <label className="block text-sm font-semibold">Planning date<input aria-label="Shipment planning date" type="date" className={field} value={routeDate} disabled={busy} onChange={event => setRouteDate(event.target.value)} /></label>
+        {!user && assignmentDirty && <p role="alert" className="text-sm"><Link href="/login?next=ceramic-tiles" className="font-semibold text-[#0891B2] underline">Sign in</Link> to save this assignment to Daily Planner and reports.</p>}
+        <p className="text-xs text-[var(--nav-text-color)]">Only the main load goes to Planner. Matching local stops go to the monthly and local reports.</p>
         <p className="flex items-start gap-2 text-sm text-[var(--nav-text-color)]"><Check size={17} className="mt-0.5 shrink-0" />{assignmentDirty ? "Next saves this assignment." : "The current assignment is filled in. Only change it if needed."}</p>
       </section>}
       {step === 1 && <CeramicStopOrderEditor shipment={shipment.snapshot} order={instructions.currentStopOrder} onChange={order => { instructions.setStopOrder(order); instructions.setSuccess(""); }} disabled={busy} compact activeTab={stopTab} onTabChange={setStopTab} />}
@@ -107,7 +115,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
     <footer role="region" aria-label="Dispatch actions" className="shrink-0 border-t border-[var(--card-border)] bg-[var(--background)] px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <p aria-live="polite" className="mb-2 text-center text-xs text-[var(--nav-text-color)]">{busy ? "Saving…" : step === 0 ? "Next confirms the assignment." : step === 1 ? "Next saves this stop order." : instructions.dirty ? "Save edited instructions before opening WhatsApp." : "✓ Assignment and stop order saved"}</p>
       <div className="flex gap-2">{step > 0 && <button type="button" disabled={busy} onClick={() => setStep(step === 2 ? 1 : 0)} className="min-h-11 rounded-xl border border-[var(--card-border)] px-4 text-sm font-semibold disabled:opacity-40">Back</button>}
-        {step === 0 && <button type="button" disabled={!chosenDriver || !chosenTruck || busy} onClick={() => void confirmAssignment()} className={primary}>{busy ? "Saving…" : "Next: Arrange stops"}<ChevronRight size={17} className="shrink-0" /></button>}
+        {step === 0 && <button type="button" disabled={!chosenDriver || !chosenTruck || !routeDate || (assignmentDirty && !user) || busy} onClick={() => void confirmAssignment()} className={primary}>{busy ? "Saving…" : "Next: Arrange stops"}<ChevronRight size={17} className="shrink-0" /></button>}
         {step === 1 && <button type="button" disabled={!assignmentReady || busy} onClick={() => void reviewInstructions()} className={primary}>{busy ? "Saving…" : "Next: Review & send"}<ChevronRight size={17} className="shrink-0" /></button>}
         {step === 2 && (instructions.dirty ? <button type="button" disabled={busy || !assignmentReady} onClick={() => void saveReviewChanges()} className={primary}>{busy ? "Saving…" : "Save changes"}</button> : canSend ? <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" className={primary}><MessageCircle size={17} className="shrink-0" />{recipientMode === "manual" && !manualNumber.trim() ? "Choose contact in WhatsApp" : "Open WhatsApp"}</a> : <button type="button" disabled className={primary}>Open WhatsApp</button>)}
       </div>

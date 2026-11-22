@@ -33,3 +33,22 @@ export const ceramicStopOrder = v.object({
   pickupWarehouses: v.array(v.string()),
   offloads: v.array(v.string()),
 });
+
+export const ceramicLocalLeg = v.object({
+  key: v.string(), kind: v.union(v.literal("collection"), v.literal("delivery")), name: v.string(), address: v.string(),
+  deliveryNumbers: v.array(v.string()), weightKg: v.number(), pallets: ceramicNullableNumber,
+});
+export const ceramicBilling = v.object({
+  ratePerTon: ceramicNullableNumber, stops: ceramicNullableNumber, drops: ceramicNullableNumber,
+  crossBorder: v.string(), load: v.string(),
+  locals: v.array(v.object({ key: v.string(), from: v.string(), to: v.string(), price: ceramicNullableNumber })),
+});
+export const ceramicReportRow = v.object({
+  shipmentId: v.id("ceramicShipments"), routeId: v.id("dailyRoutes"), region: ceramicRegion,
+  shipmentNumber: v.string(), version: v.number(), routeDate: v.string(), driverName: v.string(), truckFleetNo: v.string(),
+  fromLocations: v.array(v.string()), toLocations: v.array(v.string()), deliveryNumbers: v.array(v.string()),
+  truckRegistration: v.optional(v.string()), billing: v.optional(ceramicBilling), billingUpdatedAt: v.optional(v.number()), billingSourceVersion: v.optional(v.number()),
+  warehouseWeights: v.optional(v.array(v.object({ code: v.string(), weightKg: v.number() }))),
+  unmappedWarehouses: v.optional(v.array(v.object({ name: v.string(), weightKg: v.number() }))),
+  weightKg: ceramicNullableNumber, pallets: ceramicNullableNumber, needsReview: v.boolean(), locals: v.array(ceramicLocalLeg),
+});

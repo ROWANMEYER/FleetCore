@@ -1,5 +1,28 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-22 - Ceramic Planner, reports and guided driver handoff
+
+Ceramic assignments now synchronize the main load to Daily Planner and retain
+assignment snapshots for monthly and local reports. Detected Cashbuild and
+George Italtile local deliveries use the main driver and stay out of Planner.
+Monthly and local tables support saved editable amounts and template-based
+spreadsheet exports. The supplied template layout and formulas are retained.
+The main amount editor combines Stops/Drops and leaves local pricing to the
+separate local report.
+
+The web workspace guides users from PDF review through assignment, driver
+instructions and Send to driver. Saving instructions keeps the same shipment
+selected and opens an enabled WhatsApp handoff built from saved values. Users
+can use a driver number, enter another number, choose a WhatsApp contact, or
+copy the message. FleetCore opens a draft; the user sends it in WhatsApp.
+
+Validation: all 1,114 tests across 69 files pass; TypeScript, targeted lint and
+the optimized Webpack build pass. Synthetic browser and data checks verify
+handoff, one main Planner load per assignment, report rows and preserved
+amounts. See docs/CERAMIC_PLANNER_INTEGRATION.md for implementation details.
+This commit does not publish to GitHub or deploy production. The generated
+customer rate PDF remains local and is excluded from the commit.
+
 ## 2026-11-22 - Approve the merged main production release
 
 The owner explicitly approved deploying the tested merged release after the

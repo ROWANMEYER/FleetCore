@@ -6,12 +6,13 @@ import { whatsAppDraftHref, type WhatsAppRecipientMode } from "@/src/lib/ceramic
 import { normaliseWhatsAppNumber } from "@/src/lib/ceramic-tiles/driverInstructions";
 
 /** Choose the recipient for this draft without changing the driver's contact record. */
-export function WhatsAppRecipientPicker({ message, driverName, systemNumber, disabled, disabledReason }: {
+export function WhatsAppRecipientPicker({ message, driverName, systemNumber, disabled, disabledReason, onDraftOpened }: {
   message: string;
   driverName: string;
   systemNumber: string | null | undefined;
   disabled: boolean;
   disabledReason: string;
+  onDraftOpened?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -44,7 +45,7 @@ export function WhatsAppRecipientPicker({ message, driverName, systemNumber, dis
       <p className="mt-4 text-xs text-[var(--nav-text-color)]">This choice applies to this message only. Review the draft in WhatsApp and press Send yourself.</p>
       <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={close} className="min-h-11 rounded-lg border border-[var(--card-border)] px-4 text-sm font-semibold">Cancel</button>
-        {canContinue ? <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" onClick={close} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0891B2] px-4 text-center text-sm font-bold text-white"><MessageCircle size={16} className="shrink-0" />{chooseContact ? "Choose contact in WhatsApp" : "Continue to WhatsApp"}</a>
+        {canContinue ? <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => { close(); onDraftOpened?.(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0891B2] px-4 text-center text-sm font-bold text-white"><MessageCircle size={16} className="shrink-0" />{chooseContact ? "Choose contact in WhatsApp" : "Continue to WhatsApp"}</a>
           : <button type="button" disabled className="min-h-11 rounded-lg bg-[#0891B2] px-4 text-sm font-bold text-white opacity-40">Continue to WhatsApp</button>}
       </div>
     </dialog>

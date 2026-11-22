@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from "react";
+import { ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, CheckCircle2, FileText, FolderUp, LoaderCircle, RefreshCw, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, FolderUp, LoaderCircle, Trash2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useAuth } from "@/src/components/auth/AuthProvider";
 import { parseCeramicShipmentText, withCeramicReviewWarnings, type CeramicShipment } from "@/src/lib/ceramic-tiles/parser";
 import { extractCeramicPdfText, hashCeramicPdf } from "@/src/lib/ceramic-tiles/pdfReader";
-import { CeramicDriverInstructions } from "@/src/components/ceramic-tiles/DriverInstructionsPanel";
+import { GuidedShipmentWorkspace, type CeramicWorkspaceInteraction } from "@/src/components/ceramic-tiles/GuidedShipmentWorkspace";
+import { ModalShell } from "@/src/components/common/ModalShell";
 
 import { ConfirmDialog } from "@/src/components/common/ConfirmDialog";
 import { MobileCeramicTiles } from "@/src/components/ceramic-tiles/MobileCeramicTiles";
@@ -24,7 +26,7 @@ type Entry = {
   error?: string;
   expanded: boolean;
 };
-type AssignDraft = { driverId: string; truckId: string };
+type AssignDraft = { driverId: string; truckId: string; routeDate: string };
 const panel = "rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm";
 const input = "w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[#06B6D4]";
 const secondaryButton = "rounded-lg border border-[var(--card-border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-sunken)] disabled:opacity-50";
@@ -100,7 +102,12 @@ function CeramicTilesDesktopPage() {
   const [deleteTarget, setDeleteTarget] = useState<Doc<"ceramicShipments"> | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-  const [instructionId, setInstructionId] = useState<Id<"ceramicShipments"> | null>(null);
+  const [selectedNumber, setSelectedNumber] = useState("");
+  const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
+  const [workspaceState, setWorkspaceState] = useState<CeramicWorkspaceInteraction>({ dirty: false, saving: false });
+  const importRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   const ready = useMemo(() => entries.filter((item): item is Entry & { shipment: CeramicShipment } => !!item.shipment), [entries]);
   const comparison = useQuery(
@@ -125,7 +132,7 @@ function CeramicTilesDesktopPage() {
   }, []);
 
   const addFiles = useCallback(async (selection: FileList | File[]) => {
-    if (busy || saving) return;
+    if (busy || saving || workspaceState.saving || assignmentSavingId !== null) return;
     const list = Array.from(selection);
     if (!list.length) return;
     setMessage("");
@@ -134,6 +141,7 @@ function CeramicTilesDesktopPage() {
       setFailure("You can review up to 25 PDFs per import batch. Remove some before adding more.");
       return;
     }
+    setImportOpen(true);
     setBusy(true);
     try {
       const batch: Entry[] = [];
@@ -159,7 +167,7 @@ function CeramicTilesDesktopPage() {
     } finally {
       setBusy(false);
     }
-  }, [busy, saving, entries.length]);
+  }, [busy, saving, entries.length, workspaceState.saving, assignmentSavingId]);
 
   const onSelectFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const chosen = event.target.files;
@@ -183,7 +191,8 @@ function CeramicTilesDesktopPage() {
   const canCommit = !!token && !busy && !saving && ready.length > 0 && comparison !== undefined &&
     conflicts.length === 0 && repeatedInBatch.length === 0;
   const importBatch = async () => {
-    if (!token || !canCommit) return;
+    if (!token || !canCommit || workspaceState.saving || assignmentSavingId !== null) return;
+    if (workspaceState.dirty && !window.confirm("Continue to an imported shipment? Unsaved driver-instruction changes will be lost.")) return;
     setSaving(true);
     setFailure("");
     setMessage("");
@@ -215,6 +224,10 @@ function CeramicTilesDesktopPage() {
       const skipped = outcome.length - created - revised;
       setMessage(`Import complete: ${created} new, ${revised} revised, ${skipped} already imported/older. Existing driver and truck assignments are retained on revisions.`);
       setEntries((prev) => prev.filter((item) => !item.shipment));
+      const nextShipment = outcome.find(item => item.status === "created" || item.status === "revised") ?? outcome[0];
+      if (nextShipment) { setSelectedNumber(nextShipment.shipmentNumber); setWorkspaceGeneration(value => value + 1); }
+      setImportOpen(entries.some(item => !item.shipment));
+      workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "Import failed. No changes have been saved.");
     } finally {
@@ -227,7 +240,6 @@ function CeramicTilesDesktopPage() {
     setDeleting(true);
     setDeleteError("");
     setHistoryId((id) => id === deleteTarget._id ? null : id);
-    setInstructionId((id) => id === deleteTarget._id ? null : id);
     try {
       await removeShipment({ token, region: deleteTarget.region, shipmentId: deleteTarget._id,
         expectedVersion: deleteTarget.version, expectedUpdatedAt: deleteTarget.updatedAt });
@@ -246,20 +258,23 @@ function CeramicTilesDesktopPage() {
     }
   };
 
-  const saveAssignment = async (shipmentId: Id<"ceramicShipments">, existingDriver: string, existingTruck: string) => {
-    if (!token) return;
+  const saveAssignment = async (row: Doc<"ceramicShipments">) => {
+    const shipmentId = row._id;
+    if (!token || assignmentSavingId !== null || busy || saving || deleting) return false;
     setFailure("");
+    setMessage("");
     setAssignmentSavingId(shipmentId);
-    const draft = assignmentDrafts[shipmentId] ?? { driverId: existingDriver, truckId: existingTruck };
+    const draft = assignmentDrafts[shipmentId] ?? { driverId: row.driverId ?? "", truckId: row.truckId ?? "", routeDate: row.routeDate ?? ceramicPlanningDate() };
     try {
       await assign({
-        token, region, shipmentId,
+        token, region, shipmentId, routeDate: draft.routeDate, expectedVersion: row.version,
         driverId: draft.driverId ? draft.driverId as Id<"drivers"> : null,
         truckId: draft.truckId ? draft.truckId as Id<"trucks"> : null,
       });
-      setMessage("Assignment saved.");
+      return true;
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "Could not save assignment.");
+      return false;
     } finally {
       setAssignmentSavingId(null);
     }
@@ -275,27 +290,32 @@ function CeramicTilesDesktopPage() {
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#0891B2]">Operations / Ceramic Tiles</p>
           <h1 className="text-2xl font-semibold tracking-tight">Ceramic Tiles Shipments</h1>
-          <p className="mt-1 text-sm text-[var(--nav-text-color)]">Upload shipment plan PDFs, check destinations and orders, then import to FleetCore.</p>
+          <p className="mt-1 text-sm text-[var(--nav-text-color)]">Review the PDF, assign the load, then prepare the driver instructions.</p>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className={`${secondaryButton} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
         {user.role === "admin" && <label className="flex items-center gap-2 text-xs font-medium">
           Region
-          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving || !!deleteTarget} value={regionChoice} onChange={(event) => { setRegionChoice(event.target.value as Region); setHistoryId(null); setInstructionId(null); setEntries([]); }}>
+          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving || !!deleteTarget || workspaceState.saving || assignmentSavingId !== null} value={regionChoice} onChange={(event) => { if (workspaceState.dirty && !window.confirm("Change region? Unsaved driver-instruction changes will be lost.")) return; setRegionChoice(event.target.value as Region); setHistoryId(null); setSelectedNumber(""); setEntries([]); setImportOpen(false); }}>
             <option value="garden_route">Garden Route</option>
             <option value="eastern_cape">Eastern Cape</option>
           </select>
         </label>}
+        </div>
       </header>
 
       {failure && <div role="alert" className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-3 text-sm text-[var(--danger-text)]">{failure}</div>}
       {message && <div role="status" className="rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-text)]">{message}</div>}
 
+      <div ref={importRef} hidden={!importOpen}>
       <section className={`${panel} p-4`} aria-label="Upload shipment PDFs">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Bulk import</h2>
+            <h2 className="text-sm font-semibold">Upload &amp; review PDFs</h2>
             <p className="mt-0.5 text-xs text-[var(--nav-text-color)]">Up to 25 PDFs at a time. Documents are read on your device; scanned PDFs cannot be extracted yet.</p>
           </div>
-          {entries.length > 0 && <button type="button" onClick={() => { setEntries([]); setFailure(""); }} className={secondaryButton}>Clear batch</button>}
+          <div className="flex items-center gap-2"><button type="button" className={secondaryButton} disabled={busy || saving} onClick={() => setImportOpen(false)}>Back to shipments</button>
+          {entries.length > 0 && <button type="button" onClick={() => { setEntries([]); setFailure(""); }} className={secondaryButton} disabled={busy || saving}>Clear batch</button>}</div>
         </div>
         <div
           onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
@@ -318,7 +338,7 @@ function CeramicTilesDesktopPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--nav-text-color)]">Review batch · {entries.length} file(s)</h3>
             <button disabled={!canCommit} type="button" className={primaryButton} onClick={() => void importBatch()}>
-              {saving ? "Importing..." : `Confirm & import ${ready.length} shipment(s)`}
+              {saving ? "Importing..." : `Import & continue · ${ready.length} shipment(s)`}
             </button>
           </div>
           {repeatedInBatch.length > 0 && <p className="text-xs text-[var(--danger-text)]">The same shipment number appears more than once in this batch. Remove one PDF first.</p>}
@@ -402,43 +422,10 @@ function CeramicTilesDesktopPage() {
         </div>}
       </section>
 
-      <section className={`${panel} overflow-hidden`} aria-label="Imported Ceramic Tiles shipments">
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--card-border)] px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold">Imported shipments</h2>
-            <p className="text-xs text-[var(--nav-text-color)]">Latest version of each shipment, with the existing truck and driver records.</p>
-          </div>
-          <span className="text-xs text-[var(--nav-text-color)]">{imported ? `${imported.length} shipments` : "Loading..."}</span>
-        </div>
-        {!imported ? <div className="p-6 text-sm text-[var(--nav-text-color)]"><RefreshCw className="mr-2 inline h-4 w-4 animate-spin" />Loading shipments...</div>
-          : imported.length === 0 ? <div className="p-8 text-center text-sm text-[var(--nav-text-color)]">No Ceramic Tiles shipments imported for this region yet.</div>
-          : <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="bg-[var(--table-row-header)] text-[var(--nav-text-color)]"><tr>
-                <th className="px-4 py-2">Shipment</th><th className="px-3 py-2">Dates</th><th className="px-3 py-2">Deliveries</th><th className="px-3 py-2">Weight / pallets</th><th className="px-3 py-2">Driver</th><th className="px-3 py-2">Truck</th><th className="px-3 py-2">Action</th>
-              </tr></thead>
-              <tbody>{imported.map((row) => {
-                const current = assignmentDrafts[row._id] ?? { driverId: row.driverId ?? "", truckId: row.truckId ?? "" };
-                const deliveryCount = row.snapshot.destinations.reduce((count, destination) => count + destination.orders.length, 0);
-                return <tr key={row._id} className="border-t border-[var(--card-border)] align-middle">
-                  <td className="px-4 py-3 font-semibold"><span className="inline-flex items-center gap-1"><Truck className="h-3.5 w-3.5 text-[#0891B2]" />{row.shipmentNumber}</span><span className="ml-2 text-[10px] font-normal text-[var(--nav-text-color)]">v{row.version}</span></td>
-                  <td className="px-3 py-3 text-[var(--nav-text-color)]">{row.snapshot.plannedLoadingDate ?? "—"} to {row.snapshot.plannedDeliveryDate ?? "—"}</td>
-                  <td className="px-3 py-3">{deliveryCount} · {row.snapshot.destinations.length} stops</td>
-                  <td className="px-3 py-3">{formatNumber(row.snapshot.totalWeightKg)} kg · {formatNumber(row.snapshot.totalPallets)} PAL</td>
-                  <td className="px-3 py-3"><select aria-label={`Driver for ${row.shipmentNumber}`} className={input} value={current.driverId} onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [row._id]: { ...current, driverId: e.target.value } }))}>
-                    <option value="">Not assigned</option>
-                    {(fleet?.drivers ?? []).map((driver) => <option value={driver.id} key={driver.id}>{driver.name}</option>)}
-                  </select></td>
-                  <td className="px-3 py-3"><select aria-label={`Truck for ${row.shipmentNumber}`} className={input} value={current.truckId} onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [row._id]: { ...current, truckId: e.target.value } }))}>
-                    <option value="">Not assigned</option>
-                    {(fleet?.trucks ?? []).map((truck) => <option value={truck.id} key={truck.id}>{truck.fleetNumber}</option>)}
-                  </select></td>
-                  <td className="px-3 py-3"><div className="flex gap-2"><button type="button" className={secondaryButton} disabled={assignmentSavingId === row._id || !fleet} onClick={() => void saveAssignment(row._id, row.driverId ?? "", row.truckId ?? "")}>{assignmentSavingId === row._id ? "Saving..." : "Save"}</button><button type="button" className={secondaryButton} onClick={() => setHistoryId(row._id)}>Details / history</button><button type="button" className={secondaryButton} onClick={() => setInstructionId(row._id)}>Driver instructions</button><button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--danger-border)] px-3 py-2 text-xs font-semibold text-[var(--danger-text)] hover:bg-[var(--danger-surface)] disabled:opacity-50" disabled={busy || saving || assignmentSavingId !== null || deleting} aria-label={`Delete shipment ${row.shipmentNumber}`} onClick={() => { setDeleteError(""); setDeleteTarget(row); }}><Trash2 className="h-3.5 w-3.5" />Delete</button></div></td>
-                </tr>;
-              })}</tbody>
-            </table>
-          </div>}
-      </section>
+      </div>
+      <div ref={workspaceRef}>
+        <GuidedShipmentWorkspace disabled={busy || saving || deleting} key={`${region}:${workspaceGeneration}`} rows={imported} fleet={fleet} token={token} region={region} selectedNumber={selectedNumber} onSelect={setSelectedNumber} drafts={assignmentDrafts} onDraftChange={(id, draft) => setAssignmentDrafts(previous => ({ ...previous, [id]: draft }))} savingId={assignmentSavingId} onAssign={saveAssignment} onHistory={setHistoryId} onDelete={row => { setDeleteError(""); setDeleteTarget(row); }} interaction={workspaceState} onInteractionChange={setWorkspaceState} />
+      </div>
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Delete shipment ${deleteTarget?.shipmentNumber ?? ""}?`}
@@ -452,19 +439,7 @@ function CeramicTilesDesktopPage() {
       >
         {deleteError && <p role="alert" className="text-sm text-[var(--danger-text)]">{deleteError}</p>}
       </ConfirmDialog>
-      {historyId && <ShipmentHistoryPanel token={token} region={region} shipmentId={historyId} onClose={() => setHistoryId(null)} />}
-      {instructionId && imported && token && fleet && (() => {
-        const shipment = imported.find((record) => record._id === instructionId);
-        return shipment ? <CeramicDriverInstructions
-          key={shipment._id}
-          shipment={shipment}
-          token={token}
-          region={region}
-          drivers={fleet.drivers}
-          trucks={fleet.trucks}
-          onClose={() => setInstructionId(null)}
-        /> : null;
-      })()}
+      {historyId && <ModalShell open portal autoFocus onClose={() => setHistoryId(null)} className="max-w-5xl"><div className="max-h-[85dvh] overflow-y-auto"><ShipmentHistoryPanel token={token} region={region} shipmentId={historyId} onClose={() => setHistoryId(null)} /></div></ModalShell>}
     </div>
   </main>;
 }

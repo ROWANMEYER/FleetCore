@@ -25,7 +25,7 @@ function fixture(role = "admin", region: string | null = null) {
       let field = "", value = "";
       cb({ eq: (f, v) => { field = f; value = v; } });
       reads.push({ index, field, value });
-      const found = () => table === "sessions" ? value === "valid" ? [session] : [] : [...rows.values()].filter(r => r[field] === value);
+      const found = () => table === "ceramicAssignments" ? [] : table === "sessions" ? value === "valid" ? [session] : [] : [...rows.values()].filter(r => r[field] === value);
       return { first: async () => found()[0] ?? null, take: async (n: number) => found().slice(0, n) };
     } }),
   };

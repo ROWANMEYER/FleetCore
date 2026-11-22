@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateSheetFields, tariffHistoryFields } from "./rateSheetFields";
 import { driverPhoneNumber } from "./driverPhoneFields";
-import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
+import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder, ceramicBilling } from "./ceramicTilesFields";
 
 export default defineSchema({
   /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
@@ -12,6 +12,8 @@ export default defineSchema({
     version: v.number(),
     fileHash: v.string(),
     snapshot: ceramicShipmentSnapshot,
+    routeDate: v.optional(v.string()),
+    plannerVersion: v.optional(v.number()),
     driverId: v.optional(v.id("drivers")),
     truckId: v.optional(v.id("trucks")),
     driverInstructions: v.optional(v.object({
@@ -28,6 +30,15 @@ export default defineSchema({
   })
     .index("by_region_number", ["region", "shipmentNumber"])
     .index("by_region_updated", ["region", "updatedAt"]),
+  /** Assignment snapshots drive both reports without adding local legs to Planner. */
+  ceramicAssignments: defineTable({
+    shipmentId: v.id("ceramicShipments"), routeId: v.id("dailyRoutes"), region: ceramicRegion,
+    routeDate: v.string(), driverId: v.id("drivers"), truckId: v.id("trucks"),
+    driverName: v.string(), truckFleetNo: v.string(), snapshot: ceramicShipmentSnapshot,
+    truckRegistration: v.optional(v.string()), billing: v.optional(ceramicBilling),
+    billingUpdatedAt: v.optional(v.number()), billingUpdatedBy: v.optional(v.string()), billingSourceVersion: v.optional(v.number()),
+    createdAt: v.number(), updatedAt: v.number(), updatedBy: v.string(),
+  }).index("by_shipment", ["shipmentId"]).index("by_region_routeDate", ["region", "routeDate"]),
   /** Immutable prior and current revisions for review and traceability. */
   ceramicShipmentVersions: defineTable({
     shipmentId: v.id("ceramicShipments"),
@@ -133,6 +144,8 @@ export default defineSchema({
     .index("by_date", ["date"])
     .index("by_day", ["dayKey"]),
   dailyRoutes: defineTable({
+    ceramicShipmentId: v.optional(v.id("ceramicShipments")),
+    ceramicVersion: v.optional(v.number()),
     client: v.string(),
     createdAt: v.float64(),
     deletedAt: v.optional(v.float64()),

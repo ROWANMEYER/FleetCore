@@ -1,3 +1,9 @@
+import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport";
+import { ceramicBilling } from "./ceramicTilesFields";
+import { paginationOptsValidator } from "convex/server";
+import { ceramicReportRow } from "./ceramicTilesFields";
+import { ceramicLocalLegs, ceramicMainLoad } from "../src/lib/ceramic-tiles/planning";
+import { syncCeramicAssignment } from "./ceramicPlanning";
 import { assertCeramicStopOrder } from "../src/lib/ceramic-tiles/stopOrder";
 import { ceramicStopOrder } from "./ceramicTilesFields";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -231,6 +237,8 @@ export const remove = mutation({
     if (args.expectedVersion !== shipment.version || args.expectedUpdatedAt !== shipment.updatedAt) {
       throw new Error("Shipment changed. Cancel and review the latest shipment before deleting.");
     }
+    const assignment = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).first();
+    if (assignment) throw new Error("This shipment is linked to Planner and reporting history. Keep it for traceability; it cannot be deleted here.");
     const revisions = await ctx.db.query("ceramicShipmentVersions")
       .withIndex("by_shipment", (q) => q.eq("shipmentId", shipment._id)).take(501);
     if (revisions.length > 500) throw new Error("This shipment has too many revisions to delete here. Contact support.");
@@ -253,18 +261,21 @@ export const assign = mutation({
     token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"),
     driverId: v.optional(v.union(v.id("drivers"), v.null())),
     truckId: v.optional(v.union(v.id("trucks"), v.null())),
+    routeDate: v.string(), expectedVersion: v.number(),
   },
+  returns: v.object({ saved: v.boolean(), updatedAt: v.number(), routeId: v.id("dailyRoutes") }),
   handler: async (ctx, args) => {
     const { region, actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
     if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
-    if (args.driverId && !(await ctx.db.get(args.driverId))) throw new Error("Driver not found.");
-    if (args.truckId && !(await ctx.db.get(args.truckId))) throw new Error("Truck not found.");
-    await ctx.db.patch(args.shipmentId, {
-      ...(args.driverId !== undefined ? { driverId: args.driverId ?? undefined } : {}),
-      ...(args.truckId !== undefined ? { truckId: args.truckId ?? undefined } : {}),
-      updatedAt: Date.now(), updatedBy: actor,
-    });
+    if (args.expectedVersion !== shipment.version) throw new Error("Shipment updated. Review the latest PDF before assigning.");
+    const driverId = args.driverId === undefined ? shipment.driverId : args.driverId;
+    const truckId = args.truckId === undefined ? shipment.truckId : args.truckId;
+    if (!driverId || !truckId) throw new Error("Choose both a driver and truck before assigning the main load.");
+    const result = await syncCeramicAssignment(ctx, shipment, { driverId, truckId, routeDate: args.routeDate, actor });
+    const now = Date.now();
+    await ctx.db.patch(shipment._id, { driverId, truckId, routeDate: args.routeDate, plannerVersion: shipment.version, updatedAt: now, updatedBy: actor });
+    return { saved: true, updatedAt: now, routeId: result.routeId };
   },
 });
 
@@ -327,5 +338,66 @@ export const fleetChoices = query({
       trucks: trucks.map((truck) => ({ id: truck._id, fleetNumber: String(truck.truckFleetNo || truck.fleetNumber || ""), registration: truck.registration ?? null }))
         .sort((a, b) => a.fleetNumber.localeCompare(b.fleetNumber, undefined, { numeric: true })),
     };
+  },
+});
+
+/** Month-scoped, paginated reporting; no scan, no public financial/operations access. */
+export const report = query({
+  args: { token: v.string(), region: ceramicRegion, month: v.string(), paginationOpts: paginationOptsValidator },
+  returns: v.object({ page: v.array(ceramicReportRow), isDone: v.boolean(), continueCursor: v.string(),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+    pageStatus: v.optional(v.union(v.literal("SplitRecommended"), v.literal("SplitRequired"), v.null())),
+  }),
+  handler: async (ctx, args) => {
+    const { region } = await requireRegion(ctx, args.token, args.region);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(args.month)) throw new Error("Choose a valid report month.");
+    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) throw new Error("Read 1 to 100 report rows per page.");
+    const records = await ctx.db.query("ceramicAssignments").withIndex("by_region_routeDate", q =>
+      q.eq("region", region).gte("routeDate", `${args.month}-01`).lt("routeDate", `${args.month}-32`))
+      .paginate(args.paginationOpts);
+    const page = await Promise.all(records.page.map(async row => {
+      const [current, route, truck] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId), ctx.db.get(row.truckId)]);
+      const warehouse = ceramicWarehouseWeights(row.snapshot);
+      const load = ceramicMainLoad(row.snapshot, row.shipmentId);
+      return { shipmentId: row.shipmentId, routeId: row.routeId, region: row.region,
+        shipmentNumber: row.snapshot.shipmentNumber, version: row.snapshot.version, routeDate: row.routeDate,
+        driverName: row.driverName, truckFleetNo: row.truckFleetNo, fromLocations: load.fromLocations, toLocations: load.toLocations,
+        deliveryNumbers: row.snapshot.destinations.flatMap(d => d.orders.map(o => o.deliveryNumber)),
+        weightKg: row.snapshot.totalWeightKg, pallets: row.snapshot.totalPallets,
+        needsReview: !current || current.version !== row.snapshot.version || !route || !!route.isDeleted ||
+          route.routeDate !== row.routeDate || route.driverName !== row.driverName || route.truckFleetNoStr !== row.truckFleetNo,
+        truckRegistration: row.truckRegistration ?? truck?.registration ?? "",
+        ...(row.billing ? { billing: row.billing } : {}), billingUpdatedAt: row.billingUpdatedAt ?? 0,
+        ...(row.billingSourceVersion !== undefined ? { billingSourceVersion: row.billingSourceVersion } : {}),
+        warehouseWeights: warehouse.weights, unmappedWarehouses: warehouse.unmapped,
+        locals: ceramicLocalLegs(row.snapshot) };
+    }));
+    return { ...records, page };
+  },
+});
+
+/** Save the template's editable commercial inputs without changing Planner rates or source PDFs. */
+export const saveReportBilling = mutation({
+  args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"), expectedVersion: v.number(), expectedBillingUpdatedAt: v.number(), billing: ceramicBilling },
+  returns: v.object({ saved: v.boolean(), updatedAt: v.number() }),
+  handler: async (ctx, args) => {
+    const { region, actor } = await requireRegion(ctx, args.token, args.region);
+    const row = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", args.shipmentId)).unique();
+    if (!row || row.region !== region) throw new Error("Assigned shipment not found.");
+    const [shipment, route] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId)]);
+    if (!shipment || shipment.version !== args.expectedVersion || row.snapshot.version !== args.expectedVersion) throw new Error("Review and save the latest shipment assignment before editing its amounts.");
+    if ((row.billingUpdatedAt ?? 0) !== args.expectedBillingUpdatedAt) throw new Error("Amounts changed. Reopen the editor to avoid overwriting another user's changes.");
+    if (!route || route.isDeleted || (route.status || "planned") !== "planned" ||
+      await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", row.routeId)).first()) throw new Error("This load is deleted, completed, locked or invoiced. Its report amounts cannot be changed.");
+    const billing = args.billing;
+    const amounts = [billing.ratePerTon, billing.stops, billing.drops, ...billing.locals.map(local => local.price)];
+    if (amounts.some(n => n !== null && (!Number.isFinite(n) || Math.abs(n) > 1e12))) throw new Error("Enter valid amounts.");
+    if (billing.crossBorder.length > 200 || billing.load.length > 200) throw new Error("Keep cross-border and load notes under 200 characters.");
+    const allowed = new Set(ceramicLocalLegs(row.snapshot).map(local => local.key));
+    const keys = billing.locals.map(local => local.key);
+    if (new Set(keys).size !== keys.length || keys.some(key => !allowed.has(key)) || billing.locals.some(local => local.from.length > 200 || local.to.length > 200)) throw new Error("Local stops changed or contain invalid locations. Reopen the editor.");
+    const now = Math.max(Date.now(), (row.billingUpdatedAt ?? 0) + 1);
+    await ctx.db.patch(row._id, { billing, billingUpdatedAt: now, billingUpdatedBy: actor, billingSourceVersion: row.snapshot.version });
+    return { saved: true, updatedAt: now };
   },
 });

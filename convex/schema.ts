@@ -2,8 +2,47 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { laneField, pricingUnit } from "./rateSheetFields";
 import { driverPhoneNumber } from "./driverPhoneFields";
+import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
 
 export default defineSchema({
+  /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
+  ceramicShipments: defineTable({
+    region: ceramicRegion,
+    shipmentNumber: v.string(),
+    version: v.number(),
+    fileHash: v.string(),
+    snapshot: ceramicShipmentSnapshot,
+    driverId: v.optional(v.id("drivers")),
+    truckId: v.optional(v.id("trucks")),
+    driverInstructions: v.optional(v.object({
+      stopOrder: v.optional(ceramicStopOrder),
+      reviewedVersion: v.optional(v.number()),
+      safetyNotes: v.string(),
+      additionalNotes: v.string(),
+      updatedAt: v.number(),
+      updatedBy: v.string(),
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.string(),
+  })
+    .index("by_region_number", ["region", "shipmentNumber"])
+    .index("by_region_updated", ["region", "updatedAt"]),
+  /** Immutable prior and current revisions for review and traceability. */
+  ceramicShipmentVersions: defineTable({
+    shipmentId: v.id("ceramicShipments"),
+    region: ceramicRegion,
+    shipmentNumber: v.string(),
+    version: v.number(),
+    fileHash: v.string(),
+    fileName: v.string(),
+    storageId: v.optional(v.id("_storage")),
+    snapshot: ceramicShipmentSnapshot,
+    importedAt: v.number(),
+    importedBy: v.string(),
+  }).index("by_shipment", ["shipmentId"])
+    .index("by_storage", ["storageId"]),
+
   /** A customer's live rate card: lanes with their rates, notes, and the diesel the rates are priced against. */
   rateSheets: defineTable({
     customerId: v.id("customers"),

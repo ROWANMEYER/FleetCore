@@ -47,7 +47,7 @@ export function CustomerCsvImport({ token, customers, onClose }: { token: string
     <div style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100dvh - 32px)", overflow: "hidden" }} role="dialog" aria-modal="true" aria-labelledby="customer-import-title">
       <header className="flex justify-between items-center gap-4 p-5 border-b border-[var(--card-border)]" style={{ flexShrink: 0 }}><h2 id="customer-import-title" className="text-xl font-semibold">Import Age Analysis customers</h2><button className={button} disabled={busy} onClick={onClose}>Close</button></header>
       <div className="p-5 space-y-4" style={{ minHeight: 0, overflow: "auto", overscrollBehavior: "contain" }}>
-      <p>Choose your Age Analysis customer CSV. Preview it below, then import the ready rows. Existing customers, account numbers and active/inactive status are kept unchanged.</p>
+      <p>In Age Analysis, open Customers → Export CSV. Choose that downloaded file here, review the preview, then import the ready rows. Existing customers, account numbers and active/inactive status are kept unchanged.</p>
       <label className="block">Customer CSV<input type="file" accept=".csv,text/csv" disabled={busy} className="block mt-2" onChange={async e => {
         const file = e.target.files?.[0]; if (!file) return;
         setBusy(true); setError(""); setRows([]); setResults([]); setProgress(null); setPage(1); setFilter("all"); setFilename(file.name);

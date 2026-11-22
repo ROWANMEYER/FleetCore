@@ -1,5 +1,527 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-22 - Group customer-rate PDF destinations by loading point
+
+The PDF now groups destinations under a shaded loading-point heading instead of
+repeating the origin on every rate line. Ceramic's two divisions use the full
+bold uppercase headings KRUGERSDORP + VEREENIGING and BABALEGI + KRUGERSDORP +
+VEREENIGING. The heading repeats on continuation pages and always stays
+with at least one destination. Other loading points use their full names, with
+wrapping for long section headings. Destinations and SP labels wrap within their
+column, and measured section/row heights keep the notes and footer fixed.
+
+This also removes the old 30-character route truncation and the pagination bug
+that drew only 20 of each 21-row slice. The revised Ceramic PDF is six pages and
+contains all 105 destinations, including all 37 SP entries. All 315 rate amounts
+match the stored calculations; the 300 amounts present in the supplied PDF are
+preserved, and five formerly omitted routes are restored. Rendered pages and
+geometry checks confirm readable headings, no clipped destination text, and no
+orphan section headings.
+
+Validation: 1,022 tests across 62 files, TypeScript, and targeted PDF lint pass.
+This is a local frontend fix; no database records or production deployment were
+changed.
+
+## 2026-11-21 - Customer-transfer frontend release preparation
+
+The owner explicitly authorized GitHub and production updates for the customer
+CSV transfer. The release incorporates the existing live FleetCore source
+228a674 (plus its production-release documentation) before applying the transfer
+change, retaining Ceramic Tiles and the current calendar. Customer Rates Phase 1
+remains separate and is not part of this release. No Convex schema/function or
+backend dependency difference exists against the current live source.
+
+The final release passes 1,019 tests in 62 files, TypeScript, repository lint
+(0 errors, 64 existing warnings) and the local production build (33 pages).
+Service-worker cache v88 refreshes installed clients. The production customer
+import endpoint on dependable-quail-107 was verified to reject an invalid
+session, without writing records. This release needs only a Vercel frontend
+build using the project's existing production environment.
+
+Ageanalysis's export release is based on its live 8eff71e source, preserving the
+payment calendar. Its 16 exporter tests, four calendar tests, TypeScript, feature
+lint and production build pass; cache v6 is released. Existing dashboard and
+build-info edits in the original local checkout remain untouched. The production
+Ageanalysis backend remains ardent-lyrebird-333. No real customer list is exported
+or imported by release verification.
+
+
+## 2026-11-21 - Customer list transfer from Ageanalysis
+
+Ageanalysis Customers now exports its full customer master list as a dated,
+17-column CSV compatible with FleetCore's existing admin importer. The file
+includes blocked status, contact information, delivery/postal addresses, aliases,
+COD and tax reference. It excludes balances, payments, credit limits and tariffs.
+Search and filters in Ageanalysis do not restrict the export.
+
+FleetCore's import dialog and transfer documentation now identify the exact
+Customers -> Export CSV step. A synthetic fixture produced by the actual
+Ageanalysis exporter verifies field mapping, quoted/multiline text, Unicode,
+leading-zero identifiers, blocked-to-inactive mapping, existing-customer
+preservation and repeat-import skipping. The importer remains add-only and
+admin-only; no schema or backend function changes are needed.
+
+This work is local only. No real customer list was transferred and no app or
+backend was deployed. Existing Ageanalysis dashboard/build-info edits are
+preserved. Customer Rates work remains on its separate feature branch/PR.
+
+Verification: all 16 Ageanalysis exporter tests and 955 FleetCore tests pass.
+Both TypeScript checks and production builds pass; Ageanalysis was built in an
+isolated copy to preserve its tracked build-info file. Changed-file lint passes.
+Real browser export with a search active still downloaded all three synthetic
+customers; uploading that exact file imported two (one inactive), skipped the
+existing customer, and a second selection offered no further imports. Both
+consoles were clean. Final API audits confirm all source records, existing target
+customers, Planner, fuel and tariffs remain unchanged.
+
+
+
+## 2026-11-20 — Web shipment deletion released
+
+The authenticated desktop Imported shipments table now has a red Delete action.
+Confirmation names the shipment and explains permanent removal of all revisions,
+archived PDFs and saved instructions from both web and mobile. Cancel receives
+initial focus; Cancel/Escape perform no write. While deleting, controls cannot
+submit twice or close the dialog. Failures stay visible in the confirmation;
+success removes the row through the reactive query and clears its local drafts.
+
+ceramicTiles.remove requires a valid Operations session and server-resolved
+region. Anonymous mobile access still has only the original four dispatch APIs.
+The version and updatedAt captured when confirmation opens must match, preventing
+deletion after a newer import or another dispatch edit. The atomic mutation uses
+bounded indexed revision reads (max 500), deletes those revisions and the active
+record, and deletes each distinct PDF only when no other shipment references it.
+The new by_storage index supports that check. Shared fleet records are untouched.
+An operator can import the shipment again after removal; old history is not restored.
+
+Verified development target quixotic-gopher-969 remotely before sync. API/schema
+sync passed, including the new storage-reference index. The full suite passed:
+1017 tests / 62 files, including 62 Ceramic Tiles tests and 9 deletion boundary
+cases. TypeScript, lint and local production build (33 pages) passed. Synthetic
+Chrome verified Cancel/Escape, safe focus, errors, locked loading, exact stale
+version/timestamp arguments and target-only removal, with no browser errors.
+The actual development endpoint rejects missing arguments. No real shipment was
+deleted in testing. After explicit owner approval, the remotely verified
+production backend dependable-quail-107 was updated with the new mutation/index,
+and source 228a67496c49f5e42c198981c02a82a8da9543aa was released to fleetcore.
+Deployment dpl_3sCv4wKpbj3q4NG5j5HTtmZ3cfkW is READY and serves
+https://fleetcore-mu.vercel.app. Signed-out Chrome verified the live deletion
+bundle/expectedUpdatedAt guard, cache v87, public mobile dispatch (no Delete),
+and protected Operations/desktop login gates, with no browser errors. HTTP
+anonymous/missing-token deletion attempts were rejected; authenticated diagnostics
+confirmed the handler's invalid-session denial (production HTTP hides details).
+The release runtime scan found no error/fatal Vercel logs. Live verification
+performed no successful record writes or real deletions. Actual deletion with a
+valid operator login was exercised only against synthetic services/handler tests;
+no destructive live acceptance check was performed. Main remains unmerged.
+
+## 2026-11-20 — Release explicitly public mobile Ceramic Tiles access
+
+The owner explicitly selected open access: anyone with the app link may view
+Ceramic Tiles shipments and change dispatch assignments/instructions without an
+Operations account. This is a scoped exception to the regional signed-in mobile
+flow, not an authentication bypass for general Operations.
+
+Added ceramicTilesMobile with exactly four public functions: list, fleetChoices,
+assign and saveDriverInstructions. Reads cover the existing two regions with
+bounded indexed shipment queries. The dispatch projection excludes file hashes,
+creation/import metadata and original-PDF/archive links; fleet results contain
+only assignment/contact fields. Writes can change only Ceramic Tiles assignment
+or notes/order, require the expected current version, validate existing fleet IDs
+and complete stop permutations, limit notes and record public:ceramic-mobile as
+the server-owned actor. No public import, delete, history or fleet-edit APIs exist.
+Existing token/region checks on authenticated Ceramic Tiles and other modules
+are unchanged. The exact mobile Ceramic Tiles route is public; the desktop
+importer and other Operations routes still require sign-in. The mobile wizard
+uses the new public endpoints for guests and signed-in users alike, across both
+regions, without client role/session/region claims. Cache v86 is live.
+
+Development target was remotely verified before sync/codegen and the functions
+are active there. Public anonymous development reads succeed; the returned field
+projection is checked and unexpected role arguments/old protected reads are
+rejected. The full suite passes: 1008 tests in 61 files, including 53 Ceramic
+Tiles tests and 11 public handler/validator boundary tests. TypeScript, targeted
+lint, repository lint (0 errors, 64 existing warnings) and local production build
+pass. Synthetic real-shell guest browser checks cover no-login entry, both
+regions, token-free assignment/instruction calls, failures, version review,
+ordering/persistence, recipients, short/narrow scrolling and desktop login gates.
+
+The owner then explicitly approved production release. After remote target
+verification, production Convex dependable-quail-107 was updated and source commit
+5ec5dfe007669512874680d971c0d27d702b558e was published to the fleetcore project.
+Deployment dpl_9vPMzHVafJXQWLmB37LXJzGfRiSe is READY and serves
+https://fleetcore-mu.vercel.app. Signed-out Chrome verified mobile tile entry,
+shipment/fleet reads and assignment selectors, no horizontal overflow, protected
+Operations and desktop importer login gates, and live cache v86. Anonymous API
+checks verified the dispatch projection and rejection of unexpected role claims
+and invalid-session protected import previews. No browser errors or production
+error/fatal runtime logs were found in the release verification window. No real
+shipment records were edited and no messages were sent. GitHub Actions remains
+unverified because jobs fail before runner assignment; local gates and the
+Vercel production build passed. The branch is not merged into main.
+
+## 2026-11-20 — Implement the guided mobile dispatch workflow
+
+Replaced the single long mobile shipment page with Truck & driver, Stops, and
+Review & send steps. Existing assignments appear in a compact summary with
+Change controls; Next saves an edited assignment before advancing. Stops uses
+Loading/Deliveries tabs, compact draggable rows, on-demand Move menus and
+expandable delivery addresses. Next saves ordering and the reviewed version.
+Back preserves draft values and the selected stop tab. Failed saves stay on the
+current step with an error; navigation and sending are gated while saving.
+
+A bounded step-content area owns scrolling while the action footer stays visible
+inside the real Operations layout. The review step shows an assignment/route
+summary, expandable readable message and safety/extra notes, and inline system
+or manual WhatsApp recipient fields. Notes edited during review must be saved
+using the footer before WhatsApp becomes available. Saved text matches the server
+trim so trailing spaces do not leave the send action blocked; a desktop edit made
+during an in-flight save is preserved. No automatic sending occurs.
+A newer shipment version resets the wizard and requires another saved review.
+Leaving with unsaved edits asks before abandoning them. Mobile manual recipients
+remain per draft and do not change driver records.
+
+Shared useCeramicInstructions retains the desktop/mobile message/save/version
+contract; shared recipient fields and a tested pure URL helper retain the existing
+desktop recipient dialog. No backend schema/function or deployment change is
+needed. The desktop PDF importer and calendar are unchanged. Cache v85 refreshes
+installed apps for the new flow.
+
+Validation: 997 tests in 60 files (42 Ceramic Tiles tests), TypeScript and repository
+lint pass (0 errors, 64 pre-existing warnings); the local Next.js production build
+passes. Actual-AppShell/Operations Chrome checks cover sign-in return, filters,
+assignment/save failures, compact tabs/detail disclosure, Move controls and touch
+dragging, Back/draft preservation, exact Copy/WhatsApp text, recipient choices,
+notes-save gating, reopen/persistence, new-version reset/review, regional saves
+and the retained desktop uploader. Pinned actions, long unknown-town/warehouse
+and six long deliveries, wheel and finger scrolling, and 320/390/430px widths are
+verified. Light/dark screenshots reviewed. Existing desktop drag/cancel/order
+and recipient dialog checks pass. Synthetic services only; no real shipment,
+contact or WhatsApp message was changed by verification. Release status is on PR #1.
+
+## 2026-11-20 — Choose a WhatsApp recipient before dispatch
+
+Open WhatsApp now asks the dispatcher whether to use the driver's system number
+or choose manually. Manual mode accepts another WhatsApp number for this draft,
+or can stay blank to select a contact inside WhatsApp. A missing/invalid driver
+number no longer prevents manual handoff. The system number is displayed clearly;
+manual choices do not update it or persist to a driver or shipment record.
+
+The shared web/mobile picker is a native modal with focus handling, Escape and
+Cancel, an opaque themed surface, 44px controls and bounded phone scrolling.
+Every opening resets the recipient choice. Existing assignment/save/version
+review gates and the exact instruction message remain intact. Only a draft is
+opened; the operator must review and press Send in WhatsApp. Service-worker
+cache v83 refreshes installed apps. No backend change is needed.
+
+Validation: 35 feature tests, targeted ESLint and TypeScript pass. Chrome covers
+saved/local/international/manual-contact recipients, invalid numbers, missing or
+invalid system numbers, reset/cancel/Escape, 320px modal scrolling and dark/desktop
+views. It checks exact draft text and that no contact or shipment writes occur.
+Existing real Operations-shell scrolling, mouse/touch/keyboard ordering and
+save/reopen regressions also pass with synthetic services. No real message was
+sent. WhatsApp's documented message-only link supplies its native contact chooser:
+https://faq.whatsapp.com/5913398998672934/.
+The production build and release status are recorded on the PR.
+
+## 2026-11-20 — Fix mobile stop-card text alignment
+
+Long pickup town, warehouse and destination names were squeezed beside the
+Up/Down controls, wrapping into very narrow vertical columns. On phone widths,
+stop cards now reserve a full label row and put the controls beneath it. At
+larger widths the controls remain inline. Labels use 14px text with 20px line
+height, top alignment and normal word wrapping; drag handles and phone move
+buttons have 44px touch targets. Service-worker cache v82 refreshes installed
+apps for this follow-up production update. Shipment ordering and message
+content are unchanged; no backend deployment is needed.
+
+Validation: 35 Ceramic Tiles tests and targeted ESLint pass. Chrome checks with
+long unknown-town/warehouse and delivery labels at 320, 390 and 430px verify
+wide text, controls below labels, 44px grips and no horizontal overflow. Light
+and dark screenshots reviewed. Mouse/touch dragging, invalid cross-town drops,
+Escape cancellation, keyboard buttons and save/reopen still pass. The actual
+Operations shell scroll/dispatch regression also passes with synthetic data.
+The production Vercel build and post-release result are recorded on the PR.
+
+## 2026-11-20 — Authorize the live Ceramic Tiles release
+
+The user explicitly requested the production update. The live fleetcore Vercel
+project and domain were verified; its production NEXT_PUBLIC_CONVEX_URL points
+to dependable-quail-107, independently confirmed by the authenticated Convex
+management API as the default production deployment of fleet-backend. Development
+remains on quixotic-gopher-969. The previous production Vercel deployment was
+recorded for rollback. The release adds the Ceramic Tiles backend/schema there
+and builds this reviewed commit using the existing production environment.
+
+Bumped the service-worker cache to fleetcore-v81 so installed mobile apps detect
+the release and replace older cached assets. The existing worker update flow
+reloads open clients after clearing an older cache. No shipment records are
+copied from development into production; import PDFs through the live web app.
+The release uses the fleetcore project only. Its separately linked fleet-core
+project and the live photo-upload audit are excluded from this release path.
+See the PR release status for the actual deployment and post-release results.
+
+## 2026-11-20 — Prepare Ceramic Tiles feature branch for review and release
+
+Prepared the accumulated PDF-reader, compact WhatsApp, persistent drag ordering,
+mobile dispatch and preserved calendar workspace changes for a feature-branch
+commit and GitHub push. Expanded feature CI to cover all source/backend paths,
+the full regression suite, repository lint, TypeScript and a production build.
+CI compilation uses a non-live placeholder Convex URL and performs no deployment.
+Updated Next.js and its ESLint config from 16.1.7 to 16.4.6 after the
+registry audit identified critical advisories. Updated SheetJS from the stale
+npm version to the vendor-published 0.20.3 tarball and applied compatible
+lockfile security patches (no forced upgrades). The React hooks ESLint plugin
+is pinned to the existing 7.0.1 baseline, preserving the locked legacy lint
+behavior rather than introducing new rules across planner/admin screens.
+The post-fix runtime audit reports 0 critical, 0 high and 2 moderate findings
+(UUID/ExcelJS). ExcelJS uses UUID v4; the advisory covers v3/v5/v6 with supplied
+buffers. No major downgrade or API override was forced. The remaining findings
+stay recorded for release review; CI rejects high/critical runtime advisories.
+SheetJS round-trip verification
+against the actual template retains five sheets and all 14,029 formulas while
+writing synthetic rows and metadata. See vendor guidance:
+https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
+and https://docs.sheetjs.com/docs/getting-started/installation/nodejs/.
+No customer PDF, environment file, credentials or local QA fixtures are included.
+Original calendar backups and stashes remain available locally.
+
+Release verification: 990 tests in 59 files pass; repository lint exits 0 with
+64 pre-existing warnings; the local production build including TypeScript and
+all 33 pages succeeds. Existing synthetic browser checks cover the real mobile
+shell's scrolling, region-free screen, touch ordering, assignment, version
+review, protected login return and manual WhatsApp draft. Real authenticated
+import/history/archive flows and a physical-phone pass remain release gates.
+The live-site audit is deliberately not run because it edits driver photos.
+
+This prepares the feature branch and existing draft PR, not a production release.
+Before a production rollout, verify the actual live frontend/backend mapping:
+the old mobile-audit notes describe the live site using a development Convex
+backend. Require scoped release permission and complete real workflow checks
+before changing live deployment settings, syncing production, or merging main.
+
+## 2026-11-20 — Fix clipped mobile Ceramic Tiles scrolling and remove region selectors
+
+The Operations route layout wraps its content in a bounded overflow-hidden
+container. Reproduced the reported failure with the real OperationsLayout and
+Navigation: the dispatch page expanded to its content height while its parent
+clipped it, so native wheel scrolling left both main elements at scrollTop 0.
+The earlier isolated mobile harness omitted that route wrapper and missed this.
+
+MobileCeramicTiles now owns a bounded, full-height overflow-y-auto scroll area
+with min-height 0. Opening a shipment or receiving a newer version resets this
+scroll area itself. Removed the page region selector and hid the global mobile
+header region selector only on Ceramic Tiles. Admins combine the existing two
+server-authorized regional shipment queries without a selector; regional users
+continue to query their own server-enforced scope. Assignment/instruction saves
+use the selected shipment's actual region. Other modules' region controls and
+the desktop importer remain unchanged; no backend deployment was needed.
+
+Validation: native mouse-wheel and finger-swipe scrolling reach the lower Save
+instructions/WhatsApp area inside the real AppShell + OperationsLayout + actual
+Navigation. The same Chrome harness verifies no page/header region selectors,
+admin access to both authorized regions, correct scope for an Eastern Cape
+assignment, regional-user restriction, touch drag ordering, save/reopen,
+WhatsApp text, live version review, protected sign-in return, 320px layout and
+retained desktop upload. Synthetic records only; no external requests or real
+shipment edits. Screenshots reviewed. All 990 tests, changed-file ESLint,
+TypeScript and local Next.js build pass. Local changes remain uncommitted;
+production was not modified. Refresh the localhost side preview to retest.
+
+## 2026-11-20 — Mobile Ceramic Tiles dispatch integration
+
+Added a dedicated Ceramic Tiles tile between Operations and QuickSend on
+/start. Phones use a dispatch-only view of the same authenticated, region-scoped
+shipment/fleet queries used by the web importer. PDF upload remains on the
+web/desktop view; no separate mobile shipment or fleet copies are created.
+Mobile cards default to Unassigned (including partially assigned shipments),
+with Assigned/All tabs and shipment-number search. Cards show shipment/version,
+pallets, driver and truck. Select a card, choose the existing truck/driver,
+save the assignment, drag pickup/offload order, save instructions, and review
+Copy/Open WhatsApp. The existing shared ordering/message components are reused.
+
+Ceramic Tiles is mobile-allowed but remains protected. Opening the tile as a
+guest returns to it after the existing sign-in. The redirect destination is
+captured before authentication and constrained to the known internal route.
+A newer shipment version is flagged for review; mobile requires an explicit
+instruction save before opening WhatsApp. The optional reviewedVersion marker
+records the reviewed version. expectedVersion is checked by the authenticated
+save mutation, rejecting stale saves before any write. Older clients preserve
+the marker without marking an unseen revision reviewed. A version change
+reopens the latest dispatch data at the top of the phone screen.
+
+Validation: 990 tests across 59 files, including 35 Ceramic Tiles tests;
+changed-file ESLint, TypeScript and local Next.js build pass. An isolated Chrome
+flow uses actual AppShell, start/login pages and the responsive Ceramic Tiles
+page with synthetic services and blocked external requests. It checks tile
+order, protected sign-in return, no mobile uploader, shared reactive records,
+assignment gating, touch ordering inside the app shell, save/reopen, exact
+Copy/WhatsApp text, live version review, newly web-imported records appearing,
+admin/regional region behavior, 320px layout and retained desktop uploader.
+Phone screenshots were visually reviewed. No real shipment was changed or
+WhatsApp message sent. The small optional review schema/mutation synced to the
+remotely verified development deployment, with expectedVersion visible in remote
+metadata and invalid sessions denied. Post-sync TypeScript passes.
+
+All existing local calendar, PDF and dispatch edits remain preserved, with a
+pre-sync backup under .git/codex-backups. Changes are uncommitted and not pushed.
+No production deployment or Vercel publishing was performed. Installed apps
+pointing at production need a separately authorized release; a physical-phone
+check against the chosen development environment is still recommended.
+
+## 2026-11-20 — Drag-and-drop Ceramic Tiles stop ordering
+
+Added grip handles to pickup towns, warehouses and delivery stops using the
+existing @dnd-kit/core dependency. Drag a grip with a mouse or touch to move a
+stop directly to another position. A floating label follows the drag and valid
+drop targets are highlighted. Warehouses stay within their town; towns and
+offloads have separate drop zones. Dropping updates the numbered message
+preview; Save instructions uses the existing persistent order contract.
+Escape cancels without changing order. Up/Down buttons remain for keyboard
+access and Reset to PDF order remains available. Touch dragging is confined
+to the grip so the rest of the editor can still scroll normally.
+
+Validation: 982 tests across 57 files, including 29 Ceramic Tiles tests, pass;
+changed-file ESLint and the local Next.js build pass. Chrome tests perform real
+mouse dragging for all three lists, reject cross-town warehouse drops, cancel
+with Escape, reorder using keyboard buttons and drag with actual emulated touch
+events on mobile. Synthetic saves survive reopening, the WhatsApp draft matches,
+reset persists, and desktop/mobile screenshots were reviewed without browser
+errors or horizontal overflow. No real shipment was reordered or message sent.
+No dependency changes or backend/production deployment was needed. Previous
+calendar, PDF-reader, message-format and saved-order changes remain intact.
+
+## 2026-11-20 — Editable Ceramic Tiles loading and offloading order
+
+Added a Loading & offloading order editor at the top of Driver instructions.
+Use Up/Down to reorder pickup towns, warehouses within a town, and individual
+offloads. The numbered WhatsApp preview follows each change immediately.
+Reset to PDF order restores source ordering; Save instructions persists the
+chosen order for that shipment and enables the saved WhatsApp draft.
+Same-name delivery stops show address detail and remain separate.
+
+Saved order is an optional driverInstructions.stopOrder field, using stable
+collection labels and delivery references rather than array positions. Existing
+shipments default to PDF order. Revised PDFs keep surviving preferences, remove
+stale stops and append new ones. Older clients saving notes preserve the order.
+The authenticated mutation validates complete permutations and denies missing,
+duplicate or foreign stops and out-of-scope access. No snapshot, PDF history,
+vehicle assignment or reporting behavior changes. Optional schema/functions
+synced successfully to the remotely verified development deployment only.
+
+Validation: 981 tests across 57 files, including 28 Ceramic Tiles tests, pass.
+Tests exercise the actual save handler with a mocked database, permissions,
+invalid permutations and backward compatibility. TypeScript, changed-file lint
+and local Next.js build pass. Isolated Chrome tests with synthetic data cover
+all three move controls, live preview, save/reopen, matching WhatsApp text,
+reset persistence and mobile/desktop layouts; screenshots were reviewed with
+no horizontal overflow or browser errors. Remote metadata confirms the saved
+order arguments; an invalid request is rejected. No real shipment was reordered
+or message sent during verification. Existing local work is preserved; nothing
+was pushed to GitHub or deployed to production.
+
+## 2026-11-20 — Compact Ceramic Tiles driver message
+
+Replaced the report-style WhatsApp draft with dispatch's requested format:
+uppercase driver name, actual truck registration, truck fleet number (no
+trailer information), shipment number and pallet total, four specified SOS
+notices, town-grouped numbered collections, numbered offloads and the closing
+PLEASE TRAVEL SAFELY message. Collection warehouses are deduplicated within
+each town; offload order and distinct shipment stops remain in source order.
+Known warehouse labels are shortened without fabricating unknown locations.
+Order details, weight totals, delivery references and dates remain in the
+shipment record but are omitted from the compact draft. Custom extra notes
+remain included. The previous unedited standard notices refresh to the new
+four notices; custom saved safety text is preserved. Refresh/reopen instructions
+and save if prompted before opening the WhatsApp draft.
+
+The authenticated fleetChoices response now includes truck registration with
+an explicit return validator, truck fleet-number fallback and bounded fleet
+reads. No vehicle assignments, trailers or database schema were changed.
+Synced to the remotely verified quixotic-gopher-969 development deployment.
+Remote metadata confirms registration in the return contract and an invalid
+session still fails authorization. Production was not targeted.
+
+Validation: 973 tests across 56 files, including 20 Ceramic Tiles tests;
+TypeScript, changed-file ESLint and local Next.js build pass. An isolated Chrome
+check of the actual instructions panel verifies the new header, old-default
+migration, preserved dispatch notes, saving, Copy and matching WhatsApp link
+text with synthetic data and external requests blocked. No real records were
+edited and no messages were sent by verification. All changes remain local
+and uncommitted; existing calendar work and PDF-reader fix remain intact.
+
+## 2026-11-20 — Fix PDF reading in Webpack development
+
+A selected PDF failed before review with Object.defineProperty called on
+non-object. Reproduced using a generated, redacted shipment PDF in Chrome
+against Next.js 16.1.7 Webpack. The unminified PDF.js webpack entry triggers an
+upstream Webpack runtime collision. The reader now lazy-loads the equivalent
+pinned minified PDF.js entry and creates its matching bundled module worker.
+Document extraction stays on the device; there is no CDN or backend change.
+Updated the TypeScript module declaration to match the new import.
+
+The same actual PDF/worker browser check now extracts shipment SH00123456 v5,
+two orders and 2.75 pallets, including repeated reads with the shared worker.
+TypeScript, changed-file lint and all 968 existing Vitest tests pass. Local
+build verification also passes. The user's original PDF was not available in
+this test; retry that PDF after refreshing and removing its failed batch entry.
+No import confirmation, record write, message sending or deployment occurred.
+
+## 2026-11-20 — Activate Ceramic Tiles in verified development
+
+With explicit permission for development only, verified the local Convex URL
+against the authenticated management API: quixotic-gopher-969 is a development
+deployment in fleet-backend. Ran activateCeramicDev.ps1 with
+-SkipNpmInstall -DeployToDevelopment after backing up and stashing the calendar
+work. The script passed 15 Ceramic Tiles tests, TypeScript, targeted ESLint and
+a local Next.js build, then synced the development functions/schema and added
+the three Ceramic Tiles indexes. Code generation and post-sync TypeScript pass.
+
+Remote metadata confirms all eight Ceramic Tiles public functions, including
+list and fleetChoices. Read-only calls to both queries with an invalid token
+reach the deployed handlers and correctly deny access. The missing-function
+error is resolved at the connected development backend. No import, assignment,
+PDF upload or WhatsApp message was performed during verification; authenticated
+end-to-end feature testing remains outstanding. Production was not targeted.
+All six calendar files were restored and compared with their pre-sync backups.
+Original and reconciled stashes remain retained. No GitHub push was performed.
+
+## 2026-11-20 — Reconcile saved calendar workspace with Ceramic Tiles branch
+
+Restored the four saved calendar edits on the Ceramic Tiles feature branch.
+The birthday page opens the saved Timeline workspace, with desktop search,
+today/7-day/30-day summaries, weekday and turning-age details, and the existing
+mobile pagination. A Timeline/Calendar switch retains the branch's month grid,
+metrics dashboard and CSV export. Only the selected view mounts and subscribes
+to its existing birthday queries. No backend functions or configuration changed.
+
+The restored timeline lives in BirthdayTimelineWorkspace.tsx with its own
+scoped stylesheet; the branch calendar and metrics remain in page.tsx. The
+shared birthday helper retains the optional birthYear field. Desktop results
+render in full, with readable card heights and scrolling rather than a fixed
+99-record limit. The original stash and byte-for-byte backups remain intact.
+
+Validation: TypeScript, changed-file ESLint, all 968 Vitest tests and a local
+Next.js build pass. An isolated Chrome harness using synthetic data verifies
+105 desktop records, search/clear, filters, month navigation, age details,
+mobile pagination reaching all 105 records, breakpoint changes, short-screen
+overflow, switching views, metrics, CSV export and loading state. Screenshots
+were visually reviewed; no browser errors or external requests occurred.
+This is local UI verification, not an authenticated backend integration test.
+Changes remain uncommitted; nothing pushed or deployed.
+
+## 2026-10-29 — Desktop birthday workspace
+
+The `/calendar` screen now has a two-column desktop workspace at 768px and
+wider: summary tiles for today, the next 7 days and the next 30 days, search by
+driver name, a persistent filter rail, and a responsive card grid that shows the
+whole selected period without pagination. Cards also show the weekday and the
+age the driver turns. The existing mobile timeline, pagination and layout are
+unchanged.
+
+Validation: TypeScript, changed-file lint, the production Next.js build and the
+full Vitest suite (53 files, 953 tests) pass.
+
 ## 2026-10-29 — Mobile install button and clearer driver phone validation
 
 Mobile now has a dedicated **Download FleetCore** action in the top bar and on

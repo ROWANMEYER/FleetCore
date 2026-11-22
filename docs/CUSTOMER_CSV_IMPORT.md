@@ -5,6 +5,19 @@ review the counts and rows, then click **Import ready customers**. The importer
 does not write anything until that button is pressed. Filter the preview to
 **Skipped / conflicts** to see rows requiring correction before a later import.
 
+## Export from Age Analysis
+
+In Age Analysis, open **Customers → Export CSV**. This writes all customers,
+including blocked accounts, to `age-track-customers-YYYY-MM-DD.csv`; search and
+filters do not restrict that export. Select that same downloaded file here.
+No spreadsheet editing or conversion is required.
+
+The export includes account/name/status, aliases/COD, contact details, telephone,
+mobile/fax, delivery/postal addresses, postal code and tax reference. Customer
+balances, payments, credit limits and tariff agreements are excluded. Quoted
+commas, quotes, embedded newlines, accents and leading-zero identifiers are
+preserved when the file is uploaded directly.
+
 ## Mapping
 
 | CSV column | Existing Fleetcore customer field |
@@ -30,8 +43,8 @@ records are created.
 and status filter to `fleetcore-clients_<date>.csv`. The file uses the mapping
 above, so it can be selected in the importer again without editing it. Addresses
 are written as a single quoted multi-line `Delivery Address 1` cell and note text
-is written verbatim to `Note`. A UTF-8 BOM is included so Excel preserves
-leading zeroes in `Rekno`. Clients without an account number export with a blank
+is written verbatim to `Note`. A UTF-8 BOM is included for Excel character encoding. Upload the downloaded
+file directly to preserve the account-number text. Clients without an account number export with a blank
 `Rekno` and are skipped if the file is imported, so a toast reports them.
 
 ## Existing customers and duplicate rows

@@ -33,8 +33,48 @@ describe("monthly rate sheet PDF", () => {
     expect(doc.getNumberOfPages()).toBe(2);
     const output = doc.output();
     expect(output).toContain("Destination 24");
+    for (let i = 1; i <= 24; i++) expect(output).toContain(`(Destination ${i})`);
     expect(output.match(/Sep 2026/g)).toHaveLength(2);
     expect(output).toContain("Increase");
+  });
+  it("prints complete mixed-origin destinations and separate SP labels", () => {
+    const lanes = [
+      { loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "KNYSNA / PLETT (SP)", rate: 1078.20, sortOrder: 0 },
+      { loadingPoint: "BABELEGI + KRUGERSDORP + VEREENIGING", destination: "GRASKOP / DWAARS / ACORN / BUSHBUCK / LYDEN / THULAMAHASHE / CASTEEL", rate: 636.55, sortOrder: 1 },
+    ];
+    const output = generateRateSheetPDF(buildRateSheetData({ ...sheet, lanes }, { name: "Ceramic Tile Marketing" }, fuel)).output();
+    expect(output).toContain("KNYSNA / PLETT");
+    expect(output).toContain("SP");
+    expect(output.match(/\(KRUGERSDORP \+ VEREENIGING\)/g)).toHaveLength(1);
+    expect(output.match(/\(BABALEGI \+ KRUGERSDORP \+ VEREENIGING\)/g)).toHaveLength(1);
+    expect(output).toContain("THULAMAHASHE");
+    expect(output).toContain("CASTEEL");
+  });
+  it("paginates wrapped rows without losing lanes or repeating their rates", () => {
+    const lanes = Array.from({ length: 52 }, (_, i) => ({
+      loadingPoint: i % 2 ? "BABELEGI + KRUGERSDORP + VEREENIGING" : "KRUGERSDORP + VEREENIGING",
+      destination: `GRASKOP / DWAARS / ACORN / BUSHBUCK / LYDEN / THULAMAHASHE / CASTEEL END${String(i).padStart(3, "0")}`,
+      rate: 1000 + i, sortOrder: i,
+    }));
+    const doc = generateRateSheetPDF(buildRateSheetData({ ...sheet, lanes }, undefined, fuel));
+    const output = doc.output();
+    expect(doc.getNumberOfPages()).toBeGreaterThan(3);
+    for (let i = 0; i < lanes.length; i++) expect(output.match(new RegExp(`END${String(i).padStart(3, "0")}`, "g"))).toHaveLength(1);
+    expect(output.match(/Sep 2026/g)).toHaveLength(doc.getNumberOfPages());
+    expect(output).toContain(`Page ${doc.getNumberOfPages()} of ${doc.getNumberOfPages()}`);
+  });
+  it("groups destinations by origin and repeats section headings on continuation pages", () => {
+    const lanes = Array.from({ length: 44 }, (_, i) => ({
+      loadingPoint: i % 2 ? "BABELEGI + KRUGERSDORP + VEREENIGING" : "KRUGERSDORP + VEREENIGING",
+      destination: `Stop ${String(i).padStart(3, "0")}`, rate: 1000 + i, sortOrder: i,
+    }));
+    const doc = generateRateSheetPDF(buildRateSheetData({ ...sheet, lanes }, undefined, fuel));
+    const output = doc.output();
+    expect(output.match(/\(KRUGERSDORP \+ VEREENIGING\)/g)?.length).toBeGreaterThan(1);
+    expect(output.match(/\(BABALEGI \+ KRUGERSDORP \+ VEREENIGING\)/g)?.length).toBeGreaterThan(1);
+    for (let i = 0; i < lanes.length; i++) expect(output.match(new RegExp(`Stop ${String(i).padStart(3, "0")}`, "g"))).toHaveLength(1);
+    expect(output.indexOf("Stop 042")).toBeLessThan(output.indexOf("Stop 001"));
+    expect(output.match(/Destination/g)).toHaveLength(doc.getNumberOfPages());
   });
   it("labels a decrease honestly", () => {
     const doc = generateRateSheetPDF(buildRateSheetData(sheet, undefined, [fuel[0], { ...fuel[1], pricePerLitre: 18 }]));

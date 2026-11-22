@@ -62,6 +62,8 @@ jobs:
           printf 'not really an image' > /tmp/heictest/fake.png
 
       - name: Run driver upload audit (mobile viewport)
+        # Writes are opt-in and restricted to an explicitly configured test URL.
+        if: github.event_name == 'workflow_dispatch' && vars.AUDIT_ALLOW_UPLOAD_WRITES == 'true' && vars.AUDIT_URL != '' && vars.AUDIT_URL != 'https://fleetcore-mu.vercel.app'
         # Camera affordance (visible / tap-target / no-flip), trusted tap
         # opens the native chooser, chooser-set photo uploads and renders.
         # Uploads a tiny photo to the first driver and removes it afterwards.

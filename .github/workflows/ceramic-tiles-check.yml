@@ -1,0 +1,45 @@
+name: Ceramic Tiles feature checks
+
+on:
+  push:
+    branches:
+      - feature/ceramic-tiles-stage1-foundation
+  pull_request:
+    paths:
+      - 'convex/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'tsconfig.json'
+      - 'vitest.config.*'
+      - '.github/workflows/ceramic-tiles-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Full regression suite
+        run: npm test
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Production compilation (no deployment)
+        env:
+          # Compilation only: no credentials or access to a live backend.
+          NEXT_PUBLIC_CONVEX_URL: https://ci-build-only.convex.cloud
+        run: npm run build

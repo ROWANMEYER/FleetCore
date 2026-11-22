@@ -9,6 +9,7 @@ import { birthdayOffset, johannesburgDay } from "@/src/lib/birthdayTimeline";
 import { DriverThumb } from "@/src/components/admin/DriverAvatar";
 import { downloadFile } from "@/src/lib/exports/utils";
 import css from "./timeline.module.css";
+import BirthdayTimelineWorkspace from "./BirthdayTimelineWorkspace";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -27,7 +28,7 @@ function exportBirthdayMetrics(rows: Array<{ name: string; age: number; month: n
   downloadFile(`\uFEFF${lines.join("\r\n")}\r\n`, `fleetcore-birthday-metrics_${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
 }
 
-export default function BirthdayTimelinePage() {
+function BirthdayCalendarDashboard() {
   const [today, setToday] = useState(() => johannesburgDay());
   const [cursor, setCursor] = useState(() => ({ year: today.year, month: today.month }));
   const [showMetrics, setShowMetrics] = useState(false);
@@ -164,4 +165,19 @@ export default function BirthdayTimelinePage() {
       </section>
     </div>}
   </main></div>;
+}
+
+
+export default function BirthdayPage() {
+  const [view, setView] = useState<"timeline" | "calendar">("timeline");
+
+  return <div className={css.workspace}>
+    <nav className={css.viewControls} aria-label="Birthday workspace view">
+      <button type="button" aria-pressed={view === "timeline"} aria-controls="birthday-workspace" onClick={() => setView("timeline")}>Timeline</button>
+      <button type="button" aria-pressed={view === "calendar"} aria-controls="birthday-workspace" onClick={() => setView("calendar")}>Calendar</button>
+    </nav>
+    <div id="birthday-workspace" className={css.viewBody} role="region" aria-label={view === "timeline" ? "Birthday timeline workspace" : "Birthday calendar workspace"}>
+      {view === "timeline" ? <BirthdayTimelineWorkspace /> : <BirthdayCalendarDashboard />}
+    </div>
+  </div>;
 }

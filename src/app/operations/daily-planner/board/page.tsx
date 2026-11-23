@@ -1,5 +1,6 @@
 "use client";
 
+import type { Region } from "@/src/lib/regions";
 import {
   DndContext,
   DragOverlay,
@@ -352,7 +353,7 @@ function BoardContent() {
       const loads = buildAddLoadsPayload(parsed, clientResolutions, boardDate);
 
       const result = await createBulk({
-        region: (region || "garden_route") as "garden_route" | "eastern_cape",
+        region: (region || "garden_route") as Region,
         token,
         batchKey: submitted.batchKey,
         loads,

@@ -4,7 +4,7 @@
  * Launches headless Chrome (desktop viewport), signs in as the seeded admin,
  * opens /all-regions, then:
  *   1. Opens the Region dropdown on the first route row
- *   2. Asserts all three options are present (Garden Route / Eastern Cape /
+ *   2. Asserts all six options are present (Garden Route / Eastern Cape /
  *      Unassigned)
  *   3. Picks a different region than the row's current one and waits for the
  *      badge to update (proves the mutation round-trip)
@@ -222,27 +222,24 @@ async function main() {
       const txt = await evalJs(`(() => {
         const labels = [...document.querySelectorAll('button')].map((b) => (b.textContent || '').trim());
         const uniq = [...new Set(labels)];
-        const found = ['Garden Route', 'Eastern Cape', 'Unassigned'].filter((o) => uniq.includes(o));
+        const found = ['Garden Route', 'Eastern Cape', 'TRANSVAAL', 'KAAP', 'DURBAN', 'Unassigned'].filter((o) => uniq.includes(o));
         return found.length === 3 ? found : null;
       })()`);
       return txt;
     }, 10000);
     check(
       "all three region options shown",
-      Array.isArray(options) && ["Garden Route", "Eastern Cape", "Unassigned"].every((o) => options.includes(o)),
+      Array.isArray(options) && ["Garden Route", "Eastern Cape", "TRANSVAAL", "KAAP", "DURBAN", "Unassigned"].every((o) => options.includes(o)),
       Array.isArray(options) ? options.join(" / ") : "options not found"
     );
 
-    // Current badge label (may be "Garden Route", "Eastern Cape", or "— assign")
+    // Remember the original label, including an unassigned route.
     const current = await evalJs(`(() => {
       const el = document.querySelector('button[title="Change region"], button[title="Assign region"]');
       return el ? el.textContent.trim() : "";
     })()`);
-    const currentRegion =
-      current.includes("Garden Route") ? "garden_route"
-      : current.includes("Eastern Cape") ? "eastern_cape"
-      : null;
-    const target = currentRegion === "garden_route" ? "Eastern Cape" : "Garden Route";
+    const currentRegion = ["Garden Route", "Eastern Cape", "TRANSVAAL", "KAAP", "DURBAN"].find(label => current.includes(label)) ?? null;
+    const target = currentRegion === "Garden Route" ? "Eastern Cape" : "Garden Route";
     check(
       "current region detected",
       currentRegion !== null || current.includes("assign"),
@@ -260,7 +257,7 @@ async function main() {
 
     const updated = await waitFor(async () => {
       const txt = await evalJs(`(() => {
-        const el = document.querySelector('button[title="Change region"]');
+        const el = document.querySelector('button[title="Change region"], button[title="Assign region"]');
         return el ? el.textContent.trim() : "";
       })()`);
       return txt && txt.includes(target) ? txt : null;
@@ -274,7 +271,7 @@ async function main() {
       el.click();
       return true;
     })()`);
-    const revertTarget = currentRegion === "garden_route" ? "Garden Route" : "Eastern Cape";
+    const revertTarget = currentRegion ?? "Unassigned";
     if (revertPicked) {
       await sleep(400);
       const pickedRevert = await evalJs(`(() => {
@@ -285,10 +282,10 @@ async function main() {
       })()`);
       const reverted = await waitFor(async () => {
         const txt = await evalJs(`(() => {
-          const el = document.querySelector('button[title="Change region"]');
+          const el = document.querySelector('button[title="Change region"], button[title="Assign region"]');
           return el ? el.textContent.trim() : "";
         })()`);
-        return txt && txt.includes(revertTarget) ? txt : null;
+        return txt && txt.includes(currentRegion ?? "assign") ? txt : null;
       }, 20000);
       check("region reverted (net-zero)", !!reverted, reverted ? `back to: ${reverted}` : "revert failed");
     } else {

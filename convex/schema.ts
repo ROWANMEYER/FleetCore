@@ -1,3 +1,4 @@
+import { regionValidator } from "./regionFields";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateSheetFields, tariffHistoryFields } from "./rateSheetFields";
@@ -184,7 +185,7 @@ export default defineSchema({
     offlineKey: v.optional(v.string()),
     rate: v.float64(),
     region: v.optional(
-      v.union(v.literal("garden_route"), v.literal("eastern_cape"))
+      regionValidator
     ),
     routeDate: v.string(),
     routeKilometers: v.optional(v.float64()),
@@ -276,10 +277,7 @@ export default defineSchema({
   }).index("by_selectedDate", ["selectedDate"]),
   planningLoads: defineTable({
     loadDate: v.string(),
-    region: v.union(
-      v.literal("garden_route"),
-      v.literal("eastern_cape")
-    ),
+    region: regionValidator,
     client: v.string(),
     fromLocations: v.array(v.string()),
     toLocations: v.array(v.string()),
@@ -509,16 +507,18 @@ export default defineSchema({
     .index("by_currentTrailerId", ["currentTrailerId"])
     .index("by_truckFleetNo", ["truckFleetNo"]),
   // Multi-user auth: one row per person who can sign in.
-  // role: admin sees everything; regional sees only their region (Stage 3+).
+  // role: admin sees everything; regional sees only their assigned regions.
   users: defineTable({
     email: v.string(),
     passwordHash: v.string(),
     role: v.union(v.literal("admin"), v.literal("regional")),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
+    regions: v.optional(v.array(regionValidator)),
     sessionToken: v.optional(v.string()),
     sessionExpiresAt: v.optional(v.float64()),
   })
     .index("by_email", ["email"])
+    .index("by_role", ["role"])
     .index("by_sessionToken", ["sessionToken"]),
   // Multi-device sessions: one row per logged-in device/browser. Keeps the user
   // signed in on several devices at once — logging in on one device no longer

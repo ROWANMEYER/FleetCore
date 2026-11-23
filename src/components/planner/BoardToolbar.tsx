@@ -1,3 +1,4 @@
+import type { Region } from "@/src/lib/regions";
 import { Search } from "lucide-react";
 import { type BoardStatusFilter } from "@/src/lib/planner/boardStats";
 import { REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
@@ -17,7 +18,7 @@ type BoardToolbarProps = {
   onStatusChange: (status: BoardStatusFilter) => void;
   visibleTruckCount: number;
   totalTruckCount: number;
-  region?: "garden_route" | "eastern_cape";
+  region?: Region;
 };
 
 /**

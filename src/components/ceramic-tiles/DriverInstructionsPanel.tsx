@@ -1,5 +1,6 @@
 "use client";
 
+import type { Region } from "@/src/lib/regions";
 import { useEffect } from "react";
 import { Check, ClipboardCopy, Save, X } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -8,7 +9,6 @@ import { useCeramicInstructions } from "./useCeramicInstructions";
 import { CeramicStopOrderEditor } from "./StopOrderEditor";
 import { WhatsAppRecipientPicker } from "./WhatsAppRecipientPicker";
 
-type Region = "garden_route" | "eastern_cape";
 type DriverChoice = { id: string; name: string; phone: string | null };
 type TruckChoice = { id: string; fleetNumber: string; registration?: string | null };
 

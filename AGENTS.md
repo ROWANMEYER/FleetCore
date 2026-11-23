@@ -34,7 +34,7 @@ This project is in a **locked baseline** state (as of 2026-01-23). Core architec
 - Backend queries: separated by consumer intent (UI, reporting, email, QuickSend)
 - Suspense: localized only, `fallback={null}` unless required
 - Legacy routes (`/planner`, `/sheets`): declared in `ARCHITECTURE_LOCK` — no route files exist in the current codebase; do not reintroduce them as canonical routes
-- Region scoping is **server-enforced** — regional users are hard-locked to their own region (never trusted from the client); route queries resolve scope via `resolveEffectiveRegion` in `convex/userSessions.ts`
+- Region scoping is **server-enforced** — regional users can access only their assigned regions (server-validated; one regional owner per region); route queries resolve scope via `resolveEffectiveRegion` in `convex/userSessions.ts`
 
 ## Lint Freeze
 

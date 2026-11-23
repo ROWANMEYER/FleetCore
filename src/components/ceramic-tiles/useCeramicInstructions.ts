@@ -1,4 +1,5 @@
 "use client";
+import type { Region } from "@/src/lib/regions";
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -9,7 +10,7 @@ export type CeramicDriverChoice = { id: string; name: string; phone: string | nu
 export type CeramicTruckChoice = { id: string; fleetNumber: string; registration?: string | null };
 export type CeramicFleet = { drivers: CeramicDriverChoice[]; trucks: CeramicTruckChoice[] };
 export function useCeramicInstructions({ shipment, token, region, drivers, trucks, requireVersionReview = false, publicMobile = false }: {
-  shipment: CeramicDispatchShipment; token?: string; region: "garden_route" | "eastern_cape";
+  shipment: CeramicDispatchShipment; token?: string; region: Region;
   drivers: CeramicDriverChoice[]; trucks: CeramicTruckChoice[]; requireVersionReview?: boolean; publicMobile?: boolean;
 }) {
   const [safetyNotes, setSafetyNotes] = useState(ceramicSafetyNotes(shipment.driverInstructions?.safetyNotes));

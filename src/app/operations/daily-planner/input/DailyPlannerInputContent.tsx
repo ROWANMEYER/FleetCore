@@ -1,5 +1,6 @@
 "use client";
 
+import type { Region } from "@/src/lib/regions";
 import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
@@ -128,7 +129,7 @@ function DailyPlannerInputForm() {
   // stay unselected on "All Regions", forcing an explicit pick via the red
   // alert); regional users are locked to their own region.
   const [region, setRegion] = useState<string>(
-    user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
+    regionArg ?? (user?.role === "regional" ? (user.region ?? "garden_route") : "")
   );
   const [headerComplete, setHeaderComplete] = useState(true);
 
@@ -563,7 +564,7 @@ function DailyPlannerInputForm() {
   useEffect(() => {
     if (routeId) return;
     setRegion(
-      user?.role === "regional" ? (user.region ?? "garden_route") : (regionArg ?? "")
+      regionArg ?? (user?.role === "regional" ? (user.region ?? "garden_route") : "")
     );
   }, [routeId, user, regionArg]);
 
@@ -796,7 +797,7 @@ function DailyPlannerInputForm() {
           notes: notes || undefined,
           kilometers: totals.totalKm, // Legacy field (effective)
           routeKilometers: parseFloat(routeKilometers) || undefined,
-          region: region as "garden_route" | "eastern_cape",
+          region: region as Region,
           token,
           loads: schemaLoads,
         });
@@ -827,7 +828,7 @@ function DailyPlannerInputForm() {
           notes: notes || undefined,
           kilometers: totals.totalKm, // Legacy field (effective)
           routeKilometers: parseFloat(routeKilometers) || undefined,
-          region: region as "garden_route" | "eastern_cape",
+          region: region as Region,
           token,
           loads: schemaLoads,
           offlineKey: newClientId(),

@@ -1,3 +1,4 @@
+import { regionValidator } from "./regionFields";
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { calculateLoadAmount } from "./utils";
@@ -96,7 +97,7 @@ export const getFinancialSummary = query({
     startDate: v.string(),
     endDate: v.string(),
     token: v.optional(v.union(v.string(), v.null())),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);

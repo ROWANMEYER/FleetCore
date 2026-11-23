@@ -1,3 +1,5 @@
+import { regionValidator } from "./regionFields";
+import { getUserRegions, type Region } from "../src/lib/regions";
 import { action, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import * as bcrypt from "bcryptjs";
@@ -7,7 +9,8 @@ type AuthUserView = {
   _id: string;
   email: string;
   role: "admin" | "regional";
-  region: "garden_route" | "eastern_cape" | null;
+  region: Region | null;
+  regions: Region[];
 };
 
 async function runLogin(
@@ -27,7 +30,7 @@ async function runLogin(
   });
   return {
     ok: true,
-    user: { _id: user._id, email: user.email, role: user.role, region: user.region ?? null },
+    user: { _id: user._id, email: user.email, role: user.role, region: getUserRegions(user)[0] ?? null, regions: getUserRegions(user) },
   };
 }
 
@@ -65,7 +68,7 @@ async function runSeedAdmin(
 }
 
 type UserRole = "admin" | "regional";
-type UserRegion = "garden_route" | "eastern_cape";
+type UserRegion = Region;
 
 /** Resolve the session user and enforce that they are an admin with a live session. */
 async function requireAdmin(ctx: any, token: string): Promise<any | null> {
@@ -123,7 +126,8 @@ export const listUsers = query({
         _id: u._id,
         email: u.email,
         role: u.role as UserRole,
-        region: (u.region as UserRegion) ?? null,
+        region: (getUserRegions(u)[0] as UserRegion) ?? null,
+        regions: getUserRegions(u),
         signedIn: (liveByUser.get(String(u._id)) ?? 0) > 0,
       }))
       .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === "admin" ? -1 : 1));
@@ -137,7 +141,8 @@ export const createUser = action({
     email: v.string(),
     password: v.string(),
     role: v.union(v.literal("admin"), v.literal("regional")),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
+    regions: v.optional(v.array(regionValidator)),
   },
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx, args.token);
@@ -145,16 +150,22 @@ export const createUser = action({
     const email = args.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Invalid email address" };
     if (args.password.length < 6) return { ok: false, error: "Password must be at least 6 characters" };
-    if (args.role === "regional" && !args.region) return { ok: false, error: "A region is required for regional users" };
+    if (args.role === "regional" && !getUserRegions(args).length) return { ok: false, error: "A region is required for regional users" };
     const existing = await ctx.runQuery(internal.userSessions.getUserByEmail, { email });
     if (existing) return { ok: false, error: "A user with that email already exists" };
     const hashed = await bcrypt.hash(args.password, 10);
-    await ctx.runMutation(internal.userSessions.createUserInternal, {
-      email,
-      passwordHash: hashed,
-      role: args.role,
-      region: args.region,
-    });
+    try {
+      await ctx.runMutation(internal.userSessions.createUserInternal, {
+        email,
+        passwordHash: hashed,
+        role: args.role,
+        region: args.region,
+        regions: args.regions,
+        adminToken: args.token,
+      });
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not save user" };
+    }
     return { ok: true, error: undefined };
   },
 });
@@ -165,7 +176,8 @@ export const updateUser = action({
     token: v.string(),
     userId: v.id("users"),
     role: v.optional(v.union(v.literal("admin"), v.literal("regional"))),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
+    regions: v.optional(v.array(regionValidator)),
     newPassword: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -178,7 +190,7 @@ export const updateUser = action({
       if (args.role && args.role !== "admin") return { ok: false, error: "You cannot change your own role" };
       if (args.newPassword) return { ok: false, error: "Use the Settings page to change your own password" };
     }
-    if (args.role === "regional" && !args.region && target.role !== "regional") {
+    if (args.role === "regional" && !getUserRegions(args).length && target.role !== "regional") {
       return { ok: false, error: "A region is required for regional users" };
     }
     if (args.role && target.role === "admin" && args.role !== "admin") {
@@ -189,12 +201,18 @@ export const updateUser = action({
       return { ok: false, error: "Password must be at least 6 characters" };
     }
 
-    await ctx.runMutation(internal.userSessions.updateUserInternal, {
-      userId: args.userId,
-      role: args.role,
-      region: args.region,
-      passwordHash: args.newPassword ? await bcrypt.hash(args.newPassword, 10) : undefined,
-    });
+    try {
+      await ctx.runMutation(internal.userSessions.updateUserInternal, {
+        userId: args.userId,
+        role: args.role,
+        region: args.region,
+        regions: args.regions,
+        adminToken: args.token,
+        passwordHash: args.newPassword ? await bcrypt.hash(args.newPassword, 10) : undefined,
+      });
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not save user" };
+    }
     return { ok: true, error: undefined };
   },
 });

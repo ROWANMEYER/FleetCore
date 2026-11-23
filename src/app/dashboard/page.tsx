@@ -1,5 +1,6 @@
 "use client";
 
+import { getUserRegionOptions, getUserRegions, getRegionLabel } from "@/src/lib/regions";
 import { useState, useRef, useEffect, useId, type ReactNode} from"react";
 import { useQuery, useMutation} from"convex/react";
 import { useTheme} from"next-themes";
@@ -1072,21 +1073,21 @@ function ProgressBar({ pct, colour}: { pct: number; colour: string}) {
 }
 
 /* Master region filter — the region is the master filter for every number on
-   this screen. Admins pick All / Garden Route / Eastern Cape here (synced with
-   the sidebar switcher); regional users are server-locked to their own region
-   and see a read-only badge. */
+   this screen. Admins pick All or one operating region here (synced with
+   the sidebar switcher); regional users can switch only between their assigned
+   regions and see a read-only badge when only one is assigned. */
 function RegionMasterFilter() {
  const { user, regionFilter, setRegionFilter } = useAuth();
 
  if (!user) return null;
- if (user.role !== "admin") {
+ if (user.role !== "admin" && getUserRegions(user).length <= 1) {
  const locked = user?.region ?? null;
  return (
  <div className="glass-card flex items-center gap-2 rounded-xl px-4 py-2.5 shrink-0" title="Your data is scoped to this region">
  <MapPin size={14} className="text-[#06B6D4] shrink-0" />
  <span className="text-[10px] font-bold text-[var(--nav-text-color)] uppercase tracking-widest">Region</span>
  <span className="text-sm font-black text-[var(--foreground)] capitalize">
- {locked ? locked.replace("_", " ") : "—"}
+ {getRegionLabel(locked) ?? "—"}
  </span>
  </div>
  );
@@ -1103,9 +1104,8 @@ function RegionMasterFilter() {
  title="Region — master filter for all dashboard data"
  className="bg-transparent text-sm font-bold text-[var(--foreground)] py-1 pr-1 pl-1 focus:outline-none cursor-pointer"
  >
- <option value="all">All Regions</option>
- <option value="garden_route">Garden Route</option>
- <option value="eastern_cape">Eastern Cape</option>
+ {user.role === "admin" && <option value="all">All Regions</option>}
+ {getUserRegionOptions(user).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
  </select>
  </div>
  );

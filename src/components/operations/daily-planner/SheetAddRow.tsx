@@ -1,5 +1,6 @@
 "use client";
 
+import { getRegionLabel } from "@/src/lib/regions";
 import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -103,12 +104,7 @@ export default function SheetAddRow({
   // silently file the row in Garden Route, so entry is blocked until a region
   // is chosen (same rule as the paste import).
   const regionBlocked = user?.role === "admin" && !region;
-  const regionLabel =
-    region === "eastern_cape"
-      ? "Eastern Cape"
-      : region === "garden_route"
-        ? "Garden Route"
-        : null;
+  const regionLabel = getRegionLabel(region);
 
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
   const focusCell = (field: string) => inputs.current[field]?.focus();

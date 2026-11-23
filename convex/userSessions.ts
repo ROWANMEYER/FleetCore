@@ -1,3 +1,6 @@
+import { regionValidator } from "./regionFields";
+import { getUserRegions, type Region } from "../src/lib/regions";
+import { assertRegionsAvailable } from "./userRegionAssignments";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -72,36 +75,64 @@ export const setSessionToken = internalMutation({
 });
 
 
+async function assertAdminToken(ctx: Parameters<typeof assertRegionsAvailable>[0], token: string) {
+  const scope = await resolveUserScope(ctx, token);
+  if (scope?.role !== "admin") throw new Error("Admin access required");
+}
+
 export const createUserInternal = internalMutation({
   args: {
-    email: v.string(),
-    passwordHash: v.string(),
+    email: v.string(), passwordHash: v.string(),
     role: v.union(v.literal("admin"), v.literal("regional")),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator), regions: v.optional(v.array(regionValidator)),
+    adminToken: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
+    if (args.adminToken) await assertAdminToken(ctx, args.adminToken);
+    const email = args.email.toLowerCase();
+    if (await ctx.db.query("users").withIndex("by_email", q => q.eq("email", email)).first()) throw new Error("A user with that email already exists");
+    const regions = args.role === "regional" ? getUserRegions(args) : [];
+    if (args.role === "regional") await assertRegionsAvailable(ctx, regions);
     await ctx.db.insert("users", {
-      email: args.email.toLowerCase(),
-      passwordHash: args.passwordHash,
-      role: args.role,
-      region: args.region,
+      email, passwordHash: args.passwordHash, role: args.role,
+      ...(args.role === "regional" ? { region: regions[0], regions } : {}),
     });
+    return null;
   },
 });
 
 export const updateUserInternal = internalMutation({
   args: {
-    userId: v.id("users"),
-    passwordHash: v.optional(v.string()),
+    userId: v.id("users"), passwordHash: v.optional(v.string()),
     role: v.optional(v.union(v.literal("admin"), v.literal("regional"))),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator), regions: v.optional(v.array(regionValidator)),
+    adminToken: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = {};
+    if (args.adminToken) await assertAdminToken(ctx, args.adminToken);
+    const current = await ctx.db.get(args.userId);
+    if (!current) throw new Error("User not found");
+    const patch: Partial<Pick<typeof current, "passwordHash" | "role" | "region" | "regions">> = {};
     if (args.passwordHash !== undefined) patch.passwordHash = args.passwordHash;
     if (args.role !== undefined) patch.role = args.role;
-    if (args.region !== undefined) patch.region = args.region;
-    await ctx.db.patch(args.userId, patch as any);
+    if (args.role !== undefined || args.region !== undefined || args.regions !== undefined) {
+      const role = args.role ?? current.role;
+      if (args.adminToken && current.role === "admin" && role !== "admin") {
+        const session = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", args.adminToken!)).first();
+        if (session?.userId === current._id) throw new Error("You cannot change your own role");
+        const admins = await ctx.db.query("users").withIndex("by_role", q => q.eq("role", "admin")).take(2);
+        if (admins.length <= 1) throw new Error("Cannot demote the last admin");
+      }
+      const regions = args.regions !== undefined ? getUserRegions({ regions: args.regions })
+        : args.region !== undefined ? [args.region] : getUserRegions(current);
+      if (role === "regional") await assertRegionsAvailable(ctx, regions, current._id);
+      patch.regions = role === "regional" ? regions : undefined;
+      patch.region = role === "regional" ? regions[0] : undefined;
+    }
+    await ctx.db.patch(args.userId, patch);
+    return null;
   },
 });
 
@@ -117,7 +148,7 @@ export const getSessionUser = query({
     const user = await ctx.db.get(session.userId);
     if (!user) return { user: null };
     return {
-      user: { _id: user._id, email: user.email, role: user.role, region: user.region ?? null },
+      user: { _id: user._id, email: user.email, role: user.role, region: getUserRegions(user)[0] ?? null, regions: getUserRegions(user) },
     };
   },
 });
@@ -197,12 +228,12 @@ export const logoutSession = mutation({
  * Returns null when the token is absent/invalid/expired (treat as admin/system).
  *
  * Queries that read region-scoped data (dailyRoutes etc.) should call this and,
- * when the resolved user is `regional`, hard-filter to `region === user.region`.
+ * when the resolved user is `regional`, validate the requested region against their assigned regions.
  */
 export async function resolveUserScope(
   ctx: any,
   token?: string | null
-): Promise<{ role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null> {
+): Promise<{ role: "admin" | "regional"; region: Region | null; regions?: Region[] } | null> {
   if (!token) return null;
   const session = await ctx.db
     .query("sessions")
@@ -213,7 +244,8 @@ export async function resolveUserScope(
   if (!user) return null;
   return {
     role: user.role,
-    region: user.region ?? null,
+    region: getUserRegions(user)[0] ?? null,
+    regions: getUserRegions(user),
   };
 }
 
@@ -223,8 +255,8 @@ export async function resolveUserScope(
  * - admin / unknown -> null (no filter)
  */
 export function scopedRegion(
-  scope: { role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null
-): "garden_route" | "eastern_cape" | null {
+  scope: { role: "admin" | "regional"; region: Region | null; regions?: Region[] } | null
+): Region | null {
   if (scope?.role === "regional") return scope.region;
   return null;
 }
@@ -232,16 +264,27 @@ export function scopedRegion(
 /**
  * Stage 4 helper: resolve the effective region filter for a query.
  *
- * - regional users -> their own region, ALWAYS (never overridable from the client)
+ * - regional users -> an assigned region only, validated on the server
  * - admin -> the requested `regionOverride` if provided, otherwise null (see all)
  * - no/invalid token -> null (system-level, sees all)
  */
 export async function resolveEffectiveRegion(
   ctx: any,
   token?: string | null,
-  regionOverride?: "garden_route" | "eastern_cape" | null
-): Promise<"garden_route" | "eastern_cape" | null> {
+  regionOverride?: Region | null
+): Promise<Region | null> {
   const scope = await resolveUserScope(ctx, token);
-  if (scope?.role === "regional") return scope.region;
-  return regionOverride ?? null;
+  return selectScopeRegion(scope, regionOverride);
+}
+
+/** Select one authorized region; missing assignments fail closed. */
+export function selectScopeRegion(scope: { role: string; region: Region | null; regions?: Region[] } | null, requested?: Region | null, requireRequested = false): Region | null {
+  if (scope?.role !== "regional") return requested ?? null;
+  const allowed = getUserRegions(scope);
+  if (!allowed.length) throw new Error("Your account has no region assigned.");
+  if (requested && !allowed.includes(requested) && requireRequested) throw new Error("This region is not assigned to your account. Select an assigned region before saving.");
+  return requested && allowed.includes(requested) ? requested : allowed[0];
+}
+export function canAccessRegion(scope: { role: string; region: Region | null; regions?: Region[] } | null, region: string | undefined): boolean {
+  return scope?.role !== "regional" || getUserRegions(scope).some(allowed => allowed === region);
 }

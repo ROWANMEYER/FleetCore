@@ -5,7 +5,7 @@ import { buildCeramicDriverMessage } from "./driverInstructions";
 import { saveDriverInstructions } from "@/convex/ceramicTiles";
 
 const { scope } = vi.hoisted(() => ({ scope: vi.fn() }));
-vi.mock("@/convex/userSessions", () => ({ resolveUserScope: scope }));
+vi.mock("@/convex/userSessions", async importOriginal => ({ ...await importOriginal<typeof import("@/convex/userSessions")>(), resolveUserScope: scope }));
 const order = (deliveryNumber: string, collectFrom: string) => ({ deliveryNumber, collectFrom, orderNumber: "SAMPLE", weightKg: 1, palletsEstimate: 1 });
 const shipment: CeramicShipment = {
   shipmentNumber: "SH00123456", version: 1, totalPallets: 4, totalWeightKg: 4, transporter: null, plannedLoadingDate: null, plannedDeliveryDate: null, warnings: [],

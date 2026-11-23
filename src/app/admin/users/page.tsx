@@ -1,5 +1,7 @@
 "use client";
 
+import { REGION_OPTIONS, REGION_LABELS, getUserRegions } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import { useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -26,16 +28,11 @@ type UserRow = {
   _id: Id<"users">;
   email: string;
   role: "admin" | "regional";
-  region: "garden_route" | "eastern_cape" | null;
+  region: Region | null;
+  regions?: Region[];
   signedIn: boolean;
 };
 
-type Region = "garden_route" | "eastern_cape";
-
-const REGION_LABELS: Record<Region, string> = {
-  garden_route: "Garden Route",
-  eastern_cape: "Eastern Cape",
-};
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,7 +51,7 @@ export default function AdminUsersPage() {
     email: "",
     password: "",
     role: "regional" as "admin" | "regional",
-    region: "garden_route" as Region,
+    regions: [] as Region[],
   });
   const [saving, setSaving] = useState(false);
 
@@ -93,7 +90,7 @@ export default function AdminUsersPage() {
   // ── Handlers ───────────────────────────────────────────────────────────────
   const openCreate = () => {
     setEditing(null);
-    setForm({ email: "", password: "", role: "regional", region: "garden_route" });
+    setForm({ email: "", password: "", role: "regional", regions: [] });
     setModalOpen(true);
   };
 
@@ -103,7 +100,7 @@ export default function AdminUsersPage() {
       email: u.email,
       password: "",
       role: u.role,
-      region: u.region ?? "garden_route",
+      regions: getUserRegions(u),
     });
     setModalOpen(true);
   };
@@ -119,8 +116,8 @@ export default function AdminUsersPage() {
       addToast("Password must be at least 6 characters", "error");
       return;
     }
-    if (form.role === "regional" && !form.region) {
-      addToast("A region is required for regional users", "error");
+    if (form.role === "regional" && !form.regions.length) {
+      addToast("Select at least one region for this user", "error");
       return;
     }
     setSaving(true);
@@ -130,7 +127,7 @@ export default function AdminUsersPage() {
           token,
           userId: editing._id,
           role: form.role,
-          region: form.role === "regional" ? form.region : undefined,
+          regions: form.role === "regional" ? form.regions : [],
         });
         if (!res.ok) throw new Error(res.error || "Failed to update user");
         addToast("User updated", "success");
@@ -140,7 +137,7 @@ export default function AdminUsersPage() {
           email,
           password: form.password,
           role: form.role,
-          region: form.role === "regional" ? form.region : undefined,
+          regions: form.role === "regional" ? form.regions : [],
         });
         if (!res.ok) throw new Error(res.error || "Failed to create user");
         addToast("User created", "success");
@@ -204,7 +201,7 @@ export default function AdminUsersPage() {
                 Users
               </h1>
               <p className="text-sm text-[var(--nav-text-color)] mt-0.5">
-                Manage who can sign in and which region they see
+                Manage who can sign in and which regions they manage
               </p>
             </div>
           </div>
@@ -271,12 +268,12 @@ export default function AdminUsersPage() {
                           >
                             {u.role === "admin" ? "Admin" : "Regional"}
                           </span>
-                          {u.region && (
-                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
+                          {getUserRegions(u).map(region => (
+                            <span key={region} className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--nav-text-color)]">
                               <MapPin className="w-3 h-3" />
-                              {REGION_LABELS[u.region]}
+                              {REGION_LABELS[region]}
                             </span>
-                          )}
+                          ))}
                           <span
                             className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
                               u.signedIn
@@ -424,7 +421,7 @@ export default function AdminUsersPage() {
                       setForm({
                         ...form,
                         role: r,
-                        region: r === "regional" && !form.region ? "garden_route" : form.region,
+                        regions: form.regions,
                       })
                     }
                     disabled={editing?._id === me?._id && r !== "admin"}
@@ -441,21 +438,20 @@ export default function AdminUsersPage() {
             </div>
 
             {form.role === "regional" && (
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)] mb-2 block">
-                  Region
-                </label>
-                <select
-                  value={form.region}
-                  onChange={(e) =>
-                    setForm({ ...form, region: e.target.value as Region })
-                  }
-                  className="w-full h-10 px-3 rounded-lg text-sm bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--foreground)] outline-none transition-all focus:border-[#06B6D4] focus:ring-2 focus:ring-[#06B6D4]/30"
-                >
-                  <option value="garden_route">Garden Route</option>
-                  <option value="eastern_cape">Eastern Cape</option>
-                </select>
-              </div>
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--nav-text-color)]">Assigned regions</legend>
+                <p className="text-xs text-[var(--nav-text-color)]">Select one or more regions. Each region can belong to only one regional user.</p>
+                {REGION_OPTIONS.map(option => {
+                  const checked = form.regions.includes(option.value);
+                  const owners = sorted.filter(u => u.role === "regional" && u._id !== editing?._id && getUserRegions(u).includes(option.value));
+                  const unavailable = owners.length > 0;
+                  return <label key={option.value} className={`flex items-start gap-3 rounded-lg border border-[var(--card-border)] p-3 ${unavailable && !checked ? "opacity-60" : ""}`}>
+                    <input type="checkbox" className="mt-1" checked={checked} disabled={saving || (unavailable && !checked)}
+                      onChange={() => setForm({ ...form, regions: checked ? form.regions.filter(region => region !== option.value) : [...form.regions, option.value] })} />
+                    <span className="text-sm font-medium">{option.label}<span className="mt-1 block text-xs font-normal text-[var(--nav-text-color)]">{unavailable ? `Allocated to ${owners.map(owner => owner.email).join(", ")}` : "Available"}</span></span>
+                  </label>;
+                })}
+              </fieldset>
             )}
           </div>
 

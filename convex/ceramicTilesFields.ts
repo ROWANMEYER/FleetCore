@@ -1,7 +1,8 @@
+import { regionValidator } from "./regionFields";
 import { v } from "convex/values";
 
 /** Share the exact shipment contract between the schema and import mutations. */
-export const ceramicRegion = v.union(v.literal("garden_route"), v.literal("eastern_cape"));
+export const ceramicRegion = regionValidator;
 export const ceramicNullableNumber = v.union(v.number(), v.null());
 export const ceramicNullableText = v.union(v.string(), v.null());
 export const ceramicOrder = v.object({

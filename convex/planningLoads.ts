@@ -1,6 +1,8 @@
+import type { Region } from "../src/lib/regions";
+import { regionValidator } from "./regionFields";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { resolveEffectiveRegion, resolveUserScope } from "./userSessions";
+import { resolveEffectiveRegion, resolveUserScope, selectScopeRegion, canAccessRegion } from "./userSessions";
 import { calculateLoadAmount } from "./utils";
 
 // ── Validation helpers ──────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ export const createPlanningLoad = mutation({
     client: v.string(),
     fromLocations: v.array(v.string()),
     toLocations: v.array(v.string()),
-    region: v.union(v.literal("garden_route"), v.literal("eastern_cape")),
+    region: regionValidator,
     token: v.optional(v.union(v.string(), v.null())),
     quantity: v.optional(v.string()),
     quantityType: v.optional(v.string()),
@@ -65,9 +67,7 @@ export const createPlanningLoad = mutation({
     // Resolve region via existing enforcement
     const scope = await resolveUserScope(ctx, args.token);
     const region =
-      scope?.role === "regional"
-        ? (scope.region ?? "garden_route")
-        : args.region;
+      selectScopeRegion(scope, args.region, true)!;
 
     // Validate date
     if (!isValidDateString(args.loadDate)) {
@@ -110,7 +110,7 @@ export const createPlanningLoad = mutation({
       notes: args.notes,
       status: "unallocated",
       createdAt: Date.now(),
-      createdBy: scope ? `${scope.role}:${scope.region ?? "all"}` : undefined,
+      createdBy: scope ? `${scope.role}:${region ?? "all"}` : undefined,
       batchKey: args.batchKey,
     });
 
@@ -120,7 +120,7 @@ export const createPlanningLoad = mutation({
 
 export const createBulkPlanningLoads = mutation({
   args: {
-    region: v.union(v.literal("garden_route"), v.literal("eastern_cape")),
+    region: regionValidator,
     token: v.optional(v.union(v.string(), v.null())),
     batchKey: v.string(),
     loads: v.array(
@@ -142,9 +142,7 @@ export const createBulkPlanningLoads = mutation({
     // Resolve region via existing enforcement
     const scope = await resolveUserScope(ctx, args.token);
     const region =
-      scope?.role === "regional"
-        ? (scope.region ?? "garden_route")
-        : args.region;
+      selectScopeRegion(scope, args.region, true)!;
 
     if (args.loads.length === 0) {
       throw new Error("At least one load is required");
@@ -194,7 +192,7 @@ export const createBulkPlanningLoads = mutation({
         status: "unallocated" as const,
         createdAt: now,
         createdBy: scope
-          ? `${scope.role}:${scope.region ?? "all"}`
+          ? `${scope.role}:${region ?? "all"}`
           : undefined,
         batchKey: args.batchKey,
       });
@@ -217,7 +215,7 @@ export const getById = query({
     id: v.id("planningLoads"),
     token: v.optional(v.union(v.string(), v.null())),
     region: v.optional(
-      v.union(v.literal("garden_route"), v.literal("eastern_cape"))
+      regionValidator
     ),
   },
   handler: async (ctx, args) => {
@@ -239,7 +237,7 @@ export const getByDate = query({
     loadDate: v.string(),
     token: v.optional(v.union(v.string(), v.null())),
     region: v.optional(
-      v.union(v.literal("garden_route"), v.literal("eastern_cape"))
+      regionValidator
     ),
     includeCancelled: v.optional(v.boolean()),
   },
@@ -275,7 +273,7 @@ export const getUnallocatedByDate = query({
     loadDate: v.string(),
     token: v.optional(v.union(v.string(), v.null())),
     region: v.optional(
-      v.union(v.literal("garden_route"), v.literal("eastern_cape"))
+      regionValidator
     ),
   },
   handler: async (ctx, args) => {
@@ -317,7 +315,7 @@ export const cancelPlanningLoad = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && doc.region !== scope.region) {
+    if (!canAccessRegion(scope, doc.region)) {
       throw new Error("Planning load not found");
     }
 
@@ -335,7 +333,7 @@ export const cancelPlanningLoad = mutation({
       status: "cancelled",
       cancelledAt: Date.now(),
       cancelledBy: scope
-        ? `${scope.role}:${scope.region ?? "all"}`
+        ? `${scope.role}:${doc.region ?? "all"}`
         : undefined,
     });
   },
@@ -349,17 +347,19 @@ export const cancelBulkPlanningLoads = mutation({
   handler: async (ctx, args) => {
     const scope = await resolveUserScope(ctx, args.token);
     const now = Date.now();
+    const regionById = new Map<string, string>();
 
     for (const id of args.ids) {
       const doc = await ctx.db.get(id);
       if (!doc) {
         throw new Error(`Planning load ${id} not found. Operation aborted.`);
       }
-      if (scope?.role === "regional" && doc.region !== scope.region) {
+      if (!canAccessRegion(scope, doc.region)) {
         throw new Error(
           `Planning load ${id} not found. Operation aborted.`
         );
       }
+      regionById.set(id, doc.region);
       if (doc.status === "allocated") {
         throw new Error(
           `Cannot cancel allocated planning load ${id}. Deallocate it first. Operation aborted.`
@@ -377,7 +377,7 @@ export const cancelBulkPlanningLoads = mutation({
         status: "cancelled",
         cancelledAt: now,
         cancelledBy: scope
-          ? `${scope.role}:${scope.region ?? "all"}`
+          ? `${scope.role}:${regionById.get(id) ?? "all"}`
           : undefined,
       });
     }
@@ -478,10 +478,10 @@ function assertEditableForPlanning(route: any) {
 
 /** Verify caller has region access to a document. */
 function assertRegionAccess(
-  scope: { role: string; region: string | null } | null,
+  scope: { role: string; region: Region | null; regions?: Region[] } | null,
   docRegion: string | undefined
 ) {
-  if (scope?.role === "regional" && docRegion !== scope.region) {
+  if (!canAccessRegion(scope, docRegion)) {
     throw new Error("Access denied.");
   }
 }

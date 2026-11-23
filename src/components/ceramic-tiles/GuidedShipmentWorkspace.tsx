@@ -1,5 +1,6 @@
 "use client";
 
+import type { Region } from "@/src/lib/regions";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Check, CheckCircle2, FileClock, MapPin, MoreHorizontal, Table2, Trash2, Truck } from "lucide-react";
@@ -26,7 +27,7 @@ function stops(row: Doc<"ceramicShipments">) { return ceramicDeliveryStops(ceram
 
 export function GuidedShipmentWorkspace({ rows, fleet, token, region, selectedNumber, onSelect, drafts, onDraftChange, savingId, onAssign, onHistory, onDelete, interaction, onInteractionChange, disabled }: {
   rows: Doc<"ceramicShipments">[] | undefined; fleet: CeramicFleet | undefined; token: string;
-  region: "garden_route" | "eastern_cape"; selectedNumber: string; onSelect: (number: string) => void;
+  region: Region; selectedNumber: string; onSelect: (number: string) => void;
   drafts: Record<string, CeramicAssignDraft>; onDraftChange: (id: string, draft: CeramicAssignDraft) => void;
   savingId: string | null; onAssign: (row: Doc<"ceramicShipments">) => Promise<boolean>;
   onHistory: (id: Doc<"ceramicShipments">["_id"]) => void; onDelete: (row: Doc<"ceramicShipments">) => void;
@@ -75,7 +76,7 @@ export function GuidedShipmentWorkspace({ rows, fleet, token, region, selectedNu
 }
 
 function ShipmentTask({ row, fleet, token, region, draft, onDraftChange, saving, blocked, onAssign, onSaveStart, onPrepared, onHistory, onDelete, onNext, onInteractionChange }: {
-  row: Doc<"ceramicShipments">; fleet: CeramicFleet | undefined; token: string; region: "garden_route" | "eastern_cape";
+  row: Doc<"ceramicShipments">; fleet: CeramicFleet | undefined; token: string; region: Region;
   draft: CeramicAssignDraft; onDraftChange: (draft: CeramicAssignDraft) => void; saving: boolean; blocked: boolean;
   onAssign: () => Promise<boolean>; onSaveStart: () => void; onPrepared: () => void; onHistory: () => void; onDelete: () => void; onNext?: () => void;
   onInteractionChange: (state: CeramicWorkspaceInteraction) => void;

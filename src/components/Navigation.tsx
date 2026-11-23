@@ -1,5 +1,7 @@
 "use client";
 
+import { REGION_OPTIONS as OPERATING_REGIONS, getRegionLabel, getUserRegions, getUserRegionOptions } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -91,15 +93,15 @@ function useMounted() {
    Rendered inside the mobile chrome and inside the sidebar's Region
    popover. The selector, its options and its permission gate are
    unchanged — only where it lives in the chrome moved. */
-const REGION_OPTIONS: { value: "garden_route" | "eastern_cape" | "all"; label: string }[] = [
+const REGION_OPTIONS: { value: Region | "all"; label: string }[] = [
   { value: "all", label: "All Regions" },
-  { value: "garden_route", label: "Garden Route" },
-  { value: "eastern_cape", label: "Eastern Cape" },
+  ...OPERATING_REGIONS,
 ];
 
 function RegionSwitcher({ compact = false }: { compact?: boolean }) {
   const { user, regionFilter, setRegionFilter } = useAuth();
-  if (user?.role !== "admin") return null;
+  if (!user || (user.role !== "admin" && getUserRegions(user).length < 2)) return null;
+  const options = user.role === "admin" ? REGION_OPTIONS : getUserRegionOptions(user);
   return (
     <select
       value={regionFilter}
@@ -108,7 +110,7 @@ function RegionSwitcher({ compact = false }: { compact?: boolean }) {
       aria-label="Region filter"
       className={`settings-input rounded-md ${compact ? "max-w-[110px] text-xs" : "w-full text-xs"}`}
     >
-      {REGION_OPTIONS.map((o) => (
+      {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
         </option>
@@ -285,6 +287,7 @@ export default function Navigation() {
   );
 
   const isAdmin = user?.role === "admin";
+  const canSwitchRegion = isAdmin || getUserRegions(user).length > 1;
   const regionLabel =
     REGION_OPTIONS.find((o) => o.value === regionFilter)?.label ?? "All Regions";
   const closePopover = useCallback(() => setPopover(null), []);
@@ -533,8 +536,8 @@ export default function Navigation() {
                 </IconBarButton>
               )}
 
-              {/* Region — admin only, mirroring RegionSwitcher's own gate */}
-              {isAdmin && (
+              {/* Region — administrators and users managing several regions */}
+              {canSwitchRegion && (
                 <IconBarButton
                   label={`Region: ${regionLabel}`}
                   onClick={() => togglePopover("region")}
@@ -586,7 +589,7 @@ export default function Navigation() {
             <p className="mt-1 text-[11px] capitalize text-white/55">
               {user.role}
               {user.role === "regional" && user.region
-                ? ` · ${user.region.replace("_", " ")}`
+                ? ` · ${getUserRegions(user).map(getRegionLabel).join(", ")}`
                 : ""}
             </p>
           </div>

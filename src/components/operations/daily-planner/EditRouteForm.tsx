@@ -1,5 +1,7 @@
 "use client";
 
+import { getUserRegionOptions } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -105,7 +107,7 @@ type EditRouteFormInnerProps = {
   appSettings: any;
   routeId: Id<"dailyRoutes">;
   token: string | null;
-  user: { role: "admin" | "regional"; region: "garden_route" | "eastern_cape" | null } | null;
+  user: { role: "admin" | "regional"; region: Region | null; regions?: Region[] } | null;
   trucks: any[];
   trailers: any[];
   drivers: any[];
@@ -448,7 +450,7 @@ function EditRouteFormInner({
         notes: notes || undefined,
         kilometers: totals.totalKm,
         routeKilometers: parseFloat(routeKilometers) || undefined,
-        region: region as "garden_route" | "eastern_cape",
+        region: region as Region,
         token,
         loads: schemaLoads,
       });
@@ -610,8 +612,7 @@ function EditRouteFormInner({
             onChange={(e) => setRegion(e.target.value)}
             className={`w-full rounded-md shadow-sm p-2 border ${panelTheme.input} disabled:opacity-60`}
           >
-            <option value="garden_route">Garden Route</option>
-            <option value="eastern_cape">Eastern Cape</option>
+            {getUserRegionOptions(user).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </div>
       </div>

@@ -16,6 +16,7 @@ export interface QueueStorage {
   removeItem(key: string): void;
 }
 
+import type { Region } from "@/src/lib/regions";
 import type { Id } from "@/convex/_generated/dataModel";
 import { newRequestKey } from "@/src/lib/requestKey";
 
@@ -23,7 +24,7 @@ import { newRequestKey } from "@/src/lib/requestKey";
 export interface QueuedRoutePayload {
   routeDate: string;
   driverName: string;
-  region?: "garden_route" | "eastern_cape";
+  region?: Region;
   token?: string | null;
   kilometers: number;
   routeKilometers?: number;

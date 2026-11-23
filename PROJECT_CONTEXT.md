@@ -40,7 +40,7 @@ FleetCore is a production fleet operations system for daily route planning, load
 - Daily route planning with a multi-load wizard (`/operations/daily-planner/input`)
 - Sheets view — collapsed summary rows with chevron expansion (`/operations/daily-planner/sheets`)
 - Fleet master data management (trucks, trailers, drivers, subcontractors)
-- Multi-region operations — `garden_route` and `eastern_cape`, with server-enforced scoping
+- Multi-region operations — `garden_route`, `eastern_cape`, `transvaal`, `kaap` and `durban`, with server-enforced scoping
 - Multi-user auth — admin + regional roles, multi-device sessions
 - CEO analytics dashboard (KPIs, revenue, R/KM, drill-down panels)
 - Invoice generation (PDF, ZAR) + email reporting (QuickSend via Resend)
@@ -294,7 +294,7 @@ table currently defined and its key fields.
   routeKilometers?: number,        // Explicit route KM override
   notes: string,
   status?: string,                 // "planned" | "completed" | "locked"
-  region?: "garden_route" | "eastern_cape",   // Region scoping (Stage 3+)
+  region?: "garden_route" | "eastern_cape" | "transvaal" | "kaap" | "durban",   // Region scoping (Stage 3+)
   rate: number,                    // Route-level rate (fallback revenue when no loads)
 
   // Fleet references (string-based, not FK)
@@ -394,7 +394,7 @@ Index: `by_driverId`
   email: string,                   // Lowercased
   passwordHash: string,            // bcrypt
   role: "admin" | "regional",
-  region?: "garden_route" | "eastern_cape",  // Required for regional users
+  region?: "garden_route" | "eastern_cape" | "transvaal" | "kaap" | "durban",  // Required for regional users
   sessionToken?: string,           // Legacy single-token (superseded by sessions table)
   sessionExpiresAt?: number,
 }
@@ -669,8 +669,8 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 - **`admin`** — sees all regions, can override via the sidebar region switcher
   (client-side filter; server still enforces on regional accounts only).
-- **`regional`** — hard-locked to their own region server-side; never trusted
-  from the client. New routes default to the regional user's region.
+- **`regional`** — can switch only between their assigned regions; membership is
+  checked server-side. Every region has at most one regional owner.
 
 ### Session Rules
 
@@ -693,19 +693,27 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 9. Region Scoping
 
-Two regions exist: `garden_route` and `eastern_cape`.
+Five regions exist: Garden Route (`garden_route`), Eastern Cape (`eastern_cape`),
+TRANSVAAL (`transvaal`), KAAP (`kaap`) and DURBAN (`durban`). UI options and
+labels come from `src/lib/regions.ts`; Convex uses `convex/regionFields.ts`.
+Adding a region does not move records or assign users automatically.
+Regional accounts use optional `users.regions` (array), with legacy `users.region`
+accepted when the array is absent. The first region remains in `region` for older
+clients. Admins use checkboxes with current owner labels; overlapping claims are
+rejected transactionally in internal user mutations using the `users.by_role`
+index. Admin roles retain global access and do not reserve regions.
 
 - **Storage**: `dailyRoutes.region` (optional enum). New routes are stamped with
   the effective region at creation.
 - **Server enforcement**: route reads call `resolveUserScope(ctx, token)` then
   `resolveEffectiveRegion(ctx, token, override)`:
-  - regional user → their own region, always
+  - regional user → selected assigned region, validated on the server
   - admin → the requested override (or `null` = all)
   - no/invalid token → `null` (system-level, sees all)
 - **Client**: `useRegionArg()` derives the query arg from auth state (admin
   filter only); `Navigation.tsx` renders the `RegionSwitcher` for admins.
 - **Coverage**: dailyRoutes queries, route creation, load imports (region-aware,
-  "All Regions" blocked for regional users), QuickSend email reports, and the
+  "All Regions" unavailable to regional users), QuickSend email reports, and the
   `/all-regions` admin page (Region column + summary).
 
 ---

@@ -1,4 +1,5 @@
  
+import { regionValidator } from "./regionFields";
 import { query } from "./_generated/server";
 import { calculateLoadAmount } from "./utils";
 import { v } from "convex/values";
@@ -20,7 +21,7 @@ export const getDashboardLoadsSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -71,7 +72,7 @@ export const getLoadsOverTime = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -110,7 +111,7 @@ export const getClientBreakdown = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -146,7 +147,7 @@ export const getRoutesByStatus = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -188,7 +189,7 @@ export const getDashboardRevenueSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -234,7 +235,7 @@ export const getRevenueOverTime = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -283,7 +284,7 @@ export const getRevenueByTruck = query({
         endDate: v.string(),
         limit: v.optional(v.number()),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -344,7 +345,7 @@ export const getExecutiveSummary = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -399,7 +400,7 @@ export const getCustomerAnalytics = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -475,7 +476,7 @@ export const getFleetPerformance = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -553,7 +554,7 @@ export const getOperationalEfficiency = query({
         startDate: v.string(),
         endDate: v.string(),
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -599,7 +600,7 @@ export const getMonthToMonthComparison = query({
         month1: v.string(), // Format: "YYYY-MM"
         month2: v.string(), // Format: "YYYY-MM"
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -710,7 +711,7 @@ export const getMonthToMonthDailyComparison = query({
         month1: v.string(), // "YYYY-MM"
         month2: v.string(), // "YYYY-MM"
         token: v.optional(v.union(v.string(), v.null())),
-        region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+        region: v.optional(regionValidator),
     },
     handler: async (ctx, args) => {
         const region = await resolveEffectiveRegion(ctx, args.token, args.region);

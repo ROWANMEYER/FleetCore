@@ -1,5 +1,6 @@
 "use client";
 
+import { getUserRegions, type Region } from "@/src/lib/regions";
 import {
   createContext,
   useCallback,
@@ -20,12 +21,13 @@ export type AuthUser = {
   _id: string;
   email: string;
   role: "admin" | "regional";
-  region: "garden_route" | "eastern_cape" | null;
+  region: Region | null;
+  regions?: Region[];
 };
 
 type LoginResult = { ok: boolean; error?: string };
 
-export type RegionFilter = "garden_route" | "eastern_cape" | "all";
+export type RegionFilter = Region | "all";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -33,7 +35,7 @@ type AuthContextValue = {
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
-  /** Admin-only region override ("all" = no filter). Regional users are never overridable. */
+  /** Active region: admins may select all; regional users choose only assigned regions. */
   regionFilter: RegionFilter;
   setRegionFilter: (region: RegionFilter) => void;
 };
@@ -56,10 +58,11 @@ export function useAuth() {
  * Stage 4: derive the `region` query arg from the auth state.
  * - admin + filter "all" -> undefined (no server filter)
  * - admin + specific region -> that region
- * - regional -> undefined (server always forces their own region)
+ * - regional -> an assigned region (server validates membership)
  */
-export function useRegionArg(): "garden_route" | "eastern_cape" | undefined {
+export function useRegionArg(): Region | undefined {
   const { user, regionFilter } = useAuth();
+  if (user?.role === "regional") return getUserRegions(user).find(region => region === regionFilter) ?? getUserRegions(user)[0];
   if (user?.role !== "admin") return undefined;
   return regionFilter === "all" ? undefined : regionFilter;
 }
@@ -196,9 +199,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     Promise.resolve().then(() => setRegionFilter("all"));
   }, [userId]);
 
+  const allowedRegions = getUserRegions(user);
+  const effectiveFilter = user?.role === "regional"
+    ? allowedRegions.find(region => region === regionFilter) ?? allowedRegions[0] ?? "all"
+    : regionFilter;
+
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, login, logout, regionFilter, setRegionFilter }}
+      value={{ user, token, loading, login, logout, regionFilter: effectiveFilter, setRegionFilter }}
     >
       {children}
     </AuthContext.Provider>

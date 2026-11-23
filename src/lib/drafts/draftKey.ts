@@ -29,6 +29,7 @@ export function sanitizeScopeSegment(
 export type DraftRegionUser = {
   role: "admin" | "regional";
   region: string | null;
+  regions?: string[];
 };
 
 export function resolveDraftRegion(
@@ -36,7 +37,10 @@ export function resolveDraftRegion(
   regionArg: string | null | undefined
 ): string {
   if (!user) return "unresolved";
-  if (user.role === "regional") return user.region ?? "garden_route";
+  if (user.role === "regional") {
+    const allowed = user.regions ?? (user.region ? [user.region] : []);
+    return regionArg && allowed.includes(regionArg) ? regionArg : allowed[0] ?? "unassigned";
+  }
   return regionArg ?? "all";
 }
 

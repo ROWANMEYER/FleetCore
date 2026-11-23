@@ -1,9 +1,11 @@
  
+import { regionValidator } from "./regionFields";
+import type { Region } from "../src/lib/regions";
 import { mutation, query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { calculateLoadAmount, loadFingerprint } from "./utils";
-import { resolveUserScope, resolveEffectiveRegion } from "./userSessions";
+import { resolveUserScope, resolveEffectiveRegion, selectScopeRegion, canAccessRegion } from "./userSessions";
 
 // Helper to Centralize logic 
 function deriveTripAggregates(loads: any[]) {
@@ -144,7 +146,7 @@ function shouldAutoComplete(loads: any[]) {
 export const listAllRoutes = query({
   args: {
     token: v.optional(v.union(v.string(), v.null())),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -157,7 +159,7 @@ export const createDailyRoute = mutation({
   args: {
     routeDate: v.string(),
     driverName: v.string(),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
     token: v.optional(v.union(v.string(), v.null())),
     // fromLocations/toLocations removed from args, calculated from loads 
     kilometers: v.number(),
@@ -203,7 +205,7 @@ export const createDailyRoute = mutation({
 
     const scope = await resolveUserScope(ctx, args.token);
     // Regional users are forced to their own region (never trusted from client)
-    const region = scope?.role === "regional" ? (scope.region ?? "garden_route") : (args.region ?? "garden_route");
+    const region = selectScopeRegion(scope, args.region, true) ?? "garden_route";
 
     const truckIdentifier = args.truckFleetNo ?? args.truckFleetNoStr;
     if (!truckIdentifier || truckIdentifier.trim().length === 0) {
@@ -301,7 +303,7 @@ export const createDailyRoute = mutation({
 
 export const createBulkDailyRoutes = mutation({
   args: {
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
     token: v.optional(v.union(v.string(), v.null())),
     routes: v.array(
       v.object({
@@ -335,9 +337,9 @@ export const createBulkDailyRoutes = mutation({
     // Regional users are forced to their own region (never trusted from client).
     // Admins must always pass an explicit region — silently defaulting to
     // garden_route would save loads to the wrong region.
-    let region: "garden_route" | "eastern_cape";
+    let region: Region;
     if (scope?.role === "regional") {
-      region = scope.region ?? "garden_route";
+      region = selectScopeRegion(scope, args.region, true)!;
     } else {
       if (!args.region) throw new Error("Region is required when importing as admin.");
       region = args.region;
@@ -444,7 +446,7 @@ export const createBulkDailyRoutes = mutation({
 export const getRoutesByDate = query({
   args: {
     routeDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -476,7 +478,7 @@ export const getForSheets = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -517,7 +519,7 @@ export const getForSheets = query({
 });
 
 export const getById = query({
-  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))) },
+  args: { id: v.id("dailyRoutes"), token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator) },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const doc = await ctx.db.get(args.id);
@@ -537,7 +539,7 @@ export const getRoutesByTruckAndDate = query({
     routeDate: v.string(),
     truckFleetNoStr: v.optional(v.string()),
     truckFleetNo: v.optional(v.string()),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -566,7 +568,7 @@ export const getRoutesByTruckAndDate = query({
 });
 
 export const listRecentRoutes = query({
-  args: { limit: v.optional(v.number()), token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))) },
+  args: { limit: v.optional(v.number()), token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator) },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
     const limit = args.limit ?? 50;
@@ -592,7 +594,7 @@ export const markRouteCompleted = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 
@@ -620,7 +622,7 @@ export const lockRoute = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 
@@ -644,7 +646,7 @@ export const updateDailyRoute = mutation({
     id: v.id("dailyRoutes"),
     routeDate: v.string(),
     driverName: v.string(),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    region: v.optional(regionValidator),
     token: v.optional(v.union(v.string(), v.null())),
     kilometers: v.number(),
     routeKilometers: v.optional(v.number()), // New route-level KM
@@ -694,7 +696,7 @@ export const updateDailyRoute = mutation({
 
     const scope = await resolveUserScope(ctx, args.token);
     // Regional users can only edit routes in their own region; region is immutable for them
-    if (scope?.role === "regional" && existingRoute.region !== scope.region) {
+    if (!canAccessRegion(scope, existingRoute.region)) {
       throw new Error("Route not found");
     }
     const region = scope?.role === "regional" ? existingRoute.region : (args.region ?? existingRoute.region ?? "garden_route");
@@ -865,7 +867,7 @@ export const deleteDailyRoute = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 
@@ -902,7 +904,7 @@ export const deleteBulkDailyRoutes = mutation({
     for (const id of args.ids) {
       const route = await ctx.db.get(id);
       if (!route) continue;
-      if (scope?.role === "regional" && route.region !== scope.region) continue;
+      if (!canAccessRegion(scope, route.region)) continue;
       const status = (route as any).status;
       if (status === "locked") {
         throw new Error(`Cannot delete locked route ${id}. Operation aborted.`);
@@ -913,7 +915,7 @@ export const deleteBulkDailyRoutes = mutation({
     for (const id of args.ids) {
       const route = await ctx.db.get(id);
       if (!route) continue;
-      if (scope?.role === "regional" && route.region !== scope.region) continue;
+      if (!canAccessRegion(scope, route.region)) continue;
 
       // Reset linked planningLoads via index
       const linkedLoads = await ctx.db
@@ -943,7 +945,7 @@ export const unlockRoute = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 
@@ -963,7 +965,7 @@ export const getLoadsForEmailReport = query({
   args: {
     startDate: v.string(),
     endDate: v.string(),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -1055,7 +1057,7 @@ export const getQuickSendReport = query({
     startDate: v.string(),
     endDate: v.string(),
     completedOnly: v.optional(v.boolean()),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -1174,7 +1176,7 @@ export const getRecentRoutesByTruck = query({
   args: {
     truckFleetNoStr: v.string(),
     limit: v.optional(v.number()),
-    token: v.optional(v.union(v.string(), v.null())), region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"))),
+    token: v.optional(v.union(v.string(), v.null())), region: v.optional(regionValidator),
   },
   handler: async (ctx, args) => {
     const region = await resolveEffectiveRegion(ctx, args.token, args.region);
@@ -1226,7 +1228,7 @@ export const updateLoadFields = mutation({
     }
 
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 
@@ -1305,7 +1307,7 @@ export const updateLoadFields = mutation({
 export const updateRouteRegion = mutation({
   args: {
     routeId: v.id("dailyRoutes"),
-    region: v.union(v.literal("garden_route"), v.literal("eastern_cape"), v.null()),
+    region: v.union(regionValidator, v.null()),
     token: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
@@ -1398,7 +1400,7 @@ export const updateRouteAssignment = mutation({
 
     // Region enforcement — same pattern as markRouteCompleted, lockRoute, etc.
     const scope = await resolveUserScope(ctx, args.token);
-    if (scope?.role === "regional" && route.region !== scope.region) {
+    if (!canAccessRegion(scope, route.region)) {
       throw new Error("Route not found");
     }
 

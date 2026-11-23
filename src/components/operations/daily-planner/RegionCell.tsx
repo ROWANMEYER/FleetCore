@@ -1,5 +1,7 @@
 "use client";
 
+import { REGION_OPTIONS as OPERATING_REGIONS, REGION_LABELS } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -12,22 +14,24 @@ import { ChevronDown } from "lucide-react";
 
 export const REGION_META: Record<string, { label: string; cls: string; dot: string }> = {
   garden_route: {
-    label: "Garden Route",
+    label: REGION_LABELS.garden_route,
     cls: "bg-[rgba(6,182,212,0.12)] text-[#06B6D4] dark:text-[#22D3EE]",
     dot: "bg-[#06B6D4]",
   },
   eastern_cape: {
-    label: "Eastern Cape",
+    label: REGION_LABELS.eastern_cape,
     cls: "bg-[rgba(168,85,247,0.12)] text-purple-600 dark:text-purple-400",
     dot: "bg-purple-500",
   },
+  transvaal: { label: REGION_LABELS.transvaal, cls: "bg-blue-500/10 text-blue-700 dark:text-blue-300", dot: "bg-blue-500" },
+  kaap: { label: REGION_LABELS.kaap, cls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
+  durban: { label: REGION_LABELS.durban, cls: "bg-orange-500/10 text-orange-700 dark:text-orange-300", dot: "bg-orange-500" },
 };
 
-type RegionValue = "garden_route" | "eastern_cape" | null;
+type RegionValue = Region | null;
 
 const REGION_OPTIONS: { value: RegionValue; label: string; dot: string | null; cls: string }[] = [
-  { value: "garden_route", label: "Garden Route", dot: "bg-[#06B6D4]", cls: "text-[#06B6D4] dark:text-[#22D3EE]" },
-  { value: "eastern_cape", label: "Eastern Cape", dot: "bg-purple-500", cls: "text-purple-600 dark:text-purple-400" },
+  ...OPERATING_REGIONS.map(option => ({ ...option, dot: REGION_META[option.value].dot, cls: REGION_META[option.value].cls })),
   { value: null, label: "Unassigned", dot: null, cls: "text-[var(--nav-text-color)]" },
 ];
 
@@ -109,7 +113,7 @@ export function RegionCell({ row }: { row: RegionRow }) {
     // Open downward when there's room; otherwise flip above so rows near the
     // bottom of the table keep all options reachable (any scroll closes the
     // menu, so it must never extend past the viewport).
-    const MENU_HEIGHT = 150;
+    const MENU_HEIGHT = Math.min(230, window.innerHeight - 16);
     const top =
       rect.bottom + 4 + MENU_HEIGHT > window.innerHeight
         ? Math.max(8, rect.top - MENU_HEIGHT - 4)
@@ -175,7 +179,7 @@ export function RegionCell({ row }: { row: RegionRow }) {
 
       {open && menuPos && (
         <div
-          className="fixed z-[100] min-w-[180px] rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl backdrop-blur-xl py-1"
+          className="fixed z-[100] min-w-[180px] max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl backdrop-blur-xl py-1"
           style={{ top: menuPos.top, left: menuPos.left, backgroundColor: "var(--card-bg)" }}
         >
           {REGION_OPTIONS.map((opt) => {

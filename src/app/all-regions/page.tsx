@@ -1,5 +1,7 @@
 "use client";
 
+import { REGION_OPTIONS, getRegionLabel } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -10,7 +12,7 @@ import SpreadsheetDataTable, {
   type SpreadsheetRow,
   type SpreadsheetExtraColumn,
 } from "@/src/components/operations/daily-planner/SpreadsheetDataTable";
-import { RegionCell } from "@/src/components/operations/daily-planner/RegionCell";
+import { RegionCell, REGION_META } from "@/src/components/operations/daily-planner/RegionCell";
 import CommitDateInput from "@/src/components/common/CommitDateInput";
 import { SkeletonLine, SkeletonKpiGrid } from "@/src/components/common/Skeleton";
 import { EmptyState } from "@/src/components/common/EmptyState";
@@ -171,9 +173,9 @@ export default function AllRegionsPage() {
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0, 7));
 
   // ── Region filter — clicking the KPI pills toggles a region filter on/off ──
-  const [regionFilter, setRegionFilter] = useState<"" | "garden_route" | "eastern_cape">("");
+  const [regionFilter, setRegionFilter] = useState<"" | Region>("");
 
-  const toggleRegionFilter = (region: "garden_route" | "eastern_cape") => {
+  const toggleRegionFilter = (region: Region) => {
     setRegionFilter((prev) => (prev === region ? "" : region));
   };
 
@@ -212,8 +214,7 @@ export default function AllRegionsPage() {
       totalRevenue += Number((r as any).rate) || 0;
     }
     return {
-      garden_route: counts.garden_route ?? 0,
-      eastern_cape: counts.eastern_cape ?? 0,
+      counts,
       unassigned: counts.unassigned ?? 0,
       total: (routes ?? []).length,
       totalRevenue,
@@ -249,7 +250,7 @@ export default function AllRegionsPage() {
               All Regions
             </h1>
             <p className="text-sm text-[var(--nav-text-color)] mt-0.5">
-              Combined route table across Garden Route &amp; Eastern Cape
+              Combined route table across all operating regions
             </p>
           </div>
         </div>
@@ -340,20 +341,11 @@ export default function AllRegionsPage() {
               {/* Region split — clickable KPI pills (toggle the table filter) */}
               {!loading && regionSummary.total > 0 && (
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <RegionStat
-                    dot="bg-[#06B6D4]"
-                    label="Garden Route"
-                    value={regionSummary.garden_route}
-                    active={regionFilter === "garden_route"}
-                    onClick={() => toggleRegionFilter("garden_route")}
-                  />
-                  <RegionStat
-                    dot="bg-purple-500"
-                    label="Eastern Cape"
-                    value={regionSummary.eastern_cape}
-                    active={regionFilter === "eastern_cape"}
-                    onClick={() => toggleRegionFilter("eastern_cape")}
-                  />
+                  {REGION_OPTIONS.map(option => (
+                    <RegionStat key={option.value} dot={REGION_META[option.value].dot}
+                      label={option.label} value={regionSummary.counts[option.value] ?? 0}
+                      active={regionFilter === option.value} onClick={() => toggleRegionFilter(option.value)} />
+                  ))}
                   <RegionStat
                     label="Total"
                     value={regionSummary.total}
@@ -395,7 +387,7 @@ export default function AllRegionsPage() {
               <EmptyState
                 icon="filter"
                 title="No routes in this region"
-                description={`No ${regionFilter === "garden_route" ? "Garden Route" : "Eastern Cape"} routes for ${startDate}${startDate !== endDate ? ` → ${endDate}` : ""}. Click the region pill again to clear the filter.`}
+                description={`No ${getRegionLabel(regionFilter)} routes for ${startDate}${startDate !== endDate ? ` → ${endDate}` : ""}. Click the region pill again to clear the filter.`}
               />
             ) : (
               <div className="flex-1 min-h-0 glass-card rounded-xl overflow-hidden flex flex-col">

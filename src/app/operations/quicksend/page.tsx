@@ -1,5 +1,6 @@
 "use client";
 
+import { REGION_LABELS } from "@/src/lib/regions";
 import { useState} from"react";
 import { useQuery, useAction} from"convex/react";
 import { api} from"@/convex/_generated/api";
@@ -52,17 +53,13 @@ const region = useRegionArg();
 // Human-readable label for the report's region, shown to recipients in the
 // email subject. Admins may filter to one region or send everything; regional
 // users always send their own region (server-enforced).
-const REGION_LABELS: Record<string, string> = {
- garden_route: "Garden Route",
- eastern_cape: "Eastern Cape",
-};
 const subjectRegion =
  user?.role === "admin"
    ? regionFilter === "all"
      ? "All Regions"
      : REGION_LABELS[regionFilter]
-   : user?.region
-     ? REGION_LABELS[user.region]
+   : region
+     ? REGION_LABELS[region]
      : "All Regions";
  const reportData = useQuery(
  api.dailyRoutes.getQuickSendReport,

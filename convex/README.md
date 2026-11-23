@@ -20,7 +20,9 @@ mutations, actions, internal functions) with the database schema in
   (`ARCHITECTURE_LOCK.md`).
 - **Region scoping**: any query/mutation touching `dailyRoutes` should resolve
   scope via `userSessions.resolveEffectiveRegion(ctx, token, override)` —
-  regional users are hard-locked to their own region server-side.
+  regional users can select only their assigned regions, checked server-side.
+  Region ownership is exclusive per regional user and checked transactionally
+  in internal user mutations; legacy single-region accounts remain supported.
 - **Revenue math**: always use `calculateLoadAmount(qty, rate, rateType)` from
   `utils.ts` (flat/full → rate, else qty × rate).
 - **Money formatting**: formatting lives in the frontend

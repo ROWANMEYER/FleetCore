@@ -157,7 +157,7 @@ async function main() {
     page = await evalJs(`(() => {
       const selects = [...document.querySelectorAll("select")];
       const region = selects.find((s) =>
-        [...s.options].map((o) => o.textContent.trim()).join("|") === "Garden Route|Eastern Cape"
+        [...s.options].map((o) => o.textContent.trim()).join("|") === "Eastern Cape"
       );
       return region ? true : null;
     })()`);
@@ -174,7 +174,7 @@ async function main() {
   const info = await evalJs(`(() => {
     const selects = [...document.querySelectorAll("select")];
     const region = selects.find((s) =>
-      [...s.options].map((o) => o.textContent.trim()).join("|") === "Garden Route|Eastern Cape"
+      [...s.options].map((o) => o.textContent.trim()).join("|") === "Eastern Cape"
     );
     return {
       found: !!region,

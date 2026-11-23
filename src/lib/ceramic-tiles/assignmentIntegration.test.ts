@@ -14,7 +14,7 @@ const snapshot: CeramicShipment = { shipmentNumber: "SH00123456", version: 1, to
     { name: "ITALTILE GEORGE", addressLines: ["George"], orders: [{ deliveryNumber: "1002", orderNumber: "SO2", weightKg: 30000, collectFrom: "CTM VEREENIGING", palletsEstimate: 18 }] },
   ] };
 const args = { token: "test-session", region: "garden_route", shipmentId: "shipment", driverId: "driver", truckId: "truck", routeDate: "2026-11-22", expectedVersion: 1 };
-function fixture(role = "admin", region: string | undefined = undefined) {
+function fixture(role = "admin", region: string | undefined = undefined, shipmentRegion = "garden_route") {
   let seq = 0;
   const tables = new Map<string, Map<string, Row>>();
   const table = (name: string) => { if (!tables.has(name)) tables.set(name, new Map()); return tables.get(name)!; };
@@ -23,7 +23,7 @@ function fixture(role = "admin", region: string | undefined = undefined) {
   put("sessions", "session", { userId: "user", token: "test-session", expiresAt: Date.now() + 100000 });
   put("drivers", "driver", { driverName: "Example Driver" }); put("drivers", "driver-two", { driverName: "Replacement Driver" });
   put("trucks", "truck", { truckFleetNo: "T100" }); put("trucks", "truck-two", { truckFleetNo: "T200" });
-  put("ceramicShipments", "shipment", { region: "garden_route", snapshot: structuredClone(snapshot), shipmentNumber: snapshot.shipmentNumber,
+  put("ceramicShipments", "shipment", { region: shipmentRegion, snapshot: structuredClone(snapshot), shipmentNumber: snapshot.shipmentNumber,
     version: 1, fileHash: "a".repeat(64), createdAt: 1, updatedAt: 1, updatedBy: "admin" });
   const writes: string[] = [];
   const db = {
@@ -60,6 +60,37 @@ function fixture(role = "admin", region: string | undefined = undefined) {
 }
 
 describe("Ceramic assignment → main Planner load and both reports", () => {
+  it.each(["transvaal", "kaap", "durban"])("keeps %s assignments and both reports in their own region", async region => {
+    for (const fn of [assign, mobileAssign]) {
+      const f = fixture("regional", region, region);
+      await f.run(fn, { region: "garden_route" });
+      await f.run(fn, { region: "eastern_cape" });
+      const route = [...f.table("dailyRoutes").values()][0];
+      expect(route).toMatchObject({ region, routeDate: args.routeDate });
+      expect(route.loads).toEqual([ceramicMainLoad(snapshot, "shipment")]);
+      expect(f.table("dailyRoutes").size).toBe(1);
+      const rows = (await f.read({ region: "garden_route" })).page;
+      expect(rows).toHaveLength(1); expect(rows[0].region).toBe(region); expect(rows[0].locals).toHaveLength(2);
+      const denied = fixture("regional", "garden_route", region);
+      await expect(denied.run(fn, { region })).rejects.toThrow("not found");
+      expect(denied.writes).toEqual([]);
+      const admin = fixture("admin", undefined, region);
+      await admin.run(fn, { region });
+      expect((await admin.read({ region })).page).toHaveLength(1);
+      expect((await admin.read({ region: "garden_route" })).page).toEqual([]);
+    }
+  });
+  it("assigns and reads a second owned region on web and mobile without exposing a third", async () => {
+    for (const fn of [assign, mobileAssign]) {
+      const f = fixture("regional", "garden_route", "transvaal");
+      f.table("users").get("user")!.regions = ["garden_route", "transvaal"];
+      await f.run(fn, { region: "transvaal" });
+      expect([...f.table("dailyRoutes").values()][0].region).toBe("transvaal");
+      expect((await f.read({ region: "transvaal" })).page).toHaveLength(1);
+      expect((await f.read({ region: "garden_route" })).page).toHaveLength(0);
+      expect((await f.read({ region: "durban" })).page).toHaveLength(0);
+    }
+  });
   it("creates exactly one main load and a report record, and does nothing on PDF import alone", async () => {
     const f = fixture(); expect(f.table("dailyRoutes").size).toBe(0); expect((await f.read()).page).toEqual([]);
     await f.run(assign);

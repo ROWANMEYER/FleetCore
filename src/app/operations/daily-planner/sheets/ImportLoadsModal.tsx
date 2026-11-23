@@ -1,5 +1,7 @@
 "use client";
 
+import { getRegionLabel } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import { useState, useMemo} from"react";
 import { useQuery, useMutation} from"convex/react";
 import { api} from"@/convex/_generated/api";
@@ -66,14 +68,9 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  // regional users whose region the server always forces).
  const regionArg = useRegionArg();
  const importBlocked = user?.role === "admin" && !regionArg;
- const importRegion: "garden_route" | "eastern_cape" | null =
+ const importRegion: Region | null =
    regionArg ?? (user?.role === "regional" ? user.region : null) ?? null;
- const regionLabel =
-   importRegion === "garden_route"
-     ? "Garden Route"
-     : importRegion === "eastern_cape"
-       ? "Eastern Cape"
-       : null;
+ const regionLabel = getRegionLabel(importRegion);
  const [step, setStep] = useState<ImportStep>("paste");
  const [pasteContent, setPasteContent] = useState("");
  const [columnMapping, setColumnMapping] = useState<string[]>([]);
@@ -390,7 +387,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
  // Never import while "All Regions" is selected — we don't know which
  // region the loads belong to, and the backend would default to Garden Route.
  if (importBlocked) {
-   addToast("Select a region (Garden Route or Eastern Cape) before importing.", "error");
+   addToast("Select a region before importing.", "error");
    setIsSubmitting(false);
    return;
  }
@@ -491,7 +488,7 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
   <div>
   <p className="font-semibold">Import disabled — &ldquo;All Regions&rdquo; is selected.</p>
   <p className="mt-0.5 opacity-90">
- Choose <span className="font-medium">Garden Route</span> or <span className="font-medium">Eastern Cape</span> in the region switcher (top right of the screen), then reopen this import. This stops loads from being saved to the wrong region.
+ Choose an operating region in the region switcher (top right of the screen), then reopen this import. This stops loads from being saved to the wrong region.
  </p>
  </div>
  </div>
@@ -654,11 +651,9 @@ export default function ImportLoadsModal({ onClose, onSuccess}: ImportLoadsModal
   <td className="px-4 py-2 whitespace-nowrap">
   {regionLabel ? (
   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
-   regionLabel === "Garden Route"
-     ? "bg-[var(--accent-soft-bg)] text-[var(--accent-soft-text)] border-[var(--muted-border)]"
-     : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25"
+   "bg-[var(--accent-soft-bg)] text-[var(--accent-soft-text)] border-[var(--muted-border)]"
   }`}>
-  <span className={`w-1.5 h-1.5 rounded-full ${regionLabel === "Garden Route" ? "bg-[#06B6D4]" : "bg-purple-500"}`} />
+  <span className={`w-1.5 h-1.5 rounded-full ${"bg-[#06B6D4]"}`} />
   {regionLabel}
   </span>
   ) : (

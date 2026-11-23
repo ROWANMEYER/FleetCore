@@ -1,5 +1,75 @@
 # FleetCore — Project Scope & Updates
 
+
+## 2026-11-23 - Release operating regions and exclusive multi-region ownership
+
+The owner explicitly authorized committing and deploying the region work.
+This release adds TRANSVAAL, KAAP and DURBAN, multiple assigned regions per
+regional account, exclusive ownership checks and authorized region switching.
+Existing assignments remain valid without a migration. Production backend/schema
+must be updated before the frontend. The PWA cache advances to fleetcore-v91.
+The local customer rate PDF is excluded from this release.
+
+
+## 2026-11-23 - Allow multiple exclusively allocated regions per user
+
+Regional users may manage several regions and switch between only those regions
+in navigation, dashboards, Planner input and Ceramic shipments/reports. Admin
+Users has explicit region checkboxes, owner labels and unavailable choices for
+regions owned by someone else. Administrators retain global access and do not
+reserve regions. Removing a region revokes its access on the next server request.
+
+`users.regions` is optional and canonical when present; legacy `users.region` is
+still accepted without a migration, and the first selected region remains in the
+legacy field for compatibility. Internal create/update mutations validate exclusive
+ownership against an indexed, bounded regional-user read in the same transaction
+as the write. This covers concurrent claims and bypasses of the browser controls.
+Admin authorization is rechecked inside those mutations. Role changes release
+regional ownership; password-only changes preserve it. Existing self/last-admin
+protections remain in place. Region-scoped documents and assignments validate
+membership; Planner/import writes reject revoked target regions rather than
+silently filing a queued save in another region. Drafts remain separate by user
+and selected region. No production records or existing assignments were changed.
+
+Validation: 1,138 tests pass across 71 files; TypeScript, optimized Webpack build
+and lint pass (zero errors; 64 existing warnings). Synthetic localhost checks
+confirmed second-region import/assignment with one main Planner load, one monthly
+row and two local rows, foreign-region rejection, immediate access revocation,
+revoked-target write rejection, and unchanged existing report amounts. Two
+simultaneous claims for one free region produced exactly one success and one
+rejection. Development `dev:quixotic-gopher-969` is updated; assignment counts match
+the pre-change check (three users, one regional user owning Eastern Cape, no
+conflicts). Production is unchanged. Work remains uncommitted on the existing
+feature branch. Browser visual interaction was not reverified because the input
+connection had timed out during the preceding region work.
+
+
+## 2026-11-23 - Add TRANSVAAL, KAAP and DURBAN operating regions
+
+Five regions are supported throughout user administration, navigation, dashboards,
+Daily Planner input/edit/board/imports, offline queued routes, All Regions,
+QuickSend and Ceramic import/assignment/monthly/local reports. Shared UI keys and
+labels live in `src/lib/regions.ts`; `convex/regionFields.ts` supplies additive
+validators for existing tables and functions. Mobile dispatch reads all five
+indexed regions with the same limited projection and assignment login guard.
+Existing region keys, stored records, permissions, tariffs and formulas are retained;
+no backfill, user reassignment or data migration was run.
+
+Validation: 1,127 tests pass across 70 files (two workers); the first fully parallel
+run hit the existing monthly Excel test's 5-second timeout. TypeScript and the
+optimized Webpack build pass. Full lint reports zero errors and the same 64 legacy
+warnings. Synthetic localhost checks created regional users and imported/assigned
+shipments in each new region: one main Planner load, one monthly row and two local
+rows each; repeat saves, cross-region selector overrides, admin-only reassignment,
+planning imports and dashboard reads were checked. Existing Garden Route report
+rows and billing compare unchanged. Convex/React reviews found no changes to auth
+semantics, query indexes, schema required fields or component hook order.
+
+The development backend `dev:quixotic-gopher-969` is updated. Production is unchanged,
+and this feature has not been committed or pushed. The isolated browser preview
+opened, but browser input timed out before the visual interaction check; it is not
+marked passed. The pre-existing local customer PDF remains excluded from Git.
+
 ## 2026-11-23 - Release approved Ceramic mobile styling and report spacing
 
 The owner explicitly authorized commit and production deployment of the approved

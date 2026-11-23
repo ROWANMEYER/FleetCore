@@ -1,3 +1,4 @@
+import type { Region } from "../src/lib/regions";
 import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport";
 import { ceramicBilling } from "./ceramicTilesFields";
 import { paginationOptsValidator } from "convex/server";
@@ -8,10 +9,9 @@ import { assertCeramicStopOrder } from "../src/lib/ceramic-tiles/stopOrder";
 import { ceramicStopOrder } from "./ceramicTilesFields";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { resolveUserScope } from "./userSessions";
+import { resolveUserScope, selectScopeRegion } from "./userSessions";
 import { ceramicRegion, ceramicShipmentSnapshot } from "./ceramicTilesFields";
 
-type Region = "garden_route" | "eastern_cape";
 type ShipmentInput = {
   snapshot: {
     shipmentNumber: string; version: number; totalWeightKg: number | null;
@@ -35,8 +35,8 @@ async function requireRegion(
   const scope = await resolveUserScope(ctx, token);
   if (!scope) throw new Error("Sign in again to use the Ceramic Tiles importer.");
   if (scope.role === "regional") {
-    if (!scope.region) throw new Error("Your account has no region assigned.");
-    return { region: scope.region, actor: `regional:${scope.region}` };
+    const region = selectScopeRegion(scope, requested)!;
+    return { region, actor: `regional:${region}` };
   }
   return { region: requested, actor: "admin" };
 }

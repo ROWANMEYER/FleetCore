@@ -1,5 +1,6 @@
 "use client";
 
+import { getUserRegionOptions, getRegionLabel } from "@/src/lib/regions";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth, useRegionArg } from "@/src/components/auth/AuthProvider";
@@ -355,7 +356,7 @@ export function WizardRouteHeader({
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            disabled={isRegional}
+            disabled={isRegional && getUserRegionOptions(user).length < 2}
             className={`w-full p-2 settings-input rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
               region === "" ? "input-error" : ""
             }`}
@@ -365,8 +366,7 @@ export function WizardRouteHeader({
                 Select region...
               </option>
             )}
-            <option value="garden_route">Garden Route</option>
-            <option value="eastern_cape">Eastern Cape</option>
+            {getUserRegionOptions(user).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           {region === "" && !isRegional && (
             <p className="text-xs font-semibold text-[var(--danger-text)] flex items-center gap-1">
@@ -376,7 +376,7 @@ export function WizardRouteHeader({
           )}
           {isRegional && (
             <p className="text-xs text-[var(--nav-text-color)]">
-              Locked to your region ({region === "eastern_cape" ? "Eastern Cape" : "Garden Route"})
+              {getUserRegionOptions(user).length > 1 ? "Choose one of your assigned regions" : "Locked to your region"} ({getRegionLabel(region) ?? "Garden Route"})
             </p>
           )}
         </div>

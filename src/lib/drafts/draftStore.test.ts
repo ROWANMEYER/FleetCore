@@ -380,10 +380,18 @@ describe("resolveDraftRegion", () => {
     ).toBe("eastern_cape");
   });
 
-  it("falls back to garden_route for a regional user with no region on record", () => {
+  it("isolates unassigned regional drafts from existing region drafts", () => {
     expect(resolveDraftRegion({ role: "regional", region: null }, undefined)).toBe(
-      "garden_route"
+      "unassigned"
     );
+  });
+
+  it("separates each assigned region and refuses an unassigned draft scope", () => {
+    const user = { role: "regional" as const, region: "garden_route", regions: ["garden_route", "transvaal"] };
+    const first = buildDraftKey({ workflow: "input", userId: "multi", region: resolveDraftRegion(user, "garden_route") });
+    const second = buildDraftKey({ workflow: "input", userId: "multi", region: resolveDraftRegion(user, "transvaal") });
+    expect(first).not.toBe(second);
+    expect(resolveDraftRegion(user, "durban")).toBe("garden_route");
   });
 
   it("follows the admin sidebar filter and isolates the all-regions view", () => {

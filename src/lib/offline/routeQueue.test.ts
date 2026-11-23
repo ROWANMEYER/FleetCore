@@ -49,6 +49,11 @@ describe("routeQueue", () => {
     __setStorage(memoryStorage());
   });
 
+  it.each(["transvaal", "kaap", "durban"] as const)("preserves %s while persisting an offline route", region => {
+    enqueueRoute(makePayload({ region }));
+    expect(getPendingRoutes()[0].payload).toEqual(makePayload({ region }));
+  });
+
   it("enqueue + read round-trips the payload", () => {
     enqueueRoute(makePayload());
     const items = getPendingRoutes();

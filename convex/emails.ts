@@ -1,3 +1,4 @@
+import { regionValidator } from "./regionFields";
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
@@ -176,7 +177,7 @@ export const sendLoadReportEmail = action({
     // Region scoping: the session token (and admin region override) flow through
     // so the report data is scoped server-side exactly like the UI queries.
     token: v.optional(v.union(v.string(), v.null())),
-    region: v.optional(v.union(v.literal("garden_route"), v.literal("eastern_cape"), v.null())),
+    region: v.optional(v.union(regionValidator, v.null())),
   },
   handler: async (ctx, args) => {
     try {

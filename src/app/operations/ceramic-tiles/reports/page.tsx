@@ -1,5 +1,7 @@
 "use client";
 
+import { getUserRegionOptions } from "@/src/lib/regions";
+import type { Region } from "@/src/lib/regions";
 import Link from "next/link";
 import { CeramicTemplateTable } from "@/src/components/ceramic-tiles/CeramicTemplateTable";
 import { CeramicBillingEditor } from "@/src/components/ceramic-tiles/CeramicBillingEditor";
@@ -11,7 +13,6 @@ import { useAuth } from "@/src/components/auth/AuthProvider";
 import { ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
 import { downloadCeramicReports, type CeramicReportRow } from "@/src/lib/ceramic-tiles/reportExport";
 
-type Region = "garden_route" | "eastern_cape";
 const field = "min-h-11 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm";
 
 export default function CeramicReportsPage() {
@@ -23,7 +24,8 @@ export default function CeramicReportsPage() {
   const [editing, setEditing] = useState<{ row: CeramicReportRow; mode: "main" | "local" } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-  const region = user?.role === "regional" ? user.region ?? "garden_route" : regionChoice;
+  const regionOptions = getUserRegionOptions(user);
+  const region = regionOptions.find(option => option.value === regionChoice)?.value ?? regionOptions[0]?.value ?? "garden_route";
   const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
   const { results, status, loadMore } = usePaginatedQuery(api.ceramicTiles.report,
     token && validMonth ? { token, region, month } : "skip", { initialNumItems: 50 });
@@ -49,7 +51,7 @@ export default function CeramicReportsPage() {
   return <main className="h-full overflow-y-auto p-4 text-[var(--foreground)] lg:p-6"><div className="mx-auto max-w-[1500px] space-y-4">
     <header className="flex flex-wrap justify-between gap-3"><div><Link href="/operations/ceramic-tiles" className="text-sm font-semibold text-[#0891B2]">← Ceramic shipments</Link><h1 className="mt-2 text-2xl font-semibold">Ceramic spreadsheets</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">Updated when a shipment is assigned. Local stops use the main driver and stay out of Daily Planner.</p></div>
       <button type="button" style={{ backgroundColor: "#0891B2" }} className={`${field} font-semibold text-white disabled:opacity-50`} disabled={exporting || !validMonth || status === "LoadingFirstPage"} onClick={() => void exportReports()}>{exporting ? "Exporting…" : "Export both spreadsheets"}</button></header>
-    <div className="flex flex-wrap items-end gap-4"><label className="grid gap-1 text-sm">Report month<input type="month" className={field} value={month} disabled={exporting || !!editing} onChange={event => setMonth(event.target.value)} /></label>{user.role === "admin" && <label className="grid gap-1 text-sm">Region<select className={field} value={regionChoice} disabled={exporting || !!editing} onChange={event => setRegionChoice(event.target.value as Region)}><option value="garden_route">Garden Route</option><option value="eastern_cape">Eastern Cape</option></select></label>}</div>
+    <div className="flex flex-wrap items-end gap-4"><label className="grid gap-1 text-sm">Report month<input type="month" className={field} value={month} disabled={exporting || !!editing} onChange={event => setMonth(event.target.value)} /></label>{regionOptions.length > 1 && <label className="grid gap-1 text-sm">Region<select className={field} value={region} disabled={exporting || !!editing} onChange={event => setRegionChoice(event.target.value as Region)}>{regionOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}</div>
     {error && <p role="alert" className="text-sm text-[var(--danger-text)]">{error}</p>}
     <nav aria-label="Ceramic report" className="flex gap-2">{([['monthly', 'Monthly Ceramic'], ['local', 'Local loads']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={tab === value} onClick={() => setTab(value)} style={{ backgroundColor: tab === value ? "#0891B2" : "var(--card-bg)" }} className={`${field} font-semibold ${tab === value ? "text-white" : ""}`}>{label}</button>)}</nav>
     <p className="text-xs text-[var(--nav-text-color)]">The supplied template&apos;s headings, layout and formulas are retained. Click a shipment or amount to edit. The final counts retain the external January workbook link and show #REF! while that workbook is unavailable.</p>

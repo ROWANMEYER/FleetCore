@@ -1,4 +1,5 @@
-import { resolveUserScope } from "./userSessions";
+import { REGIONS } from "../src/lib/regions";
+import { resolveUserScope, canAccessRegion } from "./userSessions";
 import { syncCeramicAssignment } from "./ceramicPlanning";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
@@ -25,11 +26,11 @@ function assertVersion(actual: number, expected: number) {
   }
 }
 
-/** Public mobile list across both existing regions; original files are excluded. */
+/** Public mobile list across every supported region; original files are excluded. */
 export const list = query({
   args: {}, returns: v.array(dispatchShipment),
   handler: async ctx => {
-    const regions = ["garden_route", "eastern_cape"] as const;
+    const regions = REGIONS;
     const rows = (await Promise.all(regions.map(region => ctx.db.query("ceramicShipments")
       .withIndex("by_region_updated", q => q.eq("region", region)).order("desc").take(200)))).flat();
     return rows.sort((a, b) => b.updatedAt - a.updatedAt || b._creationTime - a._creationTime).map(row => ({
@@ -68,9 +69,9 @@ export const assign = mutation({
     const scope = await resolveUserScope(ctx, args.token);
     if (!scope) throw new Error("Sign in to assign the main load to Daily Planner and reports.");
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || (scope.role === "regional" && shipment.region !== scope.region)) throw new Error("Shipment not found.");
+    if (!shipment || !canAccessRegion(scope, shipment.region)) throw new Error("Shipment not found.");
     assertVersion(shipment.version, args.expectedVersion);
-    const actor = scope.role === "regional" ? `regional:${scope.region}` : "admin";
+    const actor = scope.role === "regional" ? `regional:${shipment.region}` : "admin";
     await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
     await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, updatedAt: now, updatedBy: actor });

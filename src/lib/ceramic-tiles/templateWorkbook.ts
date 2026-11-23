@@ -1,3 +1,4 @@
+import { CERAMIC_LOCAL_TOWN } from "./planning";
 import definition from "./monthlyTemplate.json";
 import type { CeramicReportRow } from "./reportExport";
 import { CERAMIC_WAREHOUSES, ceramicMonthlyAmounts, ceramicStopsCharge } from "./monthlyReport";
@@ -87,7 +88,7 @@ export function buildCeramicTemplateSheets(rows: CeramicReportRow[], month: stri
     const line = copy(localStyle); line.cells.forEach(cell => { delete cell.value; delete cell.formula; });
     const source = locals[index]; if (source) {
       const { row, leg } = source, input = row.billing?.locals.find(l => l.key === leg.key);
-      [row.truckRegistration ?? "", row.driverName, row.routeDate, input?.from ?? "", input?.to ?? "", input?.price ?? null, row.shipmentNumber].forEach((v, col) => { line.cells[col].value = v; });
+      [row.truckRegistration ?? "", row.driverName, row.routeDate, CERAMIC_LOCAL_TOWN, CERAMIC_LOCAL_TOWN, input?.price ?? null, row.shipmentNumber].forEach((v, col) => { line.cells[col].value = v; });
       line.cells[2].date = true; line.cells[5].editShipment = row.shipmentId; line.cells[6].editShipment = row.shipmentId; line.cells[5].editLabel = row.shipmentNumber; line.cells[6].editLabel = row.shipmentNumber;
     }
     localRows.push(line);

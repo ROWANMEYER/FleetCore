@@ -1,6 +1,7 @@
 "use client";
 
-import { getUserRegionOptions } from "@/src/lib/regions";
+import { ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
+import { REGION_LABELS, getUserRegions } from "@/src/lib/regions";
 import type { Region } from "@/src/lib/regions";
 import { ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
@@ -89,9 +90,8 @@ function ShipmentHistoryPanel({
 
 function CeramicTilesDesktopPage() {
   const { user, token } = useAuth();
-  const [regionChoice, setRegionChoice] = useState<Region>("garden_route");
-  const regionOptions = getUserRegionOptions(user);
-  const region: Region = regionOptions.find(option => option.value === regionChoice)?.value ?? regionOptions[0]?.value ?? "garden_route";
+  const region: Region = "transvaal";
+  const canManageRecords = user?.role === "admin" || getUserRegions(user).includes("transvaal");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -275,7 +275,7 @@ function CeramicTilesDesktopPage() {
       });
       return true;
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "Could not save assignment.");
+      setFailure(ceramicErrorMessage(error, "Could not save assignment. Please try again."));
       return false;
     } finally {
       setAssignmentSavingId(null);
@@ -296,12 +296,7 @@ function CeramicTilesDesktopPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
         <button type="button" className={`${secondaryButton} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
-        {regionOptions.length > 1 && <label className="flex items-center gap-2 text-xs font-medium">
-          Region
-          <select aria-label="Ceramic Tiles region" className={input} disabled={busy || saving || !!deleteTarget || workspaceState.saving || assignmentSavingId !== null} value={region} onChange={(event) => { if (workspaceState.dirty && !window.confirm("Change region? Unsaved driver-instruction changes will be lost.")) return; setRegionChoice(event.target.value as Region); setHistoryId(null); setSelectedNumber(""); setEntries([]); setImportOpen(false); }}>
-            {regionOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>}
+        <span className="text-xs font-semibold">Main loads: {REGION_LABELS.transvaal}</span>
         </div>
       </header>
 
@@ -425,7 +420,7 @@ function CeramicTilesDesktopPage() {
 
       </div>
       <div ref={workspaceRef}>
-        <GuidedShipmentWorkspace disabled={busy || saving || deleting} key={`${region}:${workspaceGeneration}`} rows={imported} fleet={fleet} token={token} region={region} selectedNumber={selectedNumber} onSelect={setSelectedNumber} drafts={assignmentDrafts} onDraftChange={(id, draft) => setAssignmentDrafts(previous => ({ ...previous, [id]: draft }))} savingId={assignmentSavingId} onAssign={saveAssignment} onHistory={setHistoryId} onDelete={row => { setDeleteError(""); setDeleteTarget(row); }} interaction={workspaceState} onInteractionChange={setWorkspaceState} />
+        <GuidedShipmentWorkspace canManageRecords={canManageRecords} disabled={busy || saving || deleting} key={`${region}:${workspaceGeneration}`} rows={imported} fleet={fleet} token={token} region={region} selectedNumber={selectedNumber} onSelect={setSelectedNumber} drafts={assignmentDrafts} onDraftChange={(id, draft) => setAssignmentDrafts(previous => ({ ...previous, [id]: draft }))} savingId={assignmentSavingId} onAssign={saveAssignment} onHistory={setHistoryId} onDelete={row => { setDeleteError(""); setDeleteTarget(row); }} interaction={workspaceState} onInteractionChange={setWorkspaceState} />
       </div>
       <ConfirmDialog
         open={!!deleteTarget}

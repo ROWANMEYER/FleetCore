@@ -1,4 +1,5 @@
 "use client";
+import { ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
 import type { Region } from "@/src/lib/regions";
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
@@ -47,7 +48,7 @@ export function useCeramicInstructions({ shipment, token, region, drivers, truck
       const fields = { shipmentId: shipment._id, safetyNotes, additionalNotes, stopOrder: currentStopOrder, expectedVersion: shipment.version };
       if (publicMobile) await saveMobile(fields);
       else {
-        if (!token) throw new Error("Sign in again to save driver instructions.");
+        if (!token) { setError("Sign in again to save driver instructions."); return false; }
         await save({ ...fields, token, region });
       }
       // Match the server trim without overwriting an edit made during the request.
@@ -56,7 +57,7 @@ export function useCeramicInstructions({ shipment, token, region, drivers, truck
       setSuccess("Driver instructions saved.");
       return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save driver instructions.");
+      setError(ceramicErrorMessage(cause, "Could not save driver instructions. Please try again."));
       return false;
     } finally { setSaving(false); }
   };

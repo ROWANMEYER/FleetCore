@@ -1,5 +1,8 @@
 import type { CeramicDestination, CeramicShipment } from "./parser";
 
+export const CERAMIC_MAIN_REGION = "transvaal" as const;
+export const CERAMIC_LOCAL_TOWN = "GEORGE";
+
 export type CeramicLocalLeg = {
   key: string; kind: "collection" | "delivery"; name: string; address: string;
   deliveryNumbers: string[]; weightKg: number; pallets: number | null;

@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { describe, expect, it } from "vitest";
 import { assign, report, remove, saveReportBilling } from "@/convex/ceramicTiles";
 import { assign as mobileAssign } from "@/convex/ceramicTilesMobile";
@@ -13,8 +14,8 @@ const snapshot: CeramicShipment = { shipmentNumber: "SH00123456", version: 1, to
     { name: "CASHBUILD GEORGE", addressLines: ["George"], orders: [{ deliveryNumber: "1001", orderNumber: "SO1", weightKg: 2500, collectFrom: "CTM KRUGERSDORP", palletsEstimate: 2 }] },
     { name: "ITALTILE GEORGE", addressLines: ["George"], orders: [{ deliveryNumber: "1002", orderNumber: "SO2", weightKg: 30000, collectFrom: "CTM VEREENIGING", palletsEstimate: 18 }] },
   ] };
-const args = { token: "test-session", region: "garden_route", shipmentId: "shipment", driverId: "driver", truckId: "truck", routeDate: "2026-11-22", expectedVersion: 1 };
-function fixture(role = "admin", region: string | undefined = undefined, shipmentRegion = "garden_route") {
+const args = { token: "test-session", region: "transvaal", shipmentId: "shipment", driverId: "driver", truckId: "truck", routeDate: "2026-11-22", expectedVersion: 1 };
+function fixture(role = "admin", region: string | undefined = undefined, shipmentRegion = "transvaal") {
   let seq = 0;
   const tables = new Map<string, Map<string, Row>>();
   const table = (name: string) => { if (!tables.has(name)) tables.set(name, new Map()); return tables.get(name)!; };
@@ -60,42 +61,35 @@ function fixture(role = "admin", region: string | undefined = undefined, shipmen
 }
 
 describe("Ceramic assignment → main Planner load and both reports", () => {
-  it.each(["transvaal", "kaap", "durban"])("keeps %s assignments and both reports in their own region", async region => {
+  it.each(["garden_route", "eastern_cape", "transvaal", "kaap", "durban"])("allows %s users to allocate Ceramic loads under TRANSVAAL on web and mobile", async userRegion => {
     for (const fn of [assign, mobileAssign]) {
-      const f = fixture("regional", region, region);
-      await f.run(fn, { region: "garden_route" });
-      await f.run(fn, { region: "eastern_cape" });
+      const f = fixture("regional", userRegion, "garden_route");
+      await f.run(fn, { region: "durban" }); await f.run(fn, { region: "kaap" });
       const route = [...f.table("dailyRoutes").values()][0];
-      expect(route).toMatchObject({ region, routeDate: args.routeDate });
+      expect(route).toMatchObject({ region: "transvaal", routeDate: args.routeDate });
       expect(route.loads).toEqual([ceramicMainLoad(snapshot, "shipment")]);
-      expect(f.table("dailyRoutes").size).toBe(1);
-      const rows = (await f.read({ region: "garden_route" })).page;
-      expect(rows).toHaveLength(1); expect(rows[0].region).toBe(region); expect(rows[0].locals).toHaveLength(2);
-      const denied = fixture("regional", "garden_route", region);
-      await expect(denied.run(fn, { region })).rejects.toThrow("not found");
-      expect(denied.writes).toEqual([]);
-      const admin = fixture("admin", undefined, region);
-      await admin.run(fn, { region });
-      expect((await admin.read({ region })).page).toHaveLength(1);
-      expect((await admin.read({ region: "garden_route" })).page).toEqual([]);
+      expect(f.table("dailyRoutes").size).toBe(1); expect(f.table("ceramicAssignments").size).toBe(1);
+      expect(f.table("users").get("user")!.region).toBe(userRegion);
+      // Shared allocation does not grant access to another region's report prices.
+      expect((await f.read({ region: "transvaal" })).page).toHaveLength(userRegion === "transvaal" ? 1 : 0);
+      f.table("users").get("user")!.role = "admin";
+      const rows = (await f.read({ region: "transvaal" })).page;
+      expect(rows).toHaveLength(1); expect(rows[0].locals).toHaveLength(2);
+      expect((await f.read({ region: "garden_route" })).page).toEqual([]);
     }
   });
-  it("assigns and reads a second owned region on web and mobile without exposing a third", async () => {
-    for (const fn of [assign, mobileAssign]) {
-      const f = fixture("regional", "garden_route", "transvaal");
-      f.table("users").get("user")!.regions = ["garden_route", "transvaal"];
-      await f.run(fn, { region: "transvaal" });
-      expect([...f.table("dailyRoutes").values()][0].region).toBe("transvaal");
-      expect((await f.read({ region: "transvaal" })).page).toHaveLength(1);
-      expect((await f.read({ region: "garden_route" })).page).toHaveLength(0);
-      expect((await f.read({ region: "durban" })).page).toHaveLength(0);
-    }
+  it("keeps expected Planner protection errors readable without writing", async () => {
+    const f = fixture(); await f.run(mobileAssign);
+    [...f.table("dailyRoutes").values()][0].status = "locked";
+    const count = f.writes.length;
+    await expect(f.run(mobileAssign, { driverId: "driver-two" })).rejects.toBeInstanceOf(ConvexError);
+    expect(f.writes).toHaveLength(count);
   });
   it("creates exactly one main load and a report record, and does nothing on PDF import alone", async () => {
     const f = fixture(); expect(f.table("dailyRoutes").size).toBe(0); expect((await f.read()).page).toEqual([]);
     await f.run(assign);
     const route = [...f.table("dailyRoutes").values()][0];
-    expect(route).toMatchObject({ routeDate: "2026-11-22", region: "garden_route", driverName: "Example Driver", truckFleetNoStr: "T100" });
+    expect(route).toMatchObject({ routeDate: "2026-11-22", region: "transvaal", driverName: "Example Driver", truckFleetNoStr: "T100" });
     expect(route.loads).toEqual([ceramicMainLoad(snapshot, "shipment")]);
     const rows = (await f.read()).page; expect(rows).toHaveLength(1); expect(rows[0].locals).toHaveLength(2);
     expect(rows[0]).toMatchObject({ version: 1, weightKg: 32500, needsReview: false, driverName: "Example Driver" });
@@ -150,16 +144,16 @@ describe("Ceramic assignment → main Planner load and both reports", () => {
       const f = fixture(); await expect(f.run(assign, override)).rejects.toThrow(); expect(f.writes).toEqual([]);
     }
   });
-  it("rejects missing/expired sessions and cross-region assignment on desktop and mobile", async () => {
+  it("rejects missing and expired sessions on desktop and mobile", async () => {
     for (const fn of [assign, mobileAssign]) {
       const f = fixture(); await expect(f.run(fn, { token: "invalid" })).rejects.toThrow("Sign in"); expect(f.writes).toEqual([]);
-      const g = fixture("regional", "eastern_cape"); await expect(g.run(fn)).rejects.toThrow("not found"); expect(g.writes).toEqual([]);
       const h = fixture(); h.table("sessions").get("session")!.expiresAt = 0; await expect(h.run(fn)).rejects.toThrow("Sign in"); expect(h.writes).toEqual([]);
     }
   });
-  it("uses the server-owned region even when a regional user changes the selector", async () => {
+  it("uses the fixed main-load region without changing the user allocation", async () => {
     const f = fixture("regional", "garden_route"); await f.run(assign, { region: "eastern_cape" });
-    expect((await f.read({ region: "eastern_cape" })).page[0].region).toBe("garden_route");
+    expect([...f.table("dailyRoutes").values()][0].region).toBe("transvaal");
+    expect(f.table("users").get("user")!.region).toBe("garden_route");
   });
   it("gives authenticated mobile assignment the same idempotent path", async () => {
     const f = fixture(); await f.run(mobileAssign); await f.run(mobileAssign);

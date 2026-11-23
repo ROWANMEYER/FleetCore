@@ -1,4 +1,5 @@
 "use client";
+import { CERAMIC_LOCAL_TOWN } from "@/src/lib/ceramic-tiles/planning";
 import { useState, type FormEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -20,7 +21,7 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
   const [load, setLoad] = useState(original.load);
   const [locals, setLocals] = useState(() => row.locals.map(leg => {
     const saved = original.locals.find(local => local.key === leg.key);
-    return { key: leg.key, name: leg.name, from: saved?.from ?? "", to: saved?.to ?? "", price: text(saved?.price) };
+    return { key: leg.key, name: leg.name, from: CERAMIC_LOCAL_TOWN, to: CERAMIC_LOCAL_TOWN, price: text(saved?.price) };
   }));
   const [saving, setSaving] = useState(false), [error, setError] = useState("");
   const save = useMutation(api.ceramicTiles.saveReportBilling);
@@ -62,7 +63,7 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
         {locals.map((local, index) => <fieldset key={local.key} className="rounded-lg border border-[var(--card-border)] p-3">
           <legend className="px-1 text-xs font-semibold">{local.name}</legend>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{([['from', 'Van'], ['to', 'Na'], ['price', 'Prys (R)']] as const).map(([key, label]) => <label key={key} className="text-sm">{label}
-            <input className={field} value={local[key]} maxLength={key === 'price' ? 30 : 200} inputMode={key === 'price' ? 'decimal' : 'text'} disabled={saving}
+            <input className={field} value={local[key]} maxLength={key === 'price' ? 30 : 200} inputMode={key === 'price' ? 'decimal' : 'text'} disabled={saving} readOnly={key !== 'price'}
               onChange={e => setLocals(values => values.map((value, i) => i === index ? { ...value, [key]: e.target.value } : value))} />
           </label>)}</div>
         </fieldset>)}

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { ceramicAssignmentAccess, ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
+import { getRegionLabel } from "@/src/lib/regions";
 import Image from "next/image";
 import styles from "./CeramicMobile.module.css";
 import { useAuth } from "@/src/components/auth/AuthProvider";
-import { ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
+import { CERAMIC_MAIN_REGION, ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, ClipboardCopy, MessageCircle, MapPin, Truck, UserRound } from "lucide-react";
 import { useMutation } from "convex/react";
@@ -26,7 +28,9 @@ const primary = styles.primary;
 export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   shipment: CeramicDispatchShipment; fleet: CeramicFleet; onBack: () => void;
 }) {
-  const { token, user } = useAuth();
+  const { token, user, loading: authLoading } = useAuth();
+  const access = ceramicAssignmentAccess(token ? user : null, shipment.region);
+  const canEditAssignment = access.allowed && !authLoading;
   const [routeDate, setRouteDate] = useState(shipment.routeDate ?? ceramicPlanningDate());
   const [step, setStep] = useState<Step>(0);
   const [stopTab, setStopTab] = useState<"loading" | "deliveries">("loading");
@@ -55,11 +59,12 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
 
   const confirmAssignment = async () => {
     if (!chosenDriver || !chosenTruck || busy) return;
+    if (assignmentDirty && !canEditAssignment) { setAssignmentError(access.message || "Checking your account access. Please try again."); return; }
     setAssignmentError(""); setAssigning(true);
     try {
       if (assignmentDirty) await assign({ token: token ?? undefined, routeDate, shipmentId: shipment._id, driverId: driverId as Id<"drivers">, truckId: truckId as Id<"trucks">, expectedVersion: shipment.version });
       setEditingAssignment(false); setStep(1);
-    } catch (cause) { setAssignmentError(cause instanceof Error ? cause.message : "Could not save assignment."); }
+    } catch (cause) { setAssignmentError(ceramicErrorMessage(cause, "Could not save assignment. Please try again.")); }
     finally { setAssigning(false); }
   };
   const reviewInstructions = async () => {
@@ -93,6 +98,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
       <div className={styles.metrics}>
         <span className={styles.metric}><Image src="/images/ceramic-mobile/v1/icons/pallets.svg" alt="" width={23} height={23} />{ceramicPalletLabel(shipment.snapshot)}</span>
         <span className={styles.metric}><Truck size={23} />{shipment.snapshot.destinations.length} deliveries</span>
+        <span className={styles.metric}><MapPin size={20} />{getRegionLabel(CERAMIC_MAIN_REGION)}</span>
       </div>
       <div className={styles.journey}>
         <Image className={styles.journeyTruck} src="/images/ceramic-mobile/v1/dispatch-truck.png" alt="" width={1774} height={887} sizes="100px" />
@@ -109,18 +115,19 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
       {step > 0 && !assignmentReady && <p role="alert" className={`${styles.notice} ${styles.error}`}>Confirm the truck, driver and planning date in step 1 before continuing.</p>}
       {(assignmentError || instructions.error) && <p role="alert" className={`${styles.notice} ${styles.error}`}>{assignmentError || instructions.error}</p>}
       {step === 0 && <section aria-label="Assign shipment">
+        {!canEditAssignment && <div role="status" className={styles.notice}>{authLoading ? "Checking your account access…" : <>{access.message}{!user && <> <Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link></>}</>}</div>}
         <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Shipment assignment</h3>
           {!editingAssignment ? <>
-            <div className={styles.assignmentRow}><span className={styles.iconTile}><Truck size={25} /></span><div className={styles.assignmentInfo}><small>Truck</small><strong>{chosenTruck ? [chosenTruck.fleetNumber, chosenTruck.registration].filter(Boolean).join(" · ") : "Choose a truck"}</strong></div><button type="button" disabled={busy} onClick={() => setEditingAssignment(true)} className={styles.change}>Change truck<ChevronRight size={16} /></button></div>
-            <div className={styles.assignmentRow}><span className={styles.iconTile}><UserRound size={25} /></span><div className={styles.assignmentInfo}><small>Driver</small><strong>{chosenDriver?.name || "Choose a driver"}</strong></div><button type="button" disabled={busy} onClick={() => setEditingAssignment(true)} className={styles.change}>Change driver<ChevronRight size={16} /></button></div>
+            <div className={styles.assignmentRow}><span className={styles.iconTile}><Truck size={25} /></span><div className={styles.assignmentInfo}><small>Truck</small><strong>{chosenTruck ? [chosenTruck.fleetNumber, chosenTruck.registration].filter(Boolean).join(" · ") : "Choose a truck"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change truck<ChevronRight size={16} /></button></div>
+            <div className={styles.assignmentRow}><span className={styles.iconTile}><UserRound size={25} /></span><div className={styles.assignmentInfo}><small>Driver</small><strong>{chosenDriver?.name || "Choose a driver"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change driver<ChevronRight size={16} /></button></div>
           </> : <div className={styles.formFields}>
-            <label className={styles.label}>Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={busy} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
-            <label className={styles.label}>Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={busy} onChange={event => { const id = event.target.value; setDriverId(id); setRecipientMode(normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === id)?.phone) ? "system" : "manual"); setManualNumber(""); }}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
+            <label className={styles.label}>Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={busy || !canEditAssignment} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
+            <label className={styles.label}>Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={busy || !canEditAssignment} onChange={event => { const id = event.target.value; setDriverId(id); setRecipientMode(normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === id)?.phone) ? "system" : "manual"); setManualNumber(""); }}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
           </div>}
-          <label className={`${styles.label} ${styles.dateField}`}>Planning date<input aria-label="Shipment planning date" type="date" className={field} value={routeDate} disabled={busy} onChange={event => setRouteDate(event.target.value)} /></label>
+          <label className={`${styles.label} ${styles.dateField}`}>Planning date<input aria-label="Shipment planning date" type="date" className={field} value={routeDate} disabled={busy || !canEditAssignment} onChange={event => setRouteDate(event.target.value)} /></label>
           {!user && assignmentDirty && <p role="alert" className={styles.hint}><Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link> to save this assignment to Daily Planner and reports.</p>}
-          <p className={styles.hint}><Check size={15} />{assignmentDirty ? "Next saves this assignment and updates Planner and reports." : "Assignment saved. Only the main load goes to Daily Planner."}</p>
+          <p className={styles.hint}><Check size={15} />{assignmentDirty && !canEditAssignment ? "Your truck and driver selections have not been saved." : assignmentDirty ? "Next saves the main load under TRANSVAAL. Locals are GEORGE → GEORGE." : "Assignment saved. Only the main load goes to Daily Planner."}</p>
         </div>
       </section>}
       {step === 1 && <div className={styles.panel}><CeramicStopOrderEditor shipment={shipment.snapshot} order={instructions.currentStopOrder} onChange={order => { instructions.setStopOrder(order); instructions.setSuccess(""); }} disabled={busy} compact activeTab={stopTab} onTabChange={setStopTab} /></div>}
@@ -139,7 +146,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
     <footer role="region" aria-label="Dispatch actions" className={styles.footer}>
       <p aria-live="polite" className={styles.footerHint}>{busy ? "Saving…" : step === 0 ? !chosenDriver || !chosenTruck ? "Choose a truck and driver to continue." : !routeDate ? "Choose the planning date to continue." : assignmentDirty && !user ? "Sign in to save this assignment." : "Next confirms the assignment." : step === 1 ? "Next saves and reviews this stop order." : instructions.dirty || reviewPending ? "Save the instructions before opening WhatsApp." : "Assignment and instructions saved · opens a draft only"}</p>
       <div className={styles.actions}>{step > 0 && <button type="button" disabled={busy} onClick={() => setStep(step === 2 ? 1 : 0)} className={styles.secondary}>Back</button>}
-        {step === 0 && <button type="button" disabled={!chosenDriver || !chosenTruck || !routeDate || (assignmentDirty && !user) || busy} onClick={() => void confirmAssignment()} className={primary}>{busy ? "Saving…" : "Next: Arrange stops"}<ChevronRight size={19} /></button>}
+        {step === 0 && <button type="button" disabled={!chosenDriver || !chosenTruck || !routeDate || (assignmentDirty && !canEditAssignment) || busy} onClick={() => void confirmAssignment()} className={primary}>{busy ? "Saving…" : "Next: Arrange stops"}<ChevronRight size={19} /></button>}
         {step === 1 && <button type="button" disabled={!assignmentReady || busy} onClick={() => void reviewInstructions()} className={primary}>{busy ? "Saving…" : "Next: Review & send"}<ChevronRight size={19} /></button>}
         {step === 2 && (instructions.dirty || reviewPending ? <button type="button" disabled={busy || !assignmentReady} onClick={() => void saveReviewChanges()} className={primary}>{busy ? "Saving…" : "Save changes"}</button> : canSend ? <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" className={primary}><MessageCircle size={18} />{recipientMode === "manual" && !manualNumber.trim() ? "Choose contact in WhatsApp" : "Open WhatsApp"}</a> : <button type="button" disabled className={primary}>Open WhatsApp</button>)}
       </div>

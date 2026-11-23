@@ -36,6 +36,10 @@ This project is in a **locked baseline** state (as of 2026-01-23). Core architec
 - Legacy routes (`/planner`, `/sheets`): declared in `ARCHITECTURE_LOCK` — no route files exist in the current codebase; do not reintroduce them as canonical routes
 - Region scoping is **server-enforced** — regional users can access only their assigned regions (server-validated; one regional owner per region); route queries resolve scope via `resolveEffectiveRegion` in `convex/userSessions.ts`
 
+Ceramic dispatch is a specific exception: all signed-in users can allocate its
+loads, main loads belong to TRANSVAAL, and local report legs are GEORGE -> GEORGE.
+Normal Operations and financial report permissions remain scoped to assigned regions.
+
 ## Lint Freeze
 
 Legacy Convex and Planner files have `no-explicit-any` disabled via per-file `eslint-disable` comments (see `LINT_FREEZE.md`). New code must remain strict and lint-free.

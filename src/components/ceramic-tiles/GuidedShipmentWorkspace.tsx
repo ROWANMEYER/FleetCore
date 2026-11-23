@@ -25,11 +25,12 @@ const stages = ["Review PDF", "Assign load", "Instructions", "Send to driver"];
 const stageIndex = { assignment: 1, instructions: 2, ready: 3 };
 function stops(row: Doc<"ceramicShipments">) { return ceramicDeliveryStops(ceramicMainLoad(row.snapshot, row._id).toLocations); }
 
-export function GuidedShipmentWorkspace({ rows, fleet, token, region, selectedNumber, onSelect, drafts, onDraftChange, savingId, onAssign, onHistory, onDelete, interaction, onInteractionChange, disabled }: {
+export function GuidedShipmentWorkspace({ canManageRecords = true, rows, fleet, token, region, selectedNumber, onSelect, drafts, onDraftChange, savingId, onAssign, onHistory, onDelete, interaction, onInteractionChange, disabled }: {
   rows: Doc<"ceramicShipments">[] | undefined; fleet: CeramicFleet | undefined; token: string;
   region: Region; selectedNumber: string; onSelect: (number: string) => void;
   drafts: Record<string, CeramicAssignDraft>; onDraftChange: (id: string, draft: CeramicAssignDraft) => void;
   savingId: string | null; onAssign: (row: Doc<"ceramicShipments">) => Promise<boolean>;
+  canManageRecords?: boolean;
   onHistory: (id: Doc<"ceramicShipments">["_id"]) => void; onDelete: (row: Doc<"ceramicShipments">) => void;
   disabled: boolean; interaction: CeramicWorkspaceInteraction; onInteractionChange: (state: CeramicWorkspaceInteraction) => void;
 }) {
@@ -69,15 +70,16 @@ export function GuidedShipmentWorkspace({ rows, fleet, token, region, selectedNu
           <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#0891B2]">{stage === "assignment" ? "Next: Assign driver & truck" : stage === "instructions" ? "Next: Driver instructions" : "Next: Open WhatsApp"}<ArrowRight size={13} /></span>
         </button>;
       })}</div>}
-      <div className="p-4"><Link href={reportHref} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[#0891B2]"><Table2 size={15} />Monthly &amp; local reports</Link></div>
+      {canManageRecords && <div className="p-4"><Link href={reportHref} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[#0891B2]"><Table2 size={15} />Monthly &amp; local reports</Link></div>}
     </aside>
-    {selected ? <ShipmentTask key={`${region}:${selected._id}`} row={selected} fleet={fleet} token={token} region={region} draft={drafts[selected._id] ?? defaultDraft(selected)} onDraftChange={draft => onDraftChange(selected._id, draft)} saving={savingId === selected._id} blocked={disabled} onAssign={() => { onSelect(selected.shipmentNumber); setFilter("action"); return onAssign(selected); }} onSaveStart={() => onSelect(selected.shipmentNumber)} onPrepared={() => { onSelect(selected.shipmentNumber); setFilter("ready"); }} onHistory={() => onHistory(selected._id)} onDelete={() => onDelete(selected)} onNext={next ? () => { if (!busy) { select(next.shipmentNumber); setFilter("action"); } } : undefined} onInteractionChange={onInteractionChange} /> : <section className={`${panel} p-8 text-sm text-[var(--nav-text-color)]`} aria-label="Shipment workspace">{rows ? "Your next shipment step will appear here after import." : "Loading shipment workspace…"}</section>}
+    {selected ? <ShipmentTask canManageRecords={canManageRecords} key={`${region}:${selected._id}`} row={selected} fleet={fleet} token={token} region={region} draft={drafts[selected._id] ?? defaultDraft(selected)} onDraftChange={draft => onDraftChange(selected._id, draft)} saving={savingId === selected._id} blocked={disabled} onAssign={() => { onSelect(selected.shipmentNumber); setFilter("action"); return onAssign(selected); }} onSaveStart={() => onSelect(selected.shipmentNumber)} onPrepared={() => { onSelect(selected.shipmentNumber); setFilter("ready"); }} onHistory={() => onHistory(selected._id)} onDelete={() => onDelete(selected)} onNext={next ? () => { if (!busy) { select(next.shipmentNumber); setFilter("action"); } } : undefined} onInteractionChange={onInteractionChange} /> : <section className={`${panel} p-8 text-sm text-[var(--nav-text-color)]`} aria-label="Shipment workspace">{rows ? "Your next shipment step will appear here after import." : "Loading shipment workspace…"}</section>}
   </div>;
 }
 
-function ShipmentTask({ row, fleet, token, region, draft, onDraftChange, saving, blocked, onAssign, onSaveStart, onPrepared, onHistory, onDelete, onNext, onInteractionChange }: {
+function ShipmentTask({ canManageRecords = true, row, fleet, token, region, draft, onDraftChange, saving, blocked, onAssign, onSaveStart, onPrepared, onHistory, onDelete, onNext, onInteractionChange }: {
   row: Doc<"ceramicShipments">; fleet: CeramicFleet | undefined; token: string; region: Region;
   draft: CeramicAssignDraft; onDraftChange: (draft: CeramicAssignDraft) => void; saving: boolean; blocked: boolean;
+  canManageRecords?: boolean;
   onAssign: () => Promise<boolean>; onSaveStart: () => void; onPrepared: () => void; onHistory: () => void; onDelete: () => void; onNext?: () => void;
   onInteractionChange: (state: CeramicWorkspaceInteraction) => void;
 }) {
@@ -114,7 +116,7 @@ function ShipmentTask({ row, fleet, token, region, draft, onDraftChange, saving,
       <details className="relative"><summary aria-label={`More actions for ${row.shipmentNumber}`} className="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-lg px-2 text-xs text-[var(--nav-text-color)]"><MoreHorizontal size={17} />More</summary><div className="absolute right-0 top-full z-20 grid w-48 gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-lg">
         <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onHistory(); }} className={secondary}><FileClock size={14} />PDF &amp; history</button>
         <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); changeStep('assignment'); }} className={secondary}>Edit assignment</button>
-        <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onDelete(); }} className={`${secondary} text-[var(--danger-text)]`}><Trash2 size={14} />Delete shipment</button>
+        {canManageRecords && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onDelete(); }} className={`${secondary} text-[var(--danger-text)]`}><Trash2 size={14} />Delete shipment</button>}
       </div></details>
     </div>
     <ol aria-label="Shipment progress" className="my-6 grid grid-cols-4 gap-2">{stages.map((label, i) => <li key={label} aria-current={i === index ? "step" : undefined} className={`min-w-0 text-[11px] ${i === index ? "font-semibold text-[#0891B2]" : "text-[var(--nav-text-color)]"}`}><span className={`mb-2 flex h-7 w-7 items-center justify-center rounded-full border ${i === index ? "border-[#0891B2] bg-[#0891B2] text-white" : "border-[var(--card-border)]"}`}>{i < index ? <Check size={14} /> : i + 1}</span>{i === 0 ? <button type="button" disabled={busy} onClick={onHistory} className="text-left underline decoration-dotted underline-offset-2">{label}</button> : label}</li>)}</ol>

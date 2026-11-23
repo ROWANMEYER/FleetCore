@@ -19,7 +19,7 @@ export default function CeramicReportsPage() {
   const { token, user } = useAuth();
   const convex = useConvex();
   const [month, setMonth] = useState(() => ceramicPlanningDate().slice(0, 7));
-  const [regionChoice, setRegionChoice] = useState<Region>("garden_route");
+  const [regionChoice, setRegionChoice] = useState<Region>("transvaal");
   const [tab, setTab] = useState<"monthly" | "local">("monthly");
   const [editing, setEditing] = useState<{ row: CeramicReportRow; mode: "main" | "local" } | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -49,7 +49,7 @@ export default function CeramicReportsPage() {
   };
   if (!token || !user) return <main className="p-6">Sign in to view Ceramic reports.</main>;
   return <main className="h-full overflow-y-auto p-4 text-[var(--foreground)] lg:p-6"><div className="mx-auto max-w-[1500px] space-y-4">
-    <header className="flex flex-wrap justify-between gap-3"><div><Link href="/operations/ceramic-tiles" className="text-sm font-semibold text-[#0891B2]">← Ceramic shipments</Link><h1 className="mt-2 text-2xl font-semibold">Ceramic spreadsheets</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">Updated when a shipment is assigned. Local stops use the main driver and stay out of Daily Planner.</p></div>
+    <header className="flex flex-wrap justify-between gap-3"><div><Link href="/operations/ceramic-tiles" className="text-sm font-semibold text-[#0891B2]">← Ceramic shipments</Link><h1 className="mt-2 text-2xl font-semibold">Ceramic spreadsheets</h1><p className="mt-1 text-sm text-[var(--nav-text-color)]">Main loads are recorded under TRANSVAAL. Local trips are GEORGE → GEORGE, use the main driver and stay out of Daily Planner.</p></div>
       <button type="button" style={{ backgroundColor: "#0891B2" }} className={`${field} font-semibold text-white disabled:opacity-50`} disabled={exporting || !validMonth || status === "LoadingFirstPage"} onClick={() => void exportReports()}>{exporting ? "Exporting…" : "Export both spreadsheets"}</button></header>
     <div className="flex flex-wrap items-end gap-4"><label className="grid gap-1 text-sm">Report month<input type="month" className={field} value={month} disabled={exporting || !!editing} onChange={event => setMonth(event.target.value)} /></label>{regionOptions.length > 1 && <label className="grid gap-1 text-sm">Region<select className={field} value={region} disabled={exporting || !!editing} onChange={event => setRegionChoice(event.target.value as Region)}>{regionOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}</div>
     {error && <p role="alert" className="text-sm text-[var(--danger-text)]">{error}</p>}

@@ -1,6 +1,39 @@
 # FleetCore — Project Scope & Updates
 
 
+## 2026-11-23 - Shared Ceramic allocation, TRANSVAAL main loads and GEORGE locals
+
+The production assignment failure was a region permission denial hidden behind
+Convex's generic production error. The owner clarified that every signed-in user
+may allocate Ceramic shipments across regions. Ceramic dispatch/import operates
+under TRANSVAAL; normal Planner/region ownership and commercial report permissions
+remain unchanged. Expected login/version/Planner protection errors are now safe
+Convex application errors with readable client messages and support references
+for unexpected failures. Shipments show their main dispatch region on mobile.
+
+All main Ceramic Planner routes and monthly assignment records use TRANSVAAL.
+The local template and local amount editor use fixed GEORGE -> GEORGE locations,
+with saved local prices preserved. Local legs remain report-only and keep the
+main driver. Spreadsheet layout, formulas, source destinations and weights are
+retained. The owner explicitly requested moving existing Ceramic loads as well.
+
+The internal `ceramicRegionMigration.preview/apply` pair performs bounded reads,
+checks duplicate shipment numbers and Planner links, and requires the unchanged
+preview fingerprint before applying. It moves shipment/version/assignment/linked
+route classifications and normalizes saved local origins/destinations; it cannot
+create/delete records or alter route contents, dates, statuses, drivers, amounts,
+PDF storage IDs or billing source versions. Changing local location metadata
+advances its edit timestamp so stale forms cannot overwrite it. Repeat runs are
+no-ops. `dailyRoutes.by_ceramicShipmentId` supports the reviewed migration lookup.
+
+Validation: 1,151 tests across 73 files, TypeScript, full lint (zero errors; 64
+existing warnings) and optimized build pass. Synthetic localhost migration checks
+and shared allocation calls from TRANSVAAL, KAAP and DURBAN accounts preserve
+normal Planner scope, report prices, local-leg counts and main-load identities.
+The PWA cache advances to fleetcore-v92 for the release. Existing customer PDFs
+remain local and excluded from Git. Production migration/deployment results are
+recorded in the private release verification files after the reviewed preview.
+
 ## 2026-11-23 - Release operating regions and exclusive multi-region ownership
 
 The owner explicitly authorized committing and deploying the region work.

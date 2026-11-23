@@ -693,6 +693,13 @@ The app moved from a single PIN gate to **full user accounts with region scoping
 
 ## 9. Region Scoping
 
+**Ceramic dispatch exception:** all signed-in users may import/allocate Ceramic
+loads. Main shipment/assignment/Planner classifications are always `transvaal`;
+local report trips are always GEORGE -> GEORGE and never separate Planner loads.
+General Operations permissions and financial report access retain assigned-region
+checks. Existing Ceramic classifications are corrected only through the reviewed
+internal `ceramicRegionMigration.preview/apply` maintenance functions.
+
 Five regions exist: Garden Route (`garden_route`), Eastern Cape (`eastern_cape`),
 TRANSVAAL (`transvaal`), KAAP (`kaap`) and DURBAN (`durban`). UI options and
 labels come from `src/lib/regions.ts`; Convex uses `convex/regionFields.ts`.

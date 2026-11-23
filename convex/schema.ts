@@ -199,6 +199,7 @@ export default defineSchema({
     routeOrder: v.optional(v.float64()),
     planningSource: v.optional(v.union(v.literal("board"))),
   })
+    .index("by_ceramicShipmentId", ["ceramicShipmentId"])
     .index("by_routeDate", ["routeDate"])
     .index("by_routeDate_truckFleetNoStr", ["routeDate", "truckFleetNoStr"]),
   damageLogs: defineTable({

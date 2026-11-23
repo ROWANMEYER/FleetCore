@@ -15,6 +15,7 @@ import type * as backfillRegion from "../backfillRegion.js";
 import type * as backfillStatus from "../backfillStatus.js";
 import type * as birthdays from "../birthdays.js";
 import type * as ceramicPlanning from "../ceramicPlanning.js";
+import type * as ceramicRegionMigration from "../ceramicRegionMigration.js";
 import type * as ceramicTiles from "../ceramicTiles.js";
 import type * as ceramicTilesFields from "../ceramicTilesFields.js";
 import type * as ceramicTilesMobile from "../ceramicTilesMobile.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   backfillStatus: typeof backfillStatus;
   birthdays: typeof birthdays;
   ceramicPlanning: typeof ceramicPlanning;
+  ceramicRegionMigration: typeof ceramicRegionMigration;
   ceramicTiles: typeof ceramicTiles;
   ceramicTilesFields: typeof ceramicTilesFields;
   ceramicTilesMobile: typeof ceramicTilesMobile;

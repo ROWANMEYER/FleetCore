@@ -51,6 +51,12 @@ describe("Exact monthly Ceramic template",()=>{
     const sheets=buildCeramicTemplateSheets([],"2026-11");const json=JSON.stringify(sheets);
     expect(json).not.toContain("SH00118792");expect(json).not.toContain("RUFUS");expect(sheets[0].rows[10].cells[1].value).toBeUndefined();
   });
+  it("always displays local trips as GEORGE to GEORGE and preserves local prices", () => {
+    const local = { key: "local-1", kind: "delivery" as const, name: "Cashbuild", address: "George", weightKg: 100, pallets: 1, deliveryNumbers: ["1"] };
+    const sheets = buildCeramicTemplateSheets([{ ...row, locals: [local], billing: { ...row.billing!, locals: [{ key: local.key, from: "OLD ORIGIN", to: "OLD DESTINATION", price: 2700 }] } }], "2026-03");
+    const cells = sheets[1].rows[3].cells;
+    expect([cells[3].value, cells[4].value, cells[5].value]).toEqual(["GEORGE", "GEORGE", 2700]);
+  });
   it("exports native formulas, styles, dates, merges and a real January workbook link",async()=>{
     const bytes=await ceramicTemplateExcel(buildCeramicTemplateSheets([row],"2026-03"));const zip=await JSZip.loadAsync(bytes);
     const main=await zip.file("xl/worksheets/sheet1.xml")!.async("string");

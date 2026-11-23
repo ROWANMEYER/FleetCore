@@ -97,12 +97,13 @@ describe("Saved stop-order mutation", () => {
     await invoke(ctx, args);
     expect(ctx.db.patch).toHaveBeenCalledWith("fixture-shipment", expect.objectContaining({ driverInstructions: expect.objectContaining({ reviewedVersion: 1 }) }));
   });
-  it("rejects missing sessions, regional overrides and forged permutations", async () => {
+  it("rejects missing sessions and forged permutations while permitting shared dispatch", async () => {
     const ctx = context();
     scope.mockResolvedValueOnce(null);
     await expect(invoke(ctx, args)).rejects.toThrow(/Sign in again/);
     scope.mockResolvedValueOnce({ role: "regional", region: "eastern_cape" });
-    await expect(invoke(ctx, args)).rejects.toThrow(/Shipment not found/);
+    await expect(invoke(ctx, args)).resolves.toMatchObject({ saved: true });
+    ctx.db.patch.mockClear();
     await expect(invoke(ctx, { ...args, stopOrder: { ...reversed(), offloads: [] } })).rejects.toThrow(/stop order is invalid/);
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });

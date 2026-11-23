@@ -3,8 +3,8 @@ import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport"
 import { ceramicBilling } from "./ceramicTilesFields";
 import { paginationOptsValidator } from "convex/server";
 import { ceramicReportRow } from "./ceramicTilesFields";
-import { ceramicLocalLegs, ceramicMainLoad } from "../src/lib/ceramic-tiles/planning";
-import { syncCeramicAssignment } from "./ceramicPlanning";
+import { CERAMIC_MAIN_REGION, CERAMIC_LOCAL_TOWN, ceramicLocalLegs, ceramicMainLoad } from "../src/lib/ceramic-tiles/planning";
+import { ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
 import { assertCeramicStopOrder } from "../src/lib/ceramic-tiles/stopOrder";
 import { ceramicStopOrder } from "./ceramicTilesFields";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -27,7 +27,7 @@ type ShipmentInput = {
   fileHash: string;
 };
 
-async function requireRegion(
+async function requireFinancialRegion(
   ctx: QueryCtx | MutationCtx,
   token: string,
   requested: Region,
@@ -39,6 +39,14 @@ async function requireRegion(
     return { region, actor: `regional:${region}` };
   }
   return { region: requested, actor: "admin" };
+}
+
+/** Every signed-in user may dispatch Ceramic loads; general Operations scope is unchanged. */
+async function requireRegion(ctx: QueryCtx | MutationCtx, token: string, requested: Region): Promise<{ region: Region; actor: string }> {
+  void requested;
+  const scope = await resolveUserScope(ctx, token);
+  if (!scope) throw ceramicAssignmentError("Sign in again to use Ceramic dispatch.", "CERAMIC_SIGN_IN_REQUIRED");
+  return { region: CERAMIC_MAIN_REGION, actor: `${scope.role}:ceramic-dispatch` };
 }
 
 function validateInput(entry: ShipmentInput): void {
@@ -211,9 +219,9 @@ export const list = query({
 export const versions = query({
   args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments") },
   handler: async (ctx, args) => {
-    const { region } = await requireRegion(ctx, args.token, args.region);
+    await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (!shipment) throw new Error("Shipment not found.");
     const entries = await ctx.db.query("ceramicShipmentVersions")
       .withIndex("by_shipment", (q) => q.eq("shipmentId", args.shipmentId)).collect();
     return await Promise.all(entries.sort((a, b) => b.version - a.version).map(async (entry) => ({
@@ -231,7 +239,7 @@ export const remove = mutation({
   },
   returns: v.object({ deleted: v.boolean() }),
   handler: async (ctx, args) => {
-    const { region } = await requireRegion(ctx, args.token, args.region);
+    const { region } = await requireFinancialRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
     if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
     if (args.expectedVersion !== shipment.version || args.expectedUpdatedAt !== shipment.updatedAt) {
@@ -265,9 +273,9 @@ export const assign = mutation({
   },
   returns: v.object({ saved: v.boolean(), updatedAt: v.number(), routeId: v.id("dailyRoutes") }),
   handler: async (ctx, args) => {
-    const { region, actor } = await requireRegion(ctx, args.token, args.region);
+    const { actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (!shipment) throw ceramicAssignmentError("Shipment not found. Refresh the shipment list.");
     if (args.expectedVersion !== shipment.version) throw new Error("Shipment updated. Review the latest PDF before assigning.");
     const driverId = args.driverId === undefined ? shipment.driverId : args.driverId;
     const truckId = args.truckId === undefined ? shipment.truckId : args.truckId;
@@ -292,9 +300,9 @@ export const saveDriverInstructions = mutation({
   },
   returns: v.object({ saved: v.boolean(), updatedAt: v.number() }),
   handler: async (ctx, args) => {
-    const { region, actor } = await requireRegion(ctx, args.token, args.region);
+    const { actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (!shipment) throw new Error("Shipment not found.");
     if (args.expectedVersion !== undefined && args.expectedVersion !== shipment.version) {
       throw new Error("Shipment updated. Reopen instructions and review the latest version before saving.");
     }
@@ -349,7 +357,7 @@ export const report = query({
     pageStatus: v.optional(v.union(v.literal("SplitRecommended"), v.literal("SplitRequired"), v.null())),
   }),
   handler: async (ctx, args) => {
-    const { region } = await requireRegion(ctx, args.token, args.region);
+    const { region } = await requireFinancialRegion(ctx, args.token, args.region);
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(args.month)) throw new Error("Choose a valid report month.");
     if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) throw new Error("Read 1 to 100 report rows per page.");
     const records = await ctx.db.query("ceramicAssignments").withIndex("by_region_routeDate", q =>
@@ -381,7 +389,7 @@ export const saveReportBilling = mutation({
   args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"), expectedVersion: v.number(), expectedBillingUpdatedAt: v.number(), billing: ceramicBilling },
   returns: v.object({ saved: v.boolean(), updatedAt: v.number() }),
   handler: async (ctx, args) => {
-    const { region, actor } = await requireRegion(ctx, args.token, args.region);
+    const { region, actor } = await requireFinancialRegion(ctx, args.token, args.region);
     const row = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", args.shipmentId)).unique();
     if (!row || row.region !== region) throw new Error("Assigned shipment not found.");
     const [shipment, route] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId)]);
@@ -397,7 +405,7 @@ export const saveReportBilling = mutation({
     const keys = billing.locals.map(local => local.key);
     if (new Set(keys).size !== keys.length || keys.some(key => !allowed.has(key)) || billing.locals.some(local => local.from.length > 200 || local.to.length > 200)) throw new Error("Local stops changed or contain invalid locations. Reopen the editor.");
     const now = Math.max(Date.now(), (row.billingUpdatedAt ?? 0) + 1);
-    await ctx.db.patch(row._id, { billing, billingUpdatedAt: now, billingUpdatedBy: actor, billingSourceVersion: row.snapshot.version });
+    await ctx.db.patch(row._id, { billing: { ...billing, locals: billing.locals.map(local => ({ ...local, from: CERAMIC_LOCAL_TOWN, to: CERAMIC_LOCAL_TOWN })) }, billingUpdatedAt: now, billingUpdatedBy: actor, billingSourceVersion: row.snapshot.version });
     return { saved: true, updatedAt: now };
   },
 });

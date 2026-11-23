@@ -1,6 +1,6 @@
 import { REGIONS } from "../src/lib/regions";
-import { resolveUserScope, canAccessRegion } from "./userSessions";
-import { syncCeramicAssignment } from "./ceramicPlanning";
+import { resolveUserScope } from "./userSessions";
+import { ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
@@ -22,7 +22,7 @@ const dispatchShipment = v.object({
 });
 function assertVersion(actual: number, expected: number) {
   if (!Number.isInteger(expected) || expected < 1 || actual !== expected) {
-    throw new Error("Shipment updated. Reopen it and review the latest version before saving.");
+    throw ceramicAssignmentError("Shipment updated. Reopen it and review the latest version before saving.", "CERAMIC_VERSION_CHANGED");
   }
 }
 
@@ -67,9 +67,9 @@ export const assign = mutation({
   returns: savedResult,
   handler: async (ctx, args) => {
     const scope = await resolveUserScope(ctx, args.token);
-    if (!scope) throw new Error("Sign in to assign the main load to Daily Planner and reports.");
+    if (!scope) throw ceramicAssignmentError("Sign in to assign the main load to Daily Planner and reports.", "CERAMIC_SIGN_IN_REQUIRED");
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || !canAccessRegion(scope, shipment.region)) throw new Error("Shipment not found.");
+    if (!shipment) throw ceramicAssignmentError("Shipment not found. Return to shipments and refresh the list.", "CERAMIC_SHIPMENT_REMOVED");
     assertVersion(shipment.version, args.expectedVersion);
     const actor = scope.role === "regional" ? `regional:${shipment.region}` : "admin";
     await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });

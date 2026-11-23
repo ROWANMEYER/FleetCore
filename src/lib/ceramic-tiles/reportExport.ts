@@ -1,3 +1,4 @@
+import { CERAMIC_LOCAL_TOWN } from "./planning";
 import type { Infer } from "convex/values";
 import type { ceramicReportRow } from "@/convex/ceramicTilesFields";
 
@@ -12,9 +13,9 @@ export function ceramicReportSheets(rows: CeramicReportRow[]): { name: string; r
         row.weightKg === null ? null : row.weightKg / 1000, row.pallets, row.locals.length, row.needsReview ? "Review shipment / Planner changes" : ""]),
     ] },
     { name: "Local Loads", rows: [
-      ["Planning date", "Shipment", "PDF version", "Driver", "Truck", "Type", "Local stop", "Address", "Delivery references", "Weight (kg)", "Pallets", "Review"],
+      ["Planning date", "Shipment", "PDF version", "Driver", "Truck", "From", "To", "Type", "Local stop", "Address", "Delivery references", "Weight (kg)", "Pallets", "Review"],
       ...rows.flatMap(row => row.locals.map(leg => [row.routeDate, row.shipmentNumber, row.version, row.driverName,
-        row.truckFleetNo, leg.kind, leg.name, leg.address, leg.deliveryNumbers.join("; "), leg.weightKg, leg.pallets,
+        row.truckFleetNo, CERAMIC_LOCAL_TOWN, CERAMIC_LOCAL_TOWN, leg.kind, leg.name, leg.address, leg.deliveryNumbers.join("; "), leg.weightKg, leg.pallets,
         row.needsReview ? "Review shipment / Planner changes" : ""])),
     ] },
   ];

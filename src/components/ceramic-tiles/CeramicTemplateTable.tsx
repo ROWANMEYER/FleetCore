@@ -24,9 +24,12 @@ function display(cell: TemplateCell) {
   return cell.value;
 }
 export function CeramicTemplateTable({ sheet, onEdit }: { sheet: TemplateSheet; onEdit: (shipmentId: string) => void }) {
+  // Screen-only room for names; workbook exports retain the original template widths.
+  const driverColumn = sheet.name.startsWith("Locals_") ? 1 : 4;
+  const columns = sheet.columns.map((width, index) => index === driverColumn ? Math.max(width, 240) : width);
   return <div className="max-w-full overflow-x-auto rounded-lg border border-[var(--card-border)] bg-white p-1" aria-label={`${sheet.name} spreadsheet`}>
-    <table className="border-collapse" style={{ tableLayout: "fixed", width: sheet.columns.reduce((a,b) => a+b,0) }}><colgroup>{sheet.columns.map((width,i)=><col key={i} style={{width}} />)}</colgroup>
-      <tbody>{sheet.rows.map((row,ri)=><tr key={ri} style={{ height: `${row.height}pt` }}>{row.cells.map((cell,ci)=>cell.covered ? null : <td key={ci} colSpan={cell.span} style={styleFor(cell.style)} title={cell.formula ? `=${cell.formula}` : String(cell.value ?? "")}>
+    <table className="border-collapse" style={{ tableLayout: "fixed", width: columns.reduce((a,b) => a+b,0) }}><colgroup>{columns.map((width,i)=><col key={i} style={{width}} />)}</colgroup>
+      <tbody>{sheet.rows.map((row,ri)=><tr key={ri} style={{ height: `${row.height}pt` }}>{row.cells.map((cell,ci)=>cell.covered ? null : <td key={ci} colSpan={cell.span} style={{ ...styleFor(cell.style), ...(ci === driverColumn ? { whiteSpace: "normal", overflowWrap: "anywhere", padding: "4px 8px", lineHeight: 1.35 } : {}) }} title={cell.formula ? `=${cell.formula}` : String(cell.value ?? "")}>
         {cell.editShipment ? <button type="button" className="h-full w-full text-inherit underline decoration-dotted underline-offset-2" style={{textAlign:"inherit",font:"inherit"}} aria-label={`Edit amounts for ${cell.editLabel ?? "shipment"}`} onClick={()=>onEdit(cell.editShipment!)}>{display(cell)}</button> : <span style={cell.style["table-cell-properties"]?.["rotation-angle"] === "90" ? { writingMode:"vertical-rl", transform:"rotate(180deg)" } : undefined}>{display(cell)}</span>}
       </td>)}</tr>)}</tbody>
     </table>

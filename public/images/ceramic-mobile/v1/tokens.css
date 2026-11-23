@@ -1,0 +1,15 @@
+/* Proposed Ceramic mobile palette. Not imported by the running app. */
+.ceramic-mobile-theme {
+  --cm-background: #eefafd;
+  --cm-surface: #ffffff;
+  --cm-surface-soft: #dff5f9;
+  --cm-primary: #008d9f;
+  --cm-primary-end: #00a4b5;
+  --cm-text: #101b2b;
+  --cm-text-muted: #4c6370;
+  --cm-border: #d9e9ef;
+  --cm-success: #147852;
+  --cm-card-radius: 20px;
+  --cm-control-radius: 14px;
+  --cm-card-shadow: 0 8px 24px #12647812;
+}

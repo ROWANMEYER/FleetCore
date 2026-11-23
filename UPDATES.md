@@ -1,5 +1,42 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-23 - Release approved Ceramic mobile styling and report spacing
+
+The owner explicitly authorized commit and production deployment of the approved
+Ceramic mobile design and the earlier driver-column spacing correction. This is
+a frontend-only release: no backend/schema update or data migration is required.
+The PWA cache is advanced to fleetcore-v90 so installed copies refresh their UI.
+The customer rate PDF remains local and excluded from Git.
+
+## 2026-11-23 - Integrate the approved Ceramic mobile design
+
+The Ceramic mobile list and three-step shipment wizard use the approved truck,
+landscape, route illustration and pale-blue/teal styling. Cards, progress steps,
+fleet selection, delivery ordering and WhatsApp review have scoped styles with
+light and dark palettes, readable driver names and a persistent bottom action.
+The shared app navigation and desktop shipment workspace are retained.
+
+The mobile send guard uses the existing saved workflow state, requiring another
+instruction review after reassignment. Missing fleet choices and invalid WhatsApp
+numbers remain blocked with visible guidance. Existing authenticated assignment
+mutations, main-load-only Planner behavior and monthly/local reports are unchanged.
+
+Validation: 1,114 tests pass, TypeScript and the optimized Webpack build pass,
+and full lint has zero errors with 64 existing warnings. Synthetic browser checks
+confirmed search/filtering, both themes, missing-driver blocking, planning-date
+saving, saved delivery order and WhatsApp recipient links. The local data audit
+still has two assignments/two routes with one main load each and preserved prices.
+The browser connection stalled during the optional unsaved-confirmation check;
+that check was not marked passed. No real records, backend source, GitHub refs or
+production deployment were changed. The earlier driver-column spacing fix is
+preserved in this working tree.
+
+## 2026-11-23 - Give report driver names room on screen
+
+Monthly Ceramic and local report previews use a wider driver-name column with
+padding and wrapping. Long names expand their row instead of overlapping the
+truck column. Spreadsheet export widths, formulas and stored data are unchanged.
+
 ## 2026-11-22 - Ceramic Planner, reports and guided driver handoff
 
 Ceramic assignments now synchronize the main load to Daily Planner and retain

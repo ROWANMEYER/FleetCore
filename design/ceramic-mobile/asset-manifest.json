@@ -1,0 +1,53 @@
+{
+  "status": "approved-for-production-release",
+  "scope": "Approved assets integrated into the Ceramic mobile list and three-step shipment wizard",
+  "assets": [
+    "dispatch-truck.png",
+    "dispatch-landscape.svg",
+    "route-guide.svg",
+    "tokens.css",
+    "icons/truck.svg",
+    "icons/driver.svg",
+    "icons/pallets.svg",
+    "icons/location.svg",
+    "icons/chevron-right.svg",
+    "icons/back.svg",
+    "icons/refresh.svg",
+    "icons/moon.svg",
+    "icons/check.svg"
+  ],
+  "reuse": {
+    "logo": "public/icon.svg",
+    "icon_source": "existing installed lucide-react, ISC license"
+  },
+  "truck_generation": {
+    "tool": "built-in image_gen",
+    "background": "transparent",
+    "prompt": "One softly realistic 3D white-cab articulated freight truck with solid teal box trailer, three-quarter front-left view, whole vehicle, soft daylight, faint contact shadow. Transparent alpha. No text, logos, scenery or interface."
+  },
+  "approval_required_before": [],
+  "previews": [
+    "asset-review.html",
+    "mobile-preview.html"
+  ],
+  "validation": {
+    "svg_files_valid": true,
+    "truck_alpha_preserved": true,
+    "all_asset_references_load": true,
+    "mobile_layout_no_horizontal_overflow": true,
+    "truck_does_not_overlap_progress": true,
+    "viewport_override_reset": true
+  },
+  "integration": {
+    "components": [
+      "MobileCeramicTiles.tsx",
+      "MobileShipmentWizard.tsx"
+    ],
+    "styles": "CeramicMobile.module.css",
+    "backend_changed": false,
+    "tests": 1114,
+    "lint_errors": 0,
+    "existing_lint_warnings": 64
+  },
+  "release_authorization": "Owner explicitly requested commit and deploy on 2026-11-23"
+}

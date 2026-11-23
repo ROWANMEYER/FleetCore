@@ -229,3 +229,28 @@ are empty. The isolated data audit still has exactly two shipments, two
 assignments and two routes, with one main Planner load per assignment. Monthly
 and local report checks confirm prior pricing is preserved. The original local
 development screen was restored on port 3000 and returns HTTP 200.
+
+
+## Approved mobile visual design
+
+The owner approved the versioned assets in public/images/ceramic-mobile/v1.
+MobileCeramicTiles and MobileShipmentWizard now use those assets with the scoped
+CeramicMobile.module.css styles. The approved light design has a dark companion
+palette governed by the existing appearance toggle. The existing app header,
+region/auth rules, desktop workspace, report template and billing are retained.
+
+The wizard keeps assignment, stop ordering and send as three distinct steps,
+with a fixed footer action and independently scrolling content. Full names wrap
+inside fleet cards. The current assignment must be saved before later steps;
+instructions must be reviewed after a newer assignment before WhatsApp opens.
+Only draft links are generated and no message is sent by FleetCore.
+
+Synthetic browser checks confirmed list filtering/search, light/dark styles,
+missing-driver blocking, a saved planning-date change, reordered deliveries in
+the saved message, manual/contact-choice recipients and invalid-number guidance.
+All 1,114 tests, TypeScript and build pass; lint has zero errors and 64 existing
+warnings. Data checks retain two assignments/two Planner routes with one main load
+each, two matching locals for the test shipment and the prior billing amounts.
+The optional unsaved-confirmation browser check stalled and remains unverified;
+no changed behavior is claimed for that pre-existing guard. No production change
+or live-data write was made for this UI integration.

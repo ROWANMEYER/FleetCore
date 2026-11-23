@@ -1,6 +1,36 @@
 # FleetCore — Project Scope & Updates
 
 
+## 2026-11-23 - Accept blank SAP order numbers and show import review errors
+
+The exact reported commitBatch request rejected SH00130611 delivery 1090001613
+because its SAP PDF leaves Order No. blank. PDF.js correctly retained the numeric
+delivery reference, 79 kg and one pallet; the backend incorrectly required an
+order number. Order numbers now remain optional and blank as printed. Shared
+client/server import validation still enforces shipment/version, numeric unique
+delivery references, nonnegative finite quantities and valid dates. Invalid
+reviewed values block import before upload, with field-specific guidance.
+
+Expected import validation/storage/conflict failures use safe Convex application
+errors. The UI formats those messages and clears the misleading saving progress
+when a save fails. Revision history, original-PDF storage, assignment preservation
+and repeat-import protection are retained. No existing shipment was overwritten.
+
+The initial page no longer preloads the unused optional heading font or the
+mobile-only splash image hidden by desktop CSS. Visible mobile artwork still
+loads normally; the existing splash lifecycle and skip behaviour remain intact.
+Framework script/style preloads remain in place. The PWA cache advances to v93.
+
+The exact source PDF on the owner's Desktop was reproduced locally through the
+same PDF.js line reconstruction, then imported into the isolated localhost backend:
+version 3, 19 deliveries, blank source order number retained, one history row and
+repeat import skipped as a duplicate. Existing reports were unchanged. The PDF
+and extracted customer data remain outside Git and production was not used for
+this test. All 1,159 tests across 74 files and TypeScript pass; full lint has
+zero errors and the same 64 existing warnings. Exact-commit build and live
+verification are recorded in the private release folder.
+
+
 ## 2026-11-23 - Shared Ceramic allocation, TRANSVAAL main loads and GEORGE locals
 
 The production assignment failure was a region permission denial hidden behind

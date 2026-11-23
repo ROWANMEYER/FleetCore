@@ -11,6 +11,8 @@ import MobileSplashGate from "@/src/components/MobileSplashGate";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
+  // This font is an optional heading face; the initial page uses Inter.
+  preload: false,
   subsets: ["latin"],
   display: "swap",
 });

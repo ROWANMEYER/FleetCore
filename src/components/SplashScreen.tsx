@@ -18,7 +18,8 @@ export default function SplashScreen({ onComplete, ready = true }: { onComplete:
   useEffect(() => { if (artworkSettled) lifecycle.current?.settleArtwork(); }, [artworkSettled]);
 
   return <div className={css.splash} data-exiting={exiting} role="status" aria-label="FleetCore is loading">
-    <Image src="/images/splash/fleetcore-road-map.webp" alt="" fill unoptimized loading="eager" fetchPriority="high" sizes="100vw"
+    {/* CSS hides this mobile artwork on desktop; avoid preloading the hidden image. */}
+    <Image src="/images/splash/fleetcore-road-map.webp" alt="" fill unoptimized loading="lazy" sizes="100vw"
       className={css.artwork} onLoad={() => setArtworkSettled(true)} onError={() => setArtworkSettled(true)} />
     <button type="button" className={css.skip} aria-label="Skip splash screen" onClick={() => {
       if (lifecycle.current) lifecycle.current.skip();

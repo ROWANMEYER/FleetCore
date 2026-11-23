@@ -4,12 +4,12 @@ import SplashScreen from "./SplashScreen";
 import MobileSplashGate from "./MobileSplashGate";
 vi.mock("@/src/components/auth/AuthProvider", () => ({ useAuth: () => ({ loading: true }) }));
 describe("FleetCore splash", () => {
-  it("renders branding as real text and eager optimized artwork", () => {
+  it("renders branding and artwork without an unconditional mobile-image preload", () => {
     const html = renderToStaticMarkup(<SplashScreen ready={false} onComplete={() => {}} />);
     expect(html).toContain("FleetCore</h1>");
     expect(html).toContain("People. Freight. Solutions.");
     expect(html).toContain("fleetcore-road-map.webp");
-    expect(html).toContain('loading="eager"');
+    expect(html).not.toMatch(/<link[^>]*fleetcore-road-map\.webp/);
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Skip splash screen"');
     expect(html).toContain("Tap anywhere to continue");

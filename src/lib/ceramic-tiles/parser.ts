@@ -65,7 +65,8 @@ export function withCeramicReviewWarnings(shipment: CeramicShipment): CeramicShi
     warning.startsWith("Invalid planned delivery date.") ||
     warning === "One or more delivery addresses are missing; review before assignment." ||
     warning === "Some collection points could not be read; review the affected orders." ||
-    warning === "Planned loading or delivery date is missing.";
+    warning === "Planned loading or delivery date is missing." ||
+    warning === "Some deliveries have no order number; delivery references are retained.";
 
   const warnings = shipment.warnings.filter((warning) => !isLiveWarning(warning));
   const orders = shipment.destinations.flatMap((destination) => destination.orders);
@@ -75,6 +76,7 @@ export function withCeramicReviewWarnings(shipment: CeramicShipment): CeramicShi
   if (orders.some((order) => !order.collectFrom.trim())) {
     warnings.push("Some collection points could not be read; review the affected orders.");
   }
+  if (orders.some(order => !order.orderNumber.trim())) warnings.push("Some deliveries have no order number; delivery references are retained.");
   if (!shipment.plannedLoadingDate || !shipment.plannedDeliveryDate) {
     warnings.push("Planned loading or delivery date is missing.");
   }

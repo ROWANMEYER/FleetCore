@@ -1,3 +1,4 @@
+import { ceramicImportErrors } from "../src/lib/ceramic-tiles/importValidation";
 import type { Region } from "../src/lib/regions";
 import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport";
 import { ceramicBilling } from "./ceramicTilesFields";
@@ -50,34 +51,10 @@ async function requireRegion(ctx: QueryCtx | MutationCtx, token: string, request
 }
 
 function validateInput(entry: ShipmentInput): void {
-  const s = entry.snapshot;
-  if (!/^SH\d{6,12}$/i.test(s.shipmentNumber)) throw new Error("Invalid shipment number.");
-  if (!Number.isInteger(s.version) || s.version < 1) throw new Error(`${s.shipmentNumber}: invalid version.`);
-  if (!/^[a-f0-9]{64}$/.test(entry.fileHash)) throw new Error(`${s.shipmentNumber}: invalid PDF SHA-256 hash.`);
-  if (!/\.pdf$/i.test(entry.fileName) || entry.fileName.length > 255) throw new Error(`${s.shipmentNumber}: invalid PDF filename.`);
-  if (!s.destinations.length) throw new Error(`${s.shipmentNumber}: no destinations.`);
-  if (s.totalWeightKg !== null && (!Number.isFinite(s.totalWeightKg) || s.totalWeightKg < 0)) throw new Error("Invalid shipment weight.");
-  if (s.totalPallets !== null && (!Number.isFinite(s.totalPallets) || s.totalPallets < 0)) throw new Error("Invalid shipment pallet count.");
-  for (const date of [s.plannedLoadingDate, s.plannedDeliveryDate]) {
-    if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date format.");
-  }
-  const deliveries = new Set<string>();
-  for (const destination of s.destinations) {
-    if (!destination.name.trim() || !destination.orders.length) {
-      throw new Error(`${s.shipmentNumber}: a delivery destination has no name or orders.`);
-    }
-    for (const order of destination.orders) {
-      if (!/^\d+$/.test(order.deliveryNumber) || !order.orderNumber.trim() ||
-          !Number.isFinite(order.weightKg) || order.weightKg < 0 ||
-          (order.palletsEstimate !== null && (!Number.isFinite(order.palletsEstimate) || order.palletsEstimate < 0))) {
-        throw new Error(`${s.shipmentNumber}: invalid order ${order.deliveryNumber}.`);
-      }
-      if (deliveries.has(order.deliveryNumber)) {
-        throw new Error(`${s.shipmentNumber}: repeated delivery number ${order.deliveryNumber}.`);
-      }
-      deliveries.add(order.deliveryNumber);
-    }
-  }
+  const errors = ceramicImportErrors(entry.snapshot);
+  if (errors.length) throw ceramicAssignmentError(errors[0], "CERAMIC_IMPORT_REVIEW");
+  if (!/^[a-f0-9]{64}$/.test(entry.fileHash)) throw ceramicAssignmentError(`${entry.snapshot.shipmentNumber}: invalid PDF SHA-256 hash. Choose the PDF again.`, "CERAMIC_IMPORT_REVIEW");
+  if (!/\.pdf$/i.test(entry.fileName) || entry.fileName.length > 255) throw ceramicAssignmentError(`${entry.snapshot.shipmentNumber}: choose a PDF with a filename under 256 characters.`, "CERAMIC_IMPORT_REVIEW");
 }
 
 /** Authenticated, short-lived upload URL for an original shipment PDF. */
@@ -133,25 +110,25 @@ export const commitBatch = mutation({
   },
   handler: async (ctx, args) => {
     const { region, actor } = await requireRegion(ctx, args.token, args.region);
-    if (args.files.length < 1 || args.files.length > 25) throw new Error("Import 1 to 25 PDFs per batch.");
+    if (args.files.length < 1 || args.files.length > 25) throw ceramicAssignmentError("Import 1 to 25 PDFs per batch.");
     const seen = new Set<string>();
     const staged = [];
     for (const file of args.files) {
       validateInput(file);
       const number = file.snapshot.shipmentNumber.toUpperCase();
-      if (seen.has(number)) throw new Error(`Shipment ${number} is repeated in this batch; keep only the latest PDF.`);
+      if (seen.has(number)) throw ceramicAssignmentError(`Shipment ${number} is repeated in this batch; keep only the latest PDF.`);
       seen.add(number);
       const existing = await ctx.db.query("ceramicShipments")
         .withIndex("by_region_number", (q) => q.eq("region", region).eq("shipmentNumber", number)).first();
       if (existing && file.snapshot.version === existing.version && file.fileHash !== existing.fileHash) {
-        throw new Error(`${number} version ${file.snapshot.version} differs from the imported version; review before replacing it.`);
+        throw ceramicAssignmentError(`${number} version ${file.snapshot.version} differs from the imported version; review before replacing it.`);
       }
       if (!existing || file.snapshot.version > existing.version) {
-        if (!file.storageId) throw new Error(`${number}: original PDF must be uploaded before import.`);
+        if (!file.storageId) throw ceramicAssignmentError(`${number}: original PDF must be uploaded before import.`);
         const metadata = await ctx.db.system.get("_storage", file.storageId);
-        if (!metadata) throw new Error(`${number}: uploaded PDF was not found.`);
+        if (!metadata) throw ceramicAssignmentError(`${number}: uploaded PDF was not found.`);
         if (metadata.contentType !== "application/pdf" || metadata.size > 20 * 1024 * 1024) {
-          throw new Error(`${number}: the uploaded file is not a valid PDF under 20 MB.`);
+          throw ceramicAssignmentError(`${number}: the uploaded file is not a valid PDF under 20 MB.`);
         }
       }
       staged.push({ file, number, existing });

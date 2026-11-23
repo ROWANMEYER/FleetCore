@@ -1,5 +1,6 @@
 "use client";
 
+import { ceramicImportErrors } from "@/src/lib/ceramic-tiles/importValidation";
 import { ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
 import { REGION_LABELS, getUserRegions } from "@/src/lib/regions";
 import type { Region } from "@/src/lib/regions";
@@ -190,7 +191,8 @@ function CeramicTilesDesktopPage() {
     duplicateNumbers.add(key);
     return false;
   });
-  const canCommit = !!token && !busy && !saving && ready.length > 0 && comparison !== undefined &&
+  const validationErrors = ready.flatMap(item => ceramicImportErrors(item.shipment));
+  const canCommit = validationErrors.length === 0 && !!token && !busy && !saving && ready.length > 0 && comparison !== undefined &&
     conflicts.length === 0 && repeatedInBatch.length === 0;
   const importBatch = async () => {
     if (!token || !canCommit || workspaceState.saving || assignmentSavingId !== null) return;
@@ -231,7 +233,8 @@ function CeramicTilesDesktopPage() {
       setImportOpen(entries.some(item => !item.shipment));
       workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "Import failed. No changes have been saved.");
+      setMessage("");
+      setFailure(ceramicErrorMessage(error, "Import failed. No shipment records were changed. Please try again."));
     } finally {
       setSaving(false);
     }
@@ -337,9 +340,11 @@ function CeramicTilesDesktopPage() {
               {saving ? "Importing..." : `Import & continue · ${ready.length} shipment(s)`}
             </button>
           </div>
+          {validationErrors.length > 0 && <p role="alert" className="text-xs text-[var(--danger-text)]">Fix the highlighted shipment fields below before importing.</p>}
           {repeatedInBatch.length > 0 && <p className="text-xs text-[var(--danger-text)]">The same shipment number appears more than once in this batch. Remove one PDF first.</p>}
           {entries.map((entry) => {
             const shipment = entry.shipment;
+            const issues = shipment ? ceramicImportErrors(shipment) : [];
             const status = shipment ? statusByNumber.get(shipment.shipmentNumber.toUpperCase()) : null;
             const deliveryCount = shipment?.destinations.reduce((count, destination) => count + destination.orders.length, 0) ?? 0;
             return <article key={entry.id} className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
@@ -358,6 +363,7 @@ function CeramicTilesDesktopPage() {
                 </button>}
                 <button type="button" aria-label={`Remove ${entry.filename}`} title="Remove from batch" onClick={() => setEntries((prev) => prev.filter((e) => e.id !== entry.id))} className="rounded-md p-2 text-[var(--nav-text-color)] hover:text-[var(--danger-text)]"><Trash2 className="h-4 w-4" /></button>
               </div>
+              {issues.length > 0 && <ul role="alert" className="list-disc space-y-1 px-8 pb-3 text-xs text-[var(--danger-text)]">{issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
               {entry.expanded && shipment && <div className="space-y-3 border-t border-[var(--card-border)] bg-[var(--surface-sunken)] p-3">
                 {shipment.warnings.length > 0 && <div className="space-y-1 text-xs text-[var(--warning-text)]">{shipment.warnings.map((warning, index) => <p key={index}>• {warning}</p>)}</div>}
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -391,7 +397,7 @@ function CeramicTilesDesktopPage() {
                   </div>
                   <div className="mt-3 overflow-x-auto">
                     <table className="w-full min-w-[650px] text-left text-xs">
-                      <thead className="border-b border-[var(--card-border)] text-[var(--nav-text-color)]"><tr><th className="pb-2">Delivery</th><th className="pb-2">Order number</th><th className="pb-2">Collect from</th><th className="pb-2">Weight (kg)</th><th className="pb-2">Pallets</th></tr></thead>
+                      <thead className="border-b border-[var(--card-border)] text-[var(--nav-text-color)]"><tr><th className="pb-2">Delivery</th><th className="pb-2">Order number (optional)</th><th className="pb-2">Collect from</th><th className="pb-2">Weight (kg)</th><th className="pb-2">Pallets</th></tr></thead>
                       <tbody>{destination.orders.map((order, orderIndex) => {
                         const changeOrder = (field: "deliveryNumber" | "orderNumber" | "collectFrom" | "weightKg" | "palletsEstimate", value: string) => {
                           updateShipment(entry.id, (s) => ({ ...s, destinations: s.destinations.map((d, i) => i !== destinationIndex ? d : ({
@@ -402,7 +408,7 @@ function CeramicTilesDesktopPage() {
                         };
                         return <tr key={orderIndex} className="border-b border-[var(--card-border)] last:border-b-0">
                           <td className="py-1 pr-2"><input aria-label="Delivery number" className={input} value={order.deliveryNumber} onChange={(e) => changeOrder("deliveryNumber", e.target.value)} /></td>
-                          <td className="py-1 pr-2"><input aria-label="Order number" className={input} value={order.orderNumber} onChange={(e) => changeOrder("orderNumber", e.target.value)} /></td>
+                          <td className="py-1 pr-2"><input aria-label="Order number" placeholder="Not provided" className={input} value={order.orderNumber} onChange={(e) => changeOrder("orderNumber", e.target.value)} /></td>
                           <td className="py-1 pr-2"><input aria-label="Collection point" className={input} value={order.collectFrom} onChange={(e) => changeOrder("collectFrom", e.target.value)} /></td>
                           <td className="py-1 pr-2"><input aria-label="Weight kilograms" type="number" min="0" step="any" className={input} value={order.weightKg} onChange={(e) => changeOrder("weightKg", e.target.value)} /></td>
                           <td className="py-1"><input aria-label="Estimated pallets" type="number" min="0" step="any" className={input} value={order.palletsEstimate ?? ""} onChange={(e) => changeOrder("palletsEstimate", e.target.value)} /></td>

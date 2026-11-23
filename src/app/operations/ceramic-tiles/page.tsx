@@ -41,6 +41,7 @@ const rowStatusLabel: Record<string, string> = {
   duplicate: "Already imported",
   older_version: "Older version",
   version_conflict: "Version conflict",
+  deleted: "Deleted shipment - contact an administrator",
 };
 
 function ShipmentHistoryPanel({
@@ -183,7 +184,7 @@ function CeramicTilesDesktopPage() {
     void addFiles(event.dataTransfer.files);
   };
   const statusByNumber = new Map((comparison ?? []).map((item) => [item.shipmentNumber.toUpperCase(), item]));
-  const conflicts = ready.filter(({ shipment }) => statusByNumber.get(shipment.shipmentNumber.toUpperCase())?.status === "version_conflict");
+  const conflicts = ready.filter(({ shipment }) => statusByNumber.get(shipment.shipmentNumber.toUpperCase())?.status === "version_conflict" || statusByNumber.get(shipment.shipmentNumber.toUpperCase())?.status === "deleted");
   const duplicateNumbers = new Set<string>();
   const repeatedInBatch = ready.filter(({ shipment }) => {
     const key = shipment.shipmentNumber.toUpperCase();
@@ -257,7 +258,7 @@ function CeramicTilesDesktopPage() {
       });
       setDeleteTarget(null);
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : "Could not delete shipment. Please try again.");
+      setDeleteError(ceramicErrorMessage(error, "Could not delete shipment. Please try again."));
     } finally {
       setDeleting(false);
     }
@@ -431,7 +432,7 @@ function CeramicTilesDesktopPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Delete shipment ${deleteTarget?.shipmentNumber ?? ""}?`}
-        message="This permanently removes this shipment, all its versions, archived PDFs and saved driver instructions from the web and mobile app. This cannot be undone. Truck and driver records are kept."
+        message="This removes the shipment from web and mobile, its planned main load from Daily Planner, and its monthly and local report entries. PDFs and history are retained. Completed, locked or invoiced loads cannot be deleted. Driver and truck records are kept."
         confirmLabel="Delete shipment"
         variant="danger"
         loading={deleting}

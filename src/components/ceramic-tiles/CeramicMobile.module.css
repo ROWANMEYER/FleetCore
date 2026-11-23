@@ -134,3 +134,17 @@
 :global(.dark) .steps::before { background: #376375; }
 @media(max-width:359px) { .list { padding: 12px; } .header { padding-inline: 12px; } .body { padding-inline: 12px; } .titleRow h1 { font-size: 23px; } .metric { padding: 6px 8px; font-size: 12px; } .taskHeading h2 { font-size: 21px; } .assignmentRow { gap: 8px; } .assignmentRow .iconTile { width: 36px; height: 38px; } .change { font-size: 10px; } .primary { font-size: 14px; padding-inline: 8px; } .heroCopy { max-width: 200px; } .heroTruck { width: 113px; } }
 @media(max-height:700px) { .header { padding-top: 0; } .back { min-height: 36px; } .titleRow h1 { font-size: 23px; } .metrics { margin-top: 7px; } .metric { min-height: 30px; padding-block: 4px; } .journey { margin-top: 4px; padding-top: 7px; } .step { min-height: 51px; } .body { padding-top: 12px; } .footerHint { margin-bottom: 5px; } }
+
+.openShipment { display: block; width: 100%; text-align: left; }
+.deleteShipment { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; margin-top: 8px; padding: 8px 0; color: var(--danger-text); font-size: 13px; font-weight: 650; }
+.groupHint { color: var(--nav-text-color); font-size: 13px; line-height: 1.5; }
+.dayGroup { min-width: 0; border: 1px solid var(--card-border); border-radius: 18px; background: var(--card-bg); box-shadow: var(--cm-shadow); }
+.dayGroup > summary { display: flex; align-items: center; gap: 11px; min-height: 72px; padding: 14px; list-style: none; cursor: pointer; font-size: 14px; font-weight: 700; }
+.dayGroup > summary::-webkit-details-marker { display: none; }
+.dayGroup > summary:focus-visible { outline: 2px solid var(--cm-accent); outline-offset: 3px; border-radius: 18px; }
+.dayGroup > summary > svg { color: var(--cm-accent); flex-shrink: 0; }
+.dayGroup > summary span { min-width: 0; overflow-wrap: anywhere; }
+.dayGroup small { display: block; margin-top: 5px; font-size: 12px; font-weight: 400; color: var(--nav-text-color); }
+.dayChevron { margin-left: auto; }
+.dayGroup[open] .dayChevron { transform: rotate(180deg); }
+.dayShipments { display: grid; gap: 12px; padding: 0 12px 12px; }

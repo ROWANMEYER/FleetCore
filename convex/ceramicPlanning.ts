@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { CERAMIC_MAIN_REGION, ceramicEqual, ceramicMainLoad, validCeramicDate } from "../src/lib/ceramic-tiles/planning";
 
 /** Expected assignment failures are safe to show on production clients. */
@@ -8,16 +8,25 @@ export function ceramicAssignmentError(message: string, code = "CERAMIC_ASSIGNME
   return new ConvexError({ code, message });
 }
 
+/** Older shipments retain their original assignment day without a data migration. */
+export async function ceramicAssignedAt(ctx: QueryCtx, shipment: Doc<"ceramicShipments">): Promise<number | undefined> {
+  if (shipment.assignedAt !== undefined || !shipment.driverId || !shipment.truckId) return shipment.assignedAt;
+  const assignment = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).unique();
+  return assignment?.createdAt;
+}
+
 /** Called only after authentication and region enforcement, in the assignment transaction. */
 export async function syncCeramicAssignment(ctx: MutationCtx, shipment: Doc<"ceramicShipments">, input: {
   driverId: Id<"drivers">; truckId: Id<"trucks">; routeDate: string; actor: string;
 }) {
+  if (shipment.deletedAt !== undefined) throw ceramicAssignmentError("This shipment was deleted. Return to the shipment list.");
   if (!validCeramicDate(input.routeDate)) throw ceramicAssignmentError("Choose a valid planning date.");
   if (shipment.snapshot.destinations.length === 0) throw ceramicAssignmentError("Review shipment destinations before assigning.");
   const [driver, truck, existing] = await Promise.all([
     ctx.db.get(input.driverId), ctx.db.get(input.truckId),
     ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).unique(),
   ]);
+  if (existing?.deletedAt !== undefined) throw ceramicAssignmentError("This shipment assignment was deleted. Return to the shipment list.");
   if (!driver) throw ceramicAssignmentError("Driver not found.");
   if (!truck) throw ceramicAssignmentError("Truck not found.");
   const driverName = (driver.driverName || driver.name || "").trim();
@@ -34,7 +43,7 @@ export async function syncCeramicAssignment(ctx: MutationCtx, shipment: Doc<"cer
       existing.driverName === driverName && existing.truckFleetNo === truckFleetNo &&
       existing.routeDate === input.routeDate && ceramicEqual(existing.snapshot, shipment.snapshot);
     // A retry never overwrites later Planner edits or creates another report row.
-    if (unchanged && route.region === CERAMIC_MAIN_REGION && existing.region === CERAMIC_MAIN_REGION) return { routeId: route._id, unchanged: true };
+    if (unchanged && route.region === CERAMIC_MAIN_REGION && existing.region === CERAMIC_MAIN_REGION) return { routeId: route._id, unchanged: true, assignedAt: shipment.assignedAt ?? existing.createdAt };
     const invoice = await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", route._id)).first();
     if ((route.status || "planned") !== "planned" || invoice) throw ceramicAssignmentError("This Planner load is completed, locked or invoiced. Review it before changing the assignment.");
     const sourceChanged = !ceramicEqual(existing.snapshot, shipment.snapshot);
@@ -66,5 +75,5 @@ export async function syncCeramicAssignment(ctx: MutationCtx, shipment: Doc<"cer
   };
   if (existing) await ctx.db.patch(existing._id, record);
   else await ctx.db.insert("ceramicAssignments", { ...record, createdAt: now });
-  return { routeId, unchanged: false };
+  return { routeId, unchanged: false, assignedAt: now };
 }

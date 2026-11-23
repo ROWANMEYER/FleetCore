@@ -3,9 +3,10 @@
 import type { Region } from "@/src/lib/regions";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Check, CheckCircle2, FileClock, MapPin, MoreHorizontal, Table2, Trash2, Truck } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCircle2, ChevronDown, FileClock, MapPin, MoreHorizontal, Table2, Trash2, Truck } from "lucide-react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { ceramicLocalLegs, ceramicMainLoad, ceramicPlanningDate } from "@/src/lib/ceramic-tiles/planning";
+import { assignedCeramicDays, ceramicAssignmentComplete } from "@/src/lib/ceramic-tiles/mobileDispatch";
 import { ceramicDeliveryStops } from "@/src/lib/ceramic-tiles/reportEditing";
 import { ceramicWorkflowLabel, ceramicWorkflowStage, type CeramicWorkflowStage } from "@/src/lib/ceramic-tiles/workflow";
 import type { CeramicFleet } from "./useCeramicInstructions";
@@ -55,6 +56,16 @@ export function GuidedShipmentWorkspace({ canManageRecords = true, rows, fleet, 
     }
     setFilter(value);
   };
+  const unassigned = visible.filter(row => !ceramicAssignmentComplete(row));
+  const assignedDays = assignedCeramicDays(visible.filter(ceramicAssignmentComplete));
+  const queueRow = (row: Doc<"ceramicShipments">) => {
+        const selectedRow = selected?._id === row._id, stage = ceramicWorkflowStage(row);
+        return <button type="button" key={row._id} aria-pressed={selectedRow} disabled={busy} onClick={() => select(row.shipmentNumber)} className={`block w-full border-b border-[var(--card-border)] p-4 text-left disabled:opacity-60 ${selectedRow ? "border-l-4 border-l-[#0891B2] bg-[var(--accent-soft-bg)] pl-3" : "border-l-4 border-l-transparent hover:bg-[var(--surface-sunken)]"}`}>
+          <span className="flex flex-wrap items-center justify-between gap-2"><strong className="inline-flex items-center gap-1.5 text-sm font-semibold"><Truck size={14} className="text-[#0891B2]" />{row.shipmentNumber}</strong><span className={`rounded-md px-2 py-1 text-[11px] ${stage === "ready" ? "bg-[var(--success-surface)] text-[var(--success-text)]" : "bg-[var(--surface-sunken)] text-[var(--nav-text-color)]"}`}>{ceramicWorkflowLabel(row)}</span></span>
+          <span className="mt-2 block text-xs text-[var(--nav-text-color)]">{stops(row).length} delivery stops · {number(row.snapshot.totalWeightKg)} kg</span>
+          <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#0891B2]">{stage === "assignment" ? "Next: Assign driver & truck" : stage === "instructions" ? "Next: Driver instructions" : "Next: Open WhatsApp"}<ArrowRight size={13} /></span>
+        </button>;
+  };
   const next = pending.find(row => row._id !== selected?._id);
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(235px,0.75fr)_minmax(0,1.65fr)]">
     <aside className={`${panel} min-w-0 overflow-hidden`} aria-label="Shipment work queue">
@@ -62,14 +73,18 @@ export function GuidedShipmentWorkspace({ canManageRecords = true, rows, fleet, 
       <nav aria-label="Filter shipment queue" className="flex gap-1 border-b border-[var(--card-border)] px-3 pb-3">
         {([['action', 'Prepare', pending.length], ['ready', 'To send', records.length - pending.length], ['all', 'All', records.length]] as const).map(([value, label, count]) => <button type="button" key={value} aria-pressed={activeFilter === value} disabled={busy} onClick={() => changeFilter(value)} className={`min-h-10 flex-1 rounded-lg px-2 text-xs font-semibold ${activeFilter === value ? "bg-[var(--accent-soft-bg)] text-[#0891B2]" : "text-[var(--nav-text-color)] hover:bg-[var(--surface-sunken)]"}`}>{label} <span className="ml-1 tabular-nums">{count}</span></button>)}
       </nav>
-      {!rows ? <p role="status" className="p-4 text-sm text-[var(--nav-text-color)]">Loading shipments…</p> : visible.length === 0 ? <p className="p-4 text-sm text-[var(--nav-text-color)]">{records.length ? "No shipments in this queue. Choose another filter." : "Upload a shipment PDF to get started."}</p> : <div>{visible.map(row => {
-        const selectedRow = selected?._id === row._id, stage = ceramicWorkflowStage(row);
-        return <button type="button" key={row._id} aria-pressed={selectedRow} disabled={busy} onClick={() => select(row.shipmentNumber)} className={`block w-full border-b border-[var(--card-border)] p-4 text-left disabled:opacity-60 ${selectedRow ? "border-l-4 border-l-[#0891B2] bg-[var(--accent-soft-bg)] pl-3" : "border-l-4 border-l-transparent hover:bg-[var(--surface-sunken)]"}`}>
-          <span className="flex flex-wrap items-center justify-between gap-2"><strong className="inline-flex items-center gap-1.5 text-sm font-semibold"><Truck size={14} className="text-[#0891B2]" />{row.shipmentNumber}</strong><span className={`rounded-md px-2 py-1 text-[11px] ${stage === "ready" ? "bg-[var(--success-surface)] text-[var(--success-text)]" : "bg-[var(--surface-sunken)] text-[var(--nav-text-color)]"}`}>{ceramicWorkflowLabel(row)}</span></span>
-          <span className="mt-2 block text-xs text-[var(--nav-text-color)]">{stops(row).length} delivery stops · {number(row.snapshot.totalWeightKg)} kg</span>
-          <span className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#0891B2]">{stage === "assignment" ? "Next: Assign driver & truck" : stage === "instructions" ? "Next: Driver instructions" : "Next: Open WhatsApp"}<ArrowRight size={13} /></span>
-        </button>;
-      })}</div>}
+      {!rows ? <p role="status" className="p-4 text-sm text-[var(--nav-text-color)]">Loading shipments...</p> : visible.length === 0 ? <p className="p-4 text-sm text-[var(--nav-text-color)]">{records.length ? "No shipments in this queue. Choose another filter." : "Upload a shipment PDF to get started."}</p> : <div>
+        {unassigned.length > 0 && <section aria-label="Unassigned shipments"><h3 className="px-4 pt-4 pb-2 text-xs font-semibold text-[var(--nav-text-color)]">Unassigned ({unassigned.length})</h3>{unassigned.map(queueRow)}</section>}
+        {assignedDays.length > 0 && <section aria-label="Assigned shipments by save date">
+          <p className="px-4 py-3 text-xs text-[var(--nav-text-color)]">Assigned by save date. Expand a day to view its shipments.</p>
+          {assignedDays.map(group => <details key={group.day || "undated"} className="group/day border-t border-[var(--card-border)]">
+            <summary className="flex min-h-16 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[#0891B2] [&::-webkit-details-marker]:hidden">
+              <CalendarDays size={17} className="shrink-0 text-[#0891B2]" /><span className="min-w-0 flex-1">{group.label}<span className="mt-1 block text-xs font-normal text-[var(--nav-text-color)]">{group.shipments.length} {group.shipments.length === 1 ? "shipment" : "shipments"}</span></span><ChevronDown size={17} className="shrink-0 text-[#0891B2] group-open/day:rotate-180" />
+            </summary>
+            <div>{group.shipments.map(queueRow)}</div>
+          </details>)}
+        </section>}
+      </div>}
       {canManageRecords && <div className="p-4"><Link href={reportHref} className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[#0891B2]"><Table2 size={15} />Monthly &amp; local reports</Link></div>}
     </aside>
     {selected ? <ShipmentTask canManageRecords={canManageRecords} key={`${region}:${selected._id}`} row={selected} fleet={fleet} token={token} region={region} draft={drafts[selected._id] ?? defaultDraft(selected)} onDraftChange={draft => onDraftChange(selected._id, draft)} saving={savingId === selected._id} blocked={disabled} onAssign={() => { onSelect(selected.shipmentNumber); setFilter("action"); return onAssign(selected); }} onSaveStart={() => onSelect(selected.shipmentNumber)} onPrepared={() => { onSelect(selected.shipmentNumber); setFilter("ready"); }} onHistory={() => onHistory(selected._id)} onDelete={() => onDelete(selected)} onNext={next ? () => { if (!busy) { select(next.shipmentNumber); setFilter("action"); } } : undefined} onInteractionChange={onInteractionChange} /> : <section className={`${panel} p-8 text-sm text-[var(--nav-text-color)]`} aria-label="Shipment workspace">{rows ? "Your next shipment step will appear here after import." : "Loading shipment workspace…"}</section>}
@@ -116,9 +131,9 @@ function ShipmentTask({ canManageRecords = true, row, fleet, token, region, draf
       <details className="relative"><summary aria-label={`More actions for ${row.shipmentNumber}`} className="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-lg px-2 text-xs text-[var(--nav-text-color)]"><MoreHorizontal size={17} />More</summary><div className="absolute right-0 top-full z-20 grid w-48 gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-lg">
         <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onHistory(); }} className={secondary}><FileClock size={14} />PDF &amp; history</button>
         <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); changeStep('assignment'); }} className={secondary}>Edit assignment</button>
-        {canManageRecords && <button type="button" disabled={busy} onClick={event => { event.currentTarget.closest('details')?.removeAttribute('open'); onDelete(); }} className={`${secondary} text-[var(--danger-text)]`}><Trash2 size={14} />Delete shipment</button>}
       </div></details>
     </div>
+    {canManageRecords && <button type="button" disabled={busy} onClick={onDelete} className={`${secondary} mt-3 text-[var(--danger-text)]`}><Trash2 size={14} />Delete shipment</button>}
     <ol aria-label="Shipment progress" className="my-6 grid grid-cols-4 gap-2">{stages.map((label, i) => <li key={label} aria-current={i === index ? "step" : undefined} className={`min-w-0 text-[11px] ${i === index ? "font-semibold text-[#0891B2]" : "text-[var(--nav-text-color)]"}`}><span className={`mb-2 flex h-7 w-7 items-center justify-center rounded-full border ${i === index ? "border-[#0891B2] bg-[#0891B2] text-white" : "border-[var(--card-border)]"}`}>{i < index ? <Check size={14} /> : i + 1}</span>{i === 0 ? <button type="button" disabled={busy} onClick={onHistory} className="text-left underline decoration-dotted underline-offset-2">{label}</button> : label}</li>)}</ol>
     {savedAssignment && activeStep === "instructions" && <div role="status" className="mb-5 flex gap-2 rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-xs text-[var(--success-text)]"><CheckCircle2 size={17} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Assignment saved</p><p className="mt-1">Daily Planner: main load updated · Monthly report updated · {localLegs.length} local {localLegs.length === 1 ? "leg" : "legs"} in the local report.</p></div></div>}
     {activeStep === "assignment" ? <>

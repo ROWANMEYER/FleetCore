@@ -1,6 +1,6 @@
 import { REGIONS } from "../src/lib/regions";
 import { resolveUserScope } from "./userSessions";
-import { ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
+import { ceramicAssignedAt, ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder } from "./ceramicTilesFields";
@@ -13,7 +13,7 @@ const savedResult = v.object({ saved: v.boolean(), updatedAt: v.number() });
 const dispatchShipment = v.object({
   _id: v.id("ceramicShipments"), region: ceramicRegion, shipmentNumber: v.string(),
   version: v.number(), snapshot: ceramicShipmentSnapshot, updatedAt: v.number(),
-  routeDate: v.optional(v.string()), plannerVersion: v.optional(v.number()),
+  assignedAt: v.optional(v.number()), routeDate: v.optional(v.string()), plannerVersion: v.optional(v.number()),
   driverId: v.optional(v.id("drivers")), truckId: v.optional(v.id("trucks")),
   driverInstructions: v.optional(v.object({
     stopOrder: v.optional(ceramicStopOrder), reviewedVersion: v.optional(v.number()),
@@ -32,13 +32,17 @@ export const list = query({
   handler: async ctx => {
     const regions = REGIONS;
     const rows = (await Promise.all(regions.map(region => ctx.db.query("ceramicShipments")
-      .withIndex("by_region_updated", q => q.eq("region", region)).order("desc").take(200)))).flat();
-    return rows.sort((a, b) => b.updatedAt - a.updatedAt || b._creationTime - a._creationTime).map(row => ({
-      _id: row._id, region: row.region, shipmentNumber: row.shipmentNumber,
+      .withIndex("by_region_active_updated", q => q.eq("region", region).eq("deletedAt", undefined)).order("desc").take(200)))).flat();
+    return await Promise.all(rows.sort((a, b) => b.updatedAt - a.updatedAt || b._creationTime - a._creationTime).map(async row => {
+      const assignedAt = await ceramicAssignedAt(ctx, row);
+      return {
+        _id: row._id, region: row.region, shipmentNumber: row.shipmentNumber,
       version: row.version, snapshot: row.snapshot, updatedAt: row.updatedAt,
+      ...(assignedAt !== undefined ? { assignedAt } : {}),
       ...(row.routeDate ? { routeDate: row.routeDate } : {}), ...(row.plannerVersion !== undefined ? { plannerVersion: row.plannerVersion } : {}),
       ...(row.driverId ? { driverId: row.driverId } : {}), ...(row.truckId ? { truckId: row.truckId } : {}),
       ...(row.driverInstructions ? { driverInstructions: row.driverInstructions } : {}),
+      };
     }));
   },
 });
@@ -69,12 +73,12 @@ export const assign = mutation({
     const scope = await resolveUserScope(ctx, args.token);
     if (!scope) throw ceramicAssignmentError("Sign in to assign the main load to Daily Planner and reports.", "CERAMIC_SIGN_IN_REQUIRED");
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw ceramicAssignmentError("Shipment not found. Return to shipments and refresh the list.", "CERAMIC_SHIPMENT_REMOVED");
+    if (!shipment || shipment.deletedAt !== undefined) throw ceramicAssignmentError("Shipment not found. Return to shipments and refresh the list.", "CERAMIC_SHIPMENT_REMOVED");
     assertVersion(shipment.version, args.expectedVersion);
     const actor = scope.role === "regional" ? `regional:${shipment.region}` : "admin";
-    await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });
+    const result = await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
-    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, updatedAt: now, updatedBy: actor });
     return { saved: true, updatedAt: now };
   },
 });
@@ -85,7 +89,7 @@ export const saveDriverInstructions = mutation({
   returns: savedResult,
   handler: async (ctx, args) => {
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw new Error("Shipment not found.");
+    if (!shipment || shipment.deletedAt !== undefined) throw ceramicAssignmentError("Shipment not found. Return to shipments and refresh the list.", "CERAMIC_SHIPMENT_REMOVED");
     assertVersion(shipment.version, args.expectedVersion);
     if (args.safetyNotes.length > 4000 || args.additionalNotes.length > 4000) throw new Error("Each instruction field has a 4,000-character limit.");
     assertCeramicStopOrder(shipment.snapshot, args.stopOrder);

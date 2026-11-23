@@ -58,6 +58,13 @@ SKU 1.00 EA 1.0 PAL`);
     expect(row).toMatchObject({ driverId: "driver", truckId: "truck", routeDate: "2026-11-23", version: 4 });
     expect(f.table("ceramicShipmentVersions").size).toBe(2);
   });
+  it("does not resurrect a deleted shipment through duplicate or revised PDF imports", async () => {
+    const f = fixture(); await f.run(); const row = [...f.table("ceramicShipments").values()][0]; row.deletedAt = 100;
+    const count = f.writes.length;
+    await expect(f.run()).rejects.toThrow("was deleted");
+    await expect(f.run([file({ ...snapshot, version: 4 })])).rejects.toThrow("was deleted");
+    expect(f.writes).toHaveLength(count);
+  });
   it.each(["weight", "pallets", "reference", "duplicate", "date"])("still rejects invalid %s before any batch write", async reason => {
     const f = fixture(), bad = structuredClone(snapshot); bad.shipmentNumber = "SH00990302";
     const order = bad.destinations[0].orders[0];

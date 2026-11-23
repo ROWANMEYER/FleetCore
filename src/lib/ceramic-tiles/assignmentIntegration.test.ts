@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
-import { describe, expect, it } from "vitest";
-import { assign, report, remove, saveReportBilling } from "@/convex/ceramicTiles";
-import { assign as mobileAssign } from "@/convex/ceramicTilesMobile";
+import { describe, expect, it, vi } from "vitest";
+import { assign, list, report, remove, saveReportBilling } from "@/convex/ceramicTiles";
+import { assign as mobileAssign, list as mobileList } from "@/convex/ceramicTilesMobile";
 import { ceramicMainLoad } from "./planning";
 import { ceramicReportSheets } from "./reportExport";
 import type { CeramicShipment } from "./parser";
@@ -43,6 +43,7 @@ function fixture(role = "admin", region: string | undefined = undefined, shipmen
       const found = () => [...table(name).values()].filter(row => filters.every(f => f(row))).sort((a, b) => String(a.routeDate).localeCompare(String(b.routeDate)));
       const chain = {
         withIndex: (_name: string, callback: (q: typeof index) => unknown) => { callback(index); return chain; },
+        order: () => chain,
         first: async () => found()[0] ?? null,
         unique: async () => { const all = found(); if (all.length > 1) throw new Error("duplicate"); return all[0] ?? null; },
         take: async (count: number) => found().slice(0, count),
@@ -159,10 +160,40 @@ describe("Ceramic assignment → main Planner load and both reports", () => {
     const f = fixture(); await f.run(mobileAssign); await f.run(mobileAssign);
     expect(f.table("dailyRoutes").size).toBe(1); expect((await f.read()).page[0].locals).toHaveLength(2);
   });
-  it("prevents deletion of a shipment referenced by Planner/reporting history", async () => {
+  it.each([assign, mobileAssign])("keeps the assignment day stable for retries and instruction edits", async fn => {
+    const f = fixture(), initial = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(initial);
+    try {
+      await f.run(fn); expect(f.shipment.assignedAt).toBe(initial);
+      clock.mockReturnValue(initial + 1000); await f.run(fn);
+      expect(f.shipment.assignedAt).toBe(initial);
+      // Unrelated edits and PDF revisions keep the saved assignment timestamp.
+      f.shipment.updatedAt = initial + 2000;
+      expect(f.shipment.assignedAt).toBe(initial);
+      clock.mockReturnValue(initial + 3000); await f.run(fn, { driverId: "driver-two" });
+      expect(f.shipment.assignedAt).toBe(initial + 3000);
+    } finally { clock.mockRestore(); }
+  });
+  it("uses the same original assignment date on web and mobile for older records without changing data", async () => {
     const f = fixture(); await f.run(assign);
-    await expect(f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt })).rejects.toThrow("reporting history");
-    expect(f.table("ceramicShipments").has("shipment")).toBe(true);
+    const originalDate = [...f.table("ceramicAssignments").values()][0].createdAt;
+    delete f.shipment.assignedAt;
+    f.shipment.updatedAt = Number(originalDate) + 86400000;
+    const before = structuredClone(f.shipment), count = f.writes.length;
+    for (const fn of [list, mobileList]) {
+      const rows = await f.run(fn) as Row[];
+      expect(rows.find(row => row._id === "shipment")?.assignedAt).toBe(originalDate);
+    }
+    expect(f.shipment).toEqual(before); expect(f.writes).toHaveLength(count);
+  });
+  it("removes a deleted planned shipment from both report exports, preserving stored history", async () => {
+    const f = fixture(); await f.run(assign); expect((await f.read()).page).toHaveLength(1);
+    await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+    expect((await f.read()).page).toEqual([]);
+    expect(f.table("ceramicShipments").get("shipment")!.deletedAt).toEqual(expect.any(Number));
+    expect([...f.table("dailyRoutes").values()][0].isDeleted).toBe(true);
+    expect(f.table("ceramicAssignments").size).toBe(1);
+    await expect(f.run(assign)).rejects.toThrow("Shipment not found");
   });
   it("scopes reports by region/month and paginates rather than losing older rows", async () => {
     const f = fixture(); await f.run(assign);

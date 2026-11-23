@@ -15,13 +15,13 @@ function fixture() {
   const truck = { _id: "truck-one", truckFleetNo: "108", registration: "ABC123GP", privateField: "excluded" };
   const rows = new Map<string, Row>([[shipment._id, shipment], [east._id, east], ...additional.map(row => [row._id, row] as [string, Row]), [driver._id, driver], [truck._id, truck]]);
   const takes: { table: string; count: number; region?: string }[] = [];
-  type Chain = { withIndex: (name: string, cb: (q: { eq: (field: string, value: string) => void }) => void) => Chain; order: (direction: string) => Chain; take: (count: number) => Promise<Row[]> };
+  type Chain = { withIndex: (name: string, cb: (q: { eq: (field: string, value: unknown) => unknown }) => void) => Chain; order: (direction: string) => Chain; unique: () => Promise<Row | null>; take: (count: number) => Promise<Row[]> };
   const db = {
     get: vi.fn(async (id: string) => rows.get(id) ?? null), patch: vi.fn(async (...args: [string, Row]) => { void args; }),
     query: vi.fn((table: string) => {
       let region: string | undefined;
-      const chain: Chain = { withIndex: (_name, cb) => { cb({ eq: (_field, value) => { region = value; } }); return chain; }, order: () => chain,
-        take: async count => { takes.push({ table, count, region }); return table === "ceramicShipments" ? shipments.filter(r => r.region === region).slice(0, count) : table === "drivers" ? [driver] : [truck]; } };
+      const chain: Chain = { withIndex: (_name, cb) => { const index = { eq: (field: string, value: unknown) => { if (field === "region") region = String(value); return index; } }; cb(index); return chain; }, order: () => chain, unique: async () => ({ createdAt: 2000 }),
+        take: async count => { takes.push({ table, count, region }); return table === "ceramicShipments" ? shipments.filter(r => r.region === region && !("deletedAt" in r)).slice(0, count) : table === "drivers" ? [driver] : [truck]; } };
       return chain;
     }),
   };
@@ -38,6 +38,15 @@ describe("Explicit public Ceramic Tiles mobile surface", () => {
     expect(result.map(r => r.region)).toEqual(["durban", "kaap", "transvaal", "eastern_cape", "garden_route"]);
     expect(result[0]).not.toHaveProperty("fileHash"); expect(result[0]).not.toHaveProperty("createdAt"); expect(result[0]).not.toHaveProperty("updatedBy");
     expect(f.takes).toEqual([{ table: "ceramicShipments", count: 200, region: "garden_route" }, { table: "ceramicShipments", count: 200, region: "eastern_cape" }, ...["transvaal", "kaap", "durban"].map(region => ({ table: "ceramicShipments", count: 200, region }))]);
+  });
+  it("omits deleted shipments and exposes the original assignment day for legacy records", async () => {
+    const f = fixture(); Object.assign(f.shipment, { driverId: "driver-one", truckId: "truck-one" });
+    const result = await run(mobile.list, f.ctx) as Row[];
+    expect(result.find(row => row._id === f.shipment._id)).toHaveProperty("assignedAt", 2000);
+    Object.assign(f.shipment, { deletedAt: 3000 });
+    expect((await run(mobile.list, f.ctx) as Row[]).some(row => row._id === f.shipment._id)).toBe(false);
+    await expect(run(mobile.saveDriverInstructions, f.ctx, instructions)).rejects.toThrow("not found");
+    expect(f.db.patch).not.toHaveBeenCalled();
   });
   it("returns only shared fleet identity/contact fields", async () => {
     const f = fixture(); expect(await run(mobile.fleetChoices, f.ctx)).toEqual({ drivers: [{ id: "driver-one", name: "Example Driver", phone: "0821234567" }], trucks: [{ id: "truck-one", fleetNumber: "108", registration: "ABC123GP" }] });

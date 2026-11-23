@@ -5,7 +5,7 @@ import { ceramicBilling } from "./ceramicTilesFields";
 import { paginationOptsValidator } from "convex/server";
 import { ceramicReportRow } from "./ceramicTilesFields";
 import { CERAMIC_MAIN_REGION, CERAMIC_LOCAL_TOWN, ceramicLocalLegs, ceramicMainLoad } from "../src/lib/ceramic-tiles/planning";
-import { ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
+import { ceramicAssignedAt, ceramicAssignmentError, syncCeramicAssignment } from "./ceramicPlanning";
 import { assertCeramicStopOrder } from "../src/lib/ceramic-tiles/stopOrder";
 import { ceramicStopOrder } from "./ceramicTilesFields";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -80,8 +80,9 @@ export const previewBatch = query({
       const existing = await ctx.db.query("ceramicShipments")
         .withIndex("by_region_number", (q) =>
           q.eq("region", region).eq("shipmentNumber", file.shipmentNumber.toUpperCase())).first();
-      let status: "new" | "revision" | "duplicate" | "older_version" | "version_conflict" = "new";
-      if (existing) {
+      let status: "new" | "revision" | "duplicate" | "older_version" | "version_conflict" | "deleted" = "new";
+      if (existing?.deletedAt !== undefined) status = "deleted";
+      else if (existing) {
         status = file.version < existing.version ? "older_version"
           : file.version > existing.version ? "revision"
           : file.fileHash === existing.fileHash ? "duplicate" : "version_conflict";
@@ -120,6 +121,7 @@ export const commitBatch = mutation({
       seen.add(number);
       const existing = await ctx.db.query("ceramicShipments")
         .withIndex("by_region_number", (q) => q.eq("region", region).eq("shipmentNumber", number)).first();
+      if (existing?.deletedAt !== undefined) throw ceramicAssignmentError(`${number} was deleted. Contact an administrator before importing it again.`);
       if (existing && file.snapshot.version === existing.version && file.fileHash !== existing.fileHash) {
         throw ceramicAssignmentError(`${number} version ${file.snapshot.version} differs from the imported version; review before replacing it.`);
       }
@@ -187,9 +189,13 @@ export const list = query({
   args: { token: v.string(), region: ceramicRegion },
   handler: async (ctx, args) => {
     const { region } = await requireRegion(ctx, args.token, args.region);
-    return await ctx.db.query("ceramicShipments")
-      .withIndex("by_region_updated", (q) => q.eq("region", region))
+    const rows = await ctx.db.query("ceramicShipments")
+      .withIndex("by_region_active_updated", (q) => q.eq("region", region).eq("deletedAt", undefined))
       .order("desc").take(200);
+    return await Promise.all(rows.map(async row => {
+      const assignedAt = await ceramicAssignedAt(ctx, row);
+      return assignedAt === undefined ? row : { ...row, assignedAt };
+    }));
   },
 });
 
@@ -198,7 +204,7 @@ export const versions = query({
   handler: async (ctx, args) => {
     await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw new Error("Shipment not found.");
+    if (!shipment || shipment.deletedAt !== undefined) throw new Error("Shipment not found.");
     const entries = await ctx.db.query("ceramicShipmentVersions")
       .withIndex("by_shipment", (q) => q.eq("shipmentId", args.shipmentId)).collect();
     return await Promise.all(entries.sort((a, b) => b.version - a.version).map(async (entry) => ({
@@ -208,7 +214,7 @@ export const versions = query({
   },
 });
 
-/** Authenticated removal; the anonymous mobile API cannot delete. */
+/** Authorized soft deletion keeps source PDFs and history for traceability. */
 export const remove = mutation({
   args: {
     token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"),
@@ -216,26 +222,32 @@ export const remove = mutation({
   },
   returns: v.object({ deleted: v.boolean() }),
   handler: async (ctx, args) => {
-    const { region } = await requireFinancialRegion(ctx, args.token, args.region);
+    const { region, actor } = await requireFinancialRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment || shipment.region !== region) throw new Error("Shipment not found.");
+    if (!shipment || shipment.region !== region) throw ceramicAssignmentError("Shipment not found.");
+    if (shipment.deletedAt !== undefined) return { deleted: true };
     if (args.expectedVersion !== shipment.version || args.expectedUpdatedAt !== shipment.updatedAt) {
-      throw new Error("Shipment changed. Cancel and review the latest shipment before deleting.");
+      throw ceramicAssignmentError("Shipment changed. Cancel and review the latest shipment before deleting.");
     }
-    const assignment = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).first();
-    if (assignment) throw new Error("This shipment is linked to Planner and reporting history. Keep it for traceability; it cannot be deleted here.");
-    const revisions = await ctx.db.query("ceramicShipmentVersions")
-      .withIndex("by_shipment", (q) => q.eq("shipmentId", shipment._id)).take(501);
-    if (revisions.length > 500) throw new Error("This shipment has too many revisions to delete here. Contact support.");
-    const files = new Set(revisions.flatMap((revision) => revision.storageId ? [revision.storageId] : []));
-    for (const revision of revisions) await ctx.db.delete(revision._id);
-    // Reads see this transaction's deletes. Keep PDFs still referenced by another shipment.
-    for (const storageId of files) {
-      const remaining = await ctx.db.query("ceramicShipmentVersions")
-        .withIndex("by_storage", (q) => q.eq("storageId", storageId)).first();
-      if (!remaining) await ctx.storage.delete(storageId);
+    const assignment = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).unique();
+    // Include orphaned links, so deleting can never leave an active main load behind.
+    const routes = await ctx.db.query("dailyRoutes").withIndex("by_ceramicShipmentId", q => q.eq("ceramicShipmentId", shipment._id)).take(101);
+    if (routes.length > 100) throw ceramicAssignmentError("Too many Planner links. Contact support before deleting.");
+    if (assignment && !routes.some(route => route._id === assignment.routeId)) {
+      const linked = await ctx.db.get(assignment.routeId);
+      if (linked) routes.push(linked);
     }
-    await ctx.db.delete(shipment._id);
+    for (const route of routes) {
+      if (route.ceramicShipmentId !== shipment._id || route.region !== shipment.region) throw ceramicAssignmentError("Planner link needs review before deleting this shipment.");
+      const invoice = await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", route._id)).first();
+      if ((route.status || "planned") !== "planned" || invoice) {
+        throw ceramicAssignmentError("This shipment has a completed, locked or invoiced Planner load. It cannot be deleted.");
+      }
+    }
+    const now = Math.max(Date.now(), shipment.updatedAt + 1);
+    for (const route of routes) if (!route.isDeleted) await ctx.db.patch(route._id, { isDeleted: true, deletedAt: now });
+    if (assignment) await ctx.db.patch(assignment._id, { deletedAt: now, deletedBy: actor, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { deletedAt: now, deletedBy: actor, updatedAt: now, updatedBy: actor });
     return { deleted: true };
   },
 });
@@ -252,14 +264,14 @@ export const assign = mutation({
   handler: async (ctx, args) => {
     const { actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw ceramicAssignmentError("Shipment not found. Refresh the shipment list.");
+    if (!shipment || shipment.deletedAt !== undefined) throw ceramicAssignmentError("Shipment not found. Refresh the shipment list.");
     if (args.expectedVersion !== shipment.version) throw new Error("Shipment updated. Review the latest PDF before assigning.");
     const driverId = args.driverId === undefined ? shipment.driverId : args.driverId;
     const truckId = args.truckId === undefined ? shipment.truckId : args.truckId;
     if (!driverId || !truckId) throw new Error("Choose both a driver and truck before assigning the main load.");
     const result = await syncCeramicAssignment(ctx, shipment, { driverId, truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
-    await ctx.db.patch(shipment._id, { driverId, truckId, routeDate: args.routeDate, plannerVersion: shipment.version, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { driverId, truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, updatedAt: now, updatedBy: actor });
     return { saved: true, updatedAt: now, routeId: result.routeId };
   },
 });
@@ -279,7 +291,7 @@ export const saveDriverInstructions = mutation({
   handler: async (ctx, args) => {
     const { actor } = await requireRegion(ctx, args.token, args.region);
     const shipment = await ctx.db.get(args.shipmentId);
-    if (!shipment) throw new Error("Shipment not found.");
+    if (!shipment || shipment.deletedAt !== undefined) throw new Error("Shipment not found.");
     if (args.expectedVersion !== undefined && args.expectedVersion !== shipment.version) {
       throw new Error("Shipment updated. Reopen instructions and review the latest version before saving.");
     }
@@ -337,8 +349,8 @@ export const report = query({
     const { region } = await requireFinancialRegion(ctx, args.token, args.region);
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(args.month)) throw new Error("Choose a valid report month.");
     if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) throw new Error("Read 1 to 100 report rows per page.");
-    const records = await ctx.db.query("ceramicAssignments").withIndex("by_region_routeDate", q =>
-      q.eq("region", region).gte("routeDate", `${args.month}-01`).lt("routeDate", `${args.month}-32`))
+    const records = await ctx.db.query("ceramicAssignments").withIndex("by_region_active_routeDate", q =>
+      q.eq("region", region).eq("deletedAt", undefined).gte("routeDate", `${args.month}-01`).lt("routeDate", `${args.month}-32`))
       .paginate(args.paginationOpts);
     const page = await Promise.all(records.page.map(async row => {
       const [current, route, truck] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId), ctx.db.get(row.truckId)]);
@@ -368,9 +380,9 @@ export const saveReportBilling = mutation({
   handler: async (ctx, args) => {
     const { region, actor } = await requireFinancialRegion(ctx, args.token, args.region);
     const row = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", args.shipmentId)).unique();
-    if (!row || row.region !== region) throw new Error("Assigned shipment not found.");
+    if (!row || row.deletedAt !== undefined || row.region !== region) throw new Error("Assigned shipment not found.");
     const [shipment, route] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId)]);
-    if (!shipment || shipment.version !== args.expectedVersion || row.snapshot.version !== args.expectedVersion) throw new Error("Review and save the latest shipment assignment before editing its amounts.");
+    if (!shipment || shipment.deletedAt !== undefined || shipment.version !== args.expectedVersion || row.snapshot.version !== args.expectedVersion) throw new Error("Review and save the latest shipment assignment before editing its amounts.");
     if ((row.billingUpdatedAt ?? 0) !== args.expectedBillingUpdatedAt) throw new Error("Amounts changed. Reopen the editor to avoid overwriting another user's changes.");
     if (!route || route.isDeleted || (route.status || "planned") !== "planned" ||
       await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", row.routeId)).first()) throw new Error("This load is deleted, completed, locked or invoiced. Its report amounts cannot be changed.");

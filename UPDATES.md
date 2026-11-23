@@ -1,5 +1,49 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-23 - Collapse web shipments by saved assignment day
+
+The web shipment queue now uses the same South African assignment-save day groups
+as mobile. Assigned rows start collapsed under dated headers with shipment counts,
+newest day first, across Prepare, To send and All. Unassigned shipments remain
+visible above the groups. Expanding a day retains the existing shipment selection,
+assignment, instructions, WhatsApp and deletion controls. Web and mobile share the
+legacy assignment-date fallback so older records group identically without a
+migration or edits to source records. Missing dates stay explicitly undated.
+144 Ceramic regression tests, TypeScript and targeted lint pass. Development
+backend updated. The owner has authorized committing and deploying the combined
+shipment deletion and web/mobile day-group release. The final full suite passes
+1,169 tests across 74 files. Optimized build, TypeScript and lint checks pass;
+private release verification records the live deployment and data checks.
+
+
+## 2026-11-23 - Delete Ceramic shipments and collapse mobile assignments by save day
+
+Web shows a visible Delete shipment action; mobile cards show the same confirmed
+action for administrators and the TRANSVAAL region owner. Deletion soft-deletes
+the shipment, linked planned main Planner routes and reporting assignment in one
+transaction. Monthly/local tables and exports exclude deleted assignments through
+new active-record indexes. Source PDFs, revisions, prices, instructions and fleet
+records remain stored. Completed, locked or invoiced routes and stale confirmations
+are protected. Anonymous users cannot delete. Deleted shipments cannot reappear
+through PDF re-imports or stale assignments/instructions. No existing shipment was
+deleted while implementing this feature.
+
+Mobile Assigned groups by the date assignment was saved in Africa/Johannesburg
+time, as selected by the owner. Days start collapsed with shipment counts. A
+meaningful reassignment updates assignedAt; duplicate saves, instruction edits and
+PDF imports keep it stable. Existing records read original assignment creation
+timestamps without a data migration. Missing history has an explicit undated group.
+Search includes collapsed groups.
+
+All 1,168 tests across 74 files pass, including permissions, stale edits, preserved
+history, protected route states, deleted re-imports, timezone/day grouping and
+assignment timestamp stability. A synthetic localhost lifecycle verifies active
+Planner/reports return to their initial state after deletion, the PDF remains
+downloadable and unrelated records are unchanged. Optimized build, TypeScript and full lint pass
+(zero errors; 64 existing warnings). Development backend updated. Production is
+unchanged during implementation; release is now authorized. PWA cache advances to v94.
+
+
 
 ## 2026-11-23 - Accept blank SAP order numbers and show import review errors
 

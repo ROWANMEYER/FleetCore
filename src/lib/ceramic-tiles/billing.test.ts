@@ -12,9 +12,9 @@ describe("agreed Ceramic billing rules", () => {
     const load = ceramicBilledMainLoad(source, "shipment", 34, c.mainTotal!);
     expect(routeRevenue({ loads: [load], rate: 0 })).toBe(23400);
   });
-  it("counts warehouses separately in one town and multiple orders once per destination", () => {
+  it("counts each pickup town once and multiple orders once per destination", () => {
     const s = shipment(); s.destinations = s.destinations.slice(0, 3); s.destinations[0].orders.push({ ...s.destinations[0].orders[0], deliveryNumber: "9999", collectFrom: "1700-Gryphon Krugersdorp", weightKg: 1000, palletsEstimate: 1 });
-    const c = ceramicBillingCalculation(s, 600); expect(c).toMatchObject({ pickups: 3, deliveries: 3, pickupCharge: 750, dropCharge: 750 });
+    const c = ceramicBillingCalculation(s, 600); expect(c).toMatchObject({ pickups: 2, deliveries: 3, pickupCharge: 0, dropCharge: 750 });
   });
   it.each([[12000, 12, 2700], [12001, 4, 5400], [10000, 13, 5400], [13000, 13, 5400], [5200, 4, 2700]])("uses both local thresholds: %s kg / %s pallets", (kg, pallets, price) => {
     const s = shipment(); Object.assign(s.destinations[0].orders[0], { weightKg: kg, palletsEstimate: pallets }); expect(ceramicBillingCalculation(s, 600).locals[0].price).toBe(price);
@@ -32,11 +32,22 @@ describe("agreed Ceramic billing rules", () => {
   });
 });
 describe("SP pickup towns", () => {
-  it("recognises both Babelegi spellings as one town while counting each warehouse for extras", () => {
+  it("counts Babalegi, Krugersdorp and Vereeniging as three pickups and charges only the third town", () => {
+    const s = shipment();
+    const points = ["Samca 1 Babalegi", "Samca Wall Tiles Babelegi", "Betta Krugersdorp", "Vitro Vereeniging", "Gryphon Vereeniging", "Pegasus Babelegi"];
+    s.destinations.forEach((d, i) => { d.orders[0].collectFrom = points[i]; });
+    s.destinations[0].orders.push({ ...s.destinations[0].orders[0], deliveryNumber: "9999" });
+    const before = structuredClone(s);
+    expect(ceramicBillingCalculation(s, 600)).toMatchObject({ pickups: 3, pickupTownCount: 3,
+      pickupTowns: ["BABELEGI", "KRUGERSDORP", "VEREENIGING"], extraPickups: 1, pickupCharge: 750, extraDrops: 4, dropCharge: 3000, mainTotal: 24150, localTotal: 2700 });
+    expect(ceramicBillingCalculation(s, 600, 34, { ...DEFAULT_CERAMIC_BILLING, extraStopPrice: 800 }).pickupCharge).toBe(800);
+    expect(s).toEqual(before);
+  });
+  it("recognises both Babelegi spellings and multiple warehouses as one pickup town", () => {
     const s = shipment();
     const sources = ["3000-Samca 1 Babelegi, Hammanskraal, RSA", "2100-Samca Wall Tiles Babalegi, Hammanskraal, RSA", "1900-Pegasus Babelegi"];
     for (const [i, d] of s.destinations.entries()) for (const order of d.orders) order.collectFrom = sources[i % sources.length];
-    expect(ceramicBillingCalculation(s, 600)).toMatchObject({ pickups: 3, pickupTowns: ["BABELEGI"], pickupTownCount: 1, extraPickups: 1, pickupCharge: 750 });
+    expect(ceramicBillingCalculation(s, 600)).toMatchObject({ pickups: 1, pickupTowns: ["BABELEGI"], pickupTownCount: 1, extraPickups: 0, pickupCharge: 0 });
   });
   it("keeps separate towns distinct and does not assume unknown warehouses form one town", () => {
     expect(ceramicBillingCalculation(shipment(), 600).pickupTownCount).toBe(2);
@@ -75,7 +86,7 @@ describe("Ceramic exact-day tariff matching", () => {
     const changes = [{ effectiveDate: "2026-08-05", pricePerLitre: 28.17, compositionPercent: 55 }, { effectiveDate: "2026-09-02", pricePerLitre: 31.32, compositionPercent: 55 }, { effectiveDate: "2026-10-07", pricePerLitre: 34.56, compositionPercent: 55 }, { effectiveDate: "2026-11-04", pricePerLitre: 33.36, compositionPercent: 45 }];
     const sp = ceramicTariffChoices([tariff], s, "2026-11-23", changes).find(choice => choice.variant === "sp")!;
     expect(sp.ratePerTon).toBe(883.72);
-    expect(ceramicBillingCalculation(s, sp.ratePerTon)).toMatchObject({ pickups: 2, pickupTownCount: 1, deliveries: 3, freight: 30046.48, dropCharge: 750, localTotal: 0, mainTotal: 30796.48, combinedTotal: 30796.48, issues: [] });
+    expect(ceramicBillingCalculation(s, sp.ratePerTon)).toMatchObject({ pickups: 1, pickupTownCount: 1, deliveries: 3, freight: 30046.48, dropCharge: 750, localTotal: 0, mainTotal: 30796.48, combinedTotal: 30796.48, issues: [] });
   });
   it("keeps Babalegi and Krugersdorp/Vereeniging loading groups separate", () => { const s = shipment(); s.destinations[0].orders[0].collectFrom = "SAMCA BABELEGI"; const base = state(), baba = state(); baba.lanes = baba.lanes.map(l => ({ ...l, loadingPoint: "BABELEGI + KRUGERSDORP + VEREENIGING", rate: l.rate + 100 })); expect(ceramicTariffChoices([base, baba], s, "2026-11-23", [])[0].ratePerTon).toBe(700); });
 });

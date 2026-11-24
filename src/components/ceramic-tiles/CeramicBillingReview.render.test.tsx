@@ -14,6 +14,14 @@ beforeEach(()=>{
  mock.preview={readOnly:false,routeDate:"2026-11-24",version:1,ruleIssues:[],fingerprint:"new",config:DEFAULT_CERAMIC_BILLING,choices:[choice],selected:choice,saved:null,destinationChecks:ceramicDestinationChecks(snapshot,[choice]),calculation:{...ceramicBillingCalculation(snapshot,1260.01),issues:["Oudtshoorn needs an agreed tariff."]}};
 });
 describe("Visible Ceramic delivery tariff review",()=>{
+ it("explains additional pickups by town without warehouse-based charging labels",()=>{
+  Object.assign(mock.preview.calculation as Record<string, unknown>, { pickups:3, pickupTownCount:3, pickupTowns:["BABELEGI","KRUGERSDORP","VEREENIGING"], extraPickups:1, pickupCharge:750 });
+  const html=renderToStaticMarkup(<CeramicBillingReview shipmentId={"shipment" as Id<"ceramicShipments">}/>);
+  expect(html).toContain("Pickup towns: 3 total, 1 additional");
+  expect(html).toContain("the first two towns are included");
+  expect(html).toContain("Multiple warehouses in one town count as one pickup");
+  expect(html).not.toContain("charges count warehouses");
+ });
  it("shows the selected Mossel Bay price, unmatched Oudtshoorn and review action together",()=>{
   const html=renderToStaticMarkup(<CeramicBillingReview shipmentId={"shipment" as Id<"ceramicShipments">}/>);
   expect(html).toContain("Delivery town checks");expect(html).toContain("MOSSEL BAY");expect(html).toContain("OUDTSHOORN");expect(html).toContain("Needs review");expect(html).toContain("R 1 260,01");expect(html).toContain("Why this rate?");expect(html).toContain("Flag billing for review");expect(html).not.toContain("Confirm &amp; save billing");

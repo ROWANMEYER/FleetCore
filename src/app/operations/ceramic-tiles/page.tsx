@@ -1,5 +1,6 @@
 "use client";
 
+import { CeramicRestoreOptions, type CeramicRestoreMode } from "@/src/components/ceramic-tiles/CeramicRestoreOptions";
 import styles from "@/src/components/ceramic-tiles/CeramicMobile.module.css";
 import { CeramicDispatchHeader } from "@/src/components/ceramic-tiles/CeramicDispatchHeader";
 import { ceramicImportErrors } from "@/src/lib/ceramic-tiles/importValidation";
@@ -109,6 +110,7 @@ function CeramicTilesDesktopPage() {
   const [restoring, setRestoring] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<{ shipmentId: Id<"ceramicShipments">; shipmentNumber: string; version: number; updatedAt: number } | null>(null);
   const [restoreError, setRestoreError] = useState("");
+  const [restoreMode, setRestoreMode] = useState<CeramicRestoreMode>("unassigned");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [selectedNumber, setSelectedNumber] = useState("");
@@ -252,9 +254,15 @@ function CeramicTilesDesktopPage() {
     setRestoring(true);
     setRestoreError("");
     try {
-      await restoreShipmentRecord({ token, region, shipmentId: restoreTarget.shipmentId,
-        expectedVersion: restoreTarget.version, expectedUpdatedAt: restoreTarget.updatedAt });
-      setMessage(`Shipment ${restoreTarget.shipmentNumber} restored with its saved details. Continue the import to open it or apply a newer PDF revision.`);
+      const outcome = await restoreShipmentRecord({ token, region, shipmentId: restoreTarget.shipmentId,
+        expectedVersion: restoreTarget.version, expectedUpdatedAt: restoreTarget.updatedAt, mode: restoreMode });
+      setMessage(!outcome.restored ? `Shipment ${restoreTarget.shipmentNumber} was already restored. Review its current assignment before continuing.`
+        : restoreMode === "unassigned" ? `Shipment ${restoreTarget.shipmentNumber} restored as unassigned. Continue the import, then choose the driver, truck and planning date. Daily Planner and active reports wait for the new assignment.`
+        : `Shipment ${restoreTarget.shipmentNumber} restored with its previous assignment and report amounts. Continue the import and review the driver instructions.`);
+      if (outcome.restored) {
+        setAssignmentDrafts(previous => { const next = { ...previous }; delete next[restoreTarget.shipmentId]; return next; });
+        if (selectedNumber === restoreTarget.shipmentNumber) setSelectedNumber("");
+      }
       setFailure("");
       setRestoreTarget(null);
     } catch (error) {
@@ -375,7 +383,7 @@ function CeramicTilesDesktopPage() {
                     : <p className="text-xs text-[var(--danger-text)]">{entry.error ?? "Unable to extract shipment"}</p>}
                 </div>
                 {status && <span className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${status.status === "version_conflict" ? "border-[var(--danger-border)] text-[var(--danger-text)]" : "border-[var(--card-border)] text-[var(--nav-text-color)]"}`}>{rowStatusLabel[status.status]}{status.currentVersion ? ` (current v${status.currentVersion})` : ""}</span>}
-                {status?.status === "deleted" && status.restoreTarget && canManageRecords && <button type="button" className={`${secondaryButton} border-[var(--warning-border)] text-[var(--warning-text)]`} disabled={busy || saving || restoring || deleting || workspaceState.dirty || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setRestoreError(""); setRestoreTarget({ ...status.restoreTarget!, shipmentNumber: status.shipmentNumber, version: status.currentVersion! }); }}>Restore shipment</button>}
+                {status?.status === "deleted" && status.restoreTarget && canManageRecords && <button type="button" className={`${secondaryButton} border-[var(--warning-border)] text-[var(--warning-text)]`} disabled={busy || saving || restoring || deleting || workspaceState.dirty || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setRestoreError(""); setRestoreMode("unassigned"); setRestoreTarget({ ...status.restoreTarget!, shipmentNumber: status.shipmentNumber, version: status.currentVersion! }); }}>Restore shipment</button>}
                 {shipment?.warnings.length ? <span title={shipment.warnings.join("\n")} className="inline-flex items-center gap-1 text-xs text-[var(--warning-text)]"><AlertTriangle className="h-4 w-4" />{shipment.warnings.length} flags</span> : shipment && <CheckCircle2 className="h-4 w-4 text-[var(--success-text)]" />}
                 {shipment && <button type="button" className={secondaryButton} onClick={() => setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, expanded: !e.expanded } : e))}>
                   {entry.expanded ? "Hide details" : "Review / edit"}
@@ -450,13 +458,14 @@ function CeramicTilesDesktopPage() {
       <ConfirmDialog
         open={!!restoreTarget}
         title={`Restore shipment ${restoreTarget?.shipmentNumber ?? ""}?`}
-        message="Restore the saved shipment, its original PDF history, and any assignment, planned main load and report entries removed with it. Saved amounts and driver instructions are kept. Loads that have since been changed, completed, locked or invoiced require administrator review. The PDF in this batch is checked separately before importing."
-        confirmLabel="Restore shipment"
+        message="The original PDFs, shipment revisions and previous assignment history are kept with either option. Choose whether to assign it again or resume its previous assignment. Changed, completed, locked or invoiced loads require administrator review. The PDF in this batch is checked separately before importing."
+        confirmLabel={restoreMode === "unassigned" ? "Restore as unassigned" : "Restore previous assignment"}
         loading={restoring}
         autoFocus
         onConfirm={() => void restoreShipment()}
         onCancel={() => { if (!restoring) { setRestoreTarget(null); setRestoreError(""); } }}
       >
+        <CeramicRestoreOptions mode={restoreMode} onChange={setRestoreMode} disabled={restoring} />
         {restoreError && <p role="alert" className="text-sm text-[var(--danger-text)]">{restoreError}</p>}
       </ConfirmDialog>
       <ConfirmDialog

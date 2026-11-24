@@ -13,12 +13,13 @@ export function ceramicBillingCalculation(snapshot: CeramicShipment, ratePerTon:
   const issues: string[] = [];
   if (!Number.isFinite(chargeableTons) || chargeableTons <= 0 || chargeableTons > 1000) issues.push("Enter chargeable tons above zero and at most 1,000.");
   const collectionPoints = snapshot.destinations.flatMap(d => d.orders.map(o => o.collectFrom));
-  const pickups = new Set(collectionPoints.map(billingNormalize).filter(Boolean)).size;
   const pickupTowns = [...new Set(collectionPoints.map(ceramicCollectionTown).filter((town): town is string => town !== null))].sort();
   const pickupTownCount = collectionPoints.length && collectionPoints.every(point => ceramicCollectionTown(point) !== null) ? pickupTowns.length : null;
+  // Each town is one pickup, regardless of warehouses or orders in that town.
+  const pickups = pickupTowns.length;
   if (pickupTownCount === null) issues.push("Confirm every pickup town before choosing Standard or SP billing.");
   const deliveries = ceramicDeliveryStops(snapshot.destinations.map(d => [d.name, ...d.addressLines].join(", "))).length;
-  if (snapshot.destinations.some(d => d.orders.some(o => !o.collectFrom.trim()))) issues.push("A collection warehouse is missing from the PDF. Review its orders before confirming billing.");
+  if (snapshot.destinations.some(d => d.orders.some(o => !o.collectFrom.trim()))) issues.push("A pickup location is missing from the PDF. Confirm its town before billing.");
   const extraPickups = Math.max(0, pickups - 2), extraDrops = Math.max(0, deliveries - 2);
   const pickupCharge = billingMoney(extraPickups * rules.extraStopPrice), dropCharge = billingMoney(extraDrops * rules.extraStopPrice);
   const locals = ceramicLocalLegs(snapshot).map(leg => {
@@ -53,6 +54,9 @@ export function ceramicBillingRuleIssues(snapshot: CeramicShipment, billing?: Ce
   const issues: string[] = ceramicDestinationRuleIssues(snapshot, billing);
   if (current.pickupTownCount === null || saved.variant !== (current.pickupTownCount === 1 ? "sp" : "standard")) {
     issues.push("Review saved billing: SP is based on one pickup town, even when it contains multiple warehouses.");
+  }
+  if (current.pickupTownCount !== null && (saved.pickupCount !== current.pickups || saved.extraPickups !== current.extraPickups)) {
+    issues.push("Review saved pickup charges: count each pickup town once, regardless of its warehouses. Only towns after the first two are additional pickups.");
   }
   const localKeys = new Set(current.locals.map(local => local.key));
   if (billing.locals.length !== localKeys.size || billing.locals.some(local => !localKeys.has(local.key))) {

@@ -92,6 +92,26 @@ describe("Authenticated Ceramic shipment deletion", () => {
 
 const recover = (f: ReturnType<typeof fixture>, overrides: Row = {}) => (restore as unknown as Definition)._handler(f.ctx, { ...args, expectedUpdatedAt: f.table("ceramicShipments").get("shipment")!.updatedAt, ...overrides });
 describe("Explicit deleted-shipment recovery", () => {
+  it("defaults to Unassigned, preserving the deleted route, billing, PDFs and prior assignment audit", async () => {
+    const f = fixture(); f.linked();
+    Object.assign(f.table("ceramicShipments").get("shipment")!, { driverId: "driver", truckId: "truck", routeDate: "2026-11-22", plannerVersion: 2, assignedAt: 50,
+      driverInstructions: { safetyNotes: "Keep these notes", reviewedVersion: 2, updatedAt: 90 } });
+    await f.run();
+    const route = structuredClone(f.table("dailyRoutes").get("route")), assignment = structuredClone(f.table("ceramicAssignments").get("assignment"));
+    const versions = structuredClone([...f.table("ceramicShipmentVersions").values()]);
+    await recover(f);
+    const shipment = f.table("ceramicShipments").get("shipment")!;
+    for (const field of ["driverId", "truckId", "routeDate", "plannerVersion", "assignedAt", "deletedAt"]) expect(shipment).not.toHaveProperty(field);
+    expect(shipment.assignmentResetAt).toEqual(expect.any(Number));
+    expect(shipment.driverInstructions).toMatchObject({ safetyNotes: "Keep these notes" });
+    expect(f.table("dailyRoutes").get("route")).toEqual(route);
+    expect(f.table("ceramicAssignments").get("assignment")).toEqual(assignment);
+    expect([...f.table("ceramicShipmentVersions").values()]).toEqual(versions);
+    const audit = [...f.table("ceramicShipmentRestorations").values()][0];
+    expect(audit).toMatchObject({ mode: "unassigned", previousAssignedAt: 50, previousAssignmentId: "assignment", previousAssignment: { billing: { ratePerTon: 123 }, routeId: "route" }, routeIds: [] });
+    expect(await recover(f, { mode: "previous_assignment" })).toEqual({ restored: false });
+    expect(f.db.delete).not.toHaveBeenCalled(); expect(f.storage.delete).not.toHaveBeenCalled();
+  });
   it("restores a draft without creating Planner or report records and retains an audit", async () => {
     const f = fixture(); await f.run();
     const deleted = structuredClone(f.table("ceramicShipments").get("shipment")!);
@@ -105,7 +125,7 @@ describe("Explicit deleted-shipment recovery", () => {
   it("restores the original assignment and main route without changing money or making duplicates", async () => {
     const f = fixture(); f.linked(); await f.run();
     const route = structuredClone(f.table("dailyRoutes").get("route")!);
-    expect(await recover(f)).toEqual({ restored: true });
+    expect(await recover(f, { mode: "previous_assignment" })).toEqual({ restored: true });
     const { deletedAt: _deletedAt, ...retained } = route; void _deletedAt;
     expect(f.table("dailyRoutes").get("route")).toEqual({ ...retained, isDeleted: false });
     expect(f.table("ceramicAssignments").get("assignment")).toMatchObject({ billing: { ratePerTon: 123 }, routeId: "route" });
@@ -117,7 +137,7 @@ describe("Explicit deleted-shipment recovery", () => {
     const f = fixture(); f.linked(); f.put("dailyRoutes", "old", { ceramicShipmentId: "shipment", region: "transvaal", status: "planned", isDeleted: true, deletedAt: 5 });
     for (let i = 0; i < 2; i++) {
       await f.run({ expectedUpdatedAt: f.table("ceramicShipments").get("shipment")!.updatedAt });
-      await recover(f);
+      await recover(f, { mode: "previous_assignment" });
       expect(f.table("dailyRoutes").get("old")).toMatchObject({ isDeleted: true, deletedAt: 5 });
     }
     expect(f.table("ceramicShipmentRestorations").size).toBe(2);

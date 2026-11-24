@@ -5,7 +5,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateSheetFields, tariffHistoryFields } from "./rateSheetFields";
 import { driverPhoneNumber } from "./driverPhoneFields";
-import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder, ceramicBilling } from "./ceramicTilesFields";
+import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder, ceramicBilling, ceramicAssignmentFields, ceramicRestoreMode } from "./ceramicTilesFields";
 
 export default defineSchema({
   ceramicBillingSettings: defineTable({ ...ceramicBillingRules, effectiveDate: v.string(), customerId: v.optional(v.id("customers")), createdAt: v.number(), createdBy: v.id("users") }).index("by_effectiveDate", ["effectiveDate"]),
@@ -15,6 +15,9 @@ export default defineSchema({
     shipmentId: v.id("ceramicShipments"), region: ceramicRegion, version: v.number(),
     deletedAt: v.number(), deletedBy: v.optional(v.string()), restoredAt: v.number(), restoredBy: v.string(),
     routeIds: v.array(v.id("dailyRoutes")),
+    mode: v.optional(ceramicRestoreMode), previousAssignedAt: v.optional(v.number()),
+    previousAssignmentId: v.optional(v.id("ceramicAssignments")),
+    previousAssignment: v.optional(v.object(ceramicAssignmentFields)),
   }).index("by_shipment", ["shipmentId"]),
   /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
   ceramicShipments: defineTable({
@@ -26,6 +29,7 @@ export default defineSchema({
     routeDate: v.optional(v.string()),
     plannerVersion: v.optional(v.number()),
     assignedAt: v.optional(v.number()),
+    assignmentResetAt: v.optional(v.number()),
     driverId: v.optional(v.id("drivers")),
     truckId: v.optional(v.id("trucks")),
     driverInstructions: v.optional(v.object({
@@ -45,15 +49,7 @@ export default defineSchema({
     .index("by_region_updated", ["region", "updatedAt"])
     .index("by_region_active_updated", ["region", "deletedAt", "updatedAt"]),
   /** Assignment snapshots drive both reports without adding local legs to Planner. */
-  ceramicAssignments: defineTable({
-    shipmentId: v.id("ceramicShipments"), routeId: v.id("dailyRoutes"), region: ceramicRegion,
-    routeDate: v.string(), driverId: v.id("drivers"), truckId: v.id("trucks"),
-    driverName: v.string(), truckFleetNo: v.string(), snapshot: ceramicShipmentSnapshot,
-    truckRegistration: v.optional(v.string()), billing: v.optional(ceramicBilling),
-    billingUpdatedAt: v.optional(v.number()), billingUpdatedBy: v.optional(v.string()), billingSourceVersion: v.optional(v.number()),
-    deletedAt: v.optional(v.number()), deletedBy: v.optional(v.string()),
-    createdAt: v.number(), updatedAt: v.number(), updatedBy: v.string(),
-  }).index("by_shipment", ["shipmentId"]).index("by_region_routeDate", ["region", "routeDate"])
+  ceramicAssignments: defineTable(ceramicAssignmentFields).index("by_shipment", ["shipmentId"]).index("by_region_routeDate", ["region", "routeDate"])
     .index("by_region_active_routeDate", ["region", "deletedAt", "routeDate"]),
   /** Immutable prior and current revisions for review and traceability. */
   ceramicShipmentVersions: defineTable({

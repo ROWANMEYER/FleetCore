@@ -55,3 +55,15 @@ export const ceramicReportRow = v.object({
   unmappedWarehouses: v.optional(v.array(v.object({ name: v.string(), weightKg: v.number() }))),
   weightKg: ceramicNullableNumber, pallets: ceramicNullableNumber, needsReview: v.boolean(), locals: v.array(ceramicLocalLeg),
 });
+
+/** Active report records and immutable pre-restore assignment snapshots share one contract. */
+export const ceramicAssignmentFields = {
+    shipmentId: v.id("ceramicShipments"), routeId: v.id("dailyRoutes"), region: ceramicRegion,
+    routeDate: v.string(), driverId: v.id("drivers"), truckId: v.id("trucks"),
+    driverName: v.string(), truckFleetNo: v.string(), snapshot: ceramicShipmentSnapshot,
+    truckRegistration: v.optional(v.string()), billing: v.optional(ceramicBilling),
+    billingUpdatedAt: v.optional(v.number()), billingUpdatedBy: v.optional(v.string()), billingSourceVersion: v.optional(v.number()),
+    deletedAt: v.optional(v.number()), deletedBy: v.optional(v.string()),
+    createdAt: v.number(), updatedAt: v.number(), updatedBy: v.string(),
+};
+export const ceramicRestoreMode = v.union(v.literal("unassigned"), v.literal("previous_assignment"));

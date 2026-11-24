@@ -4,7 +4,7 @@ import { ceramicReportRange } from "../src/lib/ceramic-tiles/billingPeriod";
 import { ceramicImportErrors } from "../src/lib/ceramic-tiles/importValidation";
 import type { Region } from "../src/lib/regions";
 import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport";
-import { ceramicBilling } from "./ceramicTilesFields";
+import { ceramicBilling, ceramicRestoreMode } from "./ceramicTilesFields";
 import { paginationOptsValidator } from "convex/server";
 import { ceramicReportRow } from "./ceramicTilesFields";
 import { CERAMIC_MAIN_REGION, CERAMIC_LOCAL_TOWN, ceramicLocalLegs, ceramicMainLoad } from "../src/lib/ceramic-tiles/planning";
@@ -264,7 +264,7 @@ export const remove = mutation({
 
 /** Explicit recovery reuses the original records; importing alone never undoes deletion. */
 export const restore = mutation({
-  args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"), expectedVersion: v.number(), expectedUpdatedAt: v.number() },
+  args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"), expectedVersion: v.number(), expectedUpdatedAt: v.number(), mode: v.optional(ceramicRestoreMode) },
   returns: v.object({ restored: v.boolean() }),
   handler: async (ctx, args) => {
     const { region, actor } = await requireFinancialRegion(ctx, args.token, args.region);
@@ -281,7 +281,13 @@ export const restore = mutation({
       const linked = await ctx.db.get(assignment.routeId);
       if (linked) routes.push(linked);
     }
-    const recovering = routes.filter(route => route.deletedAt === shipment.deletedAt);
+    // A shipment restored as a draft may be deleted again before reassignment.
+    // Its previous route remains deleted with its original deletion timestamp.
+    const awaitingAssignment = shipment.assignmentResetAt !== undefined;
+    if (awaitingAssignment && (shipment.driverId || shipment.truckId || shipment.routeDate || shipment.plannerVersion !== undefined || shipment.assignedAt !== undefined)) {
+      throw ceramicAssignmentError("The saved assignment changed. Review this shipment before restoring.");
+    }
+    const recovering = routes.filter(route => route.deletedAt === shipment.deletedAt || awaitingAssignment && route._id === assignment?.routeId);
     if (routes.some(route => route.ceramicShipmentId !== shipment._id || route.region !== shipment.region || !route.isDeleted) ||
         recovering.length > 1 || (!assignment && (recovering.length > 0 || shipment.driverId || shipment.truckId)) ||
         (assignment && (assignment.region !== region || assignment.deletedAt !== shipment.deletedAt || recovering.length !== 1 || recovering[0]._id !== assignment.routeId))) {
@@ -293,15 +299,36 @@ export const restore = mutation({
         throw ceramicAssignmentError("The linked Planner load is completed, locked or invoiced. It cannot be restored here.");
       }
     }
+    const priorRestoration = awaitingAssignment ? await ctx.db.query("ceramicShipmentRestorations")
+      .withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).order("desc").first() : null;
+    const previousAssignedAt = shipment.assignedAt ?? priorRestoration?.previousAssignedAt ?? assignment?.createdAt;
     const now = Math.max(Date.now(), shipment.updatedAt + 1);
+    const mode = args.mode ?? "unassigned";
+    const previousAssignment = assignment ? (({ _id, _creationTime, ...record }) => { void _id; void _creationTime; return record; })(assignment) : undefined;
     await ctx.db.insert("ceramicShipmentRestorations", {
       shipmentId: shipment._id, region, version: shipment.version, deletedAt: shipment.deletedAt,
       ...(shipment.deletedBy ? { deletedBy: shipment.deletedBy } : {}),
-      restoredAt: now, restoredBy: actor, routeIds: recovering.map(route => route._id),
+      restoredAt: now, restoredBy: actor, mode,
+      routeIds: mode === "previous_assignment" ? recovering.map(route => route._id) : [],
+      ...(previousAssignedAt !== undefined ? { previousAssignedAt } : {}),
+      ...(assignment ? { previousAssignmentId: assignment._id, previousAssignment } : {}),
     });
-    for (const route of recovering) await ctx.db.patch(route._id, { isDeleted: false, deletedAt: undefined });
-    if (assignment) await ctx.db.patch(assignment._id, { deletedAt: undefined, deletedBy: undefined, updatedAt: now, updatedBy: actor });
-    await ctx.db.patch(shipment._id, { deletedAt: undefined, deletedBy: undefined, updatedAt: now, updatedBy: actor });
+    if (mode === "previous_assignment") {
+      for (const route of recovering) await ctx.db.patch(route._id, { isDeleted: false, deletedAt: undefined });
+      if (assignment) await ctx.db.patch(assignment._id, { deletedAt: undefined, deletedBy: undefined, updatedAt: now, updatedBy: actor });
+      await ctx.db.patch(shipment._id, {
+        deletedAt: undefined, deletedBy: undefined, assignmentResetAt: undefined, updatedAt: now, updatedBy: actor,
+        ...(assignment && awaitingAssignment ? { driverId: assignment.driverId, truckId: assignment.truckId, routeDate: assignment.routeDate,
+          plannerVersion: assignment.snapshot.version, assignedAt: previousAssignedAt } : {}),
+      });
+    } else {
+      // Retain deleted assignment/route records and their amounts for history only.
+      await ctx.db.patch(shipment._id, {
+        deletedAt: undefined, deletedBy: undefined, driverId: undefined, truckId: undefined,
+        routeDate: undefined, plannerVersion: undefined, assignedAt: undefined,
+        assignmentResetAt: assignment ? now : undefined, updatedAt: now, updatedBy: actor,
+      });
+    }
     return { restored: true };
   },
 });
@@ -325,7 +352,7 @@ export const assign = mutation({
     if (!driverId || !truckId) throw new Error("Choose both a driver and truck before assigning the main load.");
     const result = await syncCeramicAssignment(ctx, shipment, { driverId, truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
-    await ctx.db.patch(shipment._id, { driverId, truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { driverId, truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, assignmentResetAt: undefined, updatedAt: now, updatedBy: actor });
     return { saved: true, updatedAt: now, routeId: result.routeId };
   },
 });

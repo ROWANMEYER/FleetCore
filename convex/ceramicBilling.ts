@@ -125,7 +125,7 @@ export const confirm = mutation({
     if (shipment.version !== args.expectedVersion || assignment.updatedAt !== args.expectedAssignmentUpdatedAt || (assignment.billingUpdatedAt ?? 0) !== args.expectedBillingUpdatedAt || result.fingerprint !== args.expectedFingerprint) throw ceramicAssignmentError("Shipment, rates or billing changed. Review the refreshed amounts before saving.");
     const route = await ctx.db.get(assignment.routeId);
     if (!route || route.isDeleted || (route.status || "planned") !== "planned" || route.ceramicShipmentId !== shipment._id || route.region !== assignment.region || route.routeDate !== assignment.routeDate || route.driverName !== assignment.driverName || route.truckFleetNoStr !== assignment.truckFleetNo || await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", route._id)).first()) throw ceramicAssignmentError("The linked Planner load is changed, removed, completed, locked or invoiced. Review it before changing billing.");
-    const c = result.calculation, complete = c.issues.length === 0;
+    const c = result.calculation, complete = c.issues.length === 0 && !args.markForReview;
     if (!complete && !args.markForReview) throw ceramicAssignmentError(c.issues[0]);
     if (!Number.isFinite(c.chargeableTons) || c.chargeableTons <= 0 || c.chargeableTons > 1000) throw ceramicAssignmentError("Enter valid chargeable tons before saving.");
     if (assignment.snapshot.version !== shipment.version || shipment.plannerVersion !== shipment.version) throw ceramicAssignmentError("Save the latest shipment assignment before billing.");

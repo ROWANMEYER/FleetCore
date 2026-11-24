@@ -2,6 +2,9 @@ import { ConvexError } from "convex/values";
 import { describe, expect, it, vi } from "vitest";
 import { assign, list, report, remove, restore, commitBatch, saveReportBilling } from "@/convex/ceramicTiles";
 import { assign as mobileAssign, list as mobileList } from "@/convex/ceramicTilesMobile";
+import { mobileCeramicShipments } from "./mobileDispatch";
+import { ceramicWorkflowStage } from "./workflow";
+import type { Doc } from "@/convex/_generated/dataModel";
 import { ceramicMainLoad } from "./planning";
 import { ceramicReportSheets } from "./reportExport";
 import type { CeramicShipment } from "./parser";
@@ -63,12 +66,76 @@ function fixture(role = "admin", region: string | undefined = undefined, shipmen
 }
 
 describe("Ceramic assignment → main Planner load and both reports", () => {
+  it.each([["web", assign], ["mobile", mobileAssign]])("restores as unassigned until a fresh %s assignment creates one active main load and reports", async (_surface, allocate) => {
+    const f = fixture(); await f.run(assign);
+    const oldRoute = [...f.table("dailyRoutes").values()][0], assignment = [...f.table("ceramicAssignments").values()][0];
+    assignment.billing = { ratePerTon: 1200, stops: 750, drops: 0, crossBorder: "", load: "", locals: [] };
+    assignment.billingUpdatedAt = 5; assignment.billingSourceVersion = 1;
+    f.shipment.assignedAt = 50;
+    f.shipment.driverInstructions = { safetyNotes: "Keep saved notes", additionalNotes: "Handle carefully", reviewedVersion: 1, updatedAt: 1, updatedBy: "admin" };
+    const source = structuredClone(f.shipment.snapshot);
+    await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+    const retainedRoute = structuredClone(oldRoute);
+    await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt });
+    const mobileRows = await f.run(mobileList) as Doc<"ceramicShipments">[];
+    expect(mobileCeramicShipments(mobileRows, "unassigned").map(row => row.shipmentNumber)).toContain(snapshot.shipmentNumber);
+    expect(ceramicWorkflowStage(f.shipment as Doc<"ceramicShipments">)).toBe("assignment");
+    expect((await f.read()).page).toEqual([]);
+    expect(oldRoute).toEqual(retainedRoute); expect(assignment.deletedAt).toEqual(expect.any(Number));
+    await f.run(commitBatch, { files: [{ snapshot, fileName: "same.pdf", fileHash: "a".repeat(64) }] });
+    expect((await f.read()).page).toEqual([]);
+    expect(f.shipment).not.toHaveProperty("driverId");
+    await f.run(allocate, { driverId: "driver-two", truckId: "truck-two", routeDate: "2026-11-23" });
+    const active = [...f.table("dailyRoutes").values()].filter(row => !row.isDeleted);
+    expect(active).toHaveLength(1); expect(active[0]._id).not.toBe(oldRoute._id);
+    expect(active[0]).toMatchObject({ region: "transvaal", driverName: "Replacement Driver", routeDate: "2026-11-23" });
+    expect(active[0].loads).toEqual([ceramicMainLoad(snapshot, "shipment")]);
+    expect(oldRoute).toEqual(retainedRoute);
+    expect(f.shipment.snapshot).toEqual(source); expect(f.shipment).not.toHaveProperty("assignmentResetAt");
+    expect(f.shipment.driverInstructions).toMatchObject({ safetyNotes: "Keep saved notes" });
+    expect(ceramicWorkflowStage(f.shipment as Doc<"ceramicShipments">)).toBe("instructions");
+    expect(assignment).not.toHaveProperty("deletedAt"); expect(assignment).not.toHaveProperty("billing");
+    const rows = (await f.read()).page;
+    expect(rows).toHaveLength(1); expect(rows[0].locals).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ routeDate: "2026-11-23", driverName: "Replacement Driver" });
+    expect([...f.table("ceramicShipmentRestorations").values()][0]).toMatchObject({ mode: "unassigned", previousAssignment: { billing: { ratePerTon: 1200 }, driverId: "driver", routeId: oldRoute._id } });
+    for (const fn of [assign, mobileAssign]) await f.run(fn, { driverId: "driver-two", truckId: "truck-two", routeDate: "2026-11-23" });
+    expect(f.table("dailyRoutes").size).toBe(2); expect(f.table("ceramicAssignments").size).toBe(1);
+    expect((await f.read()).page).toHaveLength(1);
+  });
+  it("supports repeated delete/draft-restore cycles and an explicit return to the previous assignment", async () => {
+    const f = fixture(); await f.run(assign); f.shipment.assignedAt = 50;
+    const oldRoute = [...f.table("dailyRoutes").values()][0];
+    for (let i = 0; i < 2; i++) {
+      await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+      await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt });
+      expect((await f.read()).page).toEqual([]); expect(oldRoute.isDeleted).toBe(true);
+    }
+    await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+    await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt, mode: "previous_assignment" });
+    expect(f.shipment).toMatchObject({ driverId: "driver", truckId: "truck", routeDate: "2026-11-22", assignedAt: 50 });
+    expect(f.shipment).not.toHaveProperty("assignmentResetAt"); expect(oldRoute.isDeleted).toBe(false);
+    expect(f.table("dailyRoutes").size).toBe(1); expect((await f.read()).page).toHaveLength(1);
+  });
+  it.each(["locked", "invoiced", "active", "foreign"])("preserves history and blocks reassignment when the old route becomes %s", async reason => {
+    const f = fixture(); await f.run(assign);
+    await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+    await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt });
+    const route = [...f.table("dailyRoutes").values()][0];
+    if (reason === "locked") route.status = "locked";
+    else if (reason === "invoiced") f.put("invoices", "invoice", { routeId: route._id });
+    else if (reason === "active") route.isDeleted = false;
+    else route.ceramicShipmentId = "other";
+    const count = f.writes.length;
+    await expect(f.run(assign)).rejects.toBeInstanceOf(ConvexError);
+    expect(f.writes).toHaveLength(count); expect(f.shipment).not.toHaveProperty("driverId");
+  });
   it("recovers a deleted shipment, reimports its PDF and reuses one assignment in Planner and both reports", async () => {
     const f = fixture(); await f.run(assign);
     const routeId = [...f.table("dailyRoutes").keys()][0], original = structuredClone(f.shipment.snapshot);
     await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
     expect((await f.read()).page).toEqual([]);
-    expect(await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt })).toEqual({ restored: true });
+    expect(await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt, mode: "previous_assignment" })).toEqual({ restored: true });
     expect(await f.run(commitBatch, { files: [{ snapshot, fileName: "example.pdf", fileHash: "a".repeat(64) }] })).toEqual([{ shipmentNumber: snapshot.shipmentNumber, version: 1, status: "duplicate" }]);
     await f.run(assign); await f.run(mobileAssign);
     expect(f.shipment.snapshot).toEqual(original); expect([...f.table("dailyRoutes").keys()]).toEqual([routeId]);

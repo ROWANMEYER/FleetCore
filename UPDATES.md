@@ -1,5 +1,76 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Release Ceramic restore choices and town-based pickups
+
+The owner authorized committing and deploying both tested changes. Restore as
+unassigned is the default, with explicit recovery of the previous assignment
+available. Additional pickups count towns once and charge only after the first
+two towns. Legacy affected billing is flagged for review without automatic
+repricing. Release the compatible optional schema fields and backend functions
+before the frontend. PWA cache advances to fleetcore-v101. Private output files
+remain outside the commit and no data migration is required.
+
+Validation: 1,289 tests across 82 files, application/Convex type checks,
+changed-file lint, optimized webpack build and real isolated backend flows pass.
+Read-only production checks compare saved business records around deployment.
+The complete interactive restore dialog check was limited by local browser
+control timeouts; its rendered default/disabled controls and actual backend
+restore/reassignment paths are covered separately.
+
+## 2026-11-24 - Count additional Ceramic pickups by town
+
+The owner corrected the commercial rule: pickup towns, not warehouses, determine
+additional pickup charges. Each recognised town counts once across all orders
+and deliveries. The first two towns are included; Babalegi/Babelegi,
+Krugersdorp and Vereeniging therefore produce three pickups, one additional
+pickup and R750 at the current configurable rate. Multiple warehouses in one
+town count as one pickup and still qualify for single-town SP. Delivery drop
+counts, local transport, tonnage and tariff selection keep their existing rules.
+
+Web/mobile internal billing now labels pickup towns and explains the first-two
+allowance. Affected confirmed warehouse-count snapshots are flagged for review
+on read, retaining saved prices and immutable history. Explicit reconfirmation
+updates the main Planner amount and reports using town counts. Mark for review
+now always remains review-only, even when the new calculation has no missing
+inputs; it does not replace Planner prices. Existing manual bills are retained.
+
+Validation: 1,289 tests across 82 files, application/Convex type checks,
+changed-file lint and the isolated optimized webpack build pass. Regressions
+cover three towns across multiple warehouses, repeated orders, Babelegi aliases,
+single-town SP, configurable prices, historical review flags and confirmation.
+The real localhost Convex API confirms three towns, one R750 pickup charge,
+matching Planner/report amounts and review-only price preservation. Previously
+implemented restore options remain in the working tree. No production data,
+commit or deployment was changed.
+
+## 2026-11-24 - Choose how deleted Ceramic shipments return
+
+The restore dialog now defaults to Restore as unassigned and offers Restore
+previous assignment as an explicit alternative. The default clears active
+driver, truck, planning date and assignment-day fields, retaining the source
+PDFs, revisions and driver notes. The previous Planner route and report record
+stay soft-deleted until a fresh assignment is saved.
+
+Each restore records its selected mode and an immutable snapshot of the prior
+assignment, including amounts. Fresh web/mobile assignment creates one new main
+Planner route, retains the old deleted route for history and reuses one active
+report record. Previous billing stays in the restoration audit; the new report
+requires fresh billing review. Only the main load goes to Planner; George local
+legs return in the separate report after assignment. The previous-assignment
+option recovers its original route, amounts and assignment day. Repeated draft
+restore/delete cycles, protected routes, stale requests and retries retain the
+existing authorization and validation rules. No historical rows are erased.
+
+Validation: all 1,286 tests across 82 files pass, along with application/Convex
+type checks, changed-file lint and an isolated optimized webpack build. The
+local Convex schema/function push and real API smoke confirm both options,
+the backend's unassigned default, mobile classification, report exclusion until
+assignment, retained PDF history and duplicate-free reassignment. UI render
+tests check the selected default and disabled controls. The interactive browser
+attempt hit local browser-control timeouts before the full dialog flow could
+be verified. Changes are local and uncommitted; no production data or deployment
+was changed.
+
 ## 2026-11-24 - Align Ceramic web dispatch with mobile
 
 Web and mobile now share the truck banner, report shortcut, shipment cards,

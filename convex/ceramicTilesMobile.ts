@@ -78,7 +78,7 @@ export const assign = mutation({
     const actor = scope.role === "regional" ? `regional:${shipment.region}` : "admin";
     const result = await syncCeramicAssignment(ctx, shipment, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, actor });
     const now = Date.now();
-    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { driverId: args.driverId, truckId: args.truckId, routeDate: args.routeDate, plannerVersion: shipment.version, assignedAt: result.assignedAt, assignmentResetAt: undefined, updatedAt: now, updatedBy: actor });
     return { saved: true, updatedAt: now };
   },
 });

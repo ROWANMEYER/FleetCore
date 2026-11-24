@@ -45,6 +45,37 @@ function fixture(singleWarehouse = false) {
   return { table, put, writes, run, read, save, route };
 }
 describe("Ceramic billing confirmation transaction", () => {
+  it("flags warehouse-based extra pickup charges without repricing until confirmation, then updates Planner and reports by town", async () => {
+    const f = fixture(), source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    const points = ["Betta Krugersdorp", "Vitro Vereeniging", "Samca 1 Babalegi", "Pegasus Babelegi", "Gryphon Vereeniging", "Samca Wall Tiles Babelegi"];
+    source.destinations.forEach((d, i) => { d.orders[0].collectFrom = points[i]; });
+    for (const lane of f.table("rateSheets").get("sheet")!.lanes as Row[]) lane.loadingPoint = "BABELEGI + KRUGERSDORP + VEREENIGING";
+    await f.run(assign); let p = await f.read();
+    expect(p.calculation).toMatchObject({ pickups: 3, pickupTownCount: 3, extraPickups: 1, pickupCharge: 750, mainTotal: 24150 });
+    await f.save(p);
+    const assignment = [...f.table("ceramicAssignments").values()][0];
+    const billing = assignment.billing as { stops: number; automation: Row };
+    billing.stops = 6000;
+    Object.assign(billing.automation, { pickupCount: 6, extraPickups: 4, mainTotal: 26400 });
+    Object.assign(f.route(), { ceramicBillingTotal: 26400, ceramicExtraStopCharge: 6000,
+      loads: [ceramicBilledMainLoad(source, "shipment", 34, 26400, { ratePerTon: 600, extraStops: 6000 })] });
+    const original = structuredClone(assignment.billing);
+    f.table("ceramicBillingHistory").clear();
+    f.put("ceramicBillingHistory", "original", { shipmentId: "shipment", billing: original });
+    const before = f.writes.length; p = await f.read();
+    expect(p.saved).toMatchObject({ status: "needs_review", mainTotal: 26400 });
+    expect(p.ruleIssues.join(" ")).toContain("count each pickup town once");
+    expect(f.writes).toHaveLength(before); expect(assignment.billing).toEqual(original); expect(routeRevenue(f.route())).toBe(26400);
+    const reportBefore = await f.run(report, { month: "2026-11", paginationOpts: { numItems: 50, cursor: null } }) as { page: CeramicReportRow[] };
+    expect(reportBefore.page[0]).toMatchObject({ needsReview: true });
+    await f.save(p, { markForReview: true }); expect(routeRevenue(f.route())).toBe(26400);
+    expect(assignment.billing).toMatchObject({ stops: 6000 });
+    await f.save(await f.read());
+    expect(routeRevenue(f.route())).toBe(24150);
+    expect(assignment.billing).toMatchObject({ stops: 3750, automation: { pickupCount: 3, extraPickups: 1, mainTotal: 24150 } });
+    expect((await f.read()).ruleIssues).toEqual([]);
+    expect(f.table("ceramicBillingHistory").get("original")!.billing).toEqual(original);
+  });
   it("saves the agreed six-drop example once with main-only Planner revenue and local report charges", async () => {
     const f = fixture(); await f.run(assign); const p = await f.read();
     expect(p.calculation).toMatchObject({ freight: 20400, dropCharge: 3000, localTotal: 2700, mainTotal: 23400, combinedTotal: 26100 });
@@ -59,7 +90,7 @@ describe("Ceramic billing confirmation transaction", () => {
     const many = fixture(); await many.run(assign); const p = await many.read(); expect(p.choices.every(choice => choice.variant === "standard")).toBe(true);
     const count = many.writes.length; await expect(many.save(p, { tariffKey: "sheet:0:sp:2026-08-05" })).rejects.toThrow("highest applicable"); expect(many.writes).toHaveLength(count);
   });
-  it("selects SP for multiple warehouses in Babelegi and keeps warehouse-based extra charges", async () => {
+  it("selects SP for multiple warehouses in Babelegi without charging additional pickups", async () => {
     const f = fixture();
     const source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
     const warehouses = ["3000-Samca 1 Babelegi, Hammanskraal, RSA", "2100-Samca Wall Tiles Babalegi, Hammanskraal, RSA", "1900-Pegasus Babelegi"];
@@ -68,9 +99,9 @@ describe("Ceramic billing confirmation transaction", () => {
     for (const lane of lanes) lane.loadingPoint = "BABELEGI + KRUGERSDORP + VEREENIGING";
     await f.run(assign); const p = await f.read();
     expect(p.selected).toMatchObject({ variant: "sp", ratePerTon: 570 });
-    expect(p.calculation).toMatchObject({ pickups: 3, pickupTownCount: 1, pickupCharge: 750 });
-    await f.save(p); expect(routeRevenue(f.route())).toBe(23130);
-    expect([...f.table("ceramicAssignments").values()][0].billing).toMatchObject({ automation: { variant: "sp", pickupCount: 3, pickupTownCount: 1 } });
+    expect(p.calculation).toMatchObject({ pickups: 1, pickupTownCount: 1, extraPickups: 0, pickupCharge: 0 });
+    await f.save(p); expect(routeRevenue(f.route())).toBe(22380);
+    expect([...f.table("ceramicAssignments").values()][0].billing).toMatchObject({ automation: { variant: "sp", pickupCount: 1, pickupTownCount: 1 } });
   });
   it("uses customer notices for SP tariffs and preserves confirmed billing after a later notice", async () => {
     const f = fixture(true); f.table("rateSheets").get("sheet")!.agreementType = "customer_notified";
@@ -213,7 +244,7 @@ describe("SH00130726 destination coverage regression", () => {
   it("selects Mossel Bay Standard at 1260.01 but requires review for unmatched Oudtshoorn",async()=>{
     const f=example();await f.run(assign);const p=await f.read();
     expect(p.selected).toMatchObject({destination:"MOSSELBAY/ VOORBAAI",variant:"standard",ratePerTon:1260.01});
-    expect(p.calculation).toMatchObject({pickupTownCount:2,pickups:4,deliveries:5,pickupCharge:1500,dropCharge:2250,mainTotal:46590.34,localTotal:0});
+    expect(p.calculation).toMatchObject({pickupTownCount:2,pickups:2,deliveries:5,pickupCharge:0,dropCharge:2250,mainTotal:45090.34,localTotal:0});
     expect(p.destinationChecks?.filter(stop=>!stop.matched)).toEqual([{destination:"BUILD IT OUDTSHOORN",towns:["OUDTSHOORN"],matched:false,tariffs:[]}]);
     const before=f.writes.length;await expect(f.save(p)).rejects.toThrow("OUDTSHOORN");expect(f.writes).toHaveLength(before);
     await expect(f.save(p,{markForReview:true})).resolves.toMatchObject({complete:false});expect(routeRevenue(f.route())).toBe(0);
@@ -223,7 +254,7 @@ describe("SH00130726 destination coverage regression", () => {
     const f=example();await f.run(assign);
     const lanes=f.table("rateSheets").get("sheet")!.lanes as Row[];lanes[1].destinationTowns=["MOSSEL BAY","VOORBAAI","OUDTSHOORN"];
     const p=await f.read();expect(p.destinationChecks?.every(stop=>stop.matched)).toBe(true);
-    await expect(f.save(p)).resolves.toMatchObject({complete:true});expect(routeRevenue(f.route())).toBe(46590.34);
+    await expect(f.save(p)).resolves.toMatchObject({complete:true});expect(routeRevenue(f.route())).toBe(45090.34);
   });
   it("retains a prior George bill in Planner and history until explicit reconfirmation",async()=>{
     const f=example();await f.run(assign);const lanes=f.table("rateSheets").get("sheet")!.lanes as Row[];

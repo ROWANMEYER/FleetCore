@@ -1,5 +1,31 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Align Ceramic web dispatch with mobile
+
+Web and mobile now share the truck banner, report shortcut, shipment cards,
+Unassigned / Assigned / All filters and shipment-number search. Both Assigned
+lists collapse by the day the assignment was saved in South African time.
+Assigned means a saved driver and truck; it does not mean instructions or
+billing are ready to send. Opening and filtering the web queue no longer
+silently selects a different shipment.
+
+Both surfaces share the three-step progress control: Assign truck & driver,
+Arrange stops, Send. Web retains PDF upload/review, history, record permissions,
+unsaved-change protection, billing checks and its wider detail workspace.
+Saving an assignment continues into stop instructions and switches the queue
+to Assigned. Shared mobile theme tokens support light and dark modes.
+No backend, stored shipment, tariff, Planner or report data was changed.
+
+Validation: 1,276 tests across 81 files, application type checking, changed-file
+lint and the isolated optimized webpack build pass. Shared queue regressions
+cover incomplete instructions remaining Assigned, assignment-save dates,
+collapsed groups, search and report access. Browser verification confirms the
+shared web/mobile layout, collapsed assignment days, day expansion and shipment
+detail progress controls in the isolated localhost app. Screenshots are saved
+in the separate review output folder. The owner authorized committing and
+deploying this tested frontend release. PWA cache advances to fleetcore-v100;
+the existing production backend and stored business data stay unchanged.
+
 ## 2026-11-24 - Ceramic town matching and unmatched delivery safeguards
 
 Canonical delivery town matching recognises MOSSELBAY, MOSSEL BAY, MOSSELBAAI

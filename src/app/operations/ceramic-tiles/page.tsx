@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "@/src/components/ceramic-tiles/CeramicMobile.module.css";
+import { CeramicDispatchHeader } from "@/src/components/ceramic-tiles/CeramicDispatchHeader";
 import { ceramicImportErrors } from "@/src/lib/ceramic-tiles/importValidation";
 import { ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
 import { REGION_LABELS, getUserRegions } from "@/src/lib/regions";
@@ -311,19 +313,12 @@ function CeramicTilesDesktopPage() {
     return <main className="p-6 text-sm text-[var(--nav-text-color)]">Sign in to use Ceramic Tiles.</main>;
   }
 
-  return <main className="h-full overflow-y-auto p-4 lg:p-6 text-[var(--foreground)]">
+  return <main className={`${styles.workspace} overflow-y-auto p-4 lg:p-6`}>
     <div className="mx-auto max-w-[1500px] space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-widest text-[#0891B2]">Operations / Ceramic Tiles</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Ceramic Tiles Shipments</h1>
-          <p className="mt-1 text-sm text-[var(--nav-text-color)]">Review the PDF, assign the load, then prepare the driver instructions.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-        <button type="button" className={`${secondaryButton} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || restoring || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
+      <CeramicDispatchHeader actions={<>
+        <button type="button" className={`${styles.secondary} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || restoring || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
         <span className="text-xs font-semibold">Main loads: {REGION_LABELS.transvaal}</span>
-        </div>
-      </header>
+      </>} />
 
       {failure && <div role="alert" className="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-surface)] p-3 text-sm text-[var(--danger-text)]">{failure}</div>}
       {message && <div role="status" className="rounded-lg border border-[var(--success-border)] bg-[var(--success-surface)] p-3 text-sm text-[var(--success-text)]">{message}</div>}

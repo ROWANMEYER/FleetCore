@@ -1,5 +1,6 @@
 "use client";
 
+import { CeramicDispatchSteps } from "./CeramicDispatchSteps";
 import { CeramicBillingReview } from "./CeramicBillingReview";
 import Link from "next/link";
 import { ceramicAssignmentAccess, ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
@@ -106,10 +107,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
         </div>
         <div className={styles.journey}>
           <Image className={styles.journeyTruck} src="/images/ceramic-mobile/v1/dispatch-truck.png" alt="" width={1774} height={887} sizes="100px" />
-          <p className={styles.stepPill}>Step {step + 1} of 3</p>
-          <nav aria-label="Dispatch steps" className={styles.steps}>
-            {(["Assign truck & driver", "Arrange stops", "Send"] as const).map((label, index) => <button key={label} type="button" aria-current={step === index ? "step" : undefined} disabled={busy || index === 1 && !assignmentReady || index === 2 && !assignmentReady || index === 2 && step === 0 && !reviewReached} onClick={() => goTo(index as Step)} className={styles.step}><span className={styles.stepNumber}>{index < step ? <Check size={15} /> : index + 1}</span><span>{label}</span></button>)}
-          </nav>
+          <CeramicDispatchSteps step={step} disabled={index => busy || index === 1 && !assignmentReady || index === 2 && !assignmentReady || index === 2 && step === 0 && !reviewReached} onStepChange={goTo} />
         </div>
       </header>
       <div role="region" aria-label="Dispatch step content" className={styles.body}>

@@ -149,3 +149,11 @@
 .dayChevron { margin-left: auto; }
 .dayGroup[open] .dayChevron { transform: rotate(180deg); }
 .dayShipments { display: grid; gap: 12px; padding: 0 12px 12px; }
+
+/* Web reuses the mobile theme, assets and queue without constraining desktop width. */
+.webHero { padding: 22px 24px; }
+.webHero .heroCopy { max-width: 650px; padding-right: 180px; }
+.webHero .heroTruck { width: 210px; right: 24px; bottom: 0; }
+.heroActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; padding-right: 180px; }
+.shipmentCard[data-selected='true'] { border-color: var(--cm-accent); box-shadow: 0 0 0 1px var(--cm-accent); }
+@media (min-width: 1024px) { .webHero .listTitle { font-size: 32px; } }

@@ -60,7 +60,7 @@ export function CeramicDriverInstructions({
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-widest text-[#0891B2]">Dispatch instructions</p>
-        <h2 className="text-lg font-semibold">{shipment.shipmentNumber} · Driver handoff</h2>
+        <h2 className="text-lg font-semibold">{embedded ? "Arrange the stops" : `${shipment.shipmentNumber} · Driver handoff`}</h2>
         <p className="text-xs text-[var(--nav-text-color)]">Arrange loading and offloading below, then save before opening WhatsApp.</p>
       </div>
       <button type="button" onClick={onClose} disabled={saving} className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] px-3 py-2 text-xs font-semibold"><X size={14}/>{closeLabel}</button>
@@ -78,7 +78,7 @@ export function CeramicDriverInstructions({
 
     {embedded && <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 shadow-sm">
       <p className="text-xs text-[var(--nav-text-color)]">{assignmentPending ? "Review and save the assignment first." : "Next: review the saved message and choose a WhatsApp recipient."}</p>
-      <button type="button" onClick={() => void saveAndContinue()} disabled={saving || assignmentPending} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0891B2] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"><Save size={15}/>{saving ? "Saving…" : dirty || reviewPending ? "Save & continue to WhatsApp" : "Continue to WhatsApp"}</button>
+      <button type="button" onClick={() => void saveAndContinue()} disabled={saving || assignmentPending} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0891B2] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"><Save size={15}/>{saving ? "Saving…" : "Next: Review & send"}</button>
     </div>}
     <div className={`grid min-w-0 gap-4 ${embedded ? "2xl:grid-cols-2" : "xl:grid-cols-2"}`}>
       <div className="space-y-4">

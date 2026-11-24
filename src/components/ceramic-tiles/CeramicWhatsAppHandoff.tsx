@@ -28,7 +28,7 @@ export function CeramicWhatsAppHandoff({ shipment, fleet, onEditAssignment, onEd
     <button type="button" className={secondary} onClick={handoff.action === "assignment" ? onEditAssignment : onEditInstructions}>{handoff.action === "assignment" ? "Review assignment" : "Review instructions"}<ArrowRight size={16} /></button>
   </div>;
   return <section aria-label="Send shipment to driver" className="space-y-4">
-    <div><h3 className="text-lg font-semibold">Send to driver</h3><p className="mt-1 text-sm text-[var(--nav-text-color)]">The instructions are saved. Review the message, choose the recipient, then open WhatsApp.</p></div>
+    <div><h3 className="text-lg font-semibold">Review and send</h3><p className="mt-1 text-sm text-[var(--nav-text-color)]">The instructions are saved. Review the message, choose the recipient, then open WhatsApp.</p></div>
     <CeramicBillingReview shipmentId={shipment._id} onReadyChange={setBillingReady} onInteractionChange={onInteractionChange} />
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--card-border)] bg-[var(--surface-sunken)] p-3">
       <div className="text-sm"><p className="font-semibold">{handoff.driverName}</p><p className="mt-1 text-xs text-[var(--nav-text-color)]">{handoff.truckLabel} · {shipment.routeDate}</p></div>

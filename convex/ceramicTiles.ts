@@ -1,3 +1,5 @@
+import { ceramicConfigOn } from "./ceramicBilling";
+import { ceramicReportRange } from "../src/lib/ceramic-tiles/billingPeriod";
 import { ceramicImportErrors } from "../src/lib/ceramic-tiles/importValidation";
 import type { Region } from "../src/lib/regions";
 import { ceramicWarehouseWeights } from "../src/lib/ceramic-tiles/monthlyReport";
@@ -340,7 +342,7 @@ export const fleetChoices = query({
 
 /** Month-scoped, paginated reporting; no scan, no public financial/operations access. */
 export const report = query({
-  args: { token: v.string(), region: ceramicRegion, month: v.string(), paginationOpts: paginationOptsValidator },
+  args: { token: v.string(), region: ceramicRegion, month: v.string(), startDate: v.optional(v.string()), endDate: v.optional(v.string()), paginationOpts: paginationOptsValidator },
   returns: v.object({ page: v.array(ceramicReportRow), isDone: v.boolean(), continueCursor: v.string(),
     splitCursor: v.optional(v.union(v.string(), v.null())),
     pageStatus: v.optional(v.union(v.literal("SplitRecommended"), v.literal("SplitRequired"), v.null())),
@@ -349,8 +351,11 @@ export const report = query({
     const { region } = await requireFinancialRegion(ctx, args.token, args.region);
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(args.month)) throw new Error("Choose a valid report month.");
     if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100) throw new Error("Read 1 to 100 report rows per page.");
+    const config = await ceramicConfigOn(ctx, `${args.month}-01`);
+    const range = ceramicReportRange(args.month, args.startDate, args.endDate, config.billingStartDay);
+    const exclusive = new Date(`${range.end}T00:00:00Z`); exclusive.setUTCDate(exclusive.getUTCDate() + 1);
     const records = await ctx.db.query("ceramicAssignments").withIndex("by_region_active_routeDate", q =>
-      q.eq("region", region).eq("deletedAt", undefined).gte("routeDate", `${args.month}-01`).lt("routeDate", `${args.month}-32`))
+      q.eq("region", region).eq("deletedAt", undefined).gte("routeDate", range.start).lt("routeDate", exclusive.toISOString().slice(0, 10)))
       .paginate(args.paginationOpts);
     const page = await Promise.all(records.page.map(async row => {
       const [current, route, truck] = await Promise.all([ctx.db.get(row.shipmentId), ctx.db.get(row.routeId), ctx.db.get(row.truckId)]);
@@ -362,7 +367,8 @@ export const report = query({
         deliveryNumbers: row.snapshot.destinations.flatMap(d => d.orders.map(o => o.deliveryNumber)),
         weightKg: row.snapshot.totalWeightKg, pallets: row.snapshot.totalPallets,
         needsReview: !current || current.version !== row.snapshot.version || !route || !!route.isDeleted ||
-          route.routeDate !== row.routeDate || route.driverName !== row.driverName || route.truckFleetNoStr !== row.truckFleetNo,
+          route.routeDate !== row.routeDate || route.driverName !== row.driverName || route.truckFleetNoStr !== row.truckFleetNo ||
+          !!row.billing?.automation && (row.billing.automation.status !== "confirmed" || row.billing.automation.routeDate !== row.routeDate || row.billing.automation.mainTotal !== route.ceramicBillingTotal),
         truckRegistration: row.truckRegistration ?? truck?.registration ?? "",
         ...(row.billing ? { billing: row.billing } : {}), billingUpdatedAt: row.billingUpdatedAt ?? 0,
         ...(row.billingSourceVersion !== undefined ? { billingSourceVersion: row.billingSourceVersion } : {}),
@@ -386,6 +392,7 @@ export const saveReportBilling = mutation({
     if ((row.billingUpdatedAt ?? 0) !== args.expectedBillingUpdatedAt) throw new Error("Amounts changed. Reopen the editor to avoid overwriting another user's changes.");
     if (!route || route.isDeleted || (route.status || "planned") !== "planned" ||
       await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", row.routeId)).first()) throw new Error("This load is deleted, completed, locked or invoiced. Its report amounts cannot be changed.");
+    if (row.billing?.automation || args.billing.automation) throw ceramicAssignmentError("Use the automated billing review to update this shipment. Its saved calculations were preserved.");
     const billing = args.billing;
     const amounts = [billing.ratePerTon, billing.stops, billing.drops, ...billing.locals.map(local => local.price)];
     if (amounts.some(n => n !== null && (!Number.isFinite(n) || Math.abs(n) > 1e12))) throw new Error("Enter valid amounts.");

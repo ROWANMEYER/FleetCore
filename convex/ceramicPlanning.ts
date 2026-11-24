@@ -1,3 +1,4 @@
+import { ceramicBilledMainLoad } from "../src/lib/ceramic-tiles/billing";
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -47,7 +48,8 @@ export async function syncCeramicAssignment(ctx: MutationCtx, shipment: Doc<"cer
     const invoice = await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", route._id)).first();
     if ((route.status || "planned") !== "planned" || invoice) throw ceramicAssignmentError("This Planner load is completed, locked or invoiced. Review it before changing the assignment.");
     const sourceChanged = !ceramicEqual(existing.snapshot, shipment.snapshot);
-    const manuallyEdited = !ceramicEqual(route.loads, [ceramicMainLoad(existing.snapshot, shipment._id)]) ||
+    const previousLoad = route.ceramicBillingTotal !== undefined && route.ceramicBillingTons !== undefined ? ceramicBilledMainLoad(existing.snapshot, shipment._id, route.ceramicBillingTons, route.ceramicBillingTotal, route.ceramicRatePerTon !== undefined && route.ceramicExtraStopCharge !== undefined ? { ratePerTon: route.ceramicRatePerTon, extraStops: route.ceramicExtraStopCharge } : undefined) : ceramicMainLoad(existing.snapshot, shipment._id);
+    const manuallyEdited = !ceramicEqual(route.loads, [previousLoad]) ||
       route.rate !== 0 || route.kilometers !== 0 || route.routeKilometers !== undefined || !!route.legs?.length ||
       route.notes !== `${existing.snapshot.shipmentNumber}: rate and kilometres need review.`;
     if (sourceChanged && manuallyEdited) {
@@ -56,7 +58,7 @@ export async function syncCeramicAssignment(ctx: MutationCtx, shipment: Doc<"cer
     routeId = route._id;
     await ctx.db.patch(routeId, {
       region: CERAMIC_MAIN_REGION, routeDate: input.routeDate, driverName, truckFleetNoStr: truckFleetNo, truckFleetNo: undefined,
-      ...(sourceChanged ? { loads: [load], client: load.client, fromLocations: load.fromLocations,
+      ...(sourceChanged ? { ceramicBillingTotal: undefined, ceramicBillingTons: undefined, ceramicRatePerTon: undefined, ceramicExtraStopCharge: undefined, loads: [load], client: load.client, fromLocations: load.fromLocations,
         fromLocation: load.fromLocations[0], toLocations: load.toLocations, ceramicVersion: shipment.version } : {}),
     });
   } else {

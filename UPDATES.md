@@ -1,5 +1,70 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Release Ceramic billing automation
+
+The owner authorized proceeding with the tested billing implementation. Release
+includes the existing web/mobile internal billing review, single-warehouse SP,
+main-only Planner pricing, separate local transport charges, adjustable billing
+periods/settings and immutable billing snapshots. Existing theme and template
+remain in place. Backend is released before the frontend; existing records are
+checked by bounded counts/checksums with no automatic billing migration. Private
+release verification records the commit, deployment and live checks. Local PDFs
+and mockup files are excluded from Git and deployment.
+
+
+## 2026-11-23 - Ceramic billing automation in existing screens
+
+Implemented the agreed calculation workflow in the current shipment send steps,
+report page and workbook template. No mockup layout, theme, image or dashboard was
+used. Single-warehouse collections use SP; multiple warehouses use standard
+rates, including when warehouses share a town. The highest applicable tariff is
+used across the whole main load. Matching respects loading groups, individual
+lane dates, historical tariff snapshots and the planning-day fuel changes using
+the existing composition/fixed-agreement arithmetic.
+
+The internal billing review defaults to 34 chargeable tons with an editable
+exception. Two pickups and two delivery destinations are included; additional
+pickups/drops use the configurable R750 default. Local legs are separate report
+transport charges: <=12 tons AND <=12 pallets costs R2700, otherwise R5400.
+Missing local pallet data or tariffs flags billing for review without preventing
+operational dispatch after that review is saved. Prices are not added to driver
+messages or the anonymous mobile endpoints.
+
+Authenticated confirmation recalculates on the server, checks source/assignment,
+settings and price fingerprints plus billing edit timestamps, then atomically
+updates the existing main Planner load and reporting assignment. Planner revenue
+is main freight plus additional pickups/drops only, stored as one flat main load
+with a billing breakdown in its existing notes. Locals never create Planner rows.
+Manual load edits and removed/completed/locked/invoiced routes are protected.
+Original PDFs, actual weights, existing amounts and Customer Rates calculations
+are retained. Confirmed billing remains a stored historical snapshot; subsequent
+tariff edits cannot rewrite it on read or prevent resending saved instructions.
+Historical, completed or invoiced load screens show only stored prices and keep
+operational instructions available without forcing a reprice.
+Prior manual billing is archived before its first confirmed replacement.
+
+Administrators can save effective-dated pricing rules and the Ceramic customer
+binding in a native settings disclosure on the report page. Reports default to
+25th-24th with adjustable dates and use the ending month as their name. Main/local
+summaries are explicitly for loaded rows; exports still read every page. The
+existing spreadsheet layout, warehouse allocation and original footer/external
+link formulas are retained. Only rows with an explicit tonnage exception replace
+that row's fixed *34 freight multiplier with the approved tonnage. Default and
+historical manual rows keep their exact existing formulas.
+
+Validation: 1,205 tests across 76 files pass, including actual XLSX formula checks,
+SP and threshold cases, past/future tariff selection and protected transaction
+cases. Backend and application TypeScript checks and full lint pass (zero errors;
+64 existing warnings). Actual localhost imports, assignments and confirmations
+verify standard/SP prices, 28-ton overrides, report-only local charges, no extra
+Planner rows, no public billing exposure and unchanged unrelated report records.
+Optimized build passed. The development backend is updated and all pre-existing
+customer/rate/Planner/shipment/report counts and checksums are unchanged. Production
+remains unchanged; no commit or production deployment requested for this
+implementation. Build and development verification are recorded privately.
+PWA cache advances to v95 for the next release.
+
+
 ## 2026-11-23 - Collapse web shipments by saved assignment day
 
 The web shipment queue now uses the same South African assignment-save day groups

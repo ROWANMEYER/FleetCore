@@ -67,7 +67,8 @@ export function buildCeramicTemplateSheets(rows: CeramicReportRow[], month: stri
       put(3, row.truckRegistration ?? ""); put(4, row.driverName); put(5, `FLEET ${row.truckFleetNo}`); put(6, row.billing?.load ?? ""); put(7, row.billing?.ratePerTon ?? null);
       CERAMIC_WAREHOUSES.forEach((warehouse, i) => { const weight = row.warehouseWeights?.find(w => w.code === warehouse.code)?.weightKg ?? 0;
         put(8 + i * 2, weight); put(9 + i * 2, amounts.allocated.find(w => w.code === warehouse.code)?.amount ?? null, [1,3,4].includes(i) ? `AC${r}*${warehouse.weightColumn}${r}` : `${warehouse.weightColumn}${r}*AC${r}`); });
-      put(24, amounts.freight, `H${r}*34`); put(25, ceramicStopsCharge(row.billing)); put(26, null);
+      const tons = row.billing?.automation?.chargeableTons ?? 34;
+      put(24, amounts.freight, Number.isInteger(tons) ? `H${r}*${tons}` : `ROUND(H${r}*${tons},2)`); put(25, ceramicStopsCharge(row.billing)); put(26, null);
       put(27, amounts.total, `Y${r}+Z${r}+AA${r}`); put(28, amounts.ratePerKg, `(AB${r}/AD${r})`);
       put(29, amounts.loadedWeight, CERAMIC_WAREHOUSES.map(w => `${w.weightColumn}${r}`).join("+"));
       put(30, amounts.invoicePrice, CERAMIC_WAREHOUSES.map(w => `${w.amountColumn}${r}`).join("+")); put(31, amounts.variance, `AE${r}-AB${r}`);

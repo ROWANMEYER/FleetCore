@@ -1,5 +1,6 @@
 "use client";
 
+import { CeramicBillingReview } from "./CeramicBillingReview";
 import Link from "next/link";
 import { ceramicAssignmentAccess, ceramicErrorMessage } from "@/src/lib/ceramic-tiles/assignmentAccess";
 import { getRegionLabel } from "@/src/lib/regions";
@@ -39,6 +40,8 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   const [editingAssignment, setEditingAssignment] = useState(!ceramicAssignmentComplete(shipment));
   const [assigning, setAssigning] = useState(false);
   const [assignmentError, setAssignmentError] = useState("");
+  const [billingInteraction, setBillingInteraction] = useState({ dirty: false, saving: false });
+  const [billingReady, setBillingReady] = useState(false);
   const [reviewReached, setReviewReached] = useState(false);
   const [recipientMode, setRecipientMode] = useState<WhatsAppRecipientMode>(() => normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === shipment.driverId)?.phone) ? "system" : "manual");
   const [manualNumber, setManualNumber] = useState("");
@@ -50,11 +53,11 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   const chosenTruck = fleet.trucks.find(truck => truck.id === truckId);
   const assignmentDirty = driverId !== (shipment.driverId ?? "") || truckId !== (shipment.truckId ?? "") || routeDate !== shipment.routeDate || shipment.plannerVersion !== shipment.version;
   const assignmentReady = ceramicAssignmentComplete(shipment) && !assignmentDirty && !!instructions.assignedDriver && !!instructions.assignedTruck;
-  const busy = assigning || instructions.saving;
+  const busy = assigning || instructions.saving || billingInteraction.saving;
   const stops = orderedCeramicStops(shipment.snapshot, instructions.currentStopOrder);
   const href = whatsAppDraftHref(instructions.message, recipientMode, instructions.assignedDriver?.phone, manualNumber);
   const reviewPending = ceramicWorkflowStage(shipment) === "instructions";
-  const canSend = assignmentReady && reviewReached && !reviewPending && instructions.canOpenWhatsApp && !!href && !busy;
+  const canSend = billingReady && assignmentReady && reviewReached && !reviewPending && instructions.canOpenWhatsApp && !!href && !busy;
   useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); headingRef.current?.focus({ preventScroll: true }); }, [step]);
 
   const confirmAssignment = async () => {
@@ -79,7 +82,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   };
   const leave = () => {
     if (busy) return;
-    if ((assignmentDirty || instructions.hasEdits) && !window.confirm("Leave this shipment? Changes you have not saved with Next will be lost.")) return;
+    if ((assignmentDirty || instructions.hasEdits || billingInteraction.dirty) && !window.confirm("Leave this shipment? Changes you have not saved with Next will be lost.")) return;
     onBack();
   };
   const saveReviewChanges = async () => { if (!busy && assignmentReady) await instructions.handleSave(); };
@@ -132,8 +135,9 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
       </section>}
       {step === 1 && <div className={styles.panel}><CeramicStopOrderEditor shipment={shipment.snapshot} order={instructions.currentStopOrder} onChange={order => { instructions.setStopOrder(order); instructions.setSuccess(""); }} disabled={busy} compact activeTab={stopTab} onTabChange={setStopTab} /></div>}
       {step === 2 && <section aria-label="Review shipment" className={styles.review}>
+        <CeramicBillingReview shipmentId={shipment._id} onReadyChange={setBillingReady} onInteractionChange={setBillingInteraction} />
         <div className={styles.reviewSummary}><strong>{instructions.assignedDriver?.name} · {[instructions.assignedTruck?.fleetNumber, instructions.assignedTruck?.registration].filter(Boolean).join(" · ")}</strong><p><small>Loading</small>{stops.pickups.map(town => town.label).join(" → ")}</p><p><small>First delivery</small>{stops.offloads[0]?.label}<small>{Math.max(0, stops.offloads.length - 1)} more, in your order</small></p></div>
-        <details><summary>View full WhatsApp message</summary><div className={styles.message} aria-label="Review WhatsApp driver instructions">{instructions.message}</div><button type="button" disabled={!instructions.canOpenWhatsApp || reviewPending || busy} onClick={() => void instructions.copyMessage()} className={`${styles.secondary} mt-3`}><ClipboardCopy size={16} />Copy message</button></details>
+        <details><summary>View full WhatsApp message</summary><div className={styles.message} aria-label="Review WhatsApp driver instructions">{instructions.message}</div><button type="button" disabled={!billingReady || !instructions.canOpenWhatsApp || reviewPending || busy} onClick={() => void instructions.copyMessage()} className={`${styles.secondary} mt-3`}><ClipboardCopy size={16} />Copy message</button></details>
         <details><summary>Edit safety &amp; extra notes</summary><label className={`${styles.label} mt-2`}>Safety instructions<textarea rows={4} maxLength={4000} value={instructions.safetyNotes} disabled={busy} onChange={event => instructions.setSafetyNotes(event.target.value)} className={field} /></label><label className={`${styles.label} mt-3`}>Extra notes<textarea rows={3} maxLength={4000} value={instructions.additionalNotes} disabled={busy} onChange={event => instructions.setAdditionalNotes(event.target.value)} className={field} placeholder="Anything else the driver needs to know?" /></label></details>
         <div className={styles.panel}><WhatsAppRecipientFields systemNumber={instructions.assignedDriver?.phone} mode={recipientMode} onModeChange={setRecipientMode} manualNumber={manualNumber} onNumberChange={setManualNumber} disabled={busy} /></div>
         {instructions.success && <p role="status" className={styles.success}>{instructions.success}</p>}
@@ -144,7 +148,7 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
       </aside>
     </div>
     <footer role="region" aria-label="Dispatch actions" className={styles.footer}>
-      <p aria-live="polite" className={styles.footerHint}>{busy ? "Saving…" : step === 0 ? !chosenDriver || !chosenTruck ? "Choose a truck and driver to continue." : !routeDate ? "Choose the planning date to continue." : assignmentDirty && !user ? "Sign in to save this assignment." : "Next confirms the assignment." : step === 1 ? "Next saves and reviews this stop order." : instructions.dirty || reviewPending ? "Save the instructions before opening WhatsApp." : "Assignment and instructions saved · opens a draft only"}</p>
+      <p aria-live="polite" className={styles.footerHint}>{busy ? "Saving…" : step === 0 ? !chosenDriver || !chosenTruck ? "Choose a truck and driver to continue." : !routeDate ? "Choose the planning date to continue." : assignmentDirty && !user ? "Sign in to save this assignment." : "Next confirms the assignment." : step === 1 ? "Next saves and reviews this stop order." : instructions.dirty || reviewPending ? "Save the instructions before opening WhatsApp." : !billingReady ? "Confirm internal billing or flag it for review before sending." : "Assignment, instructions and billing reviewed"}</p>
       <div className={styles.actions}>{step > 0 && <button type="button" disabled={busy} onClick={() => setStep(step === 2 ? 1 : 0)} className={styles.secondary}>Back</button>}
         {step === 0 && <button type="button" disabled={!chosenDriver || !chosenTruck || !routeDate || (assignmentDirty && !canEditAssignment) || busy} onClick={() => void confirmAssignment()} className={primary}>{busy ? "Saving…" : "Next: Arrange stops"}<ChevronRight size={19} /></button>}
         {step === 1 && <button type="button" disabled={!assignmentReady || busy} onClick={() => void reviewInstructions()} className={primary}>{busy ? "Saving…" : "Next: Review & send"}<ChevronRight size={19} /></button>}

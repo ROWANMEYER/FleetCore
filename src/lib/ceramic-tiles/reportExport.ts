@@ -20,15 +20,15 @@ export function ceramicReportSheets(rows: CeramicReportRow[]): { name: string; r
     ] },
   ];
 }
-export async function downloadCeramicReports(rows: CeramicReportRow[], month: string, region: string) {
+export async function downloadCeramicReports(rows: CeramicReportRow[], month: string, region: string, range?: { start: string; end: string }) {
   const { buildCeramicTemplateSheets } = await import("./templateWorkbook");
   const { ceramicTemplateExcel } = await import("./templateExport");
   for (const row of rows) {
     if (row.needsReview || row.unmappedWarehouses?.length) throw new Error(`${row.shipmentNumber}: review the shipment and collection warehouse codes before exporting.`);
-    if (!row.billing || row.billingSourceVersion !== row.version || [row.billing.ratePerTon, row.billing.stops, row.billing.drops].some(value => value === null)) throw new Error(`${row.shipmentNumber}: save rate per ton and the stops charge before exporting. Stop charging rules are awaiting confirmation; enter an amount only when confirmed.`);
+    if (!row.billing || row.billingSourceVersion !== row.version || [row.billing.ratePerTon, row.billing.stops, row.billing.drops].some(value => value === null)) throw new Error(`${row.shipmentNumber}: save rate per ton and the stops charge before exporting. Review and confirm the shipment billing.`);
     if (row.locals.some(leg => { const input = row.billing?.locals.find(item => item.key === leg.key); return !input || input.price === null || !input.from.trim() || !input.to.trim(); })) throw new Error(`${row.shipmentNumber}: open the Local loads report to save each local price and its Van/Na locations before exporting.`);
   }
   const bytes = await ceramicTemplateExcel(buildCeramicTemplateSheets(rows, month));
   const { downloadFile } = await import("@/src/lib/exports/utils");
-  downloadFile(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Ceramic-${region}-${month}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  downloadFile(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `Ceramic-${region}-${month}${range ? `-${range.start}-to-${range.end}` : ""}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 }

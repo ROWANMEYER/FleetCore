@@ -1,3 +1,4 @@
+import { ceramicAutomation } from "./ceramicBillingFields";
 import { regionValidator } from "./regionFields";
 import { v } from "convex/values";
 
@@ -40,6 +41,7 @@ export const ceramicLocalLeg = v.object({
   deliveryNumbers: v.array(v.string()), weightKg: v.number(), pallets: ceramicNullableNumber,
 });
 export const ceramicBilling = v.object({
+  automation: v.optional(ceramicAutomation),
   ratePerTon: ceramicNullableNumber, stops: ceramicNullableNumber, drops: ceramicNullableNumber,
   crossBorder: v.string(), load: v.string(),
   locals: v.array(v.object({ key: v.string(), from: v.string(), to: v.string(), price: ceramicNullableNumber })),

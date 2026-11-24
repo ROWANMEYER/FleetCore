@@ -10,7 +10,10 @@ export const CERAMIC_WAREHOUSES = [
   { code: "1500", label: "Beta Baths(1500)", weightColumn: "U", amountColumn: "V" },
   { code: "1700", label: "Gryphon (1700)", weightColumn: "W", amountColumn: "X" },
 ] as const;
+import type { Infer } from "convex/values";
+import type { ceramicAutomation } from "../../../convex/ceramicBillingFields";
 export type CeramicBilling = {
+  automation?: Infer<typeof ceramicAutomation>;
   ratePerTon: number | null; stops: number | null; drops: number | null; crossBorder: string; load: string;
   locals: { key: string; from: string; to: string; price: number | null }[];
 };
@@ -34,10 +37,10 @@ export function ceramicWarehouseWeights(snapshot: CeramicShipment) {
 }
 export function ceramicMonthlyAmounts(weights: { code: string; weightKg: number }[], billing?: CeramicBilling) {
   const loadedWeight = weights.reduce((sum, w) => sum + w.weightKg, 0);
-  const ready = !!billing && [billing.ratePerTon, billing.stops, billing.drops].every(value => value !== null && Number.isFinite(value)) && loadedWeight > 0;
+  const ready = !!billing && (!billing.automation || billing.automation.status === "confirmed") && [billing.ratePerTon, billing.stops, billing.drops].every(value => value !== null && Number.isFinite(value)) && loadedWeight > 0;
   if (!ready) return { loadedWeight, freight: null, total: null, ratePerKg: null, invoicePrice: null, variance: null, allocated: weights.map(w => ({ ...w, amount: null })) };
-  const freight = billing.ratePerTon! * 34;
-  const total = freight + billing.stops! + billing.drops!;
+  const freight = billing.automation?.freight ?? billing.ratePerTon! * 34;
+  const total = billing.automation?.mainTotal ?? freight + billing.stops! + billing.drops!;
   const ratePerKg = total / loadedWeight;
   const allocated = weights.map(w => ({ ...w, amount: w.weightKg * ratePerKg }));
   const invoicePrice = allocated.reduce((sum, w) => sum + w.amount, 0);

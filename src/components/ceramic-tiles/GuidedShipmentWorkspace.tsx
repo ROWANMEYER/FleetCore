@@ -44,14 +44,14 @@ export function GuidedShipmentWorkspace({ canManageRecords = true, rows, fleet, 
   const busy = disabled || interaction.saving || savingId !== null;
   const select = (number: string) => {
     if (busy || number === selected?.shipmentNumber) return;
-    if (interaction.dirty && !window.confirm("Leave this shipment? Unsaved driver-instruction changes will be lost.")) return;
+    if (interaction.dirty && !window.confirm("Leave this shipment? Unsaved shipment changes will be lost.")) return;
     onSelect(number);
   };
   const changeFilter = (value: "action" | "ready" | "all") => {
     if (busy) return;
     const candidates = value === "all" ? records : records.filter(row => (ceramicWorkflowStage(row) === "ready") === (value === "ready"));
     if (selected && !candidates.some(row => row._id === selected._id) && candidates[0]) {
-      if (interaction.dirty && !window.confirm("Leave this shipment? Unsaved driver-instruction changes will be lost.")) return;
+      if (interaction.dirty && !window.confirm("Leave this shipment? Unsaved shipment changes will be lost.")) return;
       onSelect(candidates[0].shipmentNumber);
     }
     setFilter(value);
@@ -146,7 +146,7 @@ function ShipmentTask({ canManageRecords = true, row, fleet, token, region, draf
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--card-border)] pt-4"><span className="text-xs text-[var(--nav-text-color)]">Next: Driver instructions</span><button type="submit" disabled={busy || !fleet} className={primary}>{saving ? "Saving…" : "Save & continue"}<ArrowRight size={16} /></button></div>
       </form>
     </> : activeStep === "instructions" ? !fleet ? <p role="status" className="text-sm">Loading driver and truck details…</p> : <>{needsAssignment && <div role="alert" className="mb-4 space-y-3 rounded-lg border border-[var(--warning-border)] p-3 text-sm text-[var(--warning-text)]"><p>The assignment needs review before these instructions can be saved or shared. Your open notes are kept below.</p><button type="button" onClick={() => changeStep("assignment")} className={secondary}>Review assignment</button></div>}<CeramicDriverInstructions assignmentPending={needsAssignment} shipment={row} token={token} region={region} drivers={fleet.drivers} trucks={fleet.trucks} onClose={() => changeStep(liveStage === "ready" ? "ready" : "assignment")} requireVersionReview embedded closeLabel={liveStage === "ready" ? "Back to WhatsApp" : "Back to assignment"} onSaveStart={onSaveStart} onStateChange={setInstructionState} onSaved={() => { setInstructionState({ dirty: false, saving: false }); setSavedAssignment(false); setStep("ready"); onPrepared(); }} /></> : <>
-      {!fleet ? <p role="status" className="text-sm">Loading the assigned driver and truck…</p> : <CeramicWhatsAppHandoff key={`${row._id}:${row.driverInstructions?.updatedAt ?? 0}`} shipment={row} fleet={fleet} onEditAssignment={() => changeStep("assignment")} onEditInstructions={() => changeStep("instructions")} onNext={onNext} />}
+      {!fleet ? <p role="status" className="text-sm">Loading the assigned driver and truck…</p> : <CeramicWhatsAppHandoff key={`${row._id}:${row.driverInstructions?.updatedAt ?? 0}`} shipment={row} fleet={fleet} onEditAssignment={() => changeStep("assignment")} onEditInstructions={() => changeStep("instructions")} onInteractionChange={setInstructionState} onNext={onNext} />}
 
     </>}
   </section>;

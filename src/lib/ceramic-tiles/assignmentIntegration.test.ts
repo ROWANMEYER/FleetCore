@@ -37,6 +37,7 @@ function fixture(role = "admin", region: string | undefined = undefined, shipmen
       const filters: ((row: Row) => boolean)[] = [];
       const index = {
         eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return index; },
+        lte: (key: string, value: string) => { filters.push(row => String(row[key]) <= value); return index; },
         gte: (key: string, value: string) => { filters.push(row => String(row[key]) >= value); return index; },
         lt: (key: string, value: string) => { filters.push(row => String(row[key]) < value); return index; },
       };

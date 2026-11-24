@@ -48,7 +48,7 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
     <form onSubmit={event => void submit(event)} className="max-h-[85dvh] overflow-y-auto p-5 text-[var(--foreground)]">
       <h2 className="text-lg font-semibold">{mode === "main" ? "Amounts" : "Local amounts"} for {row.shipmentNumber}</h2>
       {mode === "main" ? <>
-        <p className="mt-1 text-xs text-[var(--nav-text-color)]">Freight = rate per ton × 34. Blank means not entered. Stop charging rules are awaiting confirmation.</p>
+        <p className="mt-1 text-xs text-[var(--nav-text-color)]">Freight = rate per ton × 34. Blank means not entered. Automatic billing is available in Review rate & charges. This editor preserves legacy manual amounts.</p>
         <details className="mt-4 rounded-lg border border-[var(--card-border)] p-3 text-sm">
           <summary className="cursor-pointer font-semibold">Delivery stops from PDF: {deliveryStops.length}</summary>
           <p className="mt-2 text-xs text-[var(--nav-text-color)]">Collections are excluded. Multiple orders at the same delivery location count once.</p>

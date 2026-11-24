@@ -1,3 +1,4 @@
+import { ceramicBillingRules } from "./ceramicBillingFields";
 import { regionValidator } from "./regionFields";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
@@ -6,6 +7,8 @@ import { driverPhoneNumber } from "./driverPhoneFields";
 import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder, ceramicBilling } from "./ceramicTilesFields";
 
 export default defineSchema({
+  ceramicBillingSettings: defineTable({ ...ceramicBillingRules, effectiveDate: v.string(), customerId: v.optional(v.id("customers")), createdAt: v.number(), createdBy: v.id("users") }).index("by_effectiveDate", ["effectiveDate"]),
+  ceramicBillingHistory: defineTable({ shipmentId: v.id("ceramicShipments"), routeDate: v.string(), version: v.number(), billing: ceramicBilling, recordedAt: v.number(), recordedBy: v.string(), reason: v.string() }).index("by_shipment", ["shipmentId"]),
   /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
   ceramicShipments: defineTable({
     region: ceramicRegion,
@@ -152,6 +155,8 @@ export default defineSchema({
   dailyRoutes: defineTable({
     ceramicShipmentId: v.optional(v.id("ceramicShipments")),
     ceramicVersion: v.optional(v.number()),
+    ceramicBillingTotal: v.optional(v.number()), ceramicBillingTons: v.optional(v.number()),
+    ceramicRatePerTon: v.optional(v.number()), ceramicExtraStopCharge: v.optional(v.number()),
     client: v.string(),
     createdAt: v.float64(),
     deletedAt: v.optional(v.float64()),

@@ -1,3 +1,4 @@
+import { ceramicTownNames } from "../src/lib/ceramic-tiles/destinationTowns";
 import { customerAdjustmentDocument, customerAdjustmentRate } from "./customerAdjustmentFields";
 import { customerRateOnDate } from "../src/lib/fuel/customerAdjustments";
 import { ConvexError, v, type Infer } from "convex/values";
@@ -65,16 +66,19 @@ export function normalizeLanes(input: SheetLane[], previous: SheetLane[]): Sheet
     const date = lane.date?.trim();
     if (date && !validDay(date)) throw new Error(`${loadingPoint} to ${destination} needs a valid date in YYYY-MM-DD format.`);
     if (!Number.isFinite(lane.rate) || lane.rate < 0) throw new Error(`${loadingPoint} to ${destination} needs a rate of zero or more.`);
+    const mapped = lane.destinationTowns ?? previous.find(p => p.id === lane.id)?.destinationTowns ?? [];
+    if (mapped.length > 32 || mapped.some(town => !town.trim() || town.length > 80 || !ceramicTownNames([town]).length)) throw new Error("Map up to 32 delivery towns per lane, with names of 1 to 80 characters.");
+    const destinationTowns = ceramicTownNames(mapped);
     const id = lane.id && previous.some(p => p.id === lane.id) ? lane.id : crypto.randomUUID();
     if (ids.has(id)) throw new Error("Each lane must have its own id.");
     ids.add(id);
-    return { id, loadingPoint, destination, ...(lane.pricingUnit ? { pricingUnit: lane.pricingUnit } : {}), ...(date ? { date } : {}), rate: money(lane.rate), sortOrder: index };
+    return { id, loadingPoint, destination, ...(destinationTowns.length ? { destinationTowns } : {}), ...(lane.pricingUnit ? { pricingUnit: lane.pricingUnit } : {}), ...(date ? { date } : {}), rate: money(lane.rate), sortOrder: index };
   });
 }
 export function sameState(a: SheetState, b: SheetState) {
   return a.effectiveDate === b.effectiveDate && a.notes === b.notes && a.oldDieselPrice === b.oldDieselPrice && a.newDieselPrice === b.newDieselPrice
     && a.agreementType === b.agreementType && a.fuelCompositionPercent === b.fuelCompositionPercent
-    && a.lanes.length === b.lanes.length && a.lanes.every((l, i) => l.loadingPoint === b.lanes[i].loadingPoint && l.destination === b.lanes[i].destination && l.rate === b.lanes[i].rate && l.pricingUnit === b.lanes[i].pricingUnit && l.date === b.lanes[i].date);
+    && a.lanes.length === b.lanes.length && a.lanes.every((l, i) => l.loadingPoint === b.lanes[i].loadingPoint && l.destination === b.lanes[i].destination && l.rate === b.lanes[i].rate && l.pricingUnit === b.lanes[i].pricingUnit && l.date === b.lanes[i].date && JSON.stringify(ceramicTownNames(l.destinationTowns ?? [])) === JSON.stringify(ceramicTownNames(b.lanes[i].destinationTowns ?? [])));
 }
 const stateOf = (sheet: Sheet): SheetState => ({ effectiveDate: sheet.effectiveDate, notes: sheet.notes, oldDieselPrice: sheet.oldDieselPrice, newDieselPrice: sheet.newDieselPrice, lanes: sheet.lanes, ...(sheet.agreementType ? { agreementType: sheet.agreementType } : {}), ...(sheet.fuelCompositionPercent !== undefined ? { fuelCompositionPercent: sheet.fuelCompositionPercent } : {}) });
 

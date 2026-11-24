@@ -1,11 +1,12 @@
+import { ceramicDestinationMatches } from "./destinationTowns";
 import { customerRateOnDate, type CustomerAdjustment } from "../fuel/customerAdjustments";
 import { cents, compositionEffect, percentChange } from "../../../convex/fuelPriceFields";
 import { DEFAULT_FUEL_COMPOSITION, validDay, type AgreementType } from "../../../convex/rateSheetFields";
 type FuelPeriod = { effectiveDate: string; pricePerLitre: number; compositionPercent?: number };
 import type { CeramicShipment } from "./parser";
 import { billingNormalize } from "./billing";
-export type CeramicTariffState = { sheetId: string; revision: number; recordedAt: number; effectiveDate?: string; defaultPricingUnit: string; agreementType?: AgreementType; fuelCompositionPercent?: number; lanes: { id: string; loadingPoint: string; destination: string; rate: number; date?: string; pricingUnit?: string; sortOrder: number }[] };
-export type CeramicTariffChoice = { key: string; sheetId: string; revision: number; laneId: string; loadingPoint: string; destination: string; effectiveDate: string; ratePerTon: number; variant: "standard" | "sp"; matchedDestinations: string[] };
+export type CeramicTariffState = { sheetId: string; revision: number; recordedAt: number; effectiveDate?: string; defaultPricingUnit: string; agreementType?: AgreementType; fuelCompositionPercent?: number; lanes: { id: string; loadingPoint: string; destination: string; rate: number; date?: string; pricingUnit?: string; destinationTowns?: string[]; sortOrder: number }[] };
+export type CeramicTariffChoice = { key: string; sheetId: string; revision: number; laneId: string; loadingPoint: string; destination: string; effectiveDate: string; ratePerTon: number; variant: "standard" | "sp"; destinationTowns?: string[]; matchedDestinations: string[] };
 /** Same composition arithmetic as Customer Rates, bounded by the exact planning day. */
 export function ceramicRateOnDate(base: number, baseDay: string, day: string, fuel: FuelPeriod[], agreement: { agreementType?: AgreementType; fuelCompositionPercent?: number; customerAdjustments?: CustomerAdjustment[]; laneId?: string; sheetId?: string } = {}): number | null {
   if (!validDay(baseDay) || !validDay(day) || baseDay > day || !Number.isFinite(base) || base < 0) return null;
@@ -24,13 +25,7 @@ export function ceramicRateOnDate(base: number, baseDay: string, day: string, fu
   }
   return value;
 }
-const aliases: Record<string, string[]> = { "PLETT": ["PLETTENBERG BAY", "PLETT"], "GEO": ["GEORGE"], "MBAAI": ["MOSSEL BAY", "MOSSELBAAI"], "MOSSELBAAI": ["MOSSEL BAY", "MOSSELBAAI"], "PE": ["PORT ELIZABETH", "GQEBERHA"], "PORT ELIZABETH": ["PORT ELIZABETH", "GQEBERHA"], "BABALEGI": ["BABALEGI", "BABELEGI"] };
 const phrase = (text: string, term: string) => (` ${text} `).includes(` ${term} `);
-function destinationMatches(destination: CeramicShipment["destinations"][number], lane: string) {
-  const terms = lane.replace(/\(SP\)/ig, "").split(/\s*[/+]\s*/).map(billingNormalize).filter(Boolean).flatMap(term => aliases[term] ?? [term]);
-  const name = billingNormalize(destination.name);
-  return terms.some(term => phrase(name, term) || destination.addressLines.some(line => { const address = billingNormalize(line); return address === term || address.replace(/\b\d{4}\b/g, "").trim() === term; }));
-}
 export function ceramicTariffChoices(states: CeramicTariffState[], snapshot: CeramicShipment, day: string, fuel: FuelPeriod[], customerAdjustments: CustomerAdjustment[] = []): CeramicTariffChoice[] {
   const pickups = snapshot.destinations.flatMap(d => d.orders.map(o => billingNormalize(o.collectFrom).replaceAll("BABELEGI", "BABALEGI")));
   const hasBabalegi = pickups.some(p => phrase(p, "BABALEGI"));
@@ -50,10 +45,10 @@ export function ceramicTariffChoices(states: CeramicTariffState[], snapshot: Cer
     if ((lane.pricingUnit || state.defaultPricingUnit) !== "ton") continue;
     const origin = billingNormalize(lane.loadingPoint).replaceAll("BABELEGI", "BABALEGI");
     if (phrase(origin, "BABALEGI") !== hasBabalegi || !phrase(origin, "KRUGERSDORP") || !phrase(origin, "VEREENIGING")) continue;
-    const matched = snapshot.destinations.filter(destination => destinationMatches(destination, lane.destination)).map(d => d.name);
+    const matched = snapshot.destinations.filter(destination => ceramicDestinationMatches(destination, lane.destination, lane.destinationTowns)).map(d => d.name);
     if (!matched.length) continue;
     const rate = ceramicRateOnDate(lane.rate, date, day, fuel, { ...state, laneId: lane.id, customerAdjustments }); if (rate === null) continue;
-    choices.push({ key: `${state.sheetId}:${state.revision}:${lane.id}:${date}`, sheetId: state.sheetId, revision: state.revision, laneId: lane.id, loadingPoint: lane.loadingPoint, destination: lane.destination, effectiveDate: date, ratePerTon: rate, variant: /\bSP\b/i.test(lane.destination) ? "sp" : "standard", matchedDestinations: matched });
+    choices.push({ key: `${state.sheetId}:${state.revision}:${lane.id}:${date}`, sheetId: state.sheetId, revision: state.revision, laneId: lane.id, loadingPoint: lane.loadingPoint, destination: lane.destination, effectiveDate: date, ratePerTon: rate, variant: /\bSP\b/i.test(lane.destination) ? "sp" : "standard", ...(lane.destinationTowns?.length ? { destinationTowns: lane.destinationTowns } : {}), matchedDestinations: matched });
   }
   return choices.sort((a, b) => b.ratePerTon - a.ratePerTon || a.destination.localeCompare(b.destination) || a.key.localeCompare(b.key));
 }

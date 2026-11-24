@@ -1,4 +1,5 @@
 "use client";
+import { ceramicLaneTowns, ceramicTownInput } from "@/src/lib/ceramic-tiles/destinationTowns";
 import { CustomerAdjustments } from "./CustomerAdjustments";
 import { customerAdjustmentPending } from "@/src/lib/fuel/customerAdjustments";
 import { useRef, useState } from "react";
@@ -21,7 +22,7 @@ import type jsPDF from "jspdf";
  * `key` identifies the row on screen and is local only; `id` is the server's lane id, empty until the lane is first saved, when the server mints one. The two are kept apart so two brand new lanes cannot collide before they are saved.
  */
 type Sheet = NonNullable<FunctionReturnType<typeof api.rateSheets.get>>;
-type DraftLane = { key: string; id: string; loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string };
+type DraftLane = { key: string; id: string; loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string; matchingTowns?: string };
 export type { DraftLane };
 const button = "rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm hover:bg-[var(--card-bg)] disabled:opacity-40";
 const input = "settings-input";
@@ -31,6 +32,7 @@ export function laneProblem(lane: DraftLane): string | null {
   if (!lane.loadingPoint.trim() || !lane.destination.trim()) return "needs a loading point and a destination";
   // An empty rate field is a mistake, not a rate of zero: Number("") is 0, so without this a cleared field would quietly save as R 0.
   if (!lane.rate.trim() || !Number.isFinite(Number(lane.rate)) || Number(lane.rate) < 0) return "needs a rate of zero or more";
+  if (lane.matchingTowns && (ceramicTownInput(lane.matchingTowns).length > 32 || lane.matchingTowns.split(/[,;|]/).some(town => town.trim() && (town.trim().length > 80 || !ceramicTownInput(town).length)))) return "needs up to 32 valid matching towns (80 characters each)";
   if (lane.date && !validDay(lane.date)) return "needs a valid effective date";
   return null;
 }
@@ -55,9 +57,9 @@ export function formatAddedDate(iso: string): string {
 /**
  * Everything the server compares when deciding whether a save changed anything, and nothing else. Lane ids are deliberately excluded: the server mints them itself, so including them would make a freshly saved sheet look edited.
  */
-function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string; newDiesel: string; agreementType?: string; fuelCompositionPercent?: string; lanes: { loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string }[] }) {
+function formKey(form: { effectiveDate: string; notes: string; oldDiesel: string; newDiesel: string; agreementType?: string; fuelCompositionPercent?: string; lanes: { loadingPoint: string; destination: string; pricingUnit: string; rate: string; date?: string; matchingTowns?: string }[] }) {
   return JSON.stringify([form.effectiveDate, form.notes, round2(form.oldDiesel), round2(form.newDiesel),
-    form.lanes.map(l => [l.loadingPoint.trim(), l.destination.trim(), l.pricingUnit, round2(l.rate), l.date ?? ""]), form.agreementType ?? "", form.fuelCompositionPercent === undefined ? "" : Number(form.fuelCompositionPercent)]);
+    form.lanes.map(l => [l.loadingPoint.trim(), l.destination.trim(), l.pricingUnit, round2(l.rate), l.date ?? "", ceramicTownInput(l.matchingTowns ?? "")]), form.agreementType ?? "", form.fuelCompositionPercent === undefined ? "" : Number(form.fuelCompositionPercent)]);
 }
 export { formKey };
 
@@ -69,7 +71,7 @@ export function sheetErrorMessage(error: unknown, fallback = "Could not save."):
 export function SheetEditor({ token, sheet, customer, customerName, onDeleted }: { token: string; sheet: Sheet; customer?: { _id?: string; name?: string; accountNumber?: string; contactPerson?: string; phone?: string; email?: string; address?: string; vatNumber?: string }; customerName: string; onDeleted: () => void }) {
   const save = useMutation(api.rateSheets.saveLanes);
   const deleteSheet = useMutation(api.rateSheets.deleteSheet);
-  const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "" })));
+  const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "", matchingTowns: (l.destinationTowns ?? []).join(", ") })));
   const [agreement, setAgreement] = useState<AgreementType | "legacy">(sheet.agreementType ?? "legacy");
   const [percent, setPercent] = useState(String(sheet.fuelCompositionPercent ?? DEFAULT_FUEL_COMPOSITION));
   const [adjustmentBusy, setAdjustmentBusy] = useState(false);
@@ -148,7 +150,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   };
   // The last state the server accepted, so a save with no real edit is recognised here and never sent.
   const [savedKey, setSavedKey] = useState(() => formKey({ ...carried, notes: sheet.notes,
-    lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "" })) }));
+    lanes: sheet.lanes.map(l => ({ loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "", matchingTowns: (l.destinationTowns ?? []).join(", ") })) }));
   const unitOptions = pricingUnits;
   const edit = (key: string, patch: Partial<DraftLane>) => { setNotice(""); setLanes(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r)); };
   const problems = lanes.map((lane, index) => ({ index, problem: laneProblem(lane) })).filter(p => p.problem);
@@ -165,11 +167,11 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     setBusy(true); setError(""); setSaved(""); setNotice("");
     try {
       const request = { token, customerId: sheet.customerId, expectedRevision: revision, ...settings, effectiveDate: addedDate, notes, oldDieselPrice: oldDiesel, newDieselPrice: newDiesel,
-        lanes: lanes.map((l, index) => ({ id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, ...(l.pricingUnit ? { pricingUnit: l.pricingUnit } : {}), ...(l.date ? { date: l.date } : {}), rate: Number(l.rate), sortOrder: index })) };
+        lanes: lanes.map((l, index) => ({ id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, destinationTowns: ceramicTownInput(l.matchingTowns ?? ""), ...(l.pricingUnit ? { pricingUnit: l.pricingUnit } : {}), ...(l.date ? { date: l.date } : {}), rate: Number(l.rate), sortOrder: index })) };
       const saved = await save(request);
       setRevision(saved.revision);
       // The server mints the ids for newly added lanes and returns them in the order saved, so each row picks up its real id and later saves keep it.
-      const accepted = saved.lanes.map((lane, index) => ({ key: lanes[index].key, id: lane.id, loadingPoint: lane.loadingPoint, destination: lane.destination, pricingUnit: lane.pricingUnit ?? "", rate: String(lane.rate), date: lane.date ?? "" }));
+      const accepted = saved.lanes.map((lane, index) => ({ key: lanes[index].key, id: lane.id, loadingPoint: lane.loadingPoint, destination: lane.destination, pricingUnit: lane.pricingUnit ?? "", rate: String(lane.rate), date: lane.date ?? "", matchingTowns: (lane.destinationTowns ?? []).join(", ") }));
       setLanes(accepted);
       // The date the server settled on, which trims and validates what was typed. Taking it rather than assuming keeps the field honest about what is stored.
       if (saved.effectiveDate) setAddedDate(saved.effectiveDate);
@@ -248,7 +250,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
             const problem = laneProblem(lane);
             return <tr key={lane.key} className={problem ? "bg-red-500/10" : undefined}>
             <td className="p-1"><input aria-label={`Row ${index + 1} loading point`} aria-invalid={!!problem} className={`${input} w-full`} value={lane.loadingPoint} onChange={e => edit(lane.key, { loadingPoint: e.target.value })} /></td>
-            <td className="p-1"><input aria-label={`Row ${index + 1} destination`} aria-invalid={!!problem} className={`${input} w-full`} value={lane.destination} onChange={e => edit(lane.key, { destination: e.target.value })} /></td>
+            <td className="p-1"><input aria-label={`Row ${index + 1} destination`} aria-invalid={!!problem} className={`${input} w-full`} value={lane.destination} onChange={e => edit(lane.key, { destination: e.target.value })} /><details className="mt-1 text-xs"><summary className="cursor-pointer text-[#0891B2]">Billing towns{lane.matchingTowns ? " (mapped)" : " (automatic)"}</summary><label className="mt-2 block">Towns covered by this agreed tariff<input aria-label={`Row ${index + 1} billing towns`} className={`${input} mt-1 w-full min-w-48`} value={lane.matchingTowns ?? ""} placeholder={ceramicLaneTowns(lane.destination).join(", ")} onChange={e => edit(lane.key, { matchingTowns: e.target.value })} /></label><p className="mt-1 text-[var(--nav-text-color)]">Separate towns with commas. Leave blank to use the tariff name. Map only towns covered by the agreement; the printed destination stays unchanged.</p></details></td>
             <td className="p-1"><select className={`${input} w-24`} value={lane.pricingUnit} onChange={e => edit(lane.key, { pricingUnit: e.target.value })}><option value="">Default</option>{unitOptions.map(u => <option key={u} value={u}>{u}</option>)}</select></td>
             <td className="p-1"><input type="number" min="0" step="0.01" className={`${input} w-32`} value={lane.rate} onChange={e => edit(lane.key, { rate: e.target.value })} /></td>
             <td className="p-1"><input aria-label={`Row ${index + 1} effective date`} type="date" className={`${input} w-40`} value={lane.date ?? ""} disabled={agreement === "legacy"} title={agreement === "legacy" ? "Choose a customer agreement to activate individual dates" : `Blank uses ${addedDate || "the customer date"}`} onChange={e => edit(lane.key, { date: e.target.value })} /></td>

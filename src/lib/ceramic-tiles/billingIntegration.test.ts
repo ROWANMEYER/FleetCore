@@ -23,7 +23,7 @@ function fixture(singleWarehouse = false) {
   put("drivers", "driver", { driverName: "Synthetic Driver" }); put("trucks", "truck", { truckFleetNo: "T1" });
   const snapshot: CeramicShipment = { shipmentNumber: "SH00990111", version: 1, totalWeightKg: 34000, totalPallets: 30, transporter: null, plannedLoadingDate: "2026-11-23", plannedDeliveryDate: "2026-11-24", warnings: [], destinations: Array.from({ length: 6 }, (_, i) => ({ name: i === 0 ? "ITALTILE GEORGE" : `KNYSNA STORE ${i}`, addressLines: [], orders: [{ deliveryNumber: String(1000 + i), orderNumber: "", weightKg: i === 0 ? 5200 : 1000, palletsEstimate: i === 0 ? 4 : 1, collectFrom: singleWarehouse || i % 2 ? "1100-Betta Krugersdorp" : "1600-Vitro Vereeniging" }] })) };
   put("ceramicShipments", "shipment", { shipmentNumber: snapshot.shipmentNumber, version: 1, snapshot, region: "transvaal", fileHash: "a".repeat(64), createdAt: 1, updatedAt: 1, updatedBy: "test" });
-  put("rateSheets", "sheet", { customerId: "customer", revision: 0, updatedAt: 1, effectiveDate: "2026-08-05", defaultPricingUnit: "ton", agreementType: "fixed", lanes: [{ id: "main", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "KNYSNA", rate: 600, sortOrder: 0 }, { id: "sp", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "KNYSNA (SP)", rate: 570, sortOrder: 1 }, { id: "george", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "GEORGE", rate: 520, sortOrder: 2 }] });
+  put("rateSheets", "sheet", { customerId: "customer", revision: 0, updatedAt: 1, effectiveDate: "2026-08-05", defaultPricingUnit: "ton", agreementType: "fixed", lanes: [{ id: "main", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "KNYSNA", rate: 600, sortOrder: 0 }, { id: "sp", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "KNYSNA (SP)", rate: 570, sortOrder: 1 }, { id: "george", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "GEORGE", rate: 520, sortOrder: 2 }, { id: "george-sp", loadingPoint: "KRUGERSDORP + VEREENIGING", destination: "GEORGE (SP)", rate: 490, sortOrder: 3 }] });
   const writes: string[] = [];
   const db = {
     get: async (id: string) => [...tables.values()].map(rows => rows.get(id)).find(Boolean) ?? null,
@@ -107,6 +107,7 @@ describe("Ceramic billing confirmation transaction", () => {
   it("removes the false Naas local only on confirmation, retaining its original billing history", async () => {
     const f = fixture(), source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
     source.destinations[0].name = "CASH110-CASHBUILD - NAAS 1251"; source.destinations[0].addressLines = ["RISSIK STREET", "KOMATIPOORT"];
+    (f.table("rateSheets").get("sheet")!.lanes as Row[]).push({id:"naas",loadingPoint:"KRUGERSDORP + VEREENIGING",destination:"NAAS / KOMATIPOORT",rate:500,sortOrder:4});
     await f.run(assign); await f.save(await f.read());
     const assignment = [...f.table("ceramicAssignments").values()][0];
     const billing = assignment.billing as { locals: Row[]; automation: Row };
@@ -193,5 +194,48 @@ describe("Ceramic billing confirmation transaction", () => {
     expect(sheets[1].rows[3].cells[5].value).toBe(2700);
     const { default: JSZip } = await import("jszip"); const zip = await JSZip.loadAsync(await ceramicTemplateExcel(sheets));
     expect(await zip.file("xl/worksheets/sheet1.xml")!.async("string")).toContain("<f>H11*28</f>");
+  });
+});
+
+describe("SH00130726 destination coverage regression", () => {
+  function example() {
+    const f=fixture(), warehouses=["3000-Samca 1 Babelegi, Hammanskraal, RSA","1900-Pegasus Vereeniging","2100-Samca Wall Tiles Babelegi, Hammanskraal, RSA","1700-Gryphon Vereeniging"];
+    const snapshot=f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    snapshot.shipmentNumber="SH00130726";snapshot.totalWeightKg=24934.66;snapshot.totalPallets=21;
+    snapshot.destinations=["BUCO GEORGE","CTM GEORGE","TILE AFRICA GEORGE","BUILD IT OUDTSHOORN","CTM MOSSELBAAI"].map((name,i)=>({name,addressLines:[],orders:[{deliveryNumber:String(i),orderNumber:"",weightKg:1000,palletsEstimate:1,collectFrom:warehouses[i%4]}]}));
+    Object.assign(f.table("rateSheets").get("sheet")!,{agreementType:"customer_notified",lanes:[
+      {id:"george",loadingPoint:"BABELEGI + KRUGERSDORP + VEREENIGING",destination:"GEORGE",rate:1125.91,sortOrder:0},
+      {id:"mossel",loadingPoint:"BABELEGI + KRUGERSDORP + VEREENIGING",destination:"MOSSELBAY/ VOORBAAI",rate:1150.81,sortOrder:1},
+    ]});
+    for(const [i,[effectiveDate,percentage]]of [["2026-09-02",5.58],["2026-10-07",5.71],["2026-11-04",-1.9]].entries())f.put("customerRateAdjustments",`notice${i}`,{customerId:"customer",sheetId:"sheet",effectiveDate,percentage,rates:[],reference:"Agreement",recordedAt:i+1});
+    return f;
+  }
+  it("selects Mossel Bay Standard at 1260.01 but requires review for unmatched Oudtshoorn",async()=>{
+    const f=example();await f.run(assign);const p=await f.read();
+    expect(p.selected).toMatchObject({destination:"MOSSELBAY/ VOORBAAI",variant:"standard",ratePerTon:1260.01});
+    expect(p.calculation).toMatchObject({pickupTownCount:2,pickups:4,deliveries:5,pickupCharge:1500,dropCharge:2250,mainTotal:46590.34,localTotal:0});
+    expect(p.destinationChecks?.filter(stop=>!stop.matched)).toEqual([{destination:"BUILD IT OUDTSHOORN",towns:["OUDTSHOORN"],matched:false,tariffs:[]}]);
+    const before=f.writes.length;await expect(f.save(p)).rejects.toThrow("OUDTSHOORN");expect(f.writes).toHaveLength(before);
+    await expect(f.save(p,{markForReview:true})).resolves.toMatchObject({complete:false});expect(routeRevenue(f.route())).toBe(0);
+    expect([...f.table("ceramicAssignments").values()][0].billing).toMatchObject({automation:{status:"needs_review",destinationMatchVersion:1}});
+  });
+  it("only confirms a complete bill after explicit agreed coverage is saved",async()=>{
+    const f=example();await f.run(assign);
+    const lanes=f.table("rateSheets").get("sheet")!.lanes as Row[];lanes[1].destinationTowns=["MOSSEL BAY","VOORBAAI","OUDTSHOORN"];
+    const p=await f.read();expect(p.destinationChecks?.every(stop=>stop.matched)).toBe(true);
+    await expect(f.save(p)).resolves.toMatchObject({complete:true});expect(routeRevenue(f.route())).toBe(46590.34);
+  });
+  it("retains a prior George bill in Planner and history until explicit reconfirmation",async()=>{
+    const f=example();await f.run(assign);const lanes=f.table("rateSheets").get("sheet")!.lanes as Row[];
+    lanes[1].destinationTowns=["MOSSEL BAY","VOORBAAI","OUDTSHOORN"];await f.save(await f.read());
+    const assignment=[...f.table("ceramicAssignments").values()][0],billing=assignment.billing as Row,auto=billing.automation as Row;
+    delete lanes[1].destinationTowns;delete auto.destinationMatchVersion;
+    billing.ratePerTon=1232.74;auto.mainTotal=45663.16;auto.tariff={...(auto.tariff as Row),laneId:"george",destination:"GEORGE",ratePerTon:1232.74};
+    f.route().ceramicBillingTotal=45663.16;f.route().ceramicRatePerTon=1232.74;
+    const snapshot=assignment.snapshot as CeramicShipment;f.route().loads=[ceramicBilledMainLoad(snapshot,"shipment",34,45663.16,{ratePerTon:1232.74,extraStops:3750})];
+    const original=structuredClone(billing),p=await f.read();expect(p.ruleIssues.join(" ")).toContain("Mossel Bay");expect(billing).toEqual(original);expect(routeRevenue(f.route())).toBe(45663.16);
+    const rows=await f.run(report,{month:"2026-11",paginationOpts:{numItems:50,cursor:null}}) as {page:CeramicReportRow[]};expect(rows.page[0].needsReview).toBe(true);
+    await f.save(p,{markForReview:true});expect(assignment.billing).toMatchObject({ratePerTon:1232.74,automation:{status:"needs_review"}});expect(routeRevenue(f.route())).toBe(45663.16);
+    expect(f.table("ceramicBillingHistory").size).toBeGreaterThan(1);
   });
 });

@@ -450,3 +450,29 @@ describe("customer-supplied adjustments", () => {
     const listed=await h.call(sheets.list,{token:"valid"}) as Row[];expect(listed[0]).toMatchObject({agreementType:"customer_notified",customerAdjustmentDate:"2026-09-02"});
   });
 });
+
+describe("Explicit tariff delivery town coverage",()=>{
+  const lane={id:"mapped",loadingPoint:"BABELEGI + KRUGERSDORP + VEREENIGING",destination:"MOSSELBAY/ VOORBAAI",rate:1150.81,sortOrder:0,destinationTowns:["MOSSEL BAY","VOORBAAI"]};
+  it("normalises agreed town aliases and retains their separate printed label",()=>{
+    const next=sheets.normalizeLanes([{...lane,destinationTowns:["mosselbaai","MOSSELBAY","Voorbaai"]}],[lane])[0];
+    expect(next.destination).toBe(lane.destination);expect(next.destinationTowns).toEqual(["MOSSEL BAY","VOORBAAI"]);
+    expect(sheets.normalizeLanes([{...lane,destinationTowns:undefined}],[lane])[0].destinationTowns).toEqual(lane.destinationTowns);
+    expect(sheets.normalizeLanes([{...lane,destinationTowns:[]}],[lane])[0].destinationTowns).toBeUndefined();
+  });
+  it.each([{destinationTowns:[""]},{destinationTowns:["***"]},{destinationTowns:["A".repeat(81)]},{destinationTowns:Array.from({length:33},(_,i)=>`Town ${i}`)}])("rejects invalid coverage before changing a sheet",({destinationTowns})=>{
+    expect(()=>sheets.normalizeLanes([{...lane,destinationTowns}],[lane])).toThrow("delivery towns");
+  });
+});
+
+describe("Town mapping save history",()=>{
+  it("saves mappings with an immutable prior snapshot and preserves them for old clients",async()=>{
+    const f=await fixture();await f.call(sheets.create,{...f.args,defaultPricingUnit:"ton"});await f.save([f.lane("a",1000)]);
+    let sheet=f.db.all("rateSheets")[0];const lanes=sheet.lanes as sheets.SheetLane[];
+    const request={...f.args,effectiveDate:"2026-09-02",notes:"",oldDieselPrice:20,newDieselPrice:23.15,expectedRevision:1,lanes:[{...lanes[0],destinationTowns:["MOSSELBAY","VOORBAAI"]}]};
+    await f.call(sheets.saveLanes,request);sheet=f.db.all("rateSheets")[0];expect((sheet.lanes as sheets.SheetLane[])[0].destinationTowns).toEqual(["MOSSEL BAY","VOORBAAI"]);
+    const prior=structuredClone(f.db.all("rateSheetHistory"));
+    await f.call(sheets.saveLanes,{...request,expectedRevision:2,notes:"Legacy notes save",lanes});
+    expect((f.db.all("rateSheets")[0].lanes as sheets.SheetLane[])[0].destinationTowns).toEqual(["MOSSEL BAY","VOORBAAI"]);
+    expect(f.db.all("rateSheetHistory").slice(0,prior.length)).toEqual(prior);
+  });
+});

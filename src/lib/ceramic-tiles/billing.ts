@@ -1,3 +1,4 @@
+import { ceramicDestinationRuleIssues } from "./destinationTowns";
 import { formatCurrency } from "../../pdf/formatters";
 import type { CeramicShipment } from "./parser";
 import type { CeramicBilling } from "./monthlyReport";
@@ -49,7 +50,7 @@ export function ceramicBillingRuleIssues(snapshot: CeramicShipment, billing?: Ce
   const saved = billing?.automation;
   if (!saved || saved.status !== "confirmed") return [];
   const current = ceramicBillingCalculation(snapshot, billing.ratePerTon, saved.chargeableTons, saved);
-  const issues: string[] = [];
+  const issues: string[] = ceramicDestinationRuleIssues(snapshot, billing);
   if (current.pickupTownCount === null || saved.variant !== (current.pickupTownCount === 1 ? "sp" : "standard")) {
     issues.push("Review saved billing: SP is based on one pickup town, even when it contains multiple warehouses.");
   }

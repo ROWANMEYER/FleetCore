@@ -1,5 +1,37 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Ceramic town matching and unmatched delivery safeguards
+
+Canonical delivery town matching recognises MOSSELBAY, MOSSEL BAY, MOSSELBAAI
+and MBAAI, with controlled aliases for George, Plett, Port Elizabeth and Voorbaai.
+Street-name mentions and similar partial words do not establish a town match.
+Customer Rates now exposes Billing towns beneath each destination, allowing
+explicit agreed coverage while retaining the printed tariff wording. Optional
+coverage is validated, revision-checked and retained in tariff history; older
+clients cannot silently erase existing mappings.
+
+Billing shows each delivery's matched tariffs or Needs review and explains the
+highest-rate selection. Every stop requires an effective tariff in the correct
+pickup group and Standard/SP variant. Unmatched stops prevent confirmation;
+flagging billing for review permits dispatch while preserving Planner prices.
+Amounts remain estimates until coverage is complete. Existing confirmed Mossel
+Bay snapshots from the old matching rule are flagged on read in billing and
+reports, retaining their values and history until explicit reconfirmation.
+No migration or automatic repricing is performed.
+
+The owner explicitly instructed that Oudtshoorn remain unmatched until they
+confirm its agreed rate. For SH00130726, Mossel Bay Standard is R1,260.01/t and
+the current matched-rate estimate is R46,590.34; Oudtshoorn blocks confirmation.
+No Oudtshoorn coverage or new tariff is inferred or written.
+
+Validation: 1,272 tests across 80 files pass, including the shipment regression,
+matching aliases, street-name false positives, coverage validation/history,
+review-only saves and unchanged existing Planner billing. Application/Convex
+type checks, changed-file lint and optimized webpack build pass. An isolated
+localhost schema/function push and real endpoint smoke verify R1,260.01/t,
+unmatched Oudtshoorn, blocked confirmation, report review status and preserved
+Planner prices. Release backend before frontend; PWA advances to fleetcore-v99.
+
 ## 2026-11-24 - Make the customer agreement Save visible
 
 Added Save agreement & rates beside the Customer agreement heading so long lane

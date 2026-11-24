@@ -16,7 +16,7 @@ import { generateRateSheetPDF } from "@/src/pdf/rateSheetTemplate";
 import type jsPDF from "jspdf";
 
 /**
- * One customer, one table, one Save. Lanes have no separate row and rates are never a draft, so every row here is the live rate.
+ * One customer, one table, one save action. Lanes have no separate row and rates are never a draft, so every row here is the live rate.
  *
  * `key` identifies the row on screen and is local only; `id` is the server's lane id, empty until the lane is first saved, when the server mints one. The two are kept apart so two brand new lanes cannot collide before they are saved.
  */
@@ -153,8 +153,10 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const edit = (key: string, patch: Partial<DraftLane>) => { setNotice(""); setLanes(rows => rows.map(r => r.key === key ? { ...r, ...patch } : r)); };
   const problems = lanes.map((lane, index) => ({ index, problem: laneProblem(lane) })).filter(p => p.problem);
   const clean = formKey({ ...carried, notes, lanes }) === savedKey;
+  const saveDisabled = busy || deleting || adjustmentBusy || clean || !!agreementProblem || problems.length > 0 || !!dateProblem || lanes.length === 0;
 
   async function saveSheet() {
+    if (busy || deleting || adjustmentBusy) return;
     // Checked here so one unfinished row cannot take the rest of the table down with it.
     if (problems.length) { setSaved(""); setNotice(""); setError(`${problems.length} lane${problems.length === 1 ? "" : "s"} still to finish: ${problems.map(p => `row ${p.index + 1} ${p.problem}`).join("; ")}. Finish or remove ${problems.length === 1 ? "it" : "them"}, then save.`); return; }
     if (agreementProblem) { setError(agreementProblem); return; }
@@ -183,8 +185,15 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   }
   return <div className="space-y-6">
     <fieldset disabled={busy || deleting || adjustmentBusy} className="contents">
-    <section className="glass-card rounded-xl p-5 space-y-3">
-      <h2 className="font-semibold">Customer agreement</h2>
+    <section className="glass-card rounded-xl p-5 space-y-3" aria-label="Customer agreement">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-semibold">Customer agreement</h2>
+        <button type="button" className="min-h-11 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={saveDisabled} onClick={() => void saveSheet()}>{busy ? "Saving…" : "Save agreement & rates"}</button>
+      </div>
+      <p className="text-xs text-[var(--nav-text-color)]">Saves the agreement, starting rates, effective dates and notes together. {clean ? "No unsaved changes." : "You have unsaved changes."}</p>
+      {saved && clean && <p role="status" className="text-emerald-600 dark:text-emerald-400 text-sm">{saved}</p>}
+      {notice && <p role="status" className="text-sm text-[var(--nav-text-color)]">{notice}</p>}
+      {error && <p role="alert" className="text-red-500 text-sm">{error}</p>}
       <label className="block text-sm">Rate agreement
         <select className={`${input} w-full mt-1`} value={agreement} onChange={e => { setAgreement(e.target.value as AgreementType | "legacy"); if (!percent.trim() || compositionProblem(Number(percent))) setPercent(String(DEFAULT_FUEL_COMPOSITION)); setNotice(""); }}>
           {!sheet.agreementType && <option value="legacy">Recorded fuel composition (existing calculation)</option>}
@@ -204,7 +213,7 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
       <p className="font-semibold">{timeline.months.map(formatRateMonth).join(" / ")}</p>
       {agreement === "customer_notified" ? <p className="text-sm text-[var(--nav-text-color)]">Customer-supplied adjustments only. {customerAdjustmentPending(agreement, fuel?.at(-1)?.effectiveDate, notices.filter(n => n.effectiveDate.slice(0,7) <= (fuel?.at(-1)?.effectiveDate.slice(0,7) ?? "9999-12")).at(-1)?.effectiveDate) ? "Awaiting this month’s customer update; previous approved rates remain in use." : "Approved notices determine these tariffs; company fuel changes do not apply."}</p> : agreement === "fixed" ? <p className="text-sm text-[var(--nav-text-color)]">Fixed-rate agreement: no fuel adjustments apply.</p> : fuel === undefined ? <p>Loading fuel prices…</p> : timeline.problem ? <p role="alert" className="text-amber-500">{timeline.problem}</p> : <p className="text-sm text-[var(--nav-text-color)]">Calculated through {formatAddedDate(fuel.at(-1)?.effectiveDate ?? addedDate)}. Save a new price in Fuel Compositions to update all customer monthly rates.</p>}
     </section>
-    {agreement === "customer_notified" && (sheet.agreementType !== "customer_notified" ? <p className="text-sm text-amber-500">Save this agreement first to enable customer-supplied updates.</p> : customerNotices === undefined ? <p>Loading customer notices…</p> : <CustomerAdjustments sheet={sheet} token={token} notices={notices} defaultDate={fuel?.at(-1)?.effectiveDate ?? addedDate} revision={revision} disabled={!clean} onSaved={setRevision} onBusyChange={setAdjustmentBusy} />)}
+    {agreement === "customer_notified" && (sheet.agreementType !== "customer_notified" ? <p className="text-sm text-amber-500">Click Save agreement & rates above to enable customer-supplied updates.</p> : customerNotices === undefined ? <p>Loading customer notices…</p> : <CustomerAdjustments sheet={sheet} token={token} notices={notices} defaultDate={fuel?.at(-1)?.effectiveDate ?? addedDate} revision={revision} disabled={!clean} onSaved={setRevision} onBusyChange={setAdjustmentBusy} />)}
     <section className="glass-card rounded-xl p-5 space-y-2">
       <h2 className="font-semibold">Customer effective date</h2>
       {dateSaved
@@ -254,11 +263,8 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button className={button} onClick={() => setLanes(rows => [...rows, { key: nextRowKey(), id: "", loadingPoint: "", destination: "", pricingUnit: "", rate: "0" }])}>Add lane</button>
-        <button className="rounded-lg px-4 py-2 bg-cyan-600 text-white disabled:opacity-50" disabled={busy || clean || !!agreementProblem || problems.length > 0 || !!dateProblem || lanes.length === 0} onClick={saveSheet}>{busy ? "Saving…" : "Save rates"}</button>
+        <button className="rounded-lg px-4 py-2 bg-cyan-600 text-white disabled:opacity-50" disabled={saveDisabled} onClick={saveSheet}>{busy ? "Saving…" : "Save rates"}</button>
         <button className={button} disabled={!!agreementProblem || problems.length > 0 || !!dateProblem || fuel === undefined || !!timeline.problem || lanes.length === 0} onClick={generatePdf} title={timeline.problem ?? (problems.length ? "Finish every lane first" : "Open the printable rate sheet")}>View PDF</button>
-        {saved && <p className="text-emerald-400 text-sm">{saved}</p>}
-        {notice && <p className="text-sm text-[var(--nav-text-color)]">{notice}</p>}
-        {error && <p role="alert" className="text-red-500 text-sm">{error}</p>}
       </div>
     </section>
     <section className="glass-card rounded-xl p-5 space-y-3">

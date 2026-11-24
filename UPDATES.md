@@ -1,5 +1,20 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Make the customer agreement Save visible
+
+Added Save agreement & rates beside the Customer agreement heading so long lane
+lists no longer hide the action needed to enable customer-supplied updates.
+Save status and errors now appear in the same top card. Both save controls use
+the existing validated, revision-checked action; agreement, starting tariffs,
+individual dates and notes continue saving together. Customer notices remain a
+separate dated save after the agreement is enabled. PWA cache advances to v98.
+
+Validation: 61 Customer Rates/backend tests, changed-file lint and application
+type checking and optimized webpack build pass. The interactive browser retry
+hit local browser/backend timeouts. This follow-up corrects the visibility issue
+reported just
+after the v97 production release; no backend or data migration is needed.
+
 ## 2026-11-24 - Release report workspace, customer notices and shipment recovery
 
 The owner authorized committing and deploying the tested release. It includes

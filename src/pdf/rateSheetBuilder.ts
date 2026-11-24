@@ -16,7 +16,7 @@ export const buildRateSheetData = (
     oldDieselPrice: number;
     newDieselPrice: number;
     defaultPricingUnit?: string;
-    lanes: { loadingPoint: string; destination: string; pricingUnit?: string; rate: number; date?: string; rates?: Array<number | null | undefined>; sortOrder: number }[];
+    lanes: { id?: string; loadingPoint: string; destination: string; pricingUnit?: string; rate: number; date?: string; rates?: Array<number | null | undefined>; sortOrder: number }[];
   },
   customer?: { id?: string; name?: string; accountNumber?: string; contactPerson?: string; phone?: string; email?: string; address?: string; vatNumber?: string },
   fuelHistory: FuelPeriod[] = [],

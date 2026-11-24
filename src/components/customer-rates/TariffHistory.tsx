@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { usePaginatedQuery } from "convex/react";
+import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DEFAULT_FUEL_COMPOSITION } from "@/convex/rateSheetFields";
@@ -10,6 +10,7 @@ import { formatCurrency } from "@/src/pdf/formatters";
 export function TariffHistory({ token, customerId }: { token: string; customerId: Id<"customers"> }) {
   const [open, setOpen] = useState(false);
   const { results, status, loadMore } = usePaginatedQuery(api.rateSheets.history, open ? { token, customerId } : "skip", { initialNumItems: 5 });
+  const notices = useQuery(api.rateSheets.customerAdjustments, open && results.some(record => !!record.customerAdjustmentId) ? { token, customerId } : "skip");
   return <section className="glass-card rounded-xl p-5 space-y-3">
     <button className="font-semibold text-left" aria-expanded={open} onClick={() => setOpen(!open)}>Historical tariff records {open ? "−" : "+"}</button>
     {open && <>
@@ -18,7 +19,8 @@ export function TariffHistory({ token, customerId }: { token: string; customerId
       {status !== "LoadingFirstPage" && results.length === 0 && <p>No historical records yet. The first change preserves the existing card and the new tariff.</p>}
       {results.map(record => <details key={record._id} className="border border-[var(--card-border)] rounded-lg p-3">
         <summary className="cursor-pointer">Revision {record.revision} · {record.action} · {new Date(record.recordedAt).toLocaleString("en-ZA")} · {record.snapshot.effectiveDate ?? "Date not set"}</summary>
-        <p className="text-sm mt-2">{record.recordedByEmail} · {record.snapshot.agreementType === "fixed" ? "Fixed-rate agreement" : record.snapshot.agreementType === "fuel_linked" ? `Fuel-linked: ${record.snapshot.fuelCompositionPercent ?? DEFAULT_FUEL_COMPOSITION}%` : "Original recorded fuel composition"}</p>
+        <p className="text-sm mt-2">{record.recordedByEmail} · {record.snapshot.agreementType === "customer_notified" ? "Customer-supplied adjustments" : record.snapshot.agreementType === "fixed" ? "Fixed-rate agreement" : record.snapshot.agreementType === "fuel_linked" ? `Fuel-linked: ${record.snapshot.fuelCompositionPercent ?? DEFAULT_FUEL_COMPOSITION}%` : "Original recorded fuel composition"}</p>
+        {record.customerAdjustmentId && (() => { const notice = notices?.find(n => n._id === record.customerAdjustmentId); return notice ? <div className="mt-2 space-y-1 text-sm"><p>Customer notice: {notice.effectiveDate} · {notice.percentage === null ? "Individual tariff amounts" : `${notice.percentage}%`} · {notice.reference}</p>{notice.rates.map(rate => <p key={rate.laneId}>{record.snapshot.lanes.find(l => l.id === rate.laneId)?.destination ?? rate.laneId}: {formatCurrency(rate.rate)} (exact customer rate)</p>)}</div> : <p>Loading customer notice…</p>; })()}
         <div className="overflow-x-auto"><table className="w-full text-left text-sm mt-2"><thead><tr><th className="p-2">Loading point</th><th className="p-2">Destination</th><th className="p-2">Unit</th><th className="p-2">Effective date</th><th className="p-2">Starting tariff</th></tr></thead>
           <tbody>{record.snapshot.lanes.map(lane => <tr key={lane.id}><td className="p-2">{lane.loadingPoint}</td><td className="p-2">{lane.destination}</td><td className="p-2">{lane.pricingUnit || record.snapshot.defaultPricingUnit}</td><td className="p-2">{(record.snapshot.agreementType ? lane.date : undefined) || record.snapshot.effectiveDate || "Not set"}</td><td className="p-2 whitespace-nowrap">{formatCurrency(lane.rate)}</td></tr>)}</tbody>
         </table></div>

@@ -1,3 +1,4 @@
+import { customerAdjustmentPending, type CustomerAdjustment } from "../src/lib/fuel/customerAdjustments";
 import { v } from "convex/values";
 import { query, mutation, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -65,7 +66,11 @@ async function previewFor(ctx: QueryCtx, shipmentId: Id<"ceramicShipments">, ton
   if (!assignment || assignment.deletedAt !== undefined || !shipment.routeDate) throw ceramicAssignmentError("Save the driver, truck and planning date before reviewing billing.");
   const config = await ceramicConfigOn(ctx, assignment.routeDate);
   const states: CeramicTariffState[] = [];
+  let customerAdjustments: CustomerAdjustment[] = [];
   if (config.customerId) {
+    const notices = await ctx.db.query("customerRateAdjustments").withIndex("by_customer", q => q.eq("customerId", config.customerId!)).take(201);
+    if (notices.length > 200) throw ceramicAssignmentError("Customer adjustment history exceeds the review limit. No billing was changed.");
+    customerAdjustments = notices;
     const sheet = await ctx.db.query("rateSheets").withIndex("by_customer", q => q.eq("customerId", config.customerId!)).unique();
     const history = await ctx.db.query("rateSheetHistory").withIndex("by_customer", q => q.eq("customerId", config.customerId!)).take(201);
     if (history.length > 200) throw ceramicAssignmentError("Tariff history exceeds the review limit. Contact support; no billing was changed.");
@@ -77,12 +82,17 @@ async function previewFor(ctx: QueryCtx, shipmentId: Id<"ceramicShipments">, ton
   const chargeableTons = tons ?? assignment.billing?.automation?.chargeableTons ?? config.defaultTons;
   const preliminary = ceramicBillingCalculation(shipment.snapshot, null, chargeableTons, config);
   const variant = preliminary.pickupTownCount === 1 ? "sp" as const : "standard" as const;
-  const choices = ceramicTariffChoices(states, shipment.snapshot, assignment.routeDate, fuel).filter(choice => preliminary.pickupTownCount !== null && choice.variant === variant);
+  const choices = ceramicTariffChoices(states, shipment.snapshot, assignment.routeDate, fuel, customerAdjustments).filter(choice => preliminary.pickupTownCount !== null && choice.variant === variant);
   const highest = choices[0] ?? null;
   const requested = tariffKey ? choices.find(choice => choice.key === tariffKey) ?? null : highest;
   if (strictSelection && tariffKey && (!requested || !highest || requested.ratePerTon !== highest.ratePerTon)) throw ceramicAssignmentError("Select the highest applicable rate for the whole load. SP applies only to a single pickup town.");
   const selected = requested?.ratePerTon === highest?.ratePerTon ? requested : highest;
   const calculation = ceramicBillingCalculation(shipment.snapshot, selected?.ratePerTon ?? null, chargeableTons, config);
+  const selectedState = selected ? states.find(state => state.sheetId === selected.sheetId && state.revision === selected.revision) : null;
+  if (selectedState?.agreementType === "customer_notified") {
+    const lastNotice = customerAdjustments.filter(n => n.sheetId === selectedState.sheetId && n.effectiveDate <= assignment.routeDate).map(n => n.effectiveDate).sort().at(-1);
+    if (customerAdjustmentPending("customer_notified", fuel.at(-1)?.effectiveDate, lastNotice)) calculation.issues.unshift("Awaiting the customer's monthly adjustment. Previous approved tariffs are shown; flag billing for review until the notice is recorded.");
+  }
   if (!config.customerId) calculation.issues.unshift("Select the Ceramic rate-sheet customer in billing settings.");
   if (assignment.snapshot.version !== shipment.version || shipment.plannerVersion !== shipment.version) calculation.issues.unshift("Save the assignment for the latest PDF before confirming its billing.");
   const route = await ctx.db.get(assignment.routeId);

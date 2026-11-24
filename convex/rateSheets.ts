@@ -1,3 +1,5 @@
+import { customerAdjustmentDocument, customerAdjustmentRate } from "./customerAdjustmentFields";
+import { customerRateOnDate } from "../src/lib/fuel/customerAdjustments";
 import { ConvexError, v, type Infer } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
@@ -76,12 +78,12 @@ export function sameState(a: SheetState, b: SheetState) {
 }
 const stateOf = (sheet: Sheet): SheetState => ({ effectiveDate: sheet.effectiveDate, notes: sheet.notes, oldDieselPrice: sheet.oldDieselPrice, newDieselPrice: sheet.newDieselPrice, lanes: sheet.lanes, ...(sheet.agreementType ? { agreementType: sheet.agreementType } : {}), ...(sheet.fuelCompositionPercent !== undefined ? { fuelCompositionPercent: sheet.fuelCompositionPercent } : {}) });
 
-async function recordHistory(ctx: MutationCtx, sheet: Sheet, action: Doc<"rateSheetHistory">["action"]) {
+async function recordHistory(ctx: MutationCtx, sheet: Sheet, action: Doc<"rateSheetHistory">["action"], customerAdjustmentId?: Id<"customerRateAdjustments">) {
   // Avoid explicit undefined in inserted Convex values.
   const state = stateOf(sheet);
   const { effectiveDate, ...rest } = state;
   await ctx.db.insert("rateSheetHistory", {
-    customerId: sheet.customerId, sheetId: sheet._id, revision: sheet.revision, action,
+    customerId: sheet.customerId, sheetId: sheet._id, revision: sheet.revision, action, ...(customerAdjustmentId ? { customerAdjustmentId } : {}),
     snapshot: { ...rest, ...(effectiveDate ? { effectiveDate } : {}), defaultPricingUnit: sheet.defaultPricingUnit },
     recordedAt: sheet.updatedAt, recordedBy: sheet.updatedBy, recordedByEmail: sheet.updatedByEmail,
   });
@@ -98,14 +100,17 @@ export const get = query({
 });
 export const list = query({
   args: { token: v.string() },
-  returns: v.array(v.object({ customerId: v.id("customers"), customerName: v.string(), isActive: v.boolean(), laneCount: v.number(), effectiveDate: v.optional(v.string()), oldDieselPrice: v.number(), newDieselPrice: v.number(), updatedAt: v.number(), updatedByEmail: v.string() })),
+  returns: v.array(v.object({ customerId: v.id("customers"), customerName: v.string(), isActive: v.boolean(), laneCount: v.number(), agreementType: v.optional(agreementType), customerAdjustmentDate: v.optional(v.string()), effectiveDate: v.optional(v.string()), oldDieselPrice: v.number(), newDieselPrice: v.number(), updatedAt: v.number(), updatedByEmail: v.string() })),
   handler: async (ctx, args) => {
     await requireAdmin(ctx, args.token);
     const sheets = await ctx.db.query("rateSheets").take(2001);
     if (sheets.length > 2000) throw new Error("Too many customer rate sheets to display together.");
+    const latestFuel = await ctx.db.query("fuelPrices").withIndex("by_effectiveDate").order("desc").first();
+    const cutoff = latestFuel ? `${latestFuel.effectiveDate.slice(0,7)}-31` : "9999-12-31";
     const rows = await Promise.all(sheets.map(async sheet => {
       const customer = await ctx.db.get(sheet.customerId);
-      return { customerId: sheet.customerId, customerName: customer?.name ?? "Missing customer", isActive: customer?.isActive ?? false,
+      const notice = sheet.agreementType === "customer_notified" ? await ctx.db.query("customerRateAdjustments").withIndex("by_sheet_effectiveDate", q => q.eq("sheetId", sheet._id).lte("effectiveDate", cutoff)).order("desc").first() : null;
+      return { ...(sheet.agreementType ? { agreementType: sheet.agreementType } : {}), ...(notice ? { customerAdjustmentDate: notice.effectiveDate } : {}), customerId: sheet.customerId, customerName: customer?.name ?? "Missing customer", isActive: customer?.isActive ?? false,
         laneCount: sheet.lanes.length, effectiveDate: sheet.effectiveDate, oldDieselPrice: sheet.oldDieselPrice, newDieselPrice: sheet.newDieselPrice,
         updatedAt: sheet.updatedAt, updatedByEmail: sheet.updatedByEmail };
     }));
@@ -185,5 +190,58 @@ export const deleteSheet = mutation({
     await recordHistory(ctx, { ...sheet, revision: sheet.revision + 1, updatedAt: Date.now(), updatedBy: user._id, updatedByEmail: user.email }, "delete");
     await ctx.db.delete(sheet._id);
     return null;
+  },
+});
+
+/** Immutable customer notices, also retained after a sheet is removed. */
+export const customerAdjustments = query({
+  args: { token: v.string(), customerId: v.id("customers") }, returns: v.array(customerAdjustmentDocument),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.token);
+    const notices = await ctx.db.query("customerRateAdjustments").withIndex("by_customer", q => q.eq("customerId", args.customerId)).take(201);
+    if (notices.length > 200) throw new ConvexError("Customer adjustment history exceeds the review limit. Contact support.");
+    return notices.sort((a,b) => a.effectiveDate.localeCompare(b.effectiveDate) || a.recordedAt - b.recordedAt);
+  },
+});
+export const saveCustomerAdjustment = mutation({
+  args: { token: v.string(), customerId: v.id("customers"), expectedRevision: v.number(), effectiveDate: v.string(), percentage: v.union(v.number(),v.null()), rates: v.array(customerAdjustmentRate), reference: v.string() },
+  returns: v.object({ revision: v.number(), adjustmentId: v.id("customerRateAdjustments") }),
+  handler: async (ctx, args) => {
+    const user = await requireAdmin(ctx, args.token), sheet = await requireSheet(ctx, args.customerId);
+    checkRevision(sheet, args.expectedRevision);
+    if (sheet.agreementType !== "customer_notified") throw new ConvexError("Save Customer-supplied adjustments as this customer's agreement first.");
+    if (!validDay(args.effectiveDate)) throw new ConvexError("Enter a valid customer adjustment date.");
+    if (args.percentage !== null && (!Number.isFinite(args.percentage) || args.percentage < -100 || args.percentage > 1000)) throw new ConvexError("Enter a percentage between -100 and 1,000, or leave it blank for individual rates.");
+    if (args.percentage === null && !args.rates.length) throw new ConvexError("Enter a percentage, individual rates, or both. Use 0% to confirm unchanged rates.");
+    if (args.reference.trim().length > 500 || !args.reference.trim()) throw new ConvexError("Enter the customer notice reference (up to 500 characters).");
+    if (args.rates.length > MAX_LANES || new Set(args.rates.map(r => r.laneId)).size !== args.rates.length) throw new ConvexError("Each lane may have one exact rate in this notice.");
+    if (!sheet.lanes.length || sheet.lanes.some(l => !validDay(l.date || sheet.effectiveDate || ""))) throw new ConvexError("Save valid starting tariffs and effective dates first.");
+    const lanes = new Map(sheet.lanes.map(l => [l.id,l]));
+    const rates = args.rates.map(rate => {
+      const lane = lanes.get(rate.laneId);
+      if (!lane) throw new ConvexError("A selected lane changed. Reopen this customer before saving.");
+      if ((lane.date || sheet.effectiveDate!) > args.effectiveDate) throw new ConvexError("An exact rate cannot take effect before that lane's starting date.");
+      if (!Number.isFinite(rate.rate) || rate.rate < 0 || rate.rate > 1e9) throw new ConvexError("Exact customer rates must be between zero and 1,000,000,000.");
+      return { laneId: lane.id, rate: money(rate.rate) };
+    });
+    if (args.percentage !== null && args.percentage !== 0 && !sheet.lanes.some(l => (l.date || sheet.effectiveDate!) < args.effectiveDate)) throw new ConvexError("A percentage applies after the starting tariff date. Choose a later effective date, or enter exact rates for the starting day.");
+    const previous = await ctx.db.query("customerRateAdjustments").withIndex("by_customer", q => q.eq("customerId", args.customerId)).take(201);
+    if (previous.length >= 200) throw new ConvexError("Customer adjustment history reached its review limit. Contact support.");
+    const existing = previous.filter(n => n.sheetId === sheet._id && n.effectiveDate === args.effectiveDate).sort((a,b) => a.recordedAt - b.recordedAt).at(-1);
+    const orderedRates = (values: {laneId: string;rate: number}[]) => [...values].sort((a,b) => a.laneId.localeCompare(b.laneId));
+    if (existing && existing.percentage === args.percentage && existing.reference === args.reference.trim() && JSON.stringify(orderedRates(existing.rates)) === JSON.stringify(orderedRates(rates))) throw new ConvexError("This customer notice already matches the saved update.");
+    const now = Math.max(Date.now(), sheet.updatedAt + 1), revision = sheet.revision + 1;
+    const proposed = { _id: "new", sheetId: String(sheet._id), effectiveDate: args.effectiveDate, percentage: args.percentage, rates, reference: args.reference.trim(), recordedAt: now };
+    for (const lane of sheet.lanes) {
+      if ((lane.date || sheet.effectiveDate!) > args.effectiveDate) continue;
+      const amount = customerRateOnDate(lane.rate, lane.date || sheet.effectiveDate!, args.effectiveDate, lane.id, [...previous.filter(n => n.sheetId === sheet._id), proposed]);
+      if (amount === null || amount > 1e9) throw new ConvexError("The adjustment produces an invalid tariff. Review the percentage and exact amounts.");
+    }
+    await preserveBaseline(ctx, sheet);
+    const adjustmentId = await ctx.db.insert("customerRateAdjustments", { customerId: args.customerId, sheetId: sheet._id, effectiveDate: args.effectiveDate, percentage: args.percentage, rates, reference: proposed.reference, revision, recordedAt: now, recordedBy: user._id, recordedByEmail: user.email });
+    const update = { revision, updatedAt: now, updatedBy: user._id, updatedByEmail: user.email };
+    await ctx.db.patch(sheet._id, update);
+    await recordHistory(ctx, { ...sheet, ...update }, "customer_adjustment", adjustmentId);
+    return { revision, adjustmentId };
   },
 });

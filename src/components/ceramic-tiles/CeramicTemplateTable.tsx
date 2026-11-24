@@ -1,5 +1,5 @@
 "use client";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { TemplateCell, TemplateSheet, TemplateStyle } from "@/src/lib/ceramic-tiles/templateWorkbook";
 
 function styleFor(style: TemplateStyle): CSSProperties {
@@ -23,15 +23,26 @@ function display(cell: TemplateCell) {
   }
   return cell.value;
 }
-export function CeramicTemplateTable({ sheet, onEdit }: { sheet: TemplateSheet; onEdit: (shipmentId: string) => void }) {
+export function CeramicTemplateTable({ sheet, onEdit, scale = 1, onSize }: { sheet: TemplateSheet; onEdit: (shipmentId: string) => void; scale?: number; onSize?: (size: { width: number; height: number }) => void }) {
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const table = tableRef.current; if (!table) return;
+    const measure = () => { setHeight(table.offsetHeight); onSize?.({ width: table.offsetWidth, height: table.offsetHeight }); };
+    const observer = new ResizeObserver(measure); observer.observe(table); measure();
+    return () => observer.disconnect();
+  }, [sheet, onSize]);
   // Screen-only room for names; workbook exports retain the original template widths.
   const driverColumn = sheet.name.startsWith("Locals_") ? 1 : 4;
   const columns = sheet.columns.map((width, index) => index === driverColumn ? Math.max(width, 240) : width);
-  return <div className="max-w-full overflow-x-auto rounded-lg border border-[var(--card-border)] bg-white p-1" aria-label={`${sheet.name} spreadsheet`}>
-    <table className="border-collapse" style={{ tableLayout: "fixed", width: columns.reduce((a,b) => a+b,0) }}><colgroup>{columns.map((width,i)=><col key={i} style={{width}} />)}</colgroup>
+  const width = columns.reduce((a, b) => a + b, 0);
+  return <div className="relative bg-white" style={{ width: width * scale, height: (height || sheet.rows.reduce((sum, row) => sum + row.height * 4 / 3, 0)) * scale }} aria-label={`${sheet.name} spreadsheet`}>
+    <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `scale(${scale})` }}>
+    <table ref={tableRef} className="border-collapse" style={{ tableLayout: "fixed", width: columns.reduce((a,b) => a+b,0) }}><colgroup>{columns.map((width,i)=><col key={i} style={{width}} />)}</colgroup>
       <tbody>{sheet.rows.map((row,ri)=><tr key={ri} style={{ height: `${row.height}pt` }}>{row.cells.map((cell,ci)=>cell.covered ? null : <td key={ci} colSpan={cell.span} style={{ ...styleFor(cell.style), ...(ci === driverColumn ? { whiteSpace: "normal", overflowWrap: "anywhere", padding: "4px 8px", lineHeight: 1.35 } : {}) }} title={cell.formula ? `=${cell.formula}` : String(cell.value ?? "")}>
         {cell.editShipment ? <button type="button" className="h-full w-full text-inherit underline decoration-dotted underline-offset-2" style={{textAlign:"inherit",font:"inherit"}} aria-label={`Edit amounts for ${cell.editLabel ?? "shipment"}`} onClick={()=>onEdit(cell.editShipment!)}>{display(cell)}</button> : <span style={cell.style["table-cell-properties"]?.["rotation-angle"] === "90" ? { writingMode:"vertical-rl", transform:"rotate(180deg)" } : undefined}>{display(cell)}</span>}
       </td>)}</tr>)}</tbody>
     </table>
+    </div>
   </div>;
 }

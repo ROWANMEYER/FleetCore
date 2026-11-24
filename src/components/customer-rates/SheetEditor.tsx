@@ -1,4 +1,6 @@
 "use client";
+import { CustomerAdjustments } from "./CustomerAdjustments";
+import { customerAdjustmentPending } from "@/src/lib/fuel/customerAdjustments";
 import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
@@ -70,6 +72,9 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const [lanes, setLanes] = useState<DraftLane[]>(() => sheet.lanes.map(l => ({ key: l.id, id: l.id, loadingPoint: l.loadingPoint, destination: l.destination, pricingUnit: l.pricingUnit ?? "", rate: String(l.rate), date: l.date ?? "" })));
   const [agreement, setAgreement] = useState<AgreementType | "legacy">(sheet.agreementType ?? "legacy");
   const [percent, setPercent] = useState(String(sheet.fuelCompositionPercent ?? DEFAULT_FUEL_COMPOSITION));
+  const [adjustmentBusy, setAdjustmentBusy] = useState(false);
+  const customerNotices = useQuery(api.rateSheets.customerAdjustments, sheet.agreementType === "customer_notified" ? { token, customerId: sheet.customerId } : "skip");
+  const notices = (customerNotices ?? []).filter(n => n.sheetId === sheet._id);
   const [revision, setRevision] = useState(sheet.revision);
   const agreementProblem = agreement === "fuel_linked" ? (!percent.trim() ? "Enter a fuel composition." : compositionProblem(Number(percent))) : null;
   const settings = { ...(agreement !== "legacy" ? { agreementType: agreement } : {}), ...(agreement !== "legacy" ? { fuelCompositionPercent: Number(percent) } : {}) };
@@ -99,7 +104,8 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const oldDiesel = sheet.oldDieselPrice;
   const newDiesel = sheet.newDieselPrice;
   const carried = { effectiveDate: addedDate, oldDiesel: String(oldDiesel), newDiesel: String(newDiesel), agreementType: agreement === "legacy" ? undefined : agreement, fuelCompositionPercent: agreement === "legacy" ? undefined : percent };
-  const timeline = customerMonthlyRates(lanes.map(l => ({ rate: l.rate.trim() ? Number(l.rate) : NaN, date: l.date })), addedDate, fuel ?? [], settings);
+  const projectionAgreement = { ...settings, sheetId: String(sheet._id), customerAdjustments: notices };
+  const timeline = customerMonthlyRates(lanes.map(l => ({ id: l.id, rate: l.rate.trim() ? Number(l.rate) : NaN, date: l.date })), addedDate, fuel ?? [], projectionAgreement);
   /**
    * The PDF prints what is on screen, not what is stored: the reader can lay out a change, look at the printable sheet, and only then save it.
    */
@@ -109,13 +115,14 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
   const generatePdf = () => {
     const doc = generateRateSheetPDF(buildRateSheetData(
       {
-        ...settings,
+        ...projectionAgreement,
         effectiveDate: addedDate || undefined,
         notes,
         oldDieselPrice: oldDiesel,
         newDieselPrice: newDiesel,
         defaultPricingUnit: sheet.defaultPricingUnit,
         lanes: lanes.map((l, index) => ({
+          id: l.id,
           loadingPoint: l.loadingPoint,
           destination: l.destination,
           pricingUnit: l.pricingUnit || undefined,
@@ -175,13 +182,13 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
     } finally { setBusy(false); }
   }
   return <div className="space-y-6">
-    <fieldset disabled={busy || deleting} className="contents">
+    <fieldset disabled={busy || deleting || adjustmentBusy} className="contents">
     <section className="glass-card rounded-xl p-5 space-y-3">
       <h2 className="font-semibold">Customer agreement</h2>
       <label className="block text-sm">Rate agreement
         <select className={`${input} w-full mt-1`} value={agreement} onChange={e => { setAgreement(e.target.value as AgreementType | "legacy"); if (!percent.trim() || compositionProblem(Number(percent))) setPercent(String(DEFAULT_FUEL_COMPOSITION)); setNotice(""); }}>
           {!sheet.agreementType && <option value="legacy">Recorded fuel composition (existing calculation)</option>}
-          <option value="fuel_linked">Fuel-linked rates</option><option value="fixed">Fixed-rate agreement</option>
+          <option value="fuel_linked">Fuel-linked rates</option><option value="fixed">Fixed-rate agreement</option><option value="customer_notified">Customer-supplied adjustments</option>
         </select>
       </label>
       {agreement === "fuel_linked" && <label className="block text-sm">Customer fuel composition (%)
@@ -189,14 +196,15 @@ export function SheetEditor({ token, sheet, customer, customerName, onDeleted }:
         <span className="block mt-1 text-xs text-[var(--nav-text-color)]">Default 45%. Applies to this customer&apos;s later fuel changes; zero is allowed.</span>
       </label>}
       {agreementProblem && <p role="alert" className="text-red-500 text-sm">{agreementProblem}</p>}
-      <p className="text-sm text-[var(--nav-text-color)]">{agreement === "fixed" ? "Rates stay fixed regardless of diesel movements. Changing the agreed rate creates a historical tariff record." : agreement === "legacy" ? "Existing calculations and dates are preserved. Choose fuel-linked or fixed rates to activate individual lane dates." : "Fuel changes compound from each lane's effective date, rounded to cents as before."}</p>
+      <p className="text-sm text-[var(--nav-text-color)]">{agreement === "customer_notified" ? "Company fuel updates leave this customer unchanged. Save dated percentages and exact customer prices below." : agreement === "fixed" ? "Rates stay fixed regardless of diesel movements. Changing the agreed rate creates a historical tariff record." : agreement === "legacy" ? "Existing calculations and dates are preserved. Choose fuel-linked or fixed rates to activate individual lane dates." : "Fuel changes compound from each lane's effective date, rounded to cents as before."}</p>
     </section>
     <section className="glass-card rounded-xl p-5 space-y-3">
-      <h2 className="font-semibold">Automatic monthly rates</h2>
+      <h2 className="font-semibold">{agreement === "customer_notified" ? "Customer-approved monthly rates" : "Automatic monthly rates"}</h2>
       <p className="text-sm text-[var(--nav-text-color)]">Enter agreed starting rates. Leave a lane date blank to use the customer date below. Months before each effective month stay blank.</p>
       <p className="font-semibold">{timeline.months.map(formatRateMonth).join(" / ")}</p>
-      {agreement === "fixed" ? <p className="text-sm text-[var(--nav-text-color)]">Fixed-rate agreement: no fuel adjustments apply.</p> : fuel === undefined ? <p>Loading fuel prices…</p> : timeline.problem ? <p role="alert" className="text-amber-500">{timeline.problem}</p> : <p className="text-sm text-[var(--nav-text-color)]">Calculated through {formatAddedDate(fuel.at(-1)?.effectiveDate ?? addedDate)}. Save a new price in Fuel Compositions to update all customer monthly rates.</p>}
+      {agreement === "customer_notified" ? <p className="text-sm text-[var(--nav-text-color)]">Customer-supplied adjustments only. {customerAdjustmentPending(agreement, fuel?.at(-1)?.effectiveDate, notices.filter(n => n.effectiveDate.slice(0,7) <= (fuel?.at(-1)?.effectiveDate.slice(0,7) ?? "9999-12")).at(-1)?.effectiveDate) ? "Awaiting this month’s customer update; previous approved rates remain in use." : "Approved notices determine these tariffs; company fuel changes do not apply."}</p> : agreement === "fixed" ? <p className="text-sm text-[var(--nav-text-color)]">Fixed-rate agreement: no fuel adjustments apply.</p> : fuel === undefined ? <p>Loading fuel prices…</p> : timeline.problem ? <p role="alert" className="text-amber-500">{timeline.problem}</p> : <p className="text-sm text-[var(--nav-text-color)]">Calculated through {formatAddedDate(fuel.at(-1)?.effectiveDate ?? addedDate)}. Save a new price in Fuel Compositions to update all customer monthly rates.</p>}
     </section>
+    {agreement === "customer_notified" && (sheet.agreementType !== "customer_notified" ? <p className="text-sm text-amber-500">Save this agreement first to enable customer-supplied updates.</p> : customerNotices === undefined ? <p>Loading customer notices…</p> : <CustomerAdjustments sheet={sheet} token={token} notices={notices} defaultDate={fuel?.at(-1)?.effectiveDate ?? addedDate} revision={revision} disabled={!clean} onSaved={setRevision} onBusyChange={setAdjustmentBusy} />)}
     <section className="glass-card rounded-xl p-5 space-y-2">
       <h2 className="font-semibold">Customer effective date</h2>
       {dateSaved

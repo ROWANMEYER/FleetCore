@@ -1,5 +1,103 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Release report workspace, customer notices and shipment recovery
+
+The owner authorized committing and deploying the tested release. It includes
+the Ceramic monthly/local report workspace, customer-supplied percentage and
+exact tariff notices, and explicit recovery of deleted Ceramic shipments during
+import. PWA cache advances to fleetcore-v97. Release the compatible Convex schema
+and functions before the frontend. No existing customer is automatically moved
+to the special agreement and no deleted shipment or historical bill is changed
+as part of deployment. Private output files remain outside the commit.
+
+Validation: 1,253 tests across 78 files, application/Convex type checks,
+changed-file lint, optimized webpack build, and isolated backend/browser flows
+pass. GitHub main is checked for conflicting commits before release.
+
+## 2026-11-24 - Recover deleted Ceramic shipments during import
+
+The disabled import for SH00130726 was caused by the existing deleted-shipment
+check. Import review now explains the blocker and offers Restore shipment to
+administrators and the TRANSVAAL region owner. Confirmation recovers the saved
+shipment and only the assignment and planned main route removed in the same
+deletion. It retains source PDF revisions, driver instructions, amounts, original
+record IDs and assignment day. Reimport then follows the normal duplicate,
+revision and version-conflict checks. Importing alone never undoes deletion.
+
+Recovery validates the deletion timestamp, current version, all Planner links
+and assignment scope before writing. Changed links and completed, locked or
+invoiced routes require review. Previously removed historical routes remain
+deleted. Restore retries are idempotent and every successful recovery appends an
+audit record. Open unsaved shipment edits must be saved or discarded before
+restoring another shipment. Ordinary Ceramic dispatch and financial permissions
+are unchanged.
+
+Validation: all 1,253 tests across 78 files, application and Convex type checks,
+and changed-file lint pass. The isolated localhost backend accepts the schema
+and functions; real endpoint tests verify restore/reimport retains the same
+single Planner load and source snapshot. Browser verification confirms the
+restore prompt, successful recovery, enabled import and continued dispatch.
+The optimized webpack build passes. Existing uncommitted Customer Rates
+and report-workspace changes are preserved. No production data changes, commit
+or deployment are part of this fix.
+
+## 2026-11-24 - Customer-supplied tariff adjustments
+
+Added an explicit Customer-supplied adjustments agreement for any selected
+customer. Normal fuel-linked and fixed agreements retain their existing rules.
+The monthly workflow remains the company fuel update on the first Wednesday,
+followed by dated customer notices for exceptions. A pending filter identifies
+special customers awaiting that month's notice; their prior approved prices
+remain available with a warning.
+
+A notice accepts a percentage, exact lane prices, or both; exact prices take
+precedence. Preview, Customer Rates monthly columns, printable rate sheets and
+new Ceramic billing use the same dated calculation. Notices retain their
+reference, author, effective date and revision in immutable history. A corrected
+same-day notice replaces that day's calculation and preserves earlier versions.
+Starting tariffs stay intact. Existing confirmed bills retain their snapshots;
+reconfirmation remains explicit. Auth, lane ownership, amounts and concurrent
+edits are validated on the backend. No existing customer was automatically
+switched to the new method.
+
+Validation: all 1,237 tests across 78 files pass, as do application and Convex
+type checking, changed-file lint and the optimized webpack build. The isolated
+localhost backend accepts the new schema/functions. Endpoint and browser tests with synthetic data verify
+combined percentage/exact prices, retained correction history, unchanged normal
+customers and baselines, and main-only Planner revenue with local transport in
+reports. Existing report-workspace edits are preserved. No production data was
+changed; this work is not committed or deployed.
+
+## 2026-11-24 - Ceramic report table and full-screen workspace
+
+Implemented the approved web report workspace in the existing theme. Monthly and
+local reports default to populated-row tables with search, status filters,
+sortable headings, frozen date/shipment identifiers and expandable shipment /
+warehouse details. The bounded viewing area keeps horizontal controls above the
+data and synchronizes them with the bottom scrollbar. Full-screen mode covers
+app navigation, traps keyboard focus and supports Escape; changing full-screen
+mode preserves an active edit. Original-sheet preview offers Fit width, Fit
+whole sheet and percentage zoom. Screen scaling does not alter Excel geometry,
+formulas, template filler rows or exports.
+
+Editable values open a row-contained review/editor using existing authenticated
+Convex endpoints. Automated rates/totals remain protected; chargeable-ton and
+legacy manual edits use their current validation and concurrency guards. Drafts
+block period changes and prompt before navigating away; cancel discards only
+unsaved edits. Search/filtering changes only the table. Excel still exports the
+complete period, and export validation errors remain visible in full-screen
+mode. Report pages progressively load through the existing paginated query with
+the existing 10,000-shipment safety limit and show loading/completeness status.
+
+Validation: all 1,221 tests (77 files), including 196 Ceramic tests, pass.
+Application type checking, changed-file lint and the optimized webpack build pass.
+Browser checks on isolated localhost synthetic data verify search, missing-value
+filters, frozen columns, synchronized scrollbars, whole-sheet fit, both views,
+full-screen draft preservation, automated save/cancel and legacy manual save.
+No backend/schema changes, production data writes, commits or deployment are
+part of this implementation. Existing private output files remain untouched.
+
+
 ## 2026-11-24 - Ceramic George locals and single-town SP corrections
 
 Owner clarified that only Cashbuild and Italtile delivery branches in George

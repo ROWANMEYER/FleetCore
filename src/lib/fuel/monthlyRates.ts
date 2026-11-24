@@ -1,3 +1,4 @@
+import { customerRateOnDate, customerAdjustmentPending, type CustomerAdjustment } from "./customerAdjustments";
 import { cents, compositionEffect, percentChange } from "@/convex/fuelPriceFields";
 import { compositionProblem, DEFAULT_FUEL_COMPOSITION, type AgreementType, validDay } from "@/convex/rateSheetFields";
 
@@ -20,13 +21,22 @@ export function rateMonths(latestDate: string): string[] {
  * baseline on every read: a fuel edit, removal or repeated render cannot apply
  * a move twice. Keep the full history even when only three months are shown.
  */
-export type RateAgreement = { agreementType?: AgreementType; fuelCompositionPercent?: number };
+export type RateAgreement = { agreementType?: AgreementType; fuelCompositionPercent?: number; customerAdjustments?: CustomerAdjustment[]; sheetId?: string; laneId?: string };
 export function monthlyRates(baseRates: number[], baseDate: string, history: FuelPeriod[], agreement: RateAgreement = {}, displayDate?: string): MonthlyRates {
   const rows = [...history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
   const latest = rows.at(-1);
   const months = rateMonths(displayDate ?? latest?.effectiveDate ?? baseDate);
   const empty = (): (number | null)[][] => baseRates.map(() => [null, null, null]);
   if (!validDay(baseDate)) return { months, rates: empty(), problem: "Set a valid starting date for these rates." };
+  if (agreement.agreementType === "customer_notified") {
+    if (baseRates.some(rate => !Number.isFinite(rate) || rate < 0)) return { months, rates: empty(), problem: "Finish every starting rate first." };
+    const notices = (agreement.customerAdjustments ?? []).filter(n => !agreement.sheetId || n.sheetId === agreement.sheetId);
+    return { months, rates: baseRates.map(rate => months.map(month => {
+      const [year, number] = month.split("-").map(Number);
+      const day = new Date(Date.UTC(year, number, 0)).toISOString().slice(0,10);
+      return customerRateOnDate(rate, baseDate, day, agreement.laneId ?? "", notices);
+    })), problem: null };
+  }
   if (agreement.agreementType === "fixed") {
     if (baseRates.some(rate => !Number.isFinite(rate) || rate < 0)) return { months, rates: empty(), problem: "Finish every starting rate first." };
     return { months, rates: baseRates.map(rate => months.map(month => month >= baseDate.slice(0, 7) ? cents(rate) : null)), problem: null };
@@ -61,10 +71,13 @@ export function monthlyRates(baseRates: number[], baseDate: string, history: Fue
 }
 
 /** Screen and PDF share lane dates; unconfigured legacy sheets keep their original sheet baseline. */
-export function customerMonthlyRates(lanes: { rate: number; date?: string }[], baseDate: string, history: FuelPeriod[], agreement: RateAgreement = {}): MonthlyRates {
+export function customerMonthlyRates(lanes: { id?: string; rate: number; date?: string }[], baseDate: string, history: FuelPeriod[], agreement: RateAgreement = {}): MonthlyRates {
   if (!agreement.agreementType) return monthlyRates(lanes.map(lane => lane.rate), baseDate, history);
-  const displayDate = [...history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)).at(-1)?.effectiveDate ?? baseDate;
-  const timelines = lanes.map(lane => monthlyRates([lane.rate], lane.date || baseDate, history, agreement, displayDate));
+  const fuelDate = [...history].sort((a,b) => a.effectiveDate.localeCompare(b.effectiveDate)).at(-1)?.effectiveDate;
+  const displayDate = agreement.agreementType === "customer_notified" ? [fuelDate ?? "", baseDate, ...(agreement.customerAdjustments ?? []).filter(n => !agreement.sheetId || n.sheetId === agreement.sheetId).map(n => n.effectiveDate)].sort().at(-1)! : fuelDate ?? baseDate;
+  const timelines = lanes.map(lane => monthlyRates([lane.rate], lane.date || baseDate, history, { ...agreement, laneId: lane.id }, displayDate));
   const fallback = monthlyRates([], baseDate, history, agreement);
-  return { months: timelines[0]?.months ?? fallback.months, rates: timelines.map(timeline => timeline.rates[0]), problem: timelines.find(timeline => timeline.problem)?.problem ?? (lanes.length ? null : fallback.problem) };
+  const latestNotice = (agreement.customerAdjustments ?? []).filter(n => (!agreement.sheetId || n.sheetId === agreement.sheetId) && n.effectiveDate.slice(0,7) <= (fuelDate?.slice(0,7) ?? "9999-12")).map(n => n.effectiveDate).sort().at(-1);
+  const pending = customerAdjustmentPending(agreement.agreementType, fuelDate, latestNotice);
+  return { months: timelines[0]?.months ?? fallback.months, rates: timelines.map(timeline => timeline.rates[0]), problem: timelines.find(timeline => timeline.problem)?.problem ?? (pending ? `Awaiting customer adjustment for ${fuelDate!.slice(0,7)}. Previous approved tariffs remain in use.` : lanes.length ? null : fallback.problem) };
 }

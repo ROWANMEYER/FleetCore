@@ -77,7 +77,13 @@ export const previewBatch = query({
       shipmentNumber: v.string(), version: v.number(), fileHash: v.string(),
     })),
   },
+  returns: v.array(v.object({
+    shipmentNumber: v.string(), version: v.number(), currentVersion: v.union(v.number(), v.null()),
+    restoreTarget: v.union(v.object({ shipmentId: v.id("ceramicShipments"), updatedAt: v.number() }), v.null()),
+    status: v.union(v.literal("new"), v.literal("revision"), v.literal("duplicate"), v.literal("older_version"), v.literal("version_conflict"), v.literal("deleted")),
+  })),
   handler: async (ctx, args) => {
+    if (args.files.length > 25) throw ceramicAssignmentError("Review up to 25 PDFs per batch.");
     const { region } = await requireRegion(ctx, args.token, args.region);
     return await Promise.all(args.files.map(async (file) => {
       const existing = await ctx.db.query("ceramicShipments")
@@ -94,6 +100,7 @@ export const previewBatch = query({
         shipmentNumber: file.shipmentNumber,
         version: file.version,
         currentVersion: existing?.version ?? null,
+        restoreTarget: existing?.deletedAt !== undefined ? { shipmentId: existing._id, updatedAt: existing.updatedAt } : null,
         status,
       };
     }));
@@ -124,7 +131,7 @@ export const commitBatch = mutation({
       seen.add(number);
       const existing = await ctx.db.query("ceramicShipments")
         .withIndex("by_region_number", (q) => q.eq("region", region).eq("shipmentNumber", number)).first();
-      if (existing?.deletedAt !== undefined) throw ceramicAssignmentError(`${number} was deleted. Contact an administrator before importing it again.`);
+      if (existing?.deletedAt !== undefined) throw ceramicAssignmentError(`${number} was deleted. Restore it from the import review before importing it again.`);
       if (existing && file.snapshot.version === existing.version && file.fileHash !== existing.fileHash) {
         throw ceramicAssignmentError(`${number} version ${file.snapshot.version} differs from the imported version; review before replacing it.`);
       }
@@ -252,6 +259,50 @@ export const remove = mutation({
     if (assignment) await ctx.db.patch(assignment._id, { deletedAt: now, deletedBy: actor, updatedAt: now, updatedBy: actor });
     await ctx.db.patch(shipment._id, { deletedAt: now, deletedBy: actor, updatedAt: now, updatedBy: actor });
     return { deleted: true };
+  },
+});
+
+/** Explicit recovery reuses the original records; importing alone never undoes deletion. */
+export const restore = mutation({
+  args: { token: v.string(), region: ceramicRegion, shipmentId: v.id("ceramicShipments"), expectedVersion: v.number(), expectedUpdatedAt: v.number() },
+  returns: v.object({ restored: v.boolean() }),
+  handler: async (ctx, args) => {
+    const { region, actor } = await requireFinancialRegion(ctx, args.token, args.region);
+    const shipment = await ctx.db.get(args.shipmentId);
+    if (!shipment || shipment.region !== region) throw ceramicAssignmentError("Shipment not found.");
+    if (shipment.deletedAt === undefined) return { restored: false };
+    if (shipment.version !== args.expectedVersion || shipment.updatedAt !== args.expectedUpdatedAt) {
+      throw ceramicAssignmentError("Shipment changed. Cancel and review the latest import status before restoring.");
+    }
+    const assignment = await ctx.db.query("ceramicAssignments").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).unique();
+    const routes = await ctx.db.query("dailyRoutes").withIndex("by_ceramicShipmentId", q => q.eq("ceramicShipmentId", shipment._id)).take(101);
+    if (routes.length > 100) throw ceramicAssignmentError("Too many Planner links. Contact support before restoring.");
+    if (assignment && !routes.some(route => route._id === assignment.routeId)) {
+      const linked = await ctx.db.get(assignment.routeId);
+      if (linked) routes.push(linked);
+    }
+    const recovering = routes.filter(route => route.deletedAt === shipment.deletedAt);
+    if (routes.some(route => route.ceramicShipmentId !== shipment._id || route.region !== shipment.region || !route.isDeleted) ||
+        recovering.length > 1 || (!assignment && (recovering.length > 0 || shipment.driverId || shipment.truckId)) ||
+        (assignment && (assignment.region !== region || assignment.deletedAt !== shipment.deletedAt || recovering.length !== 1 || recovering[0]._id !== assignment.routeId))) {
+      throw ceramicAssignmentError("The saved assignment or Planner link changed. Contact an administrator to review it before restoring.");
+    }
+    for (const route of recovering) {
+      const invoice = await ctx.db.query("invoices").withIndex("by_routeId", q => q.eq("routeId", route._id)).first();
+      if ((route.status || "planned") !== "planned" || invoice) {
+        throw ceramicAssignmentError("The linked Planner load is completed, locked or invoiced. It cannot be restored here.");
+      }
+    }
+    const now = Math.max(Date.now(), shipment.updatedAt + 1);
+    await ctx.db.insert("ceramicShipmentRestorations", {
+      shipmentId: shipment._id, region, version: shipment.version, deletedAt: shipment.deletedAt,
+      ...(shipment.deletedBy ? { deletedBy: shipment.deletedBy } : {}),
+      restoredAt: now, restoredBy: actor, routeIds: recovering.map(route => route._id),
+    });
+    for (const route of recovering) await ctx.db.patch(route._id, { isDeleted: false, deletedAt: undefined });
+    if (assignment) await ctx.db.patch(assignment._id, { deletedAt: undefined, deletedBy: undefined, updatedAt: now, updatedBy: actor });
+    await ctx.db.patch(shipment._id, { deletedAt: undefined, deletedBy: undefined, updatedAt: now, updatedBy: actor });
+    return { restored: true };
   },
 });
 

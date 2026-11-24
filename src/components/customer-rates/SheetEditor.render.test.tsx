@@ -3,14 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { api } from "@/convex/_generated/api";
+import type { CustomerAdjustment } from "@/src/lib/fuel/customerAdjustments";
 import { SheetEditor } from "./SheetEditor";
 
-const mock = vi.hoisted(() => ({ fuel: [] as { effectiveDate: string; pricePerLitre: number; compositionPercent?: number }[] }));
-vi.mock("convex/react", () => ({ useMutation: () => vi.fn(), useQuery: () => mock.fuel }));
+const mock = vi.hoisted(() => ({ notices: [] as CustomerAdjustment[], fuel: [] as { effectiveDate: string; pricePerLitre: number; compositionPercent?: number }[] }));
+vi.mock("convex/react", () => ({ useMutation: () => vi.fn(), useQuery: (_query: unknown,args: {customerId?:string} | "skip") => args !== "skip" && args?.customerId ? mock.notices : mock.fuel }));
 type Sheet = NonNullable<FunctionReturnType<typeof api.rateSheets.get>>;
 const base: Sheet = { _id: "sheet" as Id<"rateSheets">, _creationTime: 1, customerId: "customer" as Id<"customers">, defaultPricingUnit: "full", effectiveDate: "2026-08-01", notes: "", oldDieselPrice: 0, newDieselPrice: 0, contacts: [], revision: 1, createdAt: 1, updatedAt: 1, updatedBy: "admin" as Id<"users">, updatedByEmail: "admin@example.com", lanes: [{ id: "lane", loadingPoint: "George", destination: "Cape Town", rate: 1000, sortOrder: 0, date: "2026-09-01" }] };
 const render = (patch: Partial<Sheet> = {}) => renderToStaticMarkup(<SheetEditor token="synthetic" sheet={{ ...base, ...patch }} customerName="Synthetic customer" onDeleted={vi.fn()} />);
-beforeEach(() => { mock.fuel = [{ effectiveDate: "2026-08-01", pricePerLitre: 20, compositionPercent: 50 }, { effectiveDate: "2026-09-01", pricePerLitre: 22, compositionPercent: 50 }]; });
+beforeEach(() => { mock.notices = []; mock.fuel = [{ effectiveDate: "2026-08-01", pricePerLitre: 20, compositionPercent: 50 }, { effectiveDate: "2026-09-01", pricePerLitre: 22, compositionPercent: 50 }]; });
 describe("Customer Rates agreement rendering", () => {
   it("shows the new default composition and editable individual date", () => {
     const html = render({ agreementType: "fuel_linked", fuelCompositionPercent: 45 });
@@ -26,6 +27,11 @@ describe("Customer Rates agreement rendering", () => {
     expect(html).toContain("Recorded fuel composition (existing calculation)");
     expect(html).toContain("activate individual lane dates");
     expect(html).toContain("R 1 050,00");
+  });
+  it("shows the special-customer percentage and exact-price controls without fuel adjustment copy", () => {
+    mock.notices = [{_id:"n",sheetId:"sheet",effectiveDate:"2026-09-01",percentage:null,rates:[{laneId:"lane",rate:1111.11}],reference:"Approved customer sheet",recordedAt:1}];
+    const html=render({agreementType:"customer_notified"});
+    expect(html).toContain("Customer-supplied rate updates");expect(html).toContain("Rate change (%)");expect(html).toContain("Exact customer rate");expect(html).toContain("R 1 111,11");expect(html).not.toContain("Save a new price in Fuel Compositions");
   });
   it("supports fixed agreements with no fuel records and leaves export available", () => {
     mock.fuel = [];

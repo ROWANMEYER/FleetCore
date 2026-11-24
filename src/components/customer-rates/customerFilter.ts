@@ -1,3 +1,4 @@
+import { customerAdjustmentPending } from "@/src/lib/fuel/customerAdjustments";
 import type { Id } from "@/convex/_generated/dataModel";
 
 /**
@@ -15,13 +16,15 @@ export interface FilterableCustomer {
 export interface SheetSummary {
   customerId: Id<"customers">;
   laneCount: number;
+  agreementType?: string;
+  customerAdjustmentDate?: string;
   /** Absent until the first save claims it, which is why the list can show a sheet with no date yet. */
   effectiveDate?: string;
   updatedAt: number;
 }
 
 /** Which sheets the table shows: everything, only customers with a sheet, or only without. */
-export type SheetFilter = "all" | "with_sheet" | "without_sheet";
+export type SheetFilter = "all" | "with_sheet" | "without_sheet" | "customer_notified" | "awaiting_adjustment";
 
 /**
  * Split a raw search box value into matchable terms.
@@ -59,7 +62,8 @@ export function filterCustomers(
   customers: FilterableCustomer[],
   sheetByCustomer: Map<Id<"customers">, SheetSummary>,
   rawSearch: string,
-  sheetFilter: SheetFilter
+  sheetFilter: SheetFilter,
+  latestFuelDate?: string
 ): FilterableCustomer[] {
   const terms = parseSearchTerms(rawSearch);
   return customers.filter(c => {
@@ -67,6 +71,9 @@ export function filterCustomers(
     const hasSheet = sheetByCustomer.has(c._id);
     if (sheetFilter === "with_sheet" && !hasSheet) return false;
     if (sheetFilter === "without_sheet" && hasSheet) return false;
+    const sheet = sheetByCustomer.get(c._id);
+    if (sheetFilter === "customer_notified" && sheet?.agreementType !== "customer_notified") return false;
+    if (sheetFilter === "awaiting_adjustment" && !customerAdjustmentPending(sheet?.agreementType, latestFuelDate, sheet?.customerAdjustmentDate)) return false;
     if (terms.length === 0) return true;
     return terms.some(words => customerMatchesTerm(c, words));
   });

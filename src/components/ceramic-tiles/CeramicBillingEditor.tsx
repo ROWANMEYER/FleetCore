@@ -1,6 +1,6 @@
 "use client";
 import { CERAMIC_LOCAL_TOWN } from "@/src/lib/ceramic-tiles/planning";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { CeramicReportRow } from "@/src/lib/ceramic-tiles/reportExport";
@@ -11,8 +11,8 @@ import { ModalShell } from "@/src/components/common/ModalShell";
 const field = "mt-1 min-h-11 w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm";
 const text = (n: number | null | undefined) => n === null || n === undefined ? "" : String(n);
 
-export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
-  row: CeramicReportRow; token: string; onClose: () => void; mode?: "main" | "local";
+export function CeramicBillingEditor({ row, token, onClose, mode = "main", inline = false, onInteractionChange }: {
+  row: CeramicReportRow; token: string; onClose: () => void; mode?: "main" | "local"; inline?: boolean; onInteractionChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
   const original = row.billing ?? emptyCeramicBilling();
   const [rate, setRate] = useState(text(original.ratePerTon));
@@ -25,6 +25,10 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
   }));
   const [saving, setSaving] = useState(false), [error, setError] = useState("");
   const save = useMutation(api.ceramicTiles.saveReportBilling);
+  const dirty = mode === "main" ? rate !== text(original.ratePerTon) || stopCharge !== text(ceramicStopsCharge(original)) || load !== original.load :
+    locals.some(local => local.price !== text(original.locals.find(saved => saved.key === local.key)?.price));
+  useEffect(() => { onInteractionChange?.({ dirty, saving }); }, [dirty, saving, onInteractionChange]);
+  useEffect(() => () => onInteractionChange?.({ dirty: false, saving: false }), [onInteractionChange]);
   const deliveryStops = ceramicDeliveryStops(row.toLocations);
   const money = (value: string) => {
     if (!value.trim()) return null;
@@ -44,8 +48,7 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save amounts."); }
     finally { setSaving(false); }
   };
-  return <ModalShell open onClose={() => { if (!saving) onClose(); }} className="max-w-2xl" portal autoFocus>
-    <form onSubmit={event => void submit(event)} className="max-h-[85dvh] overflow-y-auto p-5 text-[var(--foreground)]">
+  const form = <form onSubmit={event => void submit(event)} className={`${inline ? "p-2" : "max-h-[85dvh] overflow-y-auto p-5"} text-[var(--foreground)]`}>
       <h2 className="text-lg font-semibold">{mode === "main" ? "Amounts" : "Local amounts"} for {row.shipmentNumber}</h2>
       {mode === "main" ? <>
         <p className="mt-1 text-xs text-[var(--nav-text-color)]">Freight = rate per ton × 34. Blank means not entered. Automatic billing is available in Review rate & charges. This editor preserves legacy manual amounts.</p>
@@ -73,6 +76,6 @@ export function CeramicBillingEditor({ row, token, onClose, mode = "main" }: {
         <button type="button" className="min-h-11 rounded-lg border border-[var(--card-border)] px-4 text-sm" disabled={saving} onClick={onClose}>Cancel</button>
         <button type="submit" className="min-h-11 rounded-lg bg-[#0891B2] px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving}>{saving ? 'Saving…' : 'Save amounts'}</button>
       </div>
-    </form>
-  </ModalShell>;
+    </form>;
+  return inline ? form : <ModalShell open onClose={() => { if (!saving) onClose(); }} className="max-w-2xl" portal autoFocus>{form}</ModalShell>;
 }

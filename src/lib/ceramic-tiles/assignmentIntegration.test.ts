@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
 import { describe, expect, it, vi } from "vitest";
-import { assign, list, report, remove, saveReportBilling } from "@/convex/ceramicTiles";
+import { assign, list, report, remove, restore, commitBatch, saveReportBilling } from "@/convex/ceramicTiles";
 import { assign as mobileAssign, list as mobileList } from "@/convex/ceramicTilesMobile";
 import { ceramicMainLoad } from "./planning";
 import { ceramicReportSheets } from "./reportExport";
@@ -63,6 +63,21 @@ function fixture(role = "admin", region: string | undefined = undefined, shipmen
 }
 
 describe("Ceramic assignment → main Planner load and both reports", () => {
+  it("recovers a deleted shipment, reimports its PDF and reuses one assignment in Planner and both reports", async () => {
+    const f = fixture(); await f.run(assign);
+    const routeId = [...f.table("dailyRoutes").keys()][0], original = structuredClone(f.shipment.snapshot);
+    await f.run(remove, { expectedUpdatedAt: f.shipment.updatedAt });
+    expect((await f.read()).page).toEqual([]);
+    expect(await f.run(restore, { expectedUpdatedAt: f.shipment.updatedAt })).toEqual({ restored: true });
+    expect(await f.run(commitBatch, { files: [{ snapshot, fileName: "example.pdf", fileHash: "a".repeat(64) }] })).toEqual([{ shipmentNumber: snapshot.shipmentNumber, version: 1, status: "duplicate" }]);
+    await f.run(assign); await f.run(mobileAssign);
+    expect(f.shipment.snapshot).toEqual(original); expect([...f.table("dailyRoutes").keys()]).toEqual([routeId]);
+    expect(f.table("ceramicAssignments").size).toBe(1);
+    const rows = (await f.read()).page;
+    expect(rows).toHaveLength(1); expect(rows[0].locals).toHaveLength(2);
+    expect(ceramicReportSheets(rows)[1].rows).toHaveLength(3);
+  });
+
   it.each(["garden_route", "eastern_cape", "transvaal", "kaap", "durban"])("allows %s users to allocate Ceramic loads under TRANSVAAL on web and mobile", async userRegion => {
     for (const fn of [assign, mobileAssign]) {
       const f = fixture("regional", userRegion, "garden_route");

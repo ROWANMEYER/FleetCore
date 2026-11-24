@@ -38,7 +38,7 @@ function memoryDb() {
         },
         collect: async () => rowsIn.filter(predicate),
         take: async (n: number) => rowsIn.filter(predicate).slice(0, n),
-        order: (_direction: string) => ({ paginate: async ({ numItems, cursor }: { numItems: number; cursor: string | null }) => {
+        order: (_direction: string) => ({ first: async () => { const found = rowsIn.filter(predicate); return (_direction === "desc" ? found.reverse() : found)[0] ?? null; }, paginate: async ({ numItems, cursor }: { numItems: number; cursor: string | null }) => {
           const found = rowsIn.filter(predicate);
           if (_direction === "desc") found.reverse();
           const start = Number(cursor ?? 0), page = found.slice(start, start + numItems);
@@ -47,9 +47,12 @@ function memoryDb() {
       });
       return {
         ...match(all(), () => true),
-        withIndex: (_index: string, filter: (q: { eq: (field: string, value: unknown) => unknown }) => unknown) => {
-          const predicate = filter({ eq: (field: string, value: unknown) => (row: Row) => row[field] === value }) as (row: Row) => boolean;
-          return match(all(), predicate);
+        withIndex: (_index: string, filter: ((q: { eq: (field: string, value: unknown) => unknown; lte: (field: string,value: string) => unknown }) => unknown) | undefined) => {
+          const predicates: ((row: Row) => boolean)[] = [];
+          const index = { eq: (field: string, value: unknown) => { predicates.push(row => row[field] === value); return index; }, lte: (field: string,value: string) => { predicates.push(row => String(row[field]) <= value); return index; } };
+          filter?.(index);
+          const ordered = _index.includes("effectiveDate") ? all().sort((a,b) => String(a.effectiveDate).localeCompare(String(b.effectiveDate))) : all();
+          return match(ordered, row => predicates.every(predicate => predicate(row)));
         },
       };
     },
@@ -405,5 +408,45 @@ describe("Phase 1 agreements and immutable tariff history", () => {
     const before = JSON.stringify([await h.db.get(route), await h.db.get(fuel)]);
     await h.save([h.lane("a", 2000)], { agreementType: "fixed" });
     expect(JSON.stringify([await h.db.get(route), await h.db.get(fuel)])).toBe(before);
+  });
+});
+
+describe("customer-supplied adjustments", () => {
+  async function setup(mode = "customer_notified") {
+    const h = await fixture(); await h.call(sheets.create,{...h.args,defaultPricingUnit:"ton"});
+    await h.save([h.lane("a",1000),h.lane("b",2000)],{effectiveDate:"2026-08-05",agreementType:mode});
+    const sheet=h.db.all("rateSheets")[0], lanes=sheet.lanes as {id:string;rate:number}[];
+    const request={...h.args,expectedRevision:sheet.revision,effectiveDate:"2026-09-02",percentage:5,rates:[],reference:"Customer September notice"};
+    return {...h,sheet,lanes,request};
+  }
+  it("saves percentage plus exact lane prices with immutable history, leaving baselines unchanged", async () => {
+    const h=await setup(),baseline=structuredClone(h.sheet.lanes);
+    const result=await h.call(sheets.saveCustomerAdjustment,{...h.request,rates:[{laneId:h.lanes[1].id,rate:1999.99}]}) as {revision:number;adjustmentId:string};
+    expect(h.db.all("rateSheets")[0].lanes).toEqual(baseline);expect(result.revision).toBe(2);
+    expect(h.db.all("customerRateAdjustments")).toHaveLength(1);
+    expect(h.db.all("rateSheetHistory").at(-1)).toMatchObject({action:"customer_adjustment",customerAdjustmentId:result.adjustmentId});
+    await expect(h.call(sheets.customerAdjustments,h.args)).resolves.toHaveLength(1);
+  });
+  it("requires admin access and the explicit special-customer agreement", async () => {
+    const h=await setup(); await expect(h.call(sheets.saveCustomerAdjustment,{...h.request,token:"regional"})).rejects.toThrow("Admin access");
+    await expect(h.call(sheets.customerAdjustments,{...h.args,token:"nope"})).rejects.toThrow("Sign in");
+    const regular=await setup("fuel_linked");await expect(regular.call(sheets.saveCustomerAdjustment,regular.request)).rejects.toThrow("Customer-supplied");expect(regular.db.all("customerRateAdjustments")).toHaveLength(0);
+  });
+  it("retains same-day corrections and rejects stale retries or unchanged duplicates", async () => {
+    const h=await setup();await h.call(sheets.saveCustomerAdjustment,h.request);
+    await expect(h.call(sheets.saveCustomerAdjustment,h.request)).rejects.toThrow("another session");
+    await expect(h.call(sheets.saveCustomerAdjustment,{...h.request,expectedRevision:2})).rejects.toThrow("already matches");
+    await h.call(sheets.saveCustomerAdjustment,{...h.request,expectedRevision:2,percentage:6,reference:"Corrected notice"});
+    expect(h.db.all("customerRateAdjustments")).toHaveLength(2);expect(h.db.all("customerRateAdjustments")[0]).toMatchObject({percentage:5});
+  });
+  it("rejects invalid dates, percentages, foreign lanes and invalid prices before any writes", async () => {
+    const h=await setup(),before=h.db.all("rateSheetHistory").length;
+    for(const patch of [{effectiveDate:"2026-02-31"},{percentage:-101},{percentage:1001},{percentage:null,rates:[]},{reference:""},{rates:[{laneId:"foreign",rate:1}]},{rates:[{laneId:h.lanes[0].id,rate:-1}]},{rates:[{laneId:h.lanes[0].id,rate:1},{laneId:h.lanes[0].id,rate:2}]}]) await expect(h.call(sheets.saveCustomerAdjustment,{...h.request,...patch})).rejects.toThrow();
+    expect(h.db.all("rateSheetHistory")).toHaveLength(before);expect(h.db.all("customerRateAdjustments")).toHaveLength(0);
+  });
+  it("accepts zero-percent approval and exact zero prices, and lists the special allocation", async () => {
+    const h=await setup();await h.db.insert("fuelPrices",{effectiveDate:"2026-09-02",pricePerLitre:20});
+    await h.call(sheets.saveCustomerAdjustment,{...h.request,percentage:0,rates:[{laneId:h.lanes[0].id,rate:0}]});
+    const listed=await h.call(sheets.list,{token:"valid"}) as Row[];expect(listed[0]).toMatchObject({agreementType:"customer_notified",customerAdjustmentDate:"2026-09-02"});
   });
 });

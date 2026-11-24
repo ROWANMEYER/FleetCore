@@ -106,3 +106,13 @@ describe("filterCustomers", () => {
     expect(filterCustomers(customers, sheets, "timber", "without_sheet").map(c => c.name)).toEqual(["Timber Warehouse Knysna"]);
   });
 });
+
+describe("special customer allocations", () => {
+  it("separates special customers and pending monthly approvals from normal customers", () => {
+    const id = (value: string) => value as Id<"customers">;
+    const customers = ["normal","pending","approved"].map(name => ({_id:id(name),name,isActive:true}));
+    const sheets = new Map(customers.map(c => [c._id,{customerId:c._id,laneCount:1,updatedAt:1,agreementType:c.name === "normal" ? "fuel_linked" : "customer_notified",...(c.name === "approved" ? {customerAdjustmentDate:"2026-11-04"} : {})}]));
+    expect(filterCustomers(customers,sheets,"","customer_notified","2026-11-04").map(c=>c.name)).toEqual(["pending","approved"]);
+    expect(filterCustomers(customers,sheets,"","awaiting_adjustment","2026-11-04").map(c=>c.name)).toEqual(["pending"]);
+  });
+});

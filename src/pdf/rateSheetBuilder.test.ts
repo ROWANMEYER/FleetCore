@@ -101,3 +101,8 @@ describe("agreement-aware rate sheet PDF data", () => {
     expect(data.lanes[0].rates).toEqual([null, 1000, 1020]);
   });
 });
+
+it("prints exact customer-notified prices without applying fuel movements", () => {
+  const data = buildRateSheetData({agreementType:"customer_notified",sheetId:"special",customerAdjustments:[{_id:"notice",sheetId:"special",effectiveDate:"2026-11-04",percentage:5,rates:[{laneId:"lane",rate:1219.11}],reference:"Customer-approved November sheet",recordedAt:1}],effectiveDate:"2026-08-05",notes:"",oldDieselPrice:0,newDieselPrice:0,lanes:[{id:"lane",loadingPoint:"KRUGERSDORP + VEREENIGING",destination:"KNYSNA / PLETT",rate:1113.47,sortOrder:0}]},undefined,[{effectiveDate:"2026-08-05",pricePerLitre:20,compositionPercent:45},{effectiveDate:"2026-11-04",pricePerLitre:40,compositionPercent:90}]);
+  expect(data.lanes[0].rates).toEqual([1113.47,1113.47,1219.11]);expect(data.calculationProblem).toBeUndefined();
+});

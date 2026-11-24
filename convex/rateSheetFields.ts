@@ -24,8 +24,8 @@ export function validDay(value: string): boolean {
 
 /** Missing agreementType preserves the original recorded-composition calculation. */
 export const DEFAULT_FUEL_COMPOSITION = 45;
-export const agreementType = v.union(v.literal("fuel_linked"), v.literal("fixed"));
-export type AgreementType = "fuel_linked" | "fixed";
+export const agreementType = v.union(v.literal("fuel_linked"), v.literal("fixed"), v.literal("customer_notified"));
+export type AgreementType = "fuel_linked" | "fixed" | "customer_notified";
 export function compositionProblem(value: number): string | null {
   return Number.isFinite(value) && value >= 0 && value <= 100 ? null : "Fuel composition must be between 0 and 100%.";
 }
@@ -46,7 +46,8 @@ export const rateSheetFields = {
 export const rateSheetDocument = v.object({ _id: v.id("rateSheets"), _creationTime: v.number(), ...rateSheetFields });
 export const tariffHistoryFields = {
   customerId: v.id("customers"), sheetId: v.id("rateSheets"), revision: v.number(),
-  action: v.union(v.literal("baseline"), v.literal("save"), v.literal("unit"), v.literal("delete")),
+  action: v.union(v.literal("baseline"), v.literal("save"), v.literal("unit"), v.literal("delete"), v.literal("customer_adjustment")),
+  customerAdjustmentId: v.optional(v.id("customerRateAdjustments")),
   snapshot: v.object(tariffSnapshotFields),
   recordedAt: v.number(), recordedBy: v.id("users"), recordedByEmail: v.string(),
 };

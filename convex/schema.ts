@@ -1,3 +1,4 @@
+import { customerAdjustmentFields } from "./customerAdjustmentFields";
 import { ceramicBillingRules } from "./ceramicBillingFields";
 import { regionValidator } from "./regionFields";
 import { defineSchema, defineTable } from "convex/server";
@@ -9,6 +10,12 @@ import { ceramicRegion, ceramicShipmentSnapshot, ceramicStopOrder, ceramicBillin
 export default defineSchema({
   ceramicBillingSettings: defineTable({ ...ceramicBillingRules, effectiveDate: v.string(), customerId: v.optional(v.id("customers")), createdAt: v.number(), createdBy: v.id("users") }).index("by_effectiveDate", ["effectiveDate"]),
   ceramicBillingHistory: defineTable({ shipmentId: v.id("ceramicShipments"), routeDate: v.string(), version: v.number(), billing: ceramicBilling, recordedAt: v.number(), recordedBy: v.string(), reason: v.string() }).index("by_shipment", ["shipmentId"]),
+  /** Append-only audit of explicit recoveries; source revisions and billing stay intact. */
+  ceramicShipmentRestorations: defineTable({
+    shipmentId: v.id("ceramicShipments"), region: ceramicRegion, version: v.number(),
+    deletedAt: v.number(), deletedBy: v.optional(v.string()), restoredAt: v.number(), restoredBy: v.string(),
+    routeIds: v.array(v.id("dailyRoutes")),
+  }).index("by_shipment", ["shipmentId"]),
   /** Current active version per Ceramic Tiles shipment; assignments survive revisions. */
   ceramicShipments: defineTable({
     region: ceramicRegion,
@@ -65,6 +72,7 @@ export default defineSchema({
 
   /** Optional agreement fields keep existing records valid without a migration. */
   rateSheets: defineTable(rateSheetFields).index("by_customer", ["customerId"]),
+  customerRateAdjustments: defineTable(customerAdjustmentFields).index("by_customer", ["customerId"]).index("by_sheet_effectiveDate", ["sheetId", "effectiveDate"]),
   /** Append-only tariff snapshots; retained when a live rate sheet is removed. */
   rateSheetHistory: defineTable(tariffHistoryFields)
     .index("by_customer", ["customerId"])

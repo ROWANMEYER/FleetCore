@@ -41,7 +41,7 @@ const rowStatusLabel: Record<string, string> = {
   duplicate: "Already imported",
   older_version: "Older version",
   version_conflict: "Version conflict",
-  deleted: "Deleted shipment - contact an administrator",
+  deleted: "Previously deleted — restore before importing",
 };
 
 function ShipmentHistoryPanel({
@@ -104,6 +104,9 @@ function CeramicTilesDesktopPage() {
   const [assignmentSavingId, setAssignmentSavingId] = useState<string | null>(null);
   const [historyId, setHistoryId] = useState<Id<"ceramicShipments"> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Doc<"ceramicShipments"> | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<{ shipmentId: Id<"ceramicShipments">; shipmentNumber: string; version: number; updatedAt: number } | null>(null);
+  const [restoreError, setRestoreError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [selectedNumber, setSelectedNumber] = useState("");
@@ -128,6 +131,7 @@ function CeramicTilesDesktopPage() {
   const commitBatch = useMutation(api.ceramicTiles.commitBatch);
   const assign = useMutation(api.ceramicTiles.assign);
   const removeShipment = useMutation(api.ceramicTiles.remove);
+  const restoreShipmentRecord = useMutation(api.ceramicTiles.restore);
 
   const updateShipment = useCallback((id: string, update: (shipment: CeramicShipment) => CeramicShipment) => {
     setEntries((prev) => prev.map((item) =>
@@ -136,7 +140,7 @@ function CeramicTilesDesktopPage() {
   }, []);
 
   const addFiles = useCallback(async (selection: FileList | File[]) => {
-    if (busy || saving || workspaceState.saving || assignmentSavingId !== null) return;
+    if (busy || saving || restoring || workspaceState.saving || assignmentSavingId !== null) return;
     const list = Array.from(selection);
     if (!list.length) return;
     setMessage("");
@@ -171,7 +175,7 @@ function CeramicTilesDesktopPage() {
     } finally {
       setBusy(false);
     }
-  }, [busy, saving, entries.length, workspaceState.saving, assignmentSavingId]);
+  }, [busy, saving, restoring, entries.length, workspaceState.saving, assignmentSavingId]);
 
   const onSelectFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const chosen = event.target.files;
@@ -193,7 +197,7 @@ function CeramicTilesDesktopPage() {
     return false;
   });
   const validationErrors = ready.flatMap(item => ceramicImportErrors(item.shipment));
-  const canCommit = validationErrors.length === 0 && !!token && !busy && !saving && ready.length > 0 && comparison !== undefined &&
+  const canCommit = validationErrors.length === 0 && !!token && !busy && !saving && !restoring && ready.length > 0 && comparison !== undefined &&
     conflicts.length === 0 && repeatedInBatch.length === 0;
   const importBatch = async () => {
     if (!token || !canCommit || workspaceState.saving || assignmentSavingId !== null) return;
@@ -241,8 +245,25 @@ function CeramicTilesDesktopPage() {
     }
   };
 
+  const restoreShipment = async () => {
+    if (!token || !restoreTarget || restoring || saving || deleting || workspaceState.dirty || workspaceState.saving || assignmentSavingId !== null) return;
+    setRestoring(true);
+    setRestoreError("");
+    try {
+      await restoreShipmentRecord({ token, region, shipmentId: restoreTarget.shipmentId,
+        expectedVersion: restoreTarget.version, expectedUpdatedAt: restoreTarget.updatedAt });
+      setMessage(`Shipment ${restoreTarget.shipmentNumber} restored with its saved details. Continue the import to open it or apply a newer PDF revision.`);
+      setFailure("");
+      setRestoreTarget(null);
+    } catch (error) {
+      setRestoreError(ceramicErrorMessage(error, "Could not restore shipment. Please try again."));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const deleteShipment = async () => {
-    if (!token || !deleteTarget || deleting) return;
+    if (!token || !deleteTarget || deleting || restoring) return;
     setDeleting(true);
     setDeleteError("");
     setHistoryId((id) => id === deleteTarget._id ? null : id);
@@ -266,7 +287,7 @@ function CeramicTilesDesktopPage() {
 
   const saveAssignment = async (row: Doc<"ceramicShipments">) => {
     const shipmentId = row._id;
-    if (!token || assignmentSavingId !== null || busy || saving || deleting) return false;
+    if (!token || assignmentSavingId !== null || busy || saving || deleting || restoring) return false;
     setFailure("");
     setMessage("");
     setAssignmentSavingId(shipmentId);
@@ -299,7 +320,7 @@ function CeramicTilesDesktopPage() {
           <p className="mt-1 text-sm text-[var(--nav-text-color)]">Review the PDF, assign the load, then prepare the driver instructions.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-        <button type="button" className={`${secondaryButton} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
+        <button type="button" className={`${secondaryButton} inline-flex min-h-11 items-center gap-2`} disabled={busy || saving || restoring || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setImportOpen(true); requestAnimationFrame(() => importRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><FolderUp size={16} />Upload PDFs</button>
         <span className="text-xs font-semibold">Main loads: {REGION_LABELS.transvaal}</span>
         </div>
       </header>
@@ -314,8 +335,8 @@ function CeramicTilesDesktopPage() {
             <h2 className="text-sm font-semibold">Upload &amp; review PDFs</h2>
             <p className="mt-0.5 text-xs text-[var(--nav-text-color)]">Up to 25 PDFs at a time. Documents are read on your device; scanned PDFs cannot be extracted yet.</p>
           </div>
-          <div className="flex items-center gap-2"><button type="button" className={secondaryButton} disabled={busy || saving} onClick={() => setImportOpen(false)}>Back to shipments</button>
-          {entries.length > 0 && <button type="button" onClick={() => { setEntries([]); setFailure(""); }} className={secondaryButton} disabled={busy || saving}>Clear batch</button>}</div>
+          <div className="flex items-center gap-2"><button type="button" className={secondaryButton} disabled={busy || saving || restoring} onClick={() => setImportOpen(false)}>Back to shipments</button>
+          {entries.length > 0 && <button type="button" onClick={() => { setEntries([]); setFailure(""); }} className={secondaryButton} disabled={busy || saving || restoring}>Clear batch</button>}</div>
         </div>
         <div
           onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
@@ -329,7 +350,7 @@ function CeramicTilesDesktopPage() {
           <p className="my-2 text-xs text-[var(--nav-text-color)]">or</p>
           <label className={`${primaryButton} inline-flex cursor-pointer items-center gap-2`}>
             Choose PDFs
-            <input type="file" accept=".pdf,application/pdf" multiple onChange={onSelectFiles} disabled={busy || saving} className="sr-only" aria-label="Choose Ceramic Tiles PDFs" />
+            <input type="file" accept=".pdf,application/pdf" multiple onChange={onSelectFiles} disabled={busy || saving || restoring} className="sr-only" aria-label="Choose Ceramic Tiles PDFs" />
           </label>
           {busy && <p role="status" className="mt-3 flex items-center justify-center gap-2 text-xs"><LoaderCircle className="h-4 w-4 animate-spin" />Reading PDFs and extracting shipment details...</p>}
         </div>
@@ -341,6 +362,7 @@ function CeramicTilesDesktopPage() {
               {saving ? "Importing..." : `Import & continue · ${ready.length} shipment(s)`}
             </button>
           </div>
+          {ready.some(({ shipment }) => statusByNumber.get(shipment.shipmentNumber.toUpperCase())?.status === "deleted") && <p role="alert" className="text-xs text-[var(--warning-text)]">This batch contains a previously deleted shipment. {canManageRecords ? (workspaceState.dirty ? "Save or discard the open shipment edits before restoring another shipment." : "Use Restore shipment below, then continue the import. The saved PDF and shipment history will be retained.") : "Ask an administrator or the TRANSVAAL region owner to restore it from this import review."}</p>}
           {validationErrors.length > 0 && <p role="alert" className="text-xs text-[var(--danger-text)]">Fix the highlighted shipment fields below before importing.</p>}
           {repeatedInBatch.length > 0 && <p className="text-xs text-[var(--danger-text)]">The same shipment number appears more than once in this batch. Remove one PDF first.</p>}
           {entries.map((entry) => {
@@ -358,6 +380,7 @@ function CeramicTilesDesktopPage() {
                     : <p className="text-xs text-[var(--danger-text)]">{entry.error ?? "Unable to extract shipment"}</p>}
                 </div>
                 {status && <span className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${status.status === "version_conflict" ? "border-[var(--danger-border)] text-[var(--danger-text)]" : "border-[var(--card-border)] text-[var(--nav-text-color)]"}`}>{rowStatusLabel[status.status]}{status.currentVersion ? ` (current v${status.currentVersion})` : ""}</span>}
+                {status?.status === "deleted" && status.restoreTarget && canManageRecords && <button type="button" className={`${secondaryButton} border-[var(--warning-border)] text-[var(--warning-text)]`} disabled={busy || saving || restoring || deleting || workspaceState.dirty || workspaceState.saving || assignmentSavingId !== null} onClick={() => { setRestoreError(""); setRestoreTarget({ ...status.restoreTarget!, shipmentNumber: status.shipmentNumber, version: status.currentVersion! }); }}>Restore shipment</button>}
                 {shipment?.warnings.length ? <span title={shipment.warnings.join("\n")} className="inline-flex items-center gap-1 text-xs text-[var(--warning-text)]"><AlertTriangle className="h-4 w-4" />{shipment.warnings.length} flags</span> : shipment && <CheckCircle2 className="h-4 w-4 text-[var(--success-text)]" />}
                 {shipment && <button type="button" className={secondaryButton} onClick={() => setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, expanded: !e.expanded } : e))}>
                   {entry.expanded ? "Hide details" : "Review / edit"}
@@ -427,8 +450,20 @@ function CeramicTilesDesktopPage() {
 
       </div>
       <div ref={workspaceRef}>
-        <GuidedShipmentWorkspace canManageRecords={canManageRecords} disabled={busy || saving || deleting} key={`${region}:${workspaceGeneration}`} rows={imported} fleet={fleet} token={token} region={region} selectedNumber={selectedNumber} onSelect={setSelectedNumber} drafts={assignmentDrafts} onDraftChange={(id, draft) => setAssignmentDrafts(previous => ({ ...previous, [id]: draft }))} savingId={assignmentSavingId} onAssign={saveAssignment} onHistory={setHistoryId} onDelete={row => { setDeleteError(""); setDeleteTarget(row); }} interaction={workspaceState} onInteractionChange={setWorkspaceState} />
+        <GuidedShipmentWorkspace canManageRecords={canManageRecords} disabled={busy || saving || deleting || restoring} key={`${region}:${workspaceGeneration}`} rows={imported} fleet={fleet} token={token} region={region} selectedNumber={selectedNumber} onSelect={setSelectedNumber} drafts={assignmentDrafts} onDraftChange={(id, draft) => setAssignmentDrafts(previous => ({ ...previous, [id]: draft }))} savingId={assignmentSavingId} onAssign={saveAssignment} onHistory={setHistoryId} onDelete={row => { setDeleteError(""); setDeleteTarget(row); }} interaction={workspaceState} onInteractionChange={setWorkspaceState} />
       </div>
+      <ConfirmDialog
+        open={!!restoreTarget}
+        title={`Restore shipment ${restoreTarget?.shipmentNumber ?? ""}?`}
+        message="Restore the saved shipment, its original PDF history, and any assignment, planned main load and report entries removed with it. Saved amounts and driver instructions are kept. Loads that have since been changed, completed, locked or invoiced require administrator review. The PDF in this batch is checked separately before importing."
+        confirmLabel="Restore shipment"
+        loading={restoring}
+        autoFocus
+        onConfirm={() => void restoreShipment()}
+        onCancel={() => { if (!restoring) { setRestoreTarget(null); setRestoreError(""); } }}
+      >
+        {restoreError && <p role="alert" className="text-sm text-[var(--danger-text)]">{restoreError}</p>}
+      </ConfirmDialog>
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Delete shipment ${deleteTarget?.shipmentNumber ?? ""}?`}

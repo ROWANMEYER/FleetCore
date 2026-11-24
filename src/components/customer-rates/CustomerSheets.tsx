@@ -1,4 +1,5 @@
 "use client";
+import { customerAdjustmentPending } from "@/src/lib/fuel/customerAdjustments";
 import { fuelSnapshotFor } from "@/src/lib/fuel/adjust";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -29,7 +30,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
   if (user?.role !== "admin") return <p>Admin access is required to manage customer rates.</p>;
   if (customers === undefined) return <p>Loading customers…</p>;
   const sheetByCustomer = new Map((sheets ?? []).map(s => [s.customerId, s]));
-  const rows = filterCustomers(customers, sheetByCustomer, search, sheetFilter);
+  const rows = filterCustomers(customers, sheetByCustomer, search, sheetFilter, fuel?.at(-1)?.effectiveDate);
   const activeCount = customers.filter(c => c.isActive).length;
   const editing = open ? customers.find(c => c._id === open) : null;
 
@@ -52,6 +53,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
     </section>}
     {open && token && <TariffHistory key={open} token={token} customerId={open} />}
     {!open && <>
+      <p className="text-sm text-[var(--nav-text-color)]">Monthly workflow: record the company fuel update on the first Wednesday, then enter the notices for customers using Customer-supplied adjustments. Their previous tariffs remain in use until you save a dated update.</p>
       <div className="flex flex-wrap gap-4 items-end max-w-3xl">
         <label className="block flex-1 min-w-[240px]">Search customers
           <input className={`${input} w-full mt-2`} placeholder="e.g. timber george, city — commas = more matches" value={search} onChange={e => setSearch(e.target.value)} />
@@ -60,7 +62,7 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
           <select className={`${input} w-full mt-2`} value={sheetFilter} onChange={e => setSheetFilter(e.target.value as SheetFilter)}>
             <option value="all">All customers</option>
             <option value="with_sheet">With a rate sheet</option>
-            <option value="without_sheet">Without a rate sheet</option>
+            <option value="without_sheet">Without a rate sheet</option><option value="customer_notified">Customer-supplied adjustments</option><option value="awaiting_adjustment">Awaiting customer adjustment</option>
           </select>
         </label>
       </div>
@@ -68,16 +70,17 @@ export function CustomerSheets({ open, onOpen }: { open: Id<"customers"> | null;
       <p className="text-sm text-[var(--nav-text-color)]">{rows.length} of {activeCount} active customers.</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left">
-          <thead><tr><th className="p-2">Customer</th><th className="p-2">Account</th><th className="p-2">Lanes</th><th className="p-2">Effective</th><th className="p-2">Diesel</th><th className="p-2">Updated</th><th /></tr></thead>
+          <thead><tr><th className="p-2">Customer</th><th className="p-2">Account</th><th className="p-2">Adjustment method</th><th className="p-2">Lanes</th><th className="p-2">Effective</th><th className="p-2">Diesel</th><th className="p-2">Updated</th><th /></tr></thead>
           <tbody>{rows.map(c => {
             const sheet = sheetByCustomer.get(c._id);
             const diesel = fuelSnapshotFor(fuel ?? [], sheet?.effectiveDate);
             return <tr key={c._id} className="border-b border-[var(--card-border)]">
               <td className="p-2">{c.name}</td>
               <td className="p-2 text-[var(--nav-text-color)]">{c.accountNumber ?? "-"}</td>
+              <td className="p-2">{sheet?.agreementType === "customer_notified" ? "Customer-supplied" : sheet?.agreementType === "fixed" ? "Fixed agreement" : sheet ? "Company fuel calculation" : "—"}{customerAdjustmentPending(sheet?.agreementType, fuel?.at(-1)?.effectiveDate, sheet?.customerAdjustmentDate) && <span className="block text-xs text-amber-500">Awaiting customer adjustment</span>}{sheet?.customerAdjustmentDate && <span className="block text-xs text-[var(--nav-text-color)]">Notice: {sheet.customerAdjustmentDate}</span>}</td>
               <td className="p-2">{sheet ? sheet.laneCount : "-"}</td>
               <td className="p-2">{sheet?.effectiveDate ?? "-"}</td>
-              <td className="p-2">{sheet ? `${diesel.priceOnDate?.pricePerLitre.toFixed(2) ?? "-"} → ${diesel.latest?.pricePerLitre.toFixed(2) ?? "-"}` : "-"}</td>
+              <td className="p-2">{sheet?.agreementType === "customer_notified" ? "Customer notices" : sheet?.agreementType === "fixed" ? "Fixed" : sheet ? `${diesel.priceOnDate?.pricePerLitre.toFixed(2) ?? "-"} → ${diesel.latest?.pricePerLitre.toFixed(2) ?? "-"}` : "-"}</td>
               <td className="p-2 text-[var(--nav-text-color)]">{sheet ? new Date(sheet.updatedAt).toISOString().slice(0, 10) : "-"}</td>
               <td className="p-2">{sheet ? <button className={button} onClick={() => onOpen(c._id)}>Open</button> : <button className={button} disabled={!!busy} onClick={() => start(c._id)}>{busy === c._id ? "Starting…" : "Add rates"}</button>}{!sheet && <button className={button} onClick={() => onOpen(c._id)}>History</button>}</td>
             </tr>;

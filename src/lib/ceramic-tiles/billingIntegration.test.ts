@@ -72,6 +72,16 @@ describe("Ceramic billing confirmation transaction", () => {
     await f.save(p); expect(routeRevenue(f.route())).toBe(23130);
     expect([...f.table("ceramicAssignments").values()][0].billing).toMatchObject({ automation: { variant: "sp", pickupCount: 3, pickupTownCount: 1 } });
   });
+  it("uses customer notices for SP tariffs and preserves confirmed billing after a later notice", async () => {
+    const f = fixture(true); f.table("rateSheets").get("sheet")!.agreementType = "customer_notified";
+    f.put("fuelPrices","fuel",{effectiveDate:"2026-11-04",pricePerLitre:100,compositionPercent:90});
+    await f.run(assign); expect((await f.read()).calculation.issues.join(" ")).toContain("monthly adjustment");
+    f.put("customerRateAdjustments","notice",{customerId:"customer",sheetId:"sheet",effectiveDate:"2026-11-04",percentage:5,rates:[{laneId:"sp",rate:580.25}],reference:"Approved customer notice",recordedAt:10});
+    const p=await f.read(); expect(p.selected).toMatchObject({variant:"sp",ratePerTon:580.25}); expect(p.calculation.issues).toEqual([]);
+    await f.save(p); const stored = structuredClone([...f.table("ceramicAssignments").values()][0].billing); expect(routeRevenue(f.route())).toBe(22728.5);
+    f.put("customerRateAdjustments","correction",{customerId:"customer",sheetId:"sheet",effectiveDate:"2026-11-04",percentage:10,rates:[{laneId:"sp",rate:590}],reference:"Corrected notice",recordedAt:11});
+    expect((await f.read()).selected?.ratePerTon).toBe(590); expect([...f.table("ceramicAssignments").values()][0].billing).toEqual(stored); expect(routeRevenue(f.route())).toBe(22728.5);
+  });
   it("does not silently choose a tariff for unknown pickup towns", async () => {
     const f = fixture(true), source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
     source.destinations[0].orders[0].collectFrom = "Unknown warehouse";

@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest";
+import { customerRateOnDate, currentCustomerAdjustments, customerAdjustmentPending, type CustomerAdjustment } from "./customerAdjustments";
+import { customerMonthlyRates } from "./monthlyRates";
+import { ceramicRateOnDate } from "../ceramic-tiles/tariffs";
+const notice = (patch: Partial<CustomerAdjustment> = {}): CustomerAdjustment => ({ _id:"n1",sheetId:"sheet",effectiveDate:"2026-09-02",percentage:5,rates:[],reference:"Customer September notice",recordedAt:1,...patch });
+describe("customer-supplied rate notices", () => {
+  it("compounds dated percentages once, including decreases, independently of fuel", () => { const notices=[notice(),notice({_id:"n2",effectiveDate:"2026-10-07",percentage:-2,recordedAt:2})];expect(customerRateOnDate(1000,"2026-08-05","2026-09-01","a",notices)).toBe(1000);expect(customerRateOnDate(1000,"2026-08-05","2026-10-07","a",notices)).toBe(1029);expect(customerRateOnDate(1000,"2026-08-05","2026-10-07","a",notices)).toBe(1029); });
+  it("lets exact amounts override a percentage for one lane, including zero", () => { const n=notice({rates:[{laneId:"b",rate:0}]});expect(customerRateOnDate(1000,"2026-08-05","2026-09-02","a",[n])).toBe(1050);expect(customerRateOnDate(2000,"2026-08-05","2026-09-02","b",[n])).toBe(0); });
+  it("preserves prices for lanes without an exact override when no percentage is supplied", () => { const n=notice({percentage:null,rates:[{laneId:"a",rate:1219.11}]});expect(customerRateOnDate(1113.47,"2026-08-05","2026-11-04","a",[n])).toBe(1219.11);expect(customerRateOnDate(900,"2026-08-05","2026-11-04","b",[n])).toBe(900); });
+  it("supersedes corrected same-day notices without double application or input mutation", () => { const list=[notice(),notice({_id:"n2",percentage:10,recordedAt:2})],before=JSON.stringify(list);expect(currentCustomerAdjustments(list)).toHaveLength(1);expect(customerRateOnDate(1000,"2026-08-05","2026-09-02","a",list)).toBe(1100);expect(JSON.stringify(list)).toBe(before); });
+  it("respects individual baselines, exact same-day prices and future dates", () => { const n=notice({rates:[{laneId:"a",rate:1111.11}]});expect(customerRateOnDate(1000,"2026-09-02","2026-09-02","a",[n])).toBe(1111.11);expect(customerRateOnDate(1000,"2026-09-02","2026-09-02","b",[n])).toBe(1000);expect(customerRateOnDate(1000,"2026-10-01","2026-09-30","a",[n])).toBeNull(); });
+  it("uses identical customer prices in monthly rates and exact-day Ceramic billing", () => {
+    const n=notice(), agreement={agreementType:"customer_notified" as const,sheetId:"sheet",customerAdjustments:[n]},fuel=[{effectiveDate:"2026-08-05",pricePerLitre:20,compositionPercent:45},{effectiveDate:"2026-09-02",pricePerLitre:100,compositionPercent:90}];
+    expect(customerMonthlyRates([{id:"a",rate:1000}],"2026-08-05",fuel,agreement).rates).toEqual([[null,1000,1050]]);
+    expect(ceramicRateOnDate(1000,"2026-08-05","2026-09-02",fuel,{...agreement,laneId:"a"})).toBe(1050);
+    expect(ceramicRateOnDate(1000,"2026-08-05","2026-09-02",[],{...agreement,laneId:"a"})).toBe(1050);
+  });
+  it("ignores notices from another recreated rate sheet and flags pending monthly approval", () => { const fuel=[{effectiveDate:"2026-11-04",pricePerLitre:30}];const projection=customerMonthlyRates([{id:"a",rate:1000}],"2026-08-05",fuel,{agreementType:"customer_notified",sheetId:"current",customerAdjustments:[notice({sheetId:"old"})]});expect(projection.rates[0]).toEqual([1000,1000,1000]);expect(projection.problem).toContain("Awaiting customer adjustment");expect(customerAdjustmentPending("fuel_linked","2026-11-04",undefined)).toBe(false);expect(customerAdjustmentPending("customer_notified","2026-11-04","2026-10-07")).toBe(true);expect(customerAdjustmentPending("customer_notified","2026-11-04","2026-11-12")).toBe(false); });
+});

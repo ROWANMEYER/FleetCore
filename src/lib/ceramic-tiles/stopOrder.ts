@@ -1,4 +1,5 @@
 import type { CeramicDestination, CeramicShipment } from "./parser";
+import { ceramicCollectionTown } from "./collectionTown";
 
 export type CeramicStopOrder = { pickupTowns: string[]; pickupWarehouses: string[]; offloads: string[] };
 export type CeramicStop = { id: string; label: string; detail?: string };
@@ -6,10 +7,11 @@ export type CeramicPickupTown = CeramicStop & { warehouses: CeramicStop[] };
 
 function collectionLabel(value: string): { town: string; warehouse: string } {
   const place = value.trim().replace(/^\d+\s*-\s*/, "");
-  const town = place.match(/\b(Krugersdorp|Vereeniging)\b/i);
-  if (!town) return { town: "COLLECTION TOWN TO BE CONFIRMED", warehouse: place.toUpperCase() || "COLLECTION POINT TO BE CONFIRMED" };
-  const warehouse = place.slice(0, town.index).replace(/[,\s-]+$/, "").replace(/^Betta Sanitaryware$/i, "BETTA");
-  return { town: town[0].toUpperCase(), warehouse: warehouse.toUpperCase() || place.toUpperCase() };
+  const town = ceramicCollectionTown(place);
+  const townMatch = place.match(/\b(Krugersdorp|Vereeniging|Babalegi|Babelegi|Hammanskraal)\b/i);
+  if (!town || !townMatch) return { town: "COLLECTION TOWN TO BE CONFIRMED", warehouse: place.toUpperCase() || "COLLECTION POINT TO BE CONFIRMED" };
+  const warehouse = place.slice(0, townMatch.index).replace(/[,\s-]+$/, "").replace(/^Betta Sanitaryware$/i, "BETTA");
+  return { town, warehouse: warehouse.toUpperCase() || place.toUpperCase() };
 }
 function offloadLabel(destination: CeramicDestination): string {
   const name = destination.name.trim().replace(/^[A-Z]*\d+\s*-\s*/i, "");

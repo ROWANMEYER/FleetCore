@@ -3,7 +3,7 @@ import { query, mutation, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { ceramicBillingConfig, ceramicBillingPreview, ceramicBillingRules } from "./ceramicBillingFields";
 import { ceramicAssignmentError } from "./ceramicPlanning";
-import { DEFAULT_CERAMIC_BILLING, ceramicBillingCalculation, ceramicBillingFingerprint, ceramicBilledMainLoad } from "../src/lib/ceramic-tiles/billing";
+import { DEFAULT_CERAMIC_BILLING, ceramicBillingCalculation, ceramicBillingFingerprint, ceramicBilledMainLoad, ceramicBillingRuleIssues } from "../src/lib/ceramic-tiles/billing";
 import { ceramicTariffChoices, type CeramicTariffState } from "../src/lib/ceramic-tiles/tariffs";
 import { ceramicMainLoad, ceramicEqual, validCeramicDate } from "../src/lib/ceramic-tiles/planning";
 import { ceramicMonthlyAmounts } from "../src/lib/ceramic-tiles/monthlyReport";
@@ -76,11 +76,11 @@ async function previewFor(ctx: QueryCtx, shipmentId: Id<"ceramicShipments">, ton
   if (fuel.length > 2000) throw ceramicAssignmentError("Fuel history exceeds the review limit. Contact support.");
   const chargeableTons = tons ?? assignment.billing?.automation?.chargeableTons ?? config.defaultTons;
   const preliminary = ceramicBillingCalculation(shipment.snapshot, null, chargeableTons, config);
-  const variant = preliminary.pickups === 1 ? "sp" as const : "standard" as const;
-  const choices = ceramicTariffChoices(states, shipment.snapshot, assignment.routeDate, fuel).filter(choice => choice.variant === variant);
+  const variant = preliminary.pickupTownCount === 1 ? "sp" as const : "standard" as const;
+  const choices = ceramicTariffChoices(states, shipment.snapshot, assignment.routeDate, fuel).filter(choice => preliminary.pickupTownCount !== null && choice.variant === variant);
   const highest = choices[0] ?? null;
   const requested = tariffKey ? choices.find(choice => choice.key === tariffKey) ?? null : highest;
-  if (strictSelection && tariffKey && (!requested || !highest || requested.ratePerTon !== highest.ratePerTon)) throw ceramicAssignmentError("Select the highest applicable rate for the whole load. SP applies only to a single warehouse.");
+  if (strictSelection && tariffKey && (!requested || !highest || requested.ratePerTon !== highest.ratePerTon)) throw ceramicAssignmentError("Select the highest applicable rate for the whole load. SP applies only to a single pickup town.");
   const selected = requested?.ratePerTon === highest?.ratePerTon ? requested : highest;
   const calculation = ceramicBillingCalculation(shipment.snapshot, selected?.ratePerTon ?? null, chargeableTons, config);
   if (!config.customerId) calculation.issues.unshift("Select the Ceramic rate-sheet customer in billing settings.");
@@ -94,9 +94,10 @@ async function previewFor(ctx: QueryCtx, shipmentId: Id<"ceramicShipments">, ton
   }
   const fingerprint = ceramicBillingFingerprint({ snapshot: shipment.snapshot, version: shipment.version, routeDate: assignment.routeDate, driver: assignment.driverId, truck: assignment.truckId, config, choices, selected, calculation });
   const savedBilling = assignment.billing, savedAuto = savedBilling?.automation;
+  const ruleIssues = ceramicBillingRuleIssues(assignment.snapshot, savedBilling);
   const legacy = savedBilling ? ceramicMonthlyAmounts([], savedBilling) : null;
-  const saved = savedBilling ? { ratePerTon: savedBilling.ratePerTon, mainTotal: savedAuto?.mainTotal ?? (savedBilling.ratePerTon !== null && savedBilling.stops !== null && savedBilling.drops !== null ? savedBilling.ratePerTon * 34 + savedBilling.stops + savedBilling.drops : legacy?.total ?? null), localTotal: savedAuto?.localTotal ?? (savedBilling.locals.some(l => l.price === null) ? null : savedBilling.locals.reduce((n, l) => n + (l.price ?? 0), 0)), chargeableTons: savedAuto?.chargeableTons ?? 34, status: savedAuto?.status ?? "legacy", routeDate: savedAuto?.routeDate ?? assignment.routeDate, tariffLabel: savedAuto?.tariff?.destination ?? "Manually entered amounts", sourceVersion: assignment.billingSourceVersion ?? assignment.snapshot.version, tariffKey: savedAuto?.tariff?.key ?? "", fingerprint: savedAuto?.fingerprint ?? "", confirmedAt: savedAuto?.confirmedAt ?? assignment.billingUpdatedAt ?? 0 } : null;
-  return { shipment, assignment, result: { readOnly, routeDate: assignment.routeDate, version: shipment.version, assignmentUpdatedAt: assignment.updatedAt, billingUpdatedAt: assignment.billingUpdatedAt ?? 0, fingerprint, config, choices, selected, calculation, saved } };
+  const saved = savedBilling ? { ratePerTon: savedBilling.ratePerTon, mainTotal: savedAuto?.mainTotal ?? (savedBilling.ratePerTon !== null && savedBilling.stops !== null && savedBilling.drops !== null ? savedBilling.ratePerTon * 34 + savedBilling.stops + savedBilling.drops : legacy?.total ?? null), localTotal: savedAuto?.localTotal ?? (savedBilling.locals.some(l => l.price === null) ? null : savedBilling.locals.reduce((n, l) => n + (l.price ?? 0), 0)), chargeableTons: savedAuto?.chargeableTons ?? 34, status: ruleIssues.length ? "needs_review" : savedAuto?.status ?? "legacy", routeDate: savedAuto?.routeDate ?? assignment.routeDate, tariffLabel: savedAuto?.tariff?.destination ?? "Manually entered amounts", sourceVersion: assignment.billingSourceVersion ?? assignment.snapshot.version, tariffKey: savedAuto?.tariff?.key ?? "", fingerprint: savedAuto?.fingerprint ?? "", confirmedAt: savedAuto?.confirmedAt ?? assignment.billingUpdatedAt ?? 0 } : null;
+  return { shipment, assignment, result: { ruleIssues, readOnly, routeDate: assignment.routeDate, version: shipment.version, assignmentUpdatedAt: assignment.updatedAt, billingUpdatedAt: assignment.billingUpdatedAt ?? 0, fingerprint, config, choices, selected, calculation, saved } };
 }
 export const preview = query({
   args: { token: v.string(), shipmentId: v.id("ceramicShipments"), chargeableTons: v.optional(v.number()), tariffKey: v.optional(v.string()) }, returns: ceramicBillingPreview,
@@ -121,7 +122,7 @@ export const confirm = mutation({
     }
     const now = Math.max(Date.now(), (assignment.billingUpdatedAt ?? 0) + 1), selected = result.selected;
     const { version: _settingsVersion, effectiveDate: _effectiveDate, customerId: _customerId, ...rules } = result.config; void _settingsVersion; void _effectiveDate; void _customerId;
-    const automation = { status: complete ? "confirmed" as const : "needs_review" as const, routeDate: assignment.routeDate, variant: c.pickups === 1 ? "sp" as const : "standard" as const, chargeableTons: c.chargeableTons, pickupCount: c.pickups, dropCount: c.deliveries, extraPickups: c.extraPickups, extraDrops: c.extraDrops, ...rules, freight: complete ? c.freight : null, mainTotal: complete ? c.mainTotal : null, localTotal: c.localTotal, fingerprint: result.fingerprint, settingsVersion: result.config.version, confirmedAt: now, confirmedBy: String(user._id), tariff: selected ? { key: selected.key, sheetId: selected.sheetId, revision: selected.revision, laneId: selected.laneId, loadingPoint: selected.loadingPoint, destination: selected.destination, effectiveDate: selected.effectiveDate, ratePerTon: selected.ratePerTon } : null, issues: c.issues };
+    const automation = { status: complete ? "confirmed" as const : "needs_review" as const, routeDate: assignment.routeDate, variant: c.pickupTownCount === 1 ? "sp" as const : "standard" as const, chargeableTons: c.chargeableTons, pickupCount: c.pickups, ...(c.pickupTownCount !== null ? { pickupTownCount: c.pickupTownCount } : {}), dropCount: c.deliveries, extraPickups: c.extraPickups, extraDrops: c.extraDrops, ...rules, freight: complete ? c.freight : null, mainTotal: complete ? c.mainTotal : null, localTotal: c.localTotal, fingerprint: result.fingerprint, settingsVersion: result.config.version, confirmedAt: now, confirmedBy: String(user._id), tariff: selected ? { key: selected.key, sheetId: selected.sheetId, revision: selected.revision, laneId: selected.laneId, loadingPoint: selected.loadingPoint, destination: selected.destination, effectiveDate: selected.effectiveDate, ratePerTon: selected.ratePerTon } : null, issues: c.issues };
     const calculated = { ratePerTon: selected?.ratePerTon ?? null, stops: c.pickupCharge + c.dropCharge, drops: 0, crossBorder: assignment.billing?.crossBorder ?? "", load: assignment.billing?.load ?? "", locals: c.locals.map(leg => ({ key: leg.key, from: leg.from, to: leg.to, price: leg.price })) };
     const billing = { ...(!complete && assignment.billing ? assignment.billing : calculated), automation };
     if (assignment.billing && !await ctx.db.query("ceramicBillingHistory").withIndex("by_shipment", q => q.eq("shipmentId", shipment._id)).first()) await ctx.db.insert("ceramicBillingHistory", { shipmentId: shipment._id, routeDate: assignment.routeDate, version: assignment.billingSourceVersion ?? assignment.snapshot.version, billing: assignment.billing, recordedAt: assignment.billingUpdatedAt ?? assignment.updatedAt, recordedBy: assignment.billingUpdatedBy ?? assignment.updatedBy, reason: "preserved baseline" });

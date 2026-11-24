@@ -1,5 +1,7 @@
 import { formatCurrency } from "../../pdf/formatters";
 import type { CeramicShipment } from "./parser";
+import type { CeramicBilling } from "./monthlyReport";
+import { ceramicCollectionTown } from "./collectionTown";
 import { ceramicLocalLegs, ceramicMainLoad, CERAMIC_LOCAL_TOWN } from "./planning";
 import { ceramicDeliveryStops } from "./reportEditing";
 export const DEFAULT_CERAMIC_BILLING = { defaultTons: 34, extraStopPrice: 750, localSmallPrice: 2700, localLargePrice: 5400, localMaxWeightKg: 12000, localMaxPallets: 12, billingStartDay: 25 };
@@ -9,7 +11,11 @@ export const billingNormalize = (s: string) => s.normalize("NFKD").replace(/[\u0
 export function ceramicBillingCalculation(snapshot: CeramicShipment, ratePerTon: number | null, chargeableTons = 34, rules: CeramicBillingRules = DEFAULT_CERAMIC_BILLING) {
   const issues: string[] = [];
   if (!Number.isFinite(chargeableTons) || chargeableTons <= 0 || chargeableTons > 1000) issues.push("Enter chargeable tons above zero and at most 1,000.");
-  const pickups = new Set(snapshot.destinations.flatMap(d => d.orders.map(o => billingNormalize(o.collectFrom))).filter(Boolean)).size;
+  const collectionPoints = snapshot.destinations.flatMap(d => d.orders.map(o => o.collectFrom));
+  const pickups = new Set(collectionPoints.map(billingNormalize).filter(Boolean)).size;
+  const pickupTowns = [...new Set(collectionPoints.map(ceramicCollectionTown).filter((town): town is string => town !== null))].sort();
+  const pickupTownCount = collectionPoints.length && collectionPoints.every(point => ceramicCollectionTown(point) !== null) ? pickupTowns.length : null;
+  if (pickupTownCount === null) issues.push("Confirm every pickup town before choosing Standard or SP billing.");
   const deliveries = ceramicDeliveryStops(snapshot.destinations.map(d => [d.name, ...d.addressLines].join(", "))).length;
   if (snapshot.destinations.some(d => d.orders.some(o => !o.collectFrom.trim()))) issues.push("A collection warehouse is missing from the PDF. Review its orders before confirming billing.");
   const extraPickups = Math.max(0, pickups - 2), extraDrops = Math.max(0, deliveries - 2);
@@ -23,7 +29,7 @@ export function ceramicBillingCalculation(snapshot: CeramicShipment, ratePerTon:
   const freight = ratePerTon !== null && Number.isFinite(ratePerTon) && ratePerTon >= 0 && Number.isFinite(chargeableTons) && chargeableTons > 0 ? billingMoney(ratePerTon * chargeableTons) : null;
   const mainTotal = freight === null ? null : billingMoney(freight + pickupCharge + dropCharge);
   const localTotal = locals.some(leg => leg.price === null) ? null : billingMoney(locals.reduce((sum, leg) => sum + (leg.price ?? 0), 0));
-  return { chargeableTons, pickups, deliveries, extraPickups, extraDrops, pickupCharge, dropCharge, freight, mainTotal, localTotal, combinedTotal: mainTotal === null || localTotal === null ? null : billingMoney(mainTotal + localTotal), locals, issues };
+  return { chargeableTons, pickups, pickupTowns, pickupTownCount, deliveries, extraPickups, extraDrops, pickupCharge, dropCharge, freight, mainTotal, localTotal, combinedTotal: mainTotal === null || localTotal === null ? null : billingMoney(mainTotal + localTotal), locals, issues };
 }
 export function ceramicBillingFingerprint(value: unknown): string {
   const source = JSON.stringify(value, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry) ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b))) : entry);
@@ -36,4 +42,20 @@ export function ceramicBillingFingerprint(value: unknown): string {
 export function ceramicBilledMainLoad(snapshot: CeramicShipment, shipmentId: string, tons: number, mainTotal: number, breakdown?: { ratePerTon: number; extraStops: number }) {
   const load = ceramicMainLoad(snapshot, shipmentId);
   return { ...load, quantity: String(tons), rate: String(mainTotal), rateType: "flat", notes: load.notes.replace("Rate and kilometres need review.", breakdown ? `${tons} t at ${formatCurrency(breakdown.ratePerTon)}/t; extra pickups/drops ${formatCurrency(breakdown.extraStops)}; main total ${formatCurrency(mainTotal)}. Local transport excluded; kilometres need review.` : "Main billing confirmed; kilometres need review.") };
+}
+
+/** Flag affected automated snapshots without silently repricing historical billing. */
+export function ceramicBillingRuleIssues(snapshot: CeramicShipment, billing?: CeramicBilling): string[] {
+  const saved = billing?.automation;
+  if (!saved || saved.status !== "confirmed") return [];
+  const current = ceramicBillingCalculation(snapshot, billing.ratePerTon, saved.chargeableTons, saved);
+  const issues: string[] = [];
+  if (current.pickupTownCount === null || saved.variant !== (current.pickupTownCount === 1 ? "sp" : "standard")) {
+    issues.push("Review saved billing: SP is based on one pickup town, even when it contains multiple warehouses.");
+  }
+  const localKeys = new Set(current.locals.map(local => local.key));
+  if (billing.locals.length !== localKeys.size || billing.locals.some(local => !localKeys.has(local.key))) {
+    issues.push("Review saved local transport: only Cashbuild and Italtile delivery branches in George qualify.");
+  }
+  return issues;
 }

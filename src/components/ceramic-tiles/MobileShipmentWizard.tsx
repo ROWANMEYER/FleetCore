@@ -90,62 +90,64 @@ export function MobileShipmentWizard({ shipment, fleet, onBack }: {
   const titles = ["Assign truck and driver", "Arrange the stops", "Review and send"];
   const descriptions = ["Choose who is taking this shipment and confirm the planning date.", "Set the loading and delivery order for the driver.", "Check the saved instructions and choose the WhatsApp recipient."];
   return <div className={styles.wizard}>
-    <header className={styles.header}>
-      <div className={styles.backRow}>
-        <button type="button" disabled={busy} onClick={leave} className={styles.back}><ArrowLeft size={18} />Shipments</button>
-        <span className={`${styles.saveState} ${!instructions.dirty && !assignmentDirty && !reviewPending ? styles.saved : ""}`}>
-          {busy ? "Saving…" : instructions.dirty || assignmentDirty ? "Draft" : reviewPending ? "Review instructions" : <><Check size={15} />Saved</>}
-        </span>
-      </div>
-      <div className={styles.titleRow}><h1>{shipment.shipmentNumber}</h1><span className={styles.version}>Version {shipment.version}</span></div>
-      <div className={styles.metrics}>
-        <span className={styles.metric}><Image src="/images/ceramic-mobile/v1/icons/pallets.svg" alt="" width={23} height={23} />{ceramicPalletLabel(shipment.snapshot)}</span>
-        <span className={styles.metric}><Truck size={23} />{shipment.snapshot.destinations.length} deliveries</span>
-        <span className={styles.metric}><MapPin size={20} />{getRegionLabel(CERAMIC_MAIN_REGION)}</span>
-      </div>
-      <div className={styles.journey}>
-        <Image className={styles.journeyTruck} src="/images/ceramic-mobile/v1/dispatch-truck.png" alt="" width={1774} height={887} sizes="100px" />
-        <p className={styles.stepPill}>Step {step + 1} of 3</p>
-        <nav aria-label="Dispatch steps" className={styles.steps}>
-          {(["Assign truck & driver", "Arrange stops", "Send"] as const).map((label, index) => <button key={label} type="button" aria-current={step === index ? "step" : undefined} disabled={busy || index === 1 && !assignmentReady || index === 2 && !assignmentReady || index === 2 && step === 0 && !reviewReached} onClick={() => goTo(index as Step)} className={styles.step}><span className={styles.stepNumber}>{index < step ? <Check size={15} /> : index + 1}</span><span>{label}</span></button>)}
-        </nav>
-      </div>
-    </header>
-    <div ref={bodyRef} role="region" aria-label="Dispatch step content" className={styles.body}>
-      <div className={styles.taskHeading}><span className={styles.iconTile}>{step === 0 ? <Truck size={26} /> : step === 1 ? <MapPin size={25} /> : <MessageCircle size={25} />}</span><h2 ref={headingRef} tabIndex={-1}>{titles[step]}</h2></div>
-      <p className={styles.description}>{descriptions[step]}</p>
-      {ceramicVersionNeedsReview(shipment) && <p role="status" className={styles.notice}>Shipment updated—review before sending. Check Version {shipment.version} quantities and stops.</p>}
-      {step > 0 && !assignmentReady && <p role="alert" className={`${styles.notice} ${styles.error}`}>Confirm the truck, driver and planning date in step 1 before continuing.</p>}
-      {(assignmentError || instructions.error) && <p role="alert" className={`${styles.notice} ${styles.error}`}>{assignmentError || instructions.error}</p>}
-      {step === 0 && <section aria-label="Assign shipment">
-        {!canEditAssignment && <div role="status" className={styles.notice}>{authLoading ? "Checking your account access…" : <>{access.message}{!user && <> <Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link></>}</>}</div>}
-        <div className={styles.panel}>
-          <h3 className={styles.panelTitle}>Shipment assignment</h3>
-          {!editingAssignment ? <>
-            <div className={styles.assignmentRow}><span className={styles.iconTile}><Truck size={25} /></span><div className={styles.assignmentInfo}><small>Truck</small><strong>{chosenTruck ? [chosenTruck.fleetNumber, chosenTruck.registration].filter(Boolean).join(" · ") : "Choose a truck"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change truck<ChevronRight size={16} /></button></div>
-            <div className={styles.assignmentRow}><span className={styles.iconTile}><UserRound size={25} /></span><div className={styles.assignmentInfo}><small>Driver</small><strong>{chosenDriver?.name || "Choose a driver"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change driver<ChevronRight size={16} /></button></div>
-          </> : <div className={styles.formFields}>
-            <label className={styles.label}>Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={busy || !canEditAssignment} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
-            <label className={styles.label}>Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={busy || !canEditAssignment} onChange={event => { const id = event.target.value; setDriverId(id); setRecipientMode(normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === id)?.phone) ? "system" : "manual"); setManualNumber(""); }}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
-          </div>}
-          <label className={`${styles.label} ${styles.dateField}`}>Planning date<input aria-label="Shipment planning date" type="date" className={field} value={routeDate} disabled={busy || !canEditAssignment} onChange={event => setRouteDate(event.target.value)} /></label>
-          {!user && assignmentDirty && <p role="alert" className={styles.hint}><Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link> to save this assignment to Daily Planner and reports.</p>}
-          <p className={styles.hint}><Check size={15} />{assignmentDirty && !canEditAssignment ? "Your truck and driver selections have not been saved." : assignmentDirty ? "Next saves the main load under TRANSVAAL. Locals are GEORGE → GEORGE." : "Assignment saved. Only the main load goes to Daily Planner."}</p>
+    <div ref={bodyRef} className={styles.scrollArea}>
+      <header className={styles.header}>
+        <div className={styles.backRow}>
+          <button type="button" disabled={busy} onClick={leave} className={styles.back}><ArrowLeft size={18} />Shipments</button>
+          <span className={`${styles.saveState} ${!instructions.dirty && !assignmentDirty && !reviewPending ? styles.saved : ""}`}>
+            {busy ? "Saving…" : instructions.dirty || assignmentDirty ? "Draft" : reviewPending ? "Review instructions" : <><Check size={15} />Saved</>}
+          </span>
         </div>
-      </section>}
-      {step === 1 && <div className={styles.panel}><CeramicStopOrderEditor shipment={shipment.snapshot} order={instructions.currentStopOrder} onChange={order => { instructions.setStopOrder(order); instructions.setSuccess(""); }} disabled={busy} compact activeTab={stopTab} onTabChange={setStopTab} /></div>}
-      {step === 2 && <section aria-label="Review shipment" className={styles.review}>
-        <CeramicBillingReview shipmentId={shipment._id} onReadyChange={setBillingReady} onInteractionChange={setBillingInteraction} />
-        <div className={styles.reviewSummary}><strong>{instructions.assignedDriver?.name} · {[instructions.assignedTruck?.fleetNumber, instructions.assignedTruck?.registration].filter(Boolean).join(" · ")}</strong><p><small>Loading</small>{stops.pickups.map(town => town.label).join(" → ")}</p><p><small>First delivery</small>{stops.offloads[0]?.label}<small>{Math.max(0, stops.offloads.length - 1)} more, in your order</small></p></div>
-        <details><summary>View full WhatsApp message</summary><div className={styles.message} aria-label="Review WhatsApp driver instructions">{instructions.message}</div><button type="button" disabled={!billingReady || !instructions.canOpenWhatsApp || reviewPending || busy} onClick={() => void instructions.copyMessage()} className={`${styles.secondary} mt-3`}><ClipboardCopy size={16} />Copy message</button></details>
-        <details><summary>Edit safety &amp; extra notes</summary><label className={`${styles.label} mt-2`}>Safety instructions<textarea rows={4} maxLength={4000} value={instructions.safetyNotes} disabled={busy} onChange={event => instructions.setSafetyNotes(event.target.value)} className={field} /></label><label className={`${styles.label} mt-3`}>Extra notes<textarea rows={3} maxLength={4000} value={instructions.additionalNotes} disabled={busy} onChange={event => instructions.setAdditionalNotes(event.target.value)} className={field} placeholder="Anything else the driver needs to know?" /></label></details>
-        <div className={styles.panel}><WhatsAppRecipientFields systemNumber={instructions.assignedDriver?.phone} mode={recipientMode} onModeChange={setRecipientMode} manualNumber={manualNumber} onNumberChange={setManualNumber} disabled={busy} /></div>
-        {instructions.success && <p role="status" className={styles.success}>{instructions.success}</p>}
-      </section>}
-      <aside className={styles.nextCard} aria-label="What happens next">
-        <Image src="/images/ceramic-mobile/v1/route-guide.svg" alt="" width={192} height={176} />
-        <div><h3>{step === 2 ? "Send from WhatsApp" : "What happens next?"}</h3><p>{step === 0 ? "Arrange the loading and delivery stops, review the locations and confirm the order for this shipment." : step === 1 ? "Review the saved message, add any driver notes and choose the WhatsApp recipient." : "Open the draft, review it and press Send in WhatsApp. FleetCore does not send automatically."}</p></div>
-      </aside>
+        <div className={styles.titleRow}><h1>{shipment.shipmentNumber}</h1><span className={styles.version}>Version {shipment.version}</span></div>
+        <div className={styles.metrics}>
+          <span className={styles.metric}><Image src="/images/ceramic-mobile/v1/icons/pallets.svg" alt="" width={23} height={23} />{ceramicPalletLabel(shipment.snapshot)}</span>
+          <span className={styles.metric}><Truck size={23} />{shipment.snapshot.destinations.length} deliveries</span>
+          <span className={styles.metric}><MapPin size={20} />{getRegionLabel(CERAMIC_MAIN_REGION)}</span>
+        </div>
+        <div className={styles.journey}>
+          <Image className={styles.journeyTruck} src="/images/ceramic-mobile/v1/dispatch-truck.png" alt="" width={1774} height={887} sizes="100px" />
+          <p className={styles.stepPill}>Step {step + 1} of 3</p>
+          <nav aria-label="Dispatch steps" className={styles.steps}>
+            {(["Assign truck & driver", "Arrange stops", "Send"] as const).map((label, index) => <button key={label} type="button" aria-current={step === index ? "step" : undefined} disabled={busy || index === 1 && !assignmentReady || index === 2 && !assignmentReady || index === 2 && step === 0 && !reviewReached} onClick={() => goTo(index as Step)} className={styles.step}><span className={styles.stepNumber}>{index < step ? <Check size={15} /> : index + 1}</span><span>{label}</span></button>)}
+          </nav>
+        </div>
+      </header>
+      <div role="region" aria-label="Dispatch step content" className={styles.body}>
+        <div className={styles.taskHeading}><span className={styles.iconTile}>{step === 0 ? <Truck size={26} /> : step === 1 ? <MapPin size={25} /> : <MessageCircle size={25} />}</span><h2 ref={headingRef} tabIndex={-1}>{titles[step]}</h2></div>
+        <p className={styles.description}>{descriptions[step]}</p>
+        {ceramicVersionNeedsReview(shipment) && <p role="status" className={styles.notice}>Shipment updated—review before sending. Check Version {shipment.version} quantities and stops.</p>}
+        {step > 0 && !assignmentReady && <p role="alert" className={`${styles.notice} ${styles.error}`}>Confirm the truck, driver and planning date in step 1 before continuing.</p>}
+        {(assignmentError || instructions.error) && <p role="alert" className={`${styles.notice} ${styles.error}`}>{assignmentError || instructions.error}</p>}
+        {step === 0 && <section aria-label="Assign shipment">
+          {!canEditAssignment && <div role="status" className={styles.notice}>{authLoading ? "Checking your account access…" : <>{access.message}{!user && <> <Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link></>}</>}</div>}
+          <div className={styles.panel}>
+            <h3 className={styles.panelTitle}>Shipment assignment</h3>
+            {!editingAssignment ? <>
+              <div className={styles.assignmentRow}><span className={styles.iconTile}><Truck size={25} /></span><div className={styles.assignmentInfo}><small>Truck</small><strong>{chosenTruck ? [chosenTruck.fleetNumber, chosenTruck.registration].filter(Boolean).join(" · ") : "Choose a truck"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change truck<ChevronRight size={16} /></button></div>
+              <div className={styles.assignmentRow}><span className={styles.iconTile}><UserRound size={25} /></span><div className={styles.assignmentInfo}><small>Driver</small><strong>{chosenDriver?.name || "Choose a driver"}</strong></div><button type="button" disabled={busy || !canEditAssignment} onClick={() => setEditingAssignment(true)} className={styles.change}>Change driver<ChevronRight size={16} /></button></div>
+            </> : <div className={styles.formFields}>
+              <label className={styles.label}>Truck<select aria-label="Shipment truck" className={field} value={truckId} disabled={busy || !canEditAssignment} onChange={event => setTruckId(event.target.value)}><option value="">Choose a truck</option>{fleet.trucks.map(truck => <option key={truck.id} value={truck.id}>{truck.fleetNumber}{truck.registration ? ` · ${truck.registration}` : ""}</option>)}</select></label>
+              <label className={styles.label}>Driver<select aria-label="Shipment driver" className={field} value={driverId} disabled={busy || !canEditAssignment} onChange={event => { const id = event.target.value; setDriverId(id); setRecipientMode(normaliseWhatsAppNumber(fleet.drivers.find(d => d.id === id)?.phone) ? "system" : "manual"); setManualNumber(""); }}><option value="">Choose a driver</option>{fleet.drivers.map(driver => <option key={driver.id} value={driver.id}>{driver.name}</option>)}</select></label>
+            </div>}
+            <label className={`${styles.label} ${styles.dateField}`}>Planning date<input aria-label="Shipment planning date" type="date" className={field} value={routeDate} disabled={busy || !canEditAssignment} onChange={event => setRouteDate(event.target.value)} /></label>
+            {!user && assignmentDirty && <p role="alert" className={styles.hint}><Link href="/login?next=ceramic-tiles" className="font-semibold underline">Sign in</Link> to save this assignment to Daily Planner and reports.</p>}
+            <p className={styles.hint}><Check size={15} />{assignmentDirty && !canEditAssignment ? "Your truck and driver selections have not been saved." : assignmentDirty ? "Next saves the main load under TRANSVAAL. Locals are GEORGE → GEORGE." : "Assignment saved. Only the main load goes to Daily Planner."}</p>
+          </div>
+        </section>}
+        {step === 1 && <div className={styles.panel}><CeramicStopOrderEditor shipment={shipment.snapshot} order={instructions.currentStopOrder} onChange={order => { instructions.setStopOrder(order); instructions.setSuccess(""); }} disabled={busy} compact activeTab={stopTab} onTabChange={setStopTab} /></div>}
+        {step === 2 && <section aria-label="Review shipment" className={styles.review}>
+          <CeramicBillingReview shipmentId={shipment._id} onReadyChange={setBillingReady} onInteractionChange={setBillingInteraction} />
+          <div className={styles.reviewSummary}><strong>{instructions.assignedDriver?.name} · {[instructions.assignedTruck?.fleetNumber, instructions.assignedTruck?.registration].filter(Boolean).join(" · ")}</strong><p><small>Loading</small>{stops.pickups.map(town => town.label).join(" → ")}</p><p><small>First delivery</small>{stops.offloads[0]?.label}<small>{Math.max(0, stops.offloads.length - 1)} more, in your order</small></p></div>
+          <details><summary>View full WhatsApp message</summary><div className={styles.message} aria-label="Review WhatsApp driver instructions">{instructions.message}</div><button type="button" disabled={!billingReady || !instructions.canOpenWhatsApp || reviewPending || busy} onClick={() => void instructions.copyMessage()} className={`${styles.secondary} mt-3`}><ClipboardCopy size={16} />Copy message</button></details>
+          <details><summary>Edit safety &amp; extra notes</summary><label className={`${styles.label} mt-2`}>Safety instructions<textarea rows={4} maxLength={4000} value={instructions.safetyNotes} disabled={busy} onChange={event => instructions.setSafetyNotes(event.target.value)} className={field} /></label><label className={`${styles.label} mt-3`}>Extra notes<textarea rows={3} maxLength={4000} value={instructions.additionalNotes} disabled={busy} onChange={event => instructions.setAdditionalNotes(event.target.value)} className={field} placeholder="Anything else the driver needs to know?" /></label></details>
+          <div className={styles.panel}><WhatsAppRecipientFields systemNumber={instructions.assignedDriver?.phone} mode={recipientMode} onModeChange={setRecipientMode} manualNumber={manualNumber} onNumberChange={setManualNumber} disabled={busy} /></div>
+          {instructions.success && <p role="status" className={styles.success}>{instructions.success}</p>}
+        </section>}
+        <aside className={styles.nextCard} aria-label="What happens next">
+          <Image src="/images/ceramic-mobile/v1/route-guide.svg" alt="" width={192} height={176} />
+          <div><h3>{step === 2 ? "Send from WhatsApp" : "What happens next?"}</h3><p>{step === 0 ? "Arrange the loading and delivery stops, review the locations and confirm the order for this shipment." : step === 1 ? "Review the saved message, add any driver notes and choose the WhatsApp recipient." : "Open the draft, review it and press Send in WhatsApp. FleetCore does not send automatically."}</p></div>
+        </aside>
+      </div>
     </div>
     <footer role="region" aria-label="Dispatch actions" className={styles.footer}>
       <p aria-live="polite" className={styles.footerHint}>{busy ? "Saving…" : step === 0 ? !chosenDriver || !chosenTruck ? "Choose a truck and driver to continue." : !routeDate ? "Choose the planning date to continue." : assignmentDirty && !user ? "Sign in to save this assignment." : "Next confirms the assignment." : step === 1 ? "Next saves and reviews this stop order." : instructions.dirty || reviewPending ? "Save the instructions before opening WhatsApp." : !billingReady ? "Confirm internal billing or flag it for review before sending." : "Assignment, instructions and billing reviewed"}</p>

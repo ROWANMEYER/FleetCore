@@ -15,8 +15,8 @@ describe("Ceramic assignment mapping", () => {
     expect(ceramicLocalLegs(source)).toHaveLength(2);
     expect(source).toEqual({ ...snapshot, destinations: [stop("CASHBUILD GEORGE", "1"), stop("ITALTILE GEORGE", "2"), stop("CTM KNYSNA", "3")] });
   });
-  it("detects Cashbuild names case-insensitively, including cash build, without substring matches", () => {
-    const source = { ...snapshot, destinations: [stop("009 - Cashbuild Knysna", "1"), stop("Cash Build Mossel Bay", "2"), stop("Notcashbuild", "3")] };
+  it("detects only George Cashbuild delivery branches, including cash build", () => {
+    const source = { ...snapshot, destinations: [stop("009 - Cashbuild George", "1"), stop("Cash Build", "2", ["George 6529"]), stop("Notcashbuild George", "3"), stop("CASH110-CASHBUILD - NAAS 1251", "4", ["RISSIK STREET", "KOMATIPOORT"]), stop("Cashbuild Knysna", "5"), stop("Cashbuild", "6", ["1 George Street", "Cape Town"])] };
     expect(ceramicLocalLegs(source).map(leg => leg.deliveryNumbers)).toEqual([["1"], ["2"]]);
   });
   it("detects George Italtile from store name or town address but excludes other branches", () => {
@@ -25,14 +25,14 @@ describe("Ceramic assignment mapping", () => {
     expect(ceramicLocalLegs(source).map(leg => leg.deliveryNumbers)).toEqual([["1"], ["2"]]);
   });
   it("preserves distinct same-name stops and keeps unknown pallets unavailable", () => {
-    const source = { ...snapshot, destinations: [stop("Cashbuild", "1", ["Address A"]), stop("Cashbuild", "2", ["Address B"])] };
+    const source = { ...snapshot, destinations: [stop("Cashbuild George", "1", ["Address A"]), stop("Cashbuild George", "2", ["Address B"])] };
     const legs = ceramicLocalLegs(source); expect(new Set(legs.map(l => l.key)).size).toBe(2); expect(legs[0].pallets).toBeNull();
   });
-  it("groups local collections by source warehouse without losing delivery references", () => {
+  it("does not create a local delivery charge just because collection is at a George store", () => {
     const first = stop("CTM", "1"), second = stop("CTM", "2");
     first.orders[0].collectFrom = "Cashbuild George"; second.orders[0].collectFrom = "CASHBUILD GEORGE";
     const legs = ceramicLocalLegs({ ...snapshot, destinations: [first, second] });
-    expect(legs).toHaveLength(1); expect(legs[0]).toMatchObject({ kind: "collection", weightKg: 2500, deliveryNumbers: ["1", "2"] });
+    expect(legs).toEqual([]);
   });
   it("keeps unknown tonnage blank and preserves a deliberate zero", () => {
     expect(ceramicMainLoad({ ...snapshot, totalWeightKg: null }, "id").quantity).toBe("");

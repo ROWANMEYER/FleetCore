@@ -31,6 +31,19 @@ describe("Ceramic stop ordering", () => {
     expect(draft).toContain("PLEASE OFFLOAD AS FOLLOW:\n1. SECOND STORE\n2. EXAMPLE TILES\n3. EXAMPLE TILES");
     expect(shipment.destinations[0].orders[0].deliveryNumber).toBe("1001");
   });
+  it("groups Samca warehouses under BABELEGI in stops and driver instructions", () => {
+    const source = structuredClone(shipment);
+    source.destinations = source.destinations.slice(0, 1);
+    source.destinations[0].orders[0].collectFrom = "3000-Samca 1 Babelegi, Hammanskraal, RSA";
+    source.destinations[0].orders[1].collectFrom = "2100-Samca Wall Tiles Babalegi, Hammanskraal, RSA";
+    const stops = ceramicStops(source);
+    expect(stops.pickups).toHaveLength(1);
+    expect(stops.pickups[0]).toMatchObject({ id: "BABELEGI", label: "BABELEGI" });
+    expect(stops.pickups[0].warehouses.map(w => w.label)).toEqual(["SAMCA 1", "SAMCA WALL TILES"]);
+    const draft = buildCeramicDriverMessage({ shipment: source, driverName: "Example", truckNumber: "147", safetyNotes: "", additionalNotes: "" });
+    expect(draft).toContain("PICK UP 1) BABELEGI\n1. SAMCA 1\n2. SAMCA WALL TILES");
+    expect(draft).not.toContain("COLLECTION TOWN TO BE CONFIRMED");
+  });
   it("keeps same-name destinations distinct by their delivery references", () => {
     const stops = ceramicStops(shipment);
     expect(stops.offloads[0].id).not.toBe(stops.offloads[1].id);

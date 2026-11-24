@@ -90,7 +90,8 @@
 .stepNumber { display: grid; place-items: center; height: 29px; width: 29px; border: 1px solid var(--card-border); border-radius: 50%; background: var(--card-bg); color: var(--nav-text-color); font-size: 15px; font-weight: 650; }
 .step[aria-current='step'] { color: var(--cm-accent); font-weight: 700; }
 .step[aria-current='step'] .stepNumber { color: #fff; background: #0098a9; border-color: #0098a9; box-shadow: 0 4px 10px #0098a922; }
-.body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 16px 20px; }
+.scrollArea { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.body { padding: 18px 16px 20px; }
 .taskHeading { display: flex; gap: 11px; align-items: center; margin-bottom: 8px; }
 .taskHeading h2 { min-width: 0; font-size: 23px; line-height: 1.2; letter-spacing: -.5px; font-weight: 750; outline: none; }
 .iconTile { display: grid; place-items: center; width: 43px; height: 43px; flex-shrink: 0; color: var(--cm-accent); border-radius: 13px; background: var(--surface-sunken); }

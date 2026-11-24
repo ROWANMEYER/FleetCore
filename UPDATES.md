@@ -1,5 +1,36 @@
 # FleetCore — Project Scope & Updates
 
+## 2026-11-24 - Ceramic George locals and single-town SP corrections
+
+Owner clarified that only Cashbuild and Italtile delivery branches in George
+qualify for George-to-George local transport. Other towns and collection-only
+references no longer create local delivery charges. SP uses distinct pickup
+towns, so multiple warehouses in Babelegi still qualify for SP; additional
+pickup charges continue to count warehouse visits. Both Babalegi and Babelegi
+spellings, including the Hammanskraal address, display as BABELEGI in stop
+ordering and driver instructions. Unknown towns require review instead of
+being assumed to be one town.
+
+Main freight plus extra pickup/drop charges continue to update the existing
+single Daily Planner load. Locals remain reports-only. Affected confirmed
+billing is flagged for review and export is blocked until reviewed; confirming
+new billing preserves the prior snapshot in billing history. Tariff edits alone
+do not trigger automatic historical repricing. Mobile shipment details and step
+content now share a scroll area so the large header can move out of the way;
+the existing dispatch actions stay accessible at the bottom. Existing theme and
+report template are retained. The owner authorized committing and deploying this correction. Release the
+backend before the frontend; PWA cache advances to fleetcore-v96. Existing
+billing is reviewed and reconfirmed explicitly, with no automatic data migration.
+
+Validation: 188 Ceramic tests and 1,213 full-suite tests pass; application and
+Convex type checks and changed-file lint pass. Isolated localhost backend push
+and synthetic main-only Planner/local-report billing smoke checks pass. Optimized
+webpack build passes in the isolated checkout. A 390x844 browser check verifies
+BABELEGI in the loading list and message, a scrolling shipment header and
+accessible bottom actions. The supplied Naas example calculates SP at R883.72/t
+after fuel adjustments: R30,046.48 freight + R750 extra drop, with no local charge.
+
+
 ## 2026-11-24 - Release Ceramic billing automation
 
 The owner authorized proceeding with the tested billing implementation. Release

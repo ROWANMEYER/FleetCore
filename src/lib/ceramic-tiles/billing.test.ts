@@ -31,6 +31,20 @@ describe("agreed Ceramic billing rules", () => {
     const c = ceramicBillingCalculation(shipment(), 600, 34, { ...DEFAULT_CERAMIC_BILLING, extraStopPrice: 800 }); expect(c.dropCharge).toBe(3200); expect(DEFAULT_CERAMIC_BILLING.extraStopPrice).toBe(750);
   });
 });
+describe("SP pickup towns", () => {
+  it("recognises both Babelegi spellings as one town while counting each warehouse for extras", () => {
+    const s = shipment();
+    const sources = ["3000-Samca 1 Babelegi, Hammanskraal, RSA", "2100-Samca Wall Tiles Babalegi, Hammanskraal, RSA", "1900-Pegasus Babelegi"];
+    for (const [i, d] of s.destinations.entries()) for (const order of d.orders) order.collectFrom = sources[i % sources.length];
+    expect(ceramicBillingCalculation(s, 600)).toMatchObject({ pickups: 3, pickupTowns: ["BABELEGI"], pickupTownCount: 1, extraPickups: 1, pickupCharge: 750 });
+  });
+  it("keeps separate towns distinct and does not assume unknown warehouses form one town", () => {
+    expect(ceramicBillingCalculation(shipment(), 600).pickupTownCount).toBe(2);
+    const s = shipment(); for (const d of s.destinations) for (const order of d.orders) order.collectFrom = "Unknown warehouse";
+    const c = ceramicBillingCalculation(s, 600);
+    expect(c.pickupTownCount).toBeNull(); expect(c.issues.join(" ")).toContain("pickup town");
+  });
+});
 describe("Ceramic billing periods", () => {
   it("names 25 October to 24 November as November and rolls January correctly", () => { expect(ceramicBillingPeriod("2026-11")).toEqual({ start: "2026-10-25", end: "2026-11-24" }); expect(ceramicBillingPeriod("2027-01")).toEqual({ start: "2026-12-25", end: "2027-01-24" }); expect(ceramicReportMonth("2026-11-24")).toBe("2026-11"); expect(ceramicReportMonth("2026-11-25")).toBe("2026-12"); });
   it("supports calendar months, adjusted boundaries and end-of-month clamping", () => { expect(ceramicBillingPeriod("2028-02", 1)).toEqual({ start: "2028-02-01", end: "2028-02-29" }); expect(ceramicBillingPeriod("2026-03", 31)).toEqual({ start: "2026-02-28", end: "2026-03-30" }); expect(ceramicReportRange("2026-11", "2026-10-24", "2026-11-25")).toEqual({ start: "2026-10-24", end: "2026-11-25" }); });
@@ -44,5 +58,24 @@ describe("Ceramic exact-day tariff matching", () => {
   it("matches destinations, keeps SP distinct and ranks the highest rate first", () => { expect(ceramicTariffChoices([state()], shipment(), "2026-11-23", []).map(c => [c.laneId, c.variant])).toEqual([["knysna", "standard"], ["george", "standard"], ["sp", "sp"]]); });
   it("uses historical rates until an individual future lane date takes effect", () => { const old = state(), next = state(); next.recordedAt = 2; next.revision = 1; next.lanes = next.lanes.map(l => ({ ...l, date: "2026-12-01", rate: l.rate + 100 })); expect(ceramicTariffChoices([old, next], shipment(), "2026-11-23", [])[0].ratePerTon).toBe(600); expect(ceramicTariffChoices([old, next], shipment(), "2026-12-01", [])[0].ratePerTon).toBe(700); });
   it("does not match a street named George and accepts Plett aliases", () => { const s = shipment(); s.destinations = [{ ...s.destinations[0], name: "Example store", addressLines: ["12 George Street", "CAPE TOWN"] }]; expect(ceramicTariffChoices([state()], s, "2026-11-23", [])).toEqual([]); s.destinations[0].name = "ITALTILE PLETTENBERG BAY"; expect(ceramicTariffChoices([state()], s, "2026-11-23", [])[0].destination).toBe("KNYSNA / PLETT"); });
+  it("prices the Naas example as single-town SP without a false George local", () => {
+    const s = shipment(); s.totalWeightKg = 34918.19; s.totalPallets = 30;
+    s.destinations = [
+      { ...s.destinations[0], name: "CASHBUILD - NAAS", addressLines: ["RISSIK STREET", "KOMATIPOORT"] },
+      { ...s.destinations[1], name: "RAJA HARDWARE SCHOEMANSDAL" },
+      { ...s.destinations[2], name: "MALELANE CERAMIC", addressLines: ["MALELANE", "1320"] },
+    ];
+    s.destinations[0].orders[0].collectFrom = "3000-Samca 1 Babelegi, Hammanskraal, RSA";
+    s.destinations[1].orders[0].collectFrom = "3000-Samca 1 Babelegi, Hammanskraal, RSA";
+    s.destinations[2].orders[0].collectFrom = "2100-Samca Wall Tiles Babelegi, Hammanskraal, RSA";
+    const tariff: CeramicTariffState = { ...state(), agreementType: undefined, lanes: [
+      { id: "naas", loadingPoint: "BABELEGI + KRUGERSDORP + VEREENIGING", destination: "NAAS/TONGA/KAMHLUSHWA/KOMATIPOORT", rate: 742.64, sortOrder: 0 },
+      { id: "naas-sp", loadingPoint: "BABELEGI + KRUGERSDORP + VEREENIGING", destination: "NAAS/TONGA/KAMHLUSHWA/KOMATIPOORT (SP)", rate: 800.18, sortOrder: 1 },
+    ] };
+    const changes = [{ effectiveDate: "2026-08-05", pricePerLitre: 28.17, compositionPercent: 55 }, { effectiveDate: "2026-09-02", pricePerLitre: 31.32, compositionPercent: 55 }, { effectiveDate: "2026-10-07", pricePerLitre: 34.56, compositionPercent: 55 }, { effectiveDate: "2026-11-04", pricePerLitre: 33.36, compositionPercent: 45 }];
+    const sp = ceramicTariffChoices([tariff], s, "2026-11-23", changes).find(choice => choice.variant === "sp")!;
+    expect(sp.ratePerTon).toBe(883.72);
+    expect(ceramicBillingCalculation(s, sp.ratePerTon)).toMatchObject({ pickups: 2, pickupTownCount: 1, deliveries: 3, freight: 30046.48, dropCharge: 750, localTotal: 0, mainTotal: 30796.48, combinedTotal: 30796.48, issues: [] });
+  });
   it("keeps Babalegi and Krugersdorp/Vereeniging loading groups separate", () => { const s = shipment(); s.destinations[0].orders[0].collectFrom = "SAMCA BABELEGI"; const base = state(), baba = state(); baba.lanes = baba.lanes.map(l => ({ ...l, loadingPoint: "BABELEGI + KRUGERSDORP + VEREENIGING", rate: l.rate + 100 })); expect(ceramicTariffChoices([base, baba], s, "2026-11-23", [])[0].ratePerTon).toBe(700); });
 });

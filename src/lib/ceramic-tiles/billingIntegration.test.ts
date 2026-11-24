@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assign, report, saveReportBilling } from "@/convex/ceramicTiles";
 import { preview, confirm, saveSettings } from "@/convex/ceramicBilling";
-import { DEFAULT_CERAMIC_BILLING } from "./billing";
+import { DEFAULT_CERAMIC_BILLING, ceramicBilledMainLoad } from "./billing";
 import { buildCeramicTemplateSheets } from "./templateWorkbook";
 import { ceramicTemplateExcel } from "./templateExport";
 import type { CeramicReportRow } from "./reportExport";
@@ -54,10 +54,60 @@ describe("Ceramic billing confirmation transaction", () => {
     const reportResult = await f.run(report, { month: "2026-11", paginationOpts: { numItems: 50, cursor: null } }) as { page: Row[] };
     expect(reportResult.page[0].needsReview).toBe(false); expect(f.table("ceramicBillingHistory").size).toBe(1);
   });
-  it("uses SP only for exactly one warehouse and rejects a forged multi-warehouse SP choice", async () => {
+  it("uses SP for a single town and rejects a forged multi-town SP choice", async () => {
     const one = fixture(true); await one.run(assign); expect((await one.read()).selected).toMatchObject({ variant: "sp", ratePerTon: 570 });
     const many = fixture(); await many.run(assign); const p = await many.read(); expect(p.choices.every(choice => choice.variant === "standard")).toBe(true);
     const count = many.writes.length; await expect(many.save(p, { tariffKey: "sheet:0:sp:2026-08-05" })).rejects.toThrow("highest applicable"); expect(many.writes).toHaveLength(count);
+  });
+  it("selects SP for multiple warehouses in Babelegi and keeps warehouse-based extra charges", async () => {
+    const f = fixture();
+    const source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    const warehouses = ["3000-Samca 1 Babelegi, Hammanskraal, RSA", "2100-Samca Wall Tiles Babalegi, Hammanskraal, RSA", "1900-Pegasus Babelegi"];
+    for (const [i, d] of source.destinations.entries()) for (const order of d.orders) order.collectFrom = warehouses[i % warehouses.length];
+    const lanes = f.table("rateSheets").get("sheet")!.lanes as Row[];
+    for (const lane of lanes) lane.loadingPoint = "BABELEGI + KRUGERSDORP + VEREENIGING";
+    await f.run(assign); const p = await f.read();
+    expect(p.selected).toMatchObject({ variant: "sp", ratePerTon: 570 });
+    expect(p.calculation).toMatchObject({ pickups: 3, pickupTownCount: 1, pickupCharge: 750 });
+    await f.save(p); expect(routeRevenue(f.route())).toBe(23130);
+    expect([...f.table("ceramicAssignments").values()][0].billing).toMatchObject({ automation: { variant: "sp", pickupCount: 3, pickupTownCount: 1 } });
+  });
+  it("does not silently choose a tariff for unknown pickup towns", async () => {
+    const f = fixture(true), source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    source.destinations[0].orders[0].collectFrom = "Unknown warehouse";
+    await f.run(assign); const p = await f.read();
+    expect(p.calculation.pickupTownCount).toBeNull(); expect(p.selected).toBeNull();
+    const writes = f.writes.length; await expect(f.save(p)).rejects.toThrow(); expect(f.writes).toHaveLength(writes);
+    await f.save(p, { markForReview: true }); expect(routeRevenue(f.route())).toBe(0);
+  });
+  it("flags an old warehouse-based Standard snapshot and preserves it when SP is confirmed", async () => {
+    const f = fixture(true); await f.run(assign); await f.save(await f.read());
+    const source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    const assignment = [...f.table("ceramicAssignments").values()][0];
+    const billing = assignment.billing as { ratePerTon: number; automation: Row };
+    billing.ratePerTon = 600; Object.assign(billing.automation, { variant: "standard", freight: 20400, mainTotal: 23400 });
+    Object.assign(f.route(), { ceramicBillingTotal: 23400, ceramicRatePerTon: 600, loads: [ceramicBilledMainLoad(source, "shipment", 34, 23400, { ratePerTon: 600, extraStops: 3000 })] });
+    f.table("ceramicBillingHistory").clear(); f.put("ceramicBillingHistory", "original", { shipmentId: "shipment", billing: structuredClone(billing) });
+    const p = await f.read(); expect(p.ruleIssues.join(" ")).toContain("pickup town"); expect(p.saved?.status).toBe("needs_review");
+    expect(routeRevenue(f.route())).toBe(23400);
+    await f.save(p); expect(routeRevenue(f.route())).toBe(22380);
+    expect((await f.read()).ruleIssues).toEqual([]); expect(f.table("ceramicBillingHistory").size).toBe(2);
+    expect(f.table("ceramicBillingHistory").get("original")!.billing).toMatchObject({ automation: { variant: "standard", mainTotal: 23400 } });
+  });
+  it("removes the false Naas local only on confirmation, retaining its original billing history", async () => {
+    const f = fixture(), source = f.table("ceramicShipments").get("shipment")!.snapshot as CeramicShipment;
+    source.destinations[0].name = "CASH110-CASHBUILD - NAAS 1251"; source.destinations[0].addressLines = ["RISSIK STREET", "KOMATIPOORT"];
+    await f.run(assign); await f.save(await f.read());
+    const assignment = [...f.table("ceramicAssignments").values()][0];
+    const billing = assignment.billing as { locals: Row[]; automation: Row };
+    billing.locals = [{ key: 'delivery:["1000"]', from: "GEORGE", to: "GEORGE", price: 2700 }]; billing.automation.localTotal = 2700;
+    f.table("ceramicBillingHistory").clear(); f.put("ceramicBillingHistory", "original", { shipmentId: "shipment", billing: structuredClone(billing) });
+    const p = await f.read(); expect(p.ruleIssues.join(" ")).toContain("George"); expect(p.calculation.locals).toEqual([]); expect(billing.locals).toHaveLength(1);
+    const reportBefore = await f.run(report, { month: "2026-11", paginationOpts: { numItems: 50, cursor: null } }) as { page: CeramicReportRow[] };
+    expect(reportBefore.page[0]).toMatchObject({ needsReview: true, locals: [] });
+    await f.save(p); expect(assignment.billing).toMatchObject({ locals: [], automation: { localTotal: 0 } });
+    expect(f.table("ceramicBillingHistory").get("original")!.billing).toMatchObject({ locals: [{ price: 2700 }] });
+    expect(routeRevenue(f.route())).toBe(23400);
   });
   it.each(["completed", "locked", "invoiced", "manual-price", "extra-load"])("protects %s Planner records before any billing write", async reason => {
     const f = fixture(); await f.run(assign); const p = await f.read(), route = f.route();

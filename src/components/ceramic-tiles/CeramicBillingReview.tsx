@@ -16,15 +16,16 @@ export function CeramicBillingReview({ shipmentId, onReadyChange, onSaved, onInt
   const preview = useQuery(api.ceramicBilling.preview, token ? { token, shipmentId, ...(tons !== null && tons.trim() && validTons ? { chargeableTons: number } : {}), ...(tariffKey ? { tariffKey } : {}) } : "skip");
   const save = useMutation(api.ceramicBilling.confirm);
   const saved = preview?.saved;
+  const townRulesAvailable = typeof preview?.calculation.pickupTownCount !== "undefined";
   const edited = !!saved && (tons !== null && number !== saved.chargeableTons || tariffKey !== undefined && tariffKey !== saved.tariffKey);
-  const ready = !token || !!preview?.readOnly || !!preview && validTons && !edited && !!saved && saved.status !== "legacy" && saved.sourceVersion === preview.version && saved.routeDate === preview.routeDate;
+  const ready = !token || !!preview?.readOnly || !!preview && townRulesAvailable && !preview.ruleIssues.length && validTons && !edited && !!saved && saved.status !== "legacy" && saved.sourceVersion === preview.version && saved.routeDate === preview.routeDate;
   const dirty = edited || !saved && (tons !== null || tariffKey !== undefined);
   useEffect(() => { onInteractionChange?.({ dirty, saving }); }, [dirty, saving, onInteractionChange]);
   useEffect(() => () => onInteractionChange?.({ dirty: false, saving: false }), [onInteractionChange]);
   const calculationSaved = !!preview && preview.saved?.fingerprint === preview.fingerprint;
   useEffect(() => { onReadyChange?.(ready && !saving); }, [ready, saving, onReadyChange]);
   const confirm = async (markForReview: boolean) => {
-    if (!token || !preview || preview.readOnly || !validTons || saving) return;
+    if (!token || !preview || !townRulesAvailable || preview.readOnly || !validTons || saving) return;
     setSaving(true); setError(""); setSuccess("");
     try {
       const result = await save({ token, shipmentId, expectedVersion: preview.version, expectedAssignmentUpdatedAt: preview.assignmentUpdatedAt, expectedBillingUpdatedAt: preview.billingUpdatedAt, expectedFingerprint: preview.fingerprint, chargeableTons: preview.calculation.chargeableTons, ...(preview.selected ? { tariffKey: preview.selected.key } : {}), markForReview });
@@ -39,10 +40,11 @@ export function CeramicBillingReview({ shipmentId, onReadyChange, onSaved, onInt
   </section>;
   return <section aria-label="Internal Ceramic billing review" className="space-y-3 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-[var(--foreground)] sm:p-4">
     <div><h3 className="text-base font-semibold">Internal billing</h3><p className="mt-1 text-xs text-[var(--nav-text-color)]">For billing and reports only. Prices are excluded from the driver message.</p></div>
-    {!token ? <p className="text-sm text-[var(--nav-text-color)]">Sign in to review and confirm internal billing.</p> : !preview ? <p role="status" className="text-sm">Loading applicable rates and charges...</p> : <>
+    {!token ? <p className="text-sm text-[var(--nav-text-color)]">Sign in to review and confirm internal billing.</p> : !preview || !townRulesAvailable ? <p role="status" className="text-sm">Loading applicable rates and charges...</p> : <>
       {preview.readOnly && <p role="status" className="text-sm text-[var(--nav-text-color)]">Billing is read-only for this historical, removed, completed, locked or invoiced Planner load. Saved prices are retained and driver instructions remain available.</p>}
       {preview.saved && <p className="rounded-lg bg-[var(--surface-sunken)] p-2 text-xs text-[var(--nav-text-color)]">Saved: {preview.saved.tariffLabel} | {preview.saved.chargeableTons} t | Main {amount(preview.saved.mainTotal)} | Locals {amount(preview.saved.localTotal)}. {preview.saved.status === "needs_review" ? "Billing needs review." : "Confirming replaces these saved amounts with the calculation below."}</p>}
-      <p className="text-xs text-[var(--nav-text-color)]">Planning date: {preview.routeDate}. {preview.calculation.pickups === 1 ? "SP: collection from one warehouse." : "Standard: collection from multiple warehouses."}</p>
+      {preview.ruleIssues.length > 0 && <ul role="status" className="list-disc space-y-1 pl-4 text-xs text-[var(--warning-text)]">{preview.ruleIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
+      <p className="text-xs text-[var(--nav-text-color)]">Planning date: {preview.routeDate}. {preview.calculation.pickupTownCount === null ? "Pickup town needs review." : preview.calculation.pickupTownCount === 1 ? `SP: collection in ${preview.calculation.pickupTowns[0]}.` : `Standard: collection in ${preview.calculation.pickupTowns.join(" + ")}.`} {preview.calculation.pickups} warehouse pickup(s); additional pickup charges count warehouses.</p>
       <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Applicable tariff<select className={field} disabled={saving || preview.readOnly || !preview.choices.length} value={preview.selected?.key ?? ""} onChange={event => { setTariffKey(event.target.value); setSuccess(""); }}>
         {!preview.choices.length && <option value="">Rate needs review</option>}
         {preview.choices.map(choice => <option key={choice.key} value={choice.key} disabled={choice.ratePerTon < (preview.choices[0]?.ratePerTon ?? 0)}>{choice.destination} | {formatCurrency(choice.ratePerTon)} / t{choice.ratePerTon === preview.choices[0]?.ratePerTon ? " (highest)" : ""}</option>)}

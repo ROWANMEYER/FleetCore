@@ -1,3 +1,4 @@
+import { ceramicBillingRuleIssues } from "../src/lib/ceramic-tiles/billing";
 import { ceramicConfigOn } from "./ceramicBilling";
 import { ceramicReportRange } from "../src/lib/ceramic-tiles/billingPeriod";
 import { ceramicImportErrors } from "../src/lib/ceramic-tiles/importValidation";
@@ -366,7 +367,7 @@ export const report = query({
         driverName: row.driverName, truckFleetNo: row.truckFleetNo, fromLocations: load.fromLocations, toLocations: load.toLocations,
         deliveryNumbers: row.snapshot.destinations.flatMap(d => d.orders.map(o => o.deliveryNumber)),
         weightKg: row.snapshot.totalWeightKg, pallets: row.snapshot.totalPallets,
-        needsReview: !current || current.version !== row.snapshot.version || !route || !!route.isDeleted ||
+        needsReview: ceramicBillingRuleIssues(row.snapshot, row.billing).length > 0 || !current || current.version !== row.snapshot.version || !route || !!route.isDeleted ||
           route.routeDate !== row.routeDate || route.driverName !== row.driverName || route.truckFleetNoStr !== row.truckFleetNo ||
           !!row.billing?.automation && (row.billing.automation.status !== "confirmed" || row.billing.automation.routeDate !== row.routeDate || row.billing.automation.mainTotal !== route.ceramicBillingTotal),
         truckRegistration: row.truckRegistration ?? truck?.registration ?? "",

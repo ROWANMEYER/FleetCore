@@ -15,10 +15,9 @@ export function validCeramicDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 function localCustomer(name: string, addressLines: string[] = []): boolean {
-  if (/\bCASH\s*BUILD\b/i.test(name)) return true;
-  // George can be part of the store name or a separate town/postcode address line.
-  // A street called George in another town is not a George store.
-  return /\bITALTILE\b/i.test(name) && (/\bGEORGE\b/i.test(name) || addressLines.some(line => /^(?:GEORGE(?:\s+\d{4})?|\d{4}\s+GEORGE)$/i.test(line.trim())));
+  const eligibleBranch = /\b(?:CASH\s*BUILD|ITALTILE)\b/i.test(name);
+  // Require a George branch, never a street called George in another town.
+  return eligibleBranch && (/\bGEORGE\b/i.test(name) || addressLines.some(line => /^(?:GEORGE(?:\s+\d{4})?|\d{4}\s+GEORGE)$/i.test(line.trim())));
 }
 function pallets(orders: CeramicDestination["orders"]): number | null {
   return orders.every(order => order.palletsEstimate !== null) ? orders.reduce((n, order) => n + (order.palletsEstimate ?? 0), 0) : null;
@@ -26,7 +25,6 @@ function pallets(orders: CeramicDestination["orders"]): number | null {
 /** One row per physical source stop; distinct deliveries with the same name stay distinct. */
 export function ceramicLocalLegs(snapshot: CeramicShipment): CeramicLocalLeg[] {
   const legs: CeramicLocalLeg[] = [];
-  const pickups = new Map<string, CeramicDestination["orders"]>();
   for (const destination of snapshot.destinations) {
     if (localCustomer(destination.name, destination.addressLines)) {
       const deliveries = destination.orders.map(order => order.deliveryNumber).sort();
@@ -34,13 +32,7 @@ export function ceramicLocalLegs(snapshot: CeramicShipment): CeramicLocalLeg[] {
         address: destination.addressLines.join(", "), deliveryNumbers: deliveries,
         weightKg: destination.orders.reduce((n, order) => n + order.weightKg, 0), pallets: pallets(destination.orders) });
     }
-    for (const order of destination.orders) if (localCustomer(order.collectFrom)) {
-      const key = order.collectFrom.trim().replace(/\s+/g, " ").toUpperCase();
-      pickups.set(key, [...(pickups.get(key) ?? []), order]);
-    }
   }
-  for (const [name, orders] of pickups) legs.push({ key: `collection:${name}`, kind: "collection", name, address: "",
-    deliveryNumbers: orders.map(order => order.deliveryNumber).sort(), weightKg: orders.reduce((n, order) => n + order.weightKg, 0), pallets: pallets(orders) });
   return legs;
 }
 
